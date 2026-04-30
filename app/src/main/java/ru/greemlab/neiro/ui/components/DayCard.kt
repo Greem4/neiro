@@ -13,19 +13,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
+import java.time.YearMonth
 
-/**
- * Карточка дня
- */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun DayCard(day: Int) {
-    val today = LocalDate.now().dayOfMonth
-    val isToday = day == today
+fun DayCard(day: Int, currentMonth: YearMonth) {
+    val today = LocalDate.now()
+
+    // Магия здесь: проверяем, что совпадает и число, и месяц, и год
+    val isToday = day == today.dayOfMonth &&
+            currentMonth.month == today.month &&
+            currentMonth.year == today.year
 
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(100.dp)
             .background(
                 color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(8.dp)
