@@ -1,4 +1,4 @@
-package ru.greemlab.neiro.ui.theme
+package ru.greemlab.neiro.theme
 
 import androidx.compose.ui.graphics.Color
 
