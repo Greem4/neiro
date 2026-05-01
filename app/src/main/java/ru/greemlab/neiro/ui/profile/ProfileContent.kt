@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -22,11 +21,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.format.TextStyle
 import java.util.*
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -40,6 +43,25 @@ fun ProfileContent(
 ) {
     val profile by profileViewModel.userProfile.collectAsState()
     val dayData by calendarViewModel.dayData.collectAsState()
+    
+    ProfileContentImpl(
+        profile = profile,
+        dayData = dayData,
+        onOpenSettings = onOpenSettings,
+        modifier = modifier
+    )
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+private fun ProfileContentImpl(
+    profile: UserProfile,
+    dayData: Map<LocalDate, List<String>>,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+    nameStyle: TextStyle = MaterialTheme.typography.headlineSmall,
+    professionStyle: TextStyle = MaterialTheme.typography.bodyMedium
+) {
     val scrollState = rememberScrollState()
 
     // Расчет статистики
@@ -80,15 +102,16 @@ fun ProfileContent(
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = profile.name.ifBlank { "Пользователь" },
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    style = nameStyle,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
                 Text(
                     text = profile.activityType.ifBlank { "Профессия не указана" },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = professionStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -107,8 +130,8 @@ fun ProfileContent(
                 StatRow("Занятий проведено", pastSessionsCount.toString())
                 StatRow("Осталось занятий", futureSessionsCount.toString())
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                StatRow("Заработано всего", "${totalEarned.toInt()} ₽")
                 StatRow("Чистыми (с налогом)", "${earnedWithTax.toInt()} ₽", isHighlight = true)
+                StatRow("Заработано всего", "${totalEarned.toInt()} ₽")
                 StatRow("Ожидаемый доход", "${expectedEarnings.toInt()} ₽")
             }
         }
@@ -153,7 +176,7 @@ fun DayChip(
     val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     
-    val shortName = day.getDisplayName(TextStyle.SHORT, Locale("ru")).take(2)
+    val shortName = day.getDisplayName(java.time.format.TextStyle.SHORT, Locale("ru")).take(2)
 
     Box(
         contentAlignment = Alignment.Center,
@@ -169,5 +192,64 @@ fun DayChip(
             color = contentColor,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Profile Light")
+@Composable
+fun ProfileContentLightPreview() {
+    // --- РУКОЯТКИ ДЛЯ НАСТРОЙКИ (МЕНЯЙТЕ ТУТ) ---
+    val testName = "Света" 
+    val testProfession = "Репетитор по математике"
+    
+    // Здесь можно вручную подкрутить размеры шрифта для теста
+    val customNameStyle = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp)
+    val customProfessionStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp)
+    // ------------------------------------------
+
+    NeiroTheme(darkTheme = false) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            ProfileContentImpl(
+                profile = UserProfile(
+                    name = testName,
+                    activityType = testProfession,
+                    pricePerSession = 1500.0,
+                    monthlyTaxAmount = 5000.0
+                ),
+                dayData = mapOf(
+                    LocalDate.now().minusDays(1) to listOf("Урок 1", "Урок 2"),
+                    LocalDate.now() to listOf("Урок 3"),
+                    LocalDate.now().plusDays(1) to listOf("Урок 4")
+                ),
+                onOpenSettings = {},
+                nameStyle = customNameStyle,
+                professionStyle = customProfessionStyle
+            )
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Profile Dark")
+@Composable
+fun ProfileContentDarkPreview() {
+    NeiroTheme(darkTheme = true) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            ProfileContentImpl(
+                profile = UserProfile(
+                    name = "Иван Иванов",
+                    activityType = "Репетитор по математике",
+                    pricePerSession = 1500.0,
+                    monthlyTaxAmount = 5000.0
+                ),
+                dayData = mapOf(
+                    LocalDate.now().minusDays(1) to listOf("Урок 1", "Урок 2"),
+                    LocalDate.now() to listOf("Урок 3"),
+                    LocalDate.now().plusDays(1) to listOf("Урок 4")
+                ),
+                onOpenSettings = {}
+            )
+        }
     }
 }

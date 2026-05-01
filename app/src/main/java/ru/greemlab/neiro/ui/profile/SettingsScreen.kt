@@ -17,7 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.theme.NeiroTheme
 import java.time.DayOfWeek
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -28,6 +31,30 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val profile by viewModel.userProfile.collectAsState()
+    
+    SettingsScreenImpl(
+        profile = profile,
+        onNameChange = viewModel::updateName,
+        onActivityChange = viewModel::updateActivityType,
+        onPriceChange = viewModel::updatePrice,
+        onTaxChange = viewModel::updateTaxAmount,
+        onToggleDay = viewModel::toggleWorkingDay,
+        onBack = onBack
+    )
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreenImpl(
+    profile: UserProfile,
+    onNameChange: (String) -> Unit,
+    onActivityChange: (String) -> Unit,
+    onPriceChange: (Double) -> Unit,
+    onTaxChange: (Double) -> Unit,
+    onToggleDay: (DayOfWeek) -> Unit,
+    onBack: () -> Unit
+) {
     val scrollState = rememberScrollState()
 
     // Локальные состояния для всех полей ввода
@@ -38,8 +65,6 @@ fun SettingsScreen(
 
     // Инициализация при загрузке профиля
     LaunchedEffect(profile) {
-        // Обновляем только если локальное поле пустое (первая загрузка) 
-        // или если во ViewModel пришло явно другое значение не от нас
         if (nameText != profile.name && nameText.isEmpty()) nameText = profile.name
         if (activityText != profile.activityType && activityText.isEmpty()) activityText = profile.activityType
         if (priceText.isEmpty() && profile.pricePerSession != 0.0) priceText = profile.pricePerSession.toString().removeSuffix(".0")
@@ -70,7 +95,7 @@ fun SettingsScreen(
                 value = nameText,
                 onValueChange = { 
                     nameText = it
-                    viewModel.updateName(it)
+                    onNameChange(it)
                 },
                 label = { Text("Имя") },
                 modifier = Modifier.fillMaxWidth(),
@@ -86,7 +111,7 @@ fun SettingsScreen(
                 value = activityText,
                 onValueChange = { 
                     activityText = it
-                    viewModel.updateActivityType(it)
+                    onActivityChange(it)
                 },
                 label = { Text("Вид деятельности") },
                 modifier = Modifier.fillMaxWidth(),
@@ -102,7 +127,7 @@ fun SettingsScreen(
                 value = priceText,
                 onValueChange = { 
                     priceText = it
-                    viewModel.updatePrice(it.toDoubleOrNull() ?: 0.0)
+                    onPriceChange(it.toDoubleOrNull() ?: 0.0)
                 },
                 label = { Text("Цена за занятие (₽)") },
                 modifier = Modifier.fillMaxWidth(),
@@ -119,7 +144,7 @@ fun SettingsScreen(
                 value = taxText,
                 onValueChange = { 
                     taxText = it
-                    viewModel.updateTaxAmount(it.toDoubleOrNull() ?: 0.0)
+                    onTaxChange(it.toDoubleOrNull() ?: 0.0)
                 },
                 label = { Text("Налог в месяц (₽)") },
                 modifier = Modifier.fillMaxWidth(),
@@ -147,7 +172,7 @@ fun SettingsScreen(
                     DayChip(
                         day = day,
                         isSelected = profile.workingDays.contains(day),
-                        onToggle = { viewModel.toggleWorkingDay(day) }
+                        onToggle = { onToggleDay(day) }
                     )
                 }
             }
@@ -162,5 +187,51 @@ fun SettingsScreen(
                 Text("Готово")
             }
         }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Settings Light")
+@Composable
+fun SettingsScreenLightPreview() {
+    NeiroTheme(darkTheme = false) {
+        SettingsScreenImpl(
+            profile = UserProfile(
+                name = "Иван Иванов",
+                activityType = "Репетитор",
+                pricePerSession = 1500.0,
+                monthlyTaxAmount = 5000.0,
+                workingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
+            ),
+            onNameChange = {},
+            onActivityChange = {},
+            onPriceChange = {},
+            onTaxChange = {},
+            onToggleDay = {},
+            onBack = {}
+        )
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Settings Dark")
+@Composable
+fun SettingsScreenDarkPreview() {
+    NeiroTheme(darkTheme = true) {
+        SettingsScreenImpl(
+            profile = UserProfile(
+                name = "Иван Иванов",
+                activityType = "Репетитор",
+                pricePerSession = 1500.0,
+                monthlyTaxAmount = 5000.0,
+                workingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
+            ),
+            onNameChange = {},
+            onActivityChange = {},
+            onPriceChange = {},
+            onTaxChange = {},
+            onToggleDay = {},
+            onBack = {}
+        )
     }
 }
