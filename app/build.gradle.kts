@@ -5,18 +5,14 @@ plugins {
 
 android {
     namespace = "ru.greemlab.neiro"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "ru.greemlab.neiro"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,10 +26,25 @@ android {
             )
         }
     }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        compose = false
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {
-    // Compose BOM (управляет версиями Compose)
+    // Compose BOM
     implementation(platform(libs.androidx.compose.bom))
 
     // Compose UI
@@ -55,6 +66,10 @@ dependencies {
     // ViewModel для Compose
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.material.icons.extended)
+
+    // DataStore для сохранения данных
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.gson)
 
     // Test
     testImplementation(libs.junit)
