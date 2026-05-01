@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.DayOfWeek
 
 /**
  * Сетка календаря, отображающая дни месяца.
@@ -21,6 +22,7 @@ import java.time.YearMonth
  * @param currentMonth Текущий отображаемый месяц и год.
  * @param selectedDate Выбранная пользователем дата.
  * @param dayData Карта данных, где ключ — дата, а значение — список имен (для отображения индикаторов).
+ * @param workingDays Набор рабочих дней недели для визуальной фильтрации.
  * @param onDateClick Callback, вызываемый при нажатии на ячейку дня.
  */
 @RequiresApi(Build.VERSION_CODES.O)
@@ -29,6 +31,7 @@ fun CalendarGrid(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>> = emptyMap(),
+    workingDays: Set<DayOfWeek> = emptySet(),
     onDateClick: (LocalDate) -> Unit
 ) {
     val firstDayOfMonth = currentMonth.atDay(1)
@@ -72,6 +75,7 @@ fun CalendarGrid(
                 isCurrentMonth = YearMonth.from(date) == currentMonth,
                 isSelected = date == selectedDate,
                 namesCount = dayData[date]?.size ?: 0,
+                isWorkingDay = workingDays.isEmpty() || workingDays.contains(date.dayOfWeek),
                 onDateClick = onDateClick
             )
         }

@@ -29,6 +29,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.domain.models.UserProfile
 
 /**
  * Диалоговое окно для редактирования списка людей (фамилий) на выбранную дату.
@@ -43,6 +44,7 @@ import ru.greemlab.neiro.theme.NeiroTheme
 fun DayDetailsDialog(
     date: LocalDate,
     initialNames: List<String>,
+    userProfile: UserProfile, // Добавляем профиль для расчета цены
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit
 ) {
@@ -84,6 +86,25 @@ fun DayDetailsDialog(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
+
+                // Отображение итога, если установлена цена
+                if (userProfile.pricePerSession > 0) {
+                    val activeNames = names.filter { it.isNotBlank() }.size
+                    val total = activeNames * userProfile.pricePerSession
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text(
+                            text = "Итого: ${total.toInt()} ₽",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -291,6 +312,7 @@ fun DayDetailsDialogPreview() {
         DayDetailsDialog(
             date = LocalDate.now(),
             initialNames = listOf("Иванов", "Петров", "Сидоров"),
+            userProfile = UserProfile(pricePerSession = 1000.0),
             onDismiss = {},
             onSave = {}
         )

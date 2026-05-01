@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ru.greemlab.neiro.ui.profile.ProfileContent
+import ru.greemlab.neiro.ui.profile.ProfileViewModel
+import ru.greemlab.neiro.ui.profile.SettingsScreen
 import java.time.LocalDate
 import java.time.YearMonth
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -32,12 +35,16 @@ import ru.greemlab.neiro.ui.components.WeekDaysRow
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarScreen(
-    viewModel: CalendarViewModel = viewModel()
+    viewModel: CalendarViewModel = viewModel(),
+    profileViewModel: ProfileViewModel = viewModel()
 ) {
     // Подписка на состояния из ViewModel
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.dayData.collectAsState()
+    
+    // Состояние профиля для фильтрации календаря
+    val profile by profileViewModel.userProfile.collectAsState()
     
     // Состояние видимости диалога редактирования дня
     var showDialog by remember { mutableStateOf(false) }
@@ -45,45 +52,60 @@ fun CalendarScreen(
     // Состояние шторки (Drawer)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    
+    // Состояние экрана настроек
+    var showSettings by remember { mutableStateOf(false) }
 
-    // Обработка кнопки "Назад": если шторка открыта — закрываем её
-    BackHandler(enabled = drawerState.isOpen) {
-        scope.launch { drawerState.close() }
+    // Обработка кнопки "Назад"
+    BackHandler(enabled = drawerState.isOpen || showSettings) {
+        if (showSettings) {
+            showSettings = false
+        } else {
+            scope.launch { drawerState.close() }
+        }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.fillMaxWidth(0.8f) // Занимает 80% ширины (чуть больше 1/3 для читаемости)
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-                NavigationDrawerItem(
-                    label = { Text("Профиль") },
-                    selected = false,
-                    onClick = { /* TODO: Navigate to Profile */ },
-                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
-                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                )
-            }
-        }
-    ) {
-        // Контент экрана
-        CalendarScreenContent(
-            currentMonth = currentMonth,
-            selectedDate = selectedDate,
-            dayData = dayData,
-            onPreviousMonth = { viewModel.previousMonth() },
-            onNextMonth = { viewModel.nextMonth() },
-            onTodayClick = { viewModel.goToToday() },
-            onMenuClick = {
-                scope.launch { drawerState.open() }
-            },
-            onDateClick = {
-                viewModel.selectDate(it)
-                showDialog = true
-            }
+    if (showSettings) {
+        SettingsScreen(
+            viewModel = profileViewModel,
+            onBack = { showSettings = false }
         )
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    modifier = Modifier.fillMaxWidth(0.8f) // Занимает 80% ширины
+                ) {
+                    ProfileContent(
+                        profileViewModel = profileViewModel,
+                        calendarViewModel = viewModel,
+                        onOpenSettings = {
+                            scope.launch { drawerState.close() }
+                            showSettings = true
+                        }
+                    )
+                }
+            }
+        ) {
+            // Контент экрана
+            CalendarScreenContent(
+                currentMonth = currentMonth,
+                selectedDate = selectedDate,
+                dayData = dayData,
+                workingDays = profile.workingDays, // Передаем рабочие дни для фильтрации
+                onPreviousMonth = { viewModel.previousMonth() },
+                onNextMonth = { viewModel.nextMonth() },
+                onTodayClick = { viewModel.goToToday() },
+                onMenuClick = {
+                    scope.launch { drawerState.open() }
+                },
+                onDateClick = {
+                    viewModel.selectDate(it)
+                    showDialog = true
+                }
+            )
+        }
     }
 
     // Отображение диалога при выборе даты
@@ -91,6 +113,7 @@ fun CalendarScreen(
         DayDetailsDialog(
             date = selectedDate!!,
             initialNames = dayData[selectedDate!!] ?: emptyList(),
+            userProfile = profile, // Передаем профиль в диалог
             onDismiss = { showDialog = false },
             onSave = { names ->
                 viewModel.saveNamesForDate(selectedDate!!, names)
@@ -110,6 +133,7 @@ fun CalendarScreenContent(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>> = emptyMap(),
+    workingDays: Set<java.time.DayOfWeek> = emptySet(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
@@ -169,6 +193,7 @@ fun CalendarScreenContent(
                             currentMonth = targetMonth,
                             selectedDate = selectedDate,
                             dayData = dayData,
+                            workingDays = workingDays, // Передаем рабочие дни в сетку
                             onDateClick = onDateClick
                         )
                     }

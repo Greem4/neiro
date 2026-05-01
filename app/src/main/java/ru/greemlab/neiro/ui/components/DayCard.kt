@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,7 @@ fun DayCard(
     isCurrentMonth: Boolean,
     isSelected: Boolean,
     namesCount: Int = 0,
+    isWorkingDay: Boolean = true, // По умолчанию все рабочие, если не указано иное
     onDateClick: (LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
@@ -71,7 +73,8 @@ fun DayCard(
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.alpha(if (isWorkingDay) 1f else 0.3f) // Полупрозрачные нерабочие дни
         ) {
             // Число месяца
             Text(
