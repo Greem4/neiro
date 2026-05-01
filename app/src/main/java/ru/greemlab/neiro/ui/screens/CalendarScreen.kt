@@ -3,11 +3,15 @@ package ru.greemlab.neiro.ui.screens
 import android.content.res.Configuration
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -37,20 +41,50 @@ fun CalendarScreen(
     
     // Состояние видимости диалога редактирования дня
     var showDialog by remember { mutableStateOf(false) }
+    
+    // Состояние шторки (Drawer)
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
-    // Контент экрана
-    CalendarScreenContent(
-        currentMonth = currentMonth,
-        selectedDate = selectedDate,
-        dayData = dayData,
-        onPreviousMonth = { viewModel.previousMonth() },
-        onNextMonth = { viewModel.nextMonth() },
-        onTodayClick = { viewModel.goToToday() },
-        onDateClick = { 
-            viewModel.selectDate(it)
-            showDialog = true
+    // Обработка кнопки "Назад": если шторка открыта — закрываем её
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.8f) // Занимает 80% ширины (чуть больше 1/3 для читаемости)
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                NavigationDrawerItem(
+                    label = { Text("Профиль") },
+                    selected = false,
+                    onClick = { /* TODO: Navigate to Profile */ },
+                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+            }
         }
-    )
+    ) {
+        // Контент экрана
+        CalendarScreenContent(
+            currentMonth = currentMonth,
+            selectedDate = selectedDate,
+            dayData = dayData,
+            onPreviousMonth = { viewModel.previousMonth() },
+            onNextMonth = { viewModel.nextMonth() },
+            onTodayClick = { viewModel.goToToday() },
+            onMenuClick = {
+                scope.launch { drawerState.open() }
+            },
+            onDateClick = {
+                viewModel.selectDate(it)
+                showDialog = true
+            }
+        )
+    }
 
     // Отображение диалога при выборе даты
     if (showDialog && selectedDate != null) {
@@ -79,6 +113,7 @@ fun CalendarScreenContent(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
+    onMenuClick: () -> Unit,
     onDateClick: (LocalDate) -> Unit
 ) {
     Surface(
@@ -95,7 +130,8 @@ fun CalendarScreenContent(
                 currentMonth = currentMonth,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
-                onTodayClick = onTodayClick
+                onTodayClick = onTodayClick,
+                onMenuClick = onMenuClick
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -158,6 +194,7 @@ fun CalendarPreviewDark() {
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
+            onMenuClick = {},
             onDateClick = {}
         )
     }
@@ -175,6 +212,7 @@ fun CalendarPreviewLight() {
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
+            onMenuClick = {},
             onDateClick = {}
         )
     }

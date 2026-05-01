@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,15 +37,24 @@ fun CalendarHeader(
     currentMonth: YearMonth,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onTodayClick: () -> Unit
+    onTodayClick: () -> Unit,
+    onMenuClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Левая часть: Название месяца и кнопка перехода к текущей дате
+        // Левая часть: Кнопка меню, Название месяца и кнопка перехода к текущей дате
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Меню профиля",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
             Text(
                 text = currentMonth.month.getDisplayName(TextStyle.FULL, Locale("ru"))
                     .replaceFirstChar { it.uppercase() } + " " + currentMonth.year,
