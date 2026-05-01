@@ -3,43 +3,62 @@ package ru.greemlab.neiro.ui.components
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 import java.time.YearMonth
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun CalendarGrid(currentMonth: YearMonth) {
+fun CalendarGrid(
+    currentMonth: YearMonth,
+    selectedDate: LocalDate?,
+    onDateClick: (LocalDate) -> Unit
+) {
     val firstDayOfMonth = currentMonth.atDay(1)
     val daysInMonth = currentMonth.lengthOfMonth()
-
-    // Исправленный расчет пустых ячеек
+    
+    // Пн = 1, Вс = 7. Для индекса (0-6) делаем -1
     val firstDayWeekIndex = firstDayOfMonth.dayOfWeek.value - 1
+    
+    // Дни предыдущего месяца для заполнения начала сетки
+    val previousMonth = currentMonth.minusMonths(1)
+    val daysInPreviousMonth = previousMonth.lengthOfMonth()
+    val startPaddingDays = (daysInPreviousMonth - firstDayWeekIndex + 1..daysInPreviousMonth).map { day ->
+        previousMonth.atDay(day)
+    }
 
-    val days = (1..daysInMonth).toList()
+    // Дни текущего месяца
+    val currentMonthDays = (1..daysInMonth).map { day ->
+        currentMonth.atDay(day)
+    }
+
+    // Дни следующего месяца для заполнения конца сетки (до 42 ячеек - 6 недель)
+    val nextMonth = currentMonth.plusMonths(1)
+    val remainingCells = 42 - (startPaddingDays.size + currentMonthDays.size)
+    val endPaddingDays = (1..remainingCells).map { day ->
+        nextMonth.atDay(day)
+    }
+
+    val allDays = startPaddingDays + currentMonthDays + endPaddingDays
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(7),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        // Пустые ячейки
-        items(firstDayWeekIndex) {
-            Box(modifier = Modifier.size(48.dp))
-        }
-
-        // Дни месяца
-        items(days.size) { index ->
+        items(allDays) { date ->
             DayCard(
-                day = days[index],
-                currentMonth = currentMonth // <-- Передаем месяц в карточку
+                date = date,
+                isCurrentMonth = YearMonth.from(date) == currentMonth,
+                isSelected = date == selectedDate,
+                onDateClick = onDateClick
             )
         }
     }

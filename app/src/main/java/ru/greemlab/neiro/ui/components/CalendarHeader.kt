@@ -12,9 +12,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
@@ -24,34 +27,48 @@ import java.util.Locale
 fun CalendarHeader(
     currentMonth: YearMonth,
     onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit
+    onNextMonth: () -> Unit,
+    onTodayClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPreviousMonth) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Предыдущий месяц",
-                tint = MaterialTheme.colorScheme.onBackground
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = currentMonth.month.getDisplayName(TextStyle.FULL, Locale("ru"))
+                    .replaceFirstChar { it.uppercase() } + " " + currentMonth.year,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
+            
+            TextButton(onClick = onTodayClick) {
+                Text(
+                    text = "Сегодня",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
-        Text(
-            text = currentMonth.month.getDisplayName(TextStyle.FULL, Locale("ru"))
-                .replaceFirstChar { it.uppercase() } + " " + currentMonth.year,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Row {
+            IconButton(onClick = onPreviousMonth) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Предыдущий месяц",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
 
-        IconButton(onClick = onNextMonth) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Следующий месяц",
-                tint = MaterialTheme.colorScheme.onBackground
-            )
+            IconButton(onClick = onNextMonth) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Следующий месяц",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
         }
     }
 }
