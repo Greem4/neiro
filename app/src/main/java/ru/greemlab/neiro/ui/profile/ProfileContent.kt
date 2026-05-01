@@ -65,22 +65,30 @@ private fun ProfileContentImpl(
     val scrollState = rememberScrollState()
 
     // Расчет статистики
-    val today = LocalDate.now()
     
-    // 1. Занятий проведено (записи до сегодня включительно)
-    val pastSessionsCount = dayData.filter { it.key <= today }.values.sumOf { it.size }
+    // Вспомогательная функция для парсинга записи "Имя|attended"
+    fun isAttended(sessionString: String): Boolean {
+        val parts = sessionString.split("|")
+        return parts.getOrNull(1)?.toBoolean() ?: false // Если нет галки, считаем что НЕ проведено
+    }
+
+    // Все сессии во всех днях
+    val allSessions = dayData.values.flatten()
     
-    // 2. Сколько осталось (записи после сегодня)
-    val futureSessionsCount = dayData.filter { it.key > today }.values.sumOf { it.size }
+    // 1. Занятий проведено (только те, где стоит галка)
+    val pastSessionsCount = allSessions.count { isAttended(it) }
     
-    // 3. Заработано всего
+    // 2. Сколько осталось (все остальные записи в базе)
+    val futureSessionsCount = allSessions.size - pastSessionsCount
+    
+    // 3. Заработано всего (только за проведенные)
     val totalEarned = pastSessionsCount * profile.pricePerSession
     
     // 4. Заработано с учетом налога
     val earnedWithTax = (totalEarned - profile.monthlyTaxAmount).coerceAtLeast(0.0)
     
-    // 5. Ожидаемый заработок (все записи * цена - налог)
-    val totalSessions = pastSessionsCount + futureSessionsCount
+    // 5. Ожидаемый заработок (вообще все записи в календаре * цена - налог)
+    val totalSessions = allSessions.size
     val totalExpectedGross = totalSessions * profile.pricePerSession
     val expectedEarnings = (totalExpectedGross - profile.monthlyTaxAmount).coerceAtLeast(0.0)
 
@@ -218,9 +226,9 @@ fun ProfileContentLightPreview() {
                     monthlyTaxAmount = 5000.0
                 ),
                 dayData = mapOf(
-                    LocalDate.now().minusDays(1) to listOf("Урок 1", "Урок 2"),
-                    LocalDate.now() to listOf("Урок 3"),
-                    LocalDate.now().plusDays(1) to listOf("Урок 4")
+                    LocalDate.now().minusDays(1) to listOf("Урок 1|true", "Урок 2|true"),
+                    LocalDate.now() to listOf("Урок 3|false"),
+                    LocalDate.now().plusDays(1) to listOf("Урок 4|false")
                 ),
                 onOpenSettings = {},
                 nameStyle = customNameStyle,
@@ -244,9 +252,9 @@ fun ProfileContentDarkPreview() {
                     monthlyTaxAmount = 5000.0
                 ),
                 dayData = mapOf(
-                    LocalDate.now().minusDays(1) to listOf("Урок 1", "Урок 2"),
-                    LocalDate.now() to listOf("Урок 3"),
-                    LocalDate.now().plusDays(1) to listOf("Урок 4")
+                    LocalDate.now().minusDays(1) to listOf("Урок 1|true", "Урок 2|true"),
+                    LocalDate.now() to listOf("Урок 3|false"),
+                    LocalDate.now().plusDays(1) to listOf("Урок 4|false")
                 ),
                 onOpenSettings = {}
             )
