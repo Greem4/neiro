@@ -4,9 +4,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +24,7 @@ fun DayCard(
     date: LocalDate,
     isCurrentMonth: Boolean,
     isSelected: Boolean,
+    namesCount: Int = 0,
     onDateClick: (LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
@@ -58,16 +57,29 @@ fun DayCard(
             )
         }
 
-        Text(
-            text = date.dayOfMonth.toString(),
-            color = when {
-                isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-                isToday -> MaterialTheme.colorScheme.primary
-                !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                color = when {
+                    isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+                    isToday -> MaterialTheme.colorScheme.primary
+                    !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            
+            if (namesCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape
+                        )
+                )
+            }
+        }
     }
 }

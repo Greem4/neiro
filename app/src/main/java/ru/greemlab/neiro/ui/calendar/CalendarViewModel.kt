@@ -17,6 +17,9 @@ class CalendarViewModel : ViewModel() {
     private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
+    private val _dayData = MutableStateFlow<Map<LocalDate, List<String>>>(emptyMap())
+    val dayData: StateFlow<Map<LocalDate, List<String>>> = _dayData.asStateFlow()
+
     fun nextMonth() {
         _currentMonth.value = _currentMonth.value.plusMonths(1)
     }
@@ -33,5 +36,11 @@ class CalendarViewModel : ViewModel() {
 
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
+    }
+
+    fun saveNamesForDate(date: LocalDate, names: List<String>) {
+        val newData = _dayData.value.toMutableMap()
+        newData[date] = names
+        _dayData.value = newData
     }
 }

@@ -21,6 +21,7 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.components.CalendarGrid
 import ru.greemlab.neiro.ui.components.CalendarHeader
+import ru.greemlab.neiro.ui.components.DayDetailsDialog
 import ru.greemlab.neiro.ui.components.WeekDaysRow
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -30,15 +31,34 @@ fun CalendarScreen(
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
+    val dayData by viewModel.dayData.collectAsState()
+    
+    var showDialog by remember { mutableStateOf(false) }
 
     CalendarScreenContent(
         currentMonth = currentMonth,
         selectedDate = selectedDate,
+        dayData = dayData,
         onPreviousMonth = { viewModel.previousMonth() },
         onNextMonth = { viewModel.nextMonth() },
         onTodayClick = { viewModel.goToToday() },
-        onDateClick = { viewModel.selectDate(it) }
+        onDateClick = { 
+            viewModel.selectDate(it)
+            showDialog = true
+        }
     )
+
+    if (showDialog && selectedDate != null) {
+        DayDetailsDialog(
+            date = selectedDate!!,
+            initialNames = dayData[selectedDate!!] ?: emptyList(),
+            onDismiss = { showDialog = false },
+            onSave = { names ->
+                viewModel.saveNamesForDate(selectedDate!!, names)
+                showDialog = false
+            }
+        )
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -46,6 +66,7 @@ fun CalendarScreen(
 fun CalendarScreenContent(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
+    dayData: Map<LocalDate, List<String>> = emptyMap(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
@@ -98,6 +119,7 @@ fun CalendarScreenContent(
                         CalendarGrid(
                             currentMonth = targetMonth,
                             selectedDate = selectedDate,
+                            dayData = dayData,
                             onDateClick = onDateClick
                         )
                     }
@@ -119,6 +141,7 @@ fun CalendarPreviewDark() {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
+            dayData = emptyMap(),
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
@@ -135,6 +158,7 @@ fun CalendarPreviewLight() {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
+            dayData = emptyMap(),
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},

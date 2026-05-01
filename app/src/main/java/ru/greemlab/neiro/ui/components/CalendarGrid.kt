@@ -18,6 +18,7 @@ import java.time.YearMonth
 fun CalendarGrid(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
+    dayData: Map<LocalDate, List<String>> = emptyMap(),
     onDateClick: (LocalDate) -> Unit
 ) {
     val firstDayOfMonth = currentMonth.atDay(1)
@@ -58,6 +59,7 @@ fun CalendarGrid(
                 date = date,
                 isCurrentMonth = YearMonth.from(date) == currentMonth,
                 isSelected = date == selectedDate,
+                namesCount = dayData[date]?.size ?: 0,
                 onDateClick = onDateClick
             )
         }
