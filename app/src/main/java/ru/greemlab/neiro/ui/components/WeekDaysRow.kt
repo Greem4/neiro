@@ -11,6 +11,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/**
+ * Строка с сокращенными названиями дней недели (Пн, Вт, ...).
+ * Отображается над сеткой календаря. Выходные дни подсвечиваются другим цветом.
+ */
 @Composable
 fun WeekDaysRow() {
     val days = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
@@ -22,6 +26,7 @@ fun WeekDaysRow() {
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
     ) {
         days.forEachIndexed { index, day ->
+            // Сб и Вс — выходные дни
             val isWeekend = index >= 5
 
             Text(

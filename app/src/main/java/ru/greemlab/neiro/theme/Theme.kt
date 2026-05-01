@@ -7,6 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * Конфигурация цветовой схемы для темной темы.
+ */
 private val DarkColorScheme = darkColorScheme(
     background = DarkBackground,
     surface = DarkSurface,
@@ -18,6 +21,9 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color.White
 )
 
+/**
+ * Конфигурация цветовой схемы для светлой темы.
+ */
 private val LightColorScheme = lightColorScheme(
     background = LightBackground,
     surface = LightSurface,
@@ -29,10 +35,18 @@ private val LightColorScheme = lightColorScheme(
     onSurface = Color(0xFF1C1B1F)
 )
 
+/**
+ * Основная тема приложения Neiro.
+ * Обеспечивает применение цветовой схемы и типографики ко всем вложенным Composable-функциям.
+ * 
+ * @param darkTheme Использовать ли темную тему. По умолчанию определяется системными настройками.
+ * @param dynamicColor Использовать ли динамические цвета (Material You) на Android 12+.
+ * @param content Вложенный UI контент.
+ */
 @Composable
 fun NeiroTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Я отключил динамические цвета, чтобы наша палитра работала всегда. Можешь вернуть true, если нужен Material You.
+    dynamicColor: Boolean = false, // По умолчанию отключено для сохранения фирменного стиля
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -46,7 +60,7 @@ fun NeiroTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography, // Убедись, что Typography у тебя определена в Type.kt
+        typography = Typography,
         content = content
     )
 }

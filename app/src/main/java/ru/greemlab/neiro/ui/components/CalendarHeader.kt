@@ -22,6 +22,14 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
+/**
+ * Шапка календаря с отображением текущего месяца и кнопками навигации.
+ *
+ * @param currentMonth Месяц и год, которые сейчас отображаются.
+ * @param onPreviousMonth Обработчик нажатия для перехода к предыдущему месяцу.
+ * @param onNextMonth Обработчик нажатия для перехода к следующему месяцу.
+ * @param onTodayClick Обработчик нажатия кнопки "Сегодня".
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarHeader(
@@ -35,6 +43,7 @@ fun CalendarHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Левая часть: Название месяца и кнопка перехода к текущей дате
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = currentMonth.month.getDisplayName(TextStyle.FULL, Locale("ru"))
@@ -53,6 +62,7 @@ fun CalendarHeader(
             }
         }
 
+        // Правая часть: Стрелки навигации
         Row {
             IconButton(onClick = onPreviousMonth) {
                 Icon(

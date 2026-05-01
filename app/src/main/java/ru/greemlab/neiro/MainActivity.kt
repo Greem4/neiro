@@ -8,14 +8,21 @@ import androidx.annotation.RequiresApi
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.screens.CalendarScreen
 
+/**
+ * Главная Activity приложения.
+ * Является точкой входа и устанавливает основной контент с использованием Jetpack Compose.
+ */
 class MainActivity : ComponentActivity() {
+    
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Установка UI контента
         setContent {
-            // Обертка темы. Она сама поймет, какая тема стоит на телефоне юзера (светлая/темная)
-            // и передаст правильные цвета внутрь
+            // NeiroTheme — кастомная тема приложения, которая поддерживает темный и светлый режимы.
             NeiroTheme {
+                // Главный экран приложения — Календарь
                 CalendarScreen()
             }
         }

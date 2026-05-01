@@ -6,10 +6,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,17 +21,24 @@ import ru.greemlab.neiro.ui.components.CalendarHeader
 import ru.greemlab.neiro.ui.components.DayDetailsDialog
 import ru.greemlab.neiro.ui.components.WeekDaysRow
 
+/**
+ * Основной экран календаря.
+ * Управляет состоянием отображения диалога и взаимодействует с [CalendarViewModel].
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel()
 ) {
+    // Подписка на состояния из ViewModel
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.dayData.collectAsState()
     
+    // Состояние видимости диалога редактирования дня
     var showDialog by remember { mutableStateOf(false) }
 
+    // Контент экрана
     CalendarScreenContent(
         currentMonth = currentMonth,
         selectedDate = selectedDate,
@@ -48,6 +52,7 @@ fun CalendarScreen(
         }
     )
 
+    // Отображение диалога при выборе даты
     if (showDialog && selectedDate != null) {
         DayDetailsDialog(
             date = selectedDate!!,
@@ -61,6 +66,10 @@ fun CalendarScreen(
     }
 }
 
+/**
+ * Чистый UI контент экрана календаря.
+ * Отделен от ViewModel для удобства тестирования и превью.
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarScreenContent(
@@ -81,6 +90,7 @@ fun CalendarScreenContent(
                 .padding(16.dp)
                 .statusBarsPadding()
         ) {
+            // Шапка календаря (Месяц, Год, Кнопки навигации)
             CalendarHeader(
                 currentMonth = currentMonth,
                 onPreviousMonth = onPreviousMonth,
@@ -90,6 +100,7 @@ fun CalendarScreenContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Карточка с сеткой календаря
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -101,8 +112,10 @@ fun CalendarScreenContent(
                 Column(
                     modifier = Modifier.padding(12.dp)
                 ) {
+                    // Строка с названиями дней недели
                     WeekDaysRow()
                     
+                    // Сетка дней с анимацией перелистывания месяцев
                     AnimatedContent(
                         targetState = currentMonth,
                         transitionSpec = {

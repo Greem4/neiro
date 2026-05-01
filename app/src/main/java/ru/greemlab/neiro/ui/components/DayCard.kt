@@ -15,9 +15,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
+import ru.greemlab.neiro.theme.NeiroTheme
 
+/**
+ * Компонент отдельной ячейки дня в календаре.
+ * 
+ * @param date Дата, которую отображает ячейка.
+ * @param isCurrentMonth Принадлежит ли дата текущему выбранному месяцу.
+ * @param isSelected Выбрана ли эта дата пользователем.
+ * @param namesCount Количество людей, записанных на этот день.
+ * @param onDateClick Обработчик нажатия на ячейку.
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DayCard(
@@ -44,7 +56,7 @@ fun DayCard(
             .clickable { onDateClick(date) },
         contentAlignment = Alignment.Center
     ) {
-        // "Сегодня" highlight
+        // Подсветка "Сегодня"
         if (isToday) {
             Box(
                 modifier = Modifier
@@ -57,7 +69,11 @@ fun DayCard(
             )
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Число месяца
             Text(
                 text = date.dayOfMonth.toString(),
                 color = when {
@@ -70,16 +86,54 @@ fun DayCard(
                 style = MaterialTheme.typography.bodyMedium
             )
             
+            // Превью: индикатор количества записей (точки или число)
             if (namesCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .background(
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    if (namesCount <= 3) {
+                        // Если мало людей - рисуем точки
+                        repeat(namesCount) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .background(
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary 
+                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    } else {
+                        // Если много - пишем число
+                        Text(
+                            text = namesCount.toString(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = MaterialTheme.colorScheme.primary,
-                            shape = CircleShape
+                            modifier = Modifier.padding(bottom = 2.dp)
                         )
-                )
+                    }
+                }
             }
         }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(widthDp = 50, heightDp = 50)
+@Composable
+fun DayCardPreview() {
+    NeiroTheme {
+        DayCard(
+            date = LocalDate.now(),
+            isCurrentMonth = true,
+            isSelected = false,
+            namesCount = 3,
+            onDateClick = {}
+        )
     }
 }

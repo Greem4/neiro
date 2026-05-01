@@ -13,6 +13,16 @@ import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.YearMonth
 
+/**
+ * Сетка календаря, отображающая дни месяца.
+ * Включает в себя дни текущего месяца, а также заполнение (padding) из дней
+ * предыдущего и следующего месяцев для сохранения прямоугольной формы сетки (6 недель).
+ *
+ * @param currentMonth Текущий отображаемый месяц и год.
+ * @param selectedDate Выбранная пользователем дата.
+ * @param dayData Карта данных, где ключ — дата, а значение — список имен (для отображения индикаторов).
+ * @param onDateClick Callback, вызываемый при нажатии на ячейку дня.
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarGrid(
@@ -24,28 +34,30 @@ fun CalendarGrid(
     val firstDayOfMonth = currentMonth.atDay(1)
     val daysInMonth = currentMonth.lengthOfMonth()
     
-    // Пн = 1, Вс = 7. Для индекса (0-6) делаем -1
+    // Определяем день недели для первого числа месяца (Пн = 1, Вс = 7)
+    // Для индекса в сетке (0-6) вычитаем 1
     val firstDayWeekIndex = firstDayOfMonth.dayOfWeek.value - 1
     
-    // Дни предыдущего месяца для заполнения начала сетки
+    // Подготовка дней предыдущего месяца для заполнения пустых мест в начале первой недели
     val previousMonth = currentMonth.minusMonths(1)
     val daysInPreviousMonth = previousMonth.lengthOfMonth()
     val startPaddingDays = (daysInPreviousMonth - firstDayWeekIndex + 1..daysInPreviousMonth).map { day ->
         previousMonth.atDay(day)
     }
 
-    // Дни текущего месяца
+    // Список дней текущего месяца
     val currentMonthDays = (1..daysInMonth).map { day ->
         currentMonth.atDay(day)
     }
 
-    // Дни следующего месяца для заполнения конца сетки (до 42 ячеек - 6 недель)
+    // Подготовка дней следующего месяца для заполнения пустых мест в конце (до 42 ячеек — 6 полных недель)
     val nextMonth = currentMonth.plusMonths(1)
     val remainingCells = 42 - (startPaddingDays.size + currentMonthDays.size)
     val endPaddingDays = (1..remainingCells).map { day ->
         nextMonth.atDay(day)
     }
 
+    // Объединяем все дни в один список для отображения в сетке
     val allDays = startPaddingDays + currentMonthDays + endPaddingDays
 
     LazyVerticalGrid(
