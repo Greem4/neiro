@@ -64,12 +64,17 @@ fun CalendarScreen(
     // Состояние диалога прибыли
     var showProfitDetails by remember { mutableStateOf(false) }
 
+    // Состояние диалога статистики занятий
+    var showLessonsDetails by remember { mutableStateOf(false) }
+
     // Обработка кнопки "Назад"
-    BackHandler(enabled = drawerState.isOpen || showSettings || showProfitDetails) {
+    BackHandler(enabled = drawerState.isOpen || showSettings || showProfitDetails || showLessonsDetails) {
         if (showSettings) {
             showSettings = false
         } else if (showProfitDetails) {
             showProfitDetails = false
+        } else if (showLessonsDetails) {
+            showLessonsDetails = false
         } else {
             scope.launch { drawerState.close() }
         }
@@ -118,9 +123,21 @@ fun CalendarScreen(
                 },
                 onProfitClick = {
                     showProfitDetails = true
+                },
+                onLessonsClick = {
+                    showLessonsDetails = true
                 }
             )
         }
+    }
+
+    // Отображение диалога статистики занятий
+    if (showLessonsDetails) {
+        LessonsDetailsDialog(
+            currentMonth = currentMonth,
+            dayData = dayData,
+            onDismiss = { showLessonsDetails = false }
+        )
     }
 
     // Отображение диалога прибыли
@@ -167,7 +184,8 @@ fun CalendarScreenContent(
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
     onDateClick: (LocalDate) -> Unit,
-    onProfitClick: () -> Unit = {}
+    onProfitClick: () -> Unit = {},
+    onLessonsClick: () -> Unit = {}
 ) {
     // Расчет статистики за текущий месяц
     val monthData = remember(dayData, currentMonth) {
@@ -211,7 +229,8 @@ fun CalendarScreenContent(
                     value = completedLessons.toString(),
                     icon = Icons.Rounded.School,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = onLessonsClick
                 )
                 StatCard(
                     label = "Прибыль",
@@ -265,6 +284,100 @@ fun CalendarScreenContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * Красивый диалог с подробной статистикой занятий.
+ */
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun LessonsDetailsDialog(
+    currentMonth: YearMonth,
+    dayData: Map<LocalDate, List<String>>,
+    onDismiss: () -> Unit
+) {
+    val monthData = remember(dayData, currentMonth) {
+        dayData.filterKeys { it.month == currentMonth.month && it.year == currentMonth.year }
+    }
+
+    val allLessons = monthData.values.flatten()
+    val completedLessons = allLessons.count { it.endsWith("|true") }
+    val totalScheduled = allLessons.size
+    
+    // Считаем уроки, которые еще не наступили (сегодня и позже), 
+    // но в текущей логике 'false' может означать и пропуск, и будущее занятие.
+    // Для более точной статистики можно было бы проверять дату, но пока оставим базово.
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Закрыть")
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Text(
+                text = "Занятия за ${currentMonth.month.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, Locale("ru")).replaceFirstChar { it.uppercase() }}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                LessonStatRow(
+                    label = "Проведено",
+                    value = completedLessons,
+                    color = MaterialTheme.colorScheme.primary,
+                    isBold = true
+                )
+                
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                
+                LessonStatRow(
+                    label = "Всего запланировано",
+                    value = totalScheduled,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                LessonStatRow(
+                    label = "Осталось / Не подтверждено",
+                    value = totalScheduled - completedLessons,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun LessonStatRow(
+    label: String,
+    value: Int,
+    color: Color,
+    isBold: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value.toString(),
+            style = if (isBold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isBold) FontWeight.ExtraBold else FontWeight.SemiBold,
+            color = color
+        )
     }
 }
 
