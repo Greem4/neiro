@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.components
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +30,7 @@ import androidx.compose.ui.window.DialogProperties
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.domain.models.UserProfile
 
@@ -68,13 +70,15 @@ fun DayDetailsContent(
     onSave: (List<String>, Boolean) -> Unit
 ) {
     // Внутренняя модель для отслеживания прихода (формат "Name|attended")
+    data class StudentItem(val id: String, val name: String, val attended: Boolean)
+
     var items by remember { 
         mutableStateOf(
             initialNames.ifEmpty { listOf("") }.map { 
                 val parts = it.split("|")
                 val name = parts[0]
                 val attended = parts.getOrNull(1)?.toBoolean() ?: true
-                name to attended
+                StudentItem(id = UUID.randomUUID().toString(), name = name, attended = attended)
             }
         )
     }
@@ -84,7 +88,7 @@ fun DayDetailsContent(
     
     // Состояния для реализации Drag-and-Drop
     val listState = rememberLazyListState()
-    var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
+    var draggedItemId by remember { mutableStateOf<String?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
 
     Card(
@@ -118,8 +122,8 @@ fun DayDetailsContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val totalCount = items.filter { it.first.isNotBlank() }.size
-                val attendedCount = items.filter { it.first.isNotBlank() && it.second }.size
+                val totalCount = items.filter { it.name.isNotBlank() }.size
+                val attendedCount = items.filter { it.name.isNotBlank() && it.attended }.size
                 
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -160,17 +164,21 @@ fun DayDetailsContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 8.dp)
             ) {
-                itemsIndexed(items) { index, (name, attended) ->
-                    val isDragging = draggedItemIndex == index
+                itemsIndexed(items, key = { _, item -> item.id }) { index, student ->
+                    val isDragging = draggedItemId == student.id
+                    val scale by animateFloatAsState(if (isDragging) 1.05f else 1f, label = "scale")
+                    val rotation by animateFloatAsState(if (isDragging) -2f else 0f, label = "rotation")
+                    val elevation by animateFloatAsState(if (isDragging) 8f else 0f, label = "elevation")
                     
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
                                 translationY = if (isDragging) draggingOffset else 0f
-                                scaleX = if (isDragging) 1.02f else 1f
-                                scaleY = if (isDragging) 1.02f else 1f
-                                shadowElevation = if (isDragging) 8f else 0f
+                                scaleX = scale
+                                scaleY = scale
+                                rotationZ = rotation
+                                shadowElevation = elevation
                                 alpha = if (isDragging) 0.9f else 1f
                             },
                         shape = RoundedCornerShape(12.dp),
@@ -191,24 +199,24 @@ fun DayDetailsContent(
                             IconButton(
                                 onClick = {
                                     val newList = items.toMutableList()
-                                    newList[index] = name to !attended
+                                    newList[index] = student.copy(attended = !student.attended)
                                     items = newList
                                 }
                             ) {
                                 Icon(
-                                    imageVector = if (attended) Icons.Default.CheckCircle else Icons.Outlined.Circle,
-                                    contentDescription = if (attended) "Пришел" else "Не пришел",
-                                    tint = if (attended) MaterialTheme.colorScheme.primary 
+                                    imageVector = if (student.attended) Icons.Default.CheckCircle else Icons.Outlined.Circle,
+                                    contentDescription = if (student.attended) "Пришел" else "Не пришел",
+                                    tint = if (student.attended) MaterialTheme.colorScheme.primary 
                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
 
                             // Поле ввода фамилии
                             TextField(
-                                value = name,
+                                value = student.name,
                                 onValueChange = { newName ->
                                     val newList = items.toMutableList()
-                                    newList[index] = newName to attended
+                                    newList[index] = student.copy(name = newName)
                                     items = newList
                                 },
                                 placeholder = { 
@@ -228,56 +236,61 @@ fun DayDetailsContent(
                                     unfocusedIndicatorColor = Color.Transparent,
                                 ),
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                    color = if (attended) MaterialTheme.colorScheme.onSurface 
+                                    color = if (student.attended) MaterialTheme.colorScheme.onSurface 
                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
                             )
                             
-                            // Хендл для перетаскивания
-                            IconButton(
-                                onClick = {},
-                                modifier = Modifier.pointerInput(index, items.size) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { draggedItemIndex = index },
-                                        onDragEnd = { 
-                                            draggedItemIndex = null
-                                            draggingOffset = 0f
-                                        },
-                                        onDragCancel = { 
-                                            draggedItemIndex = null
-                                            draggingOffset = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            draggingOffset += dragAmount.y
-                                            
-                                            val threshold = 45f 
-                                            if (draggingOffset > threshold && index < items.size - 1) {
-                                                val newList = items.toMutableList()
-                                                val item = newList.removeAt(index)
-                                                newList.add(index + 1, item)
-                                                items = newList
-                                                draggedItemIndex = index + 1
+                            // Область захвата (Полоски)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .pointerInput(student.id, items.size) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { draggedItemId = student.id },
+                                            onDragEnd = { 
+                                                draggedItemId = null
                                                 draggingOffset = 0f
-                                            } else if (draggingOffset < -threshold && index > 0) {
-                                                val newList = items.toMutableList()
-                                                val item = newList.removeAt(index)
-                                                newList.add(index - 1, item)
-                                                items = newList
-                                                draggedItemIndex = index - 1
+                                            },
+                                            onDragCancel = { 
+                                                draggedItemId = null
                                                 draggingOffset = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                draggingOffset += dragAmount.y
+                                                
+                                                val itemHeight = 64f // Приблизительная высота элемента
+                                                val moveThreshold = itemHeight * 0.8f 
+
+                                                val currentIndex = items.indexOfFirst { it.id == draggedItemId }
+                                                if (currentIndex != -1) {
+                                                    if (draggingOffset > moveThreshold && currentIndex < items.size - 1) {
+                                                        val newList = items.toMutableList()
+                                                        val itemToMove = newList.removeAt(currentIndex)
+                                                        newList.add(currentIndex + 1, itemToMove)
+                                                        items = newList
+                                                        draggingOffset -= itemHeight
+                                                    } else if (draggingOffset < -moveThreshold && currentIndex > 0) {
+                                                        val newList = items.toMutableList()
+                                                        val itemToMove = newList.removeAt(currentIndex)
+                                                        newList.add(currentIndex - 1, itemToMove)
+                                                        items = newList
+                                                        draggingOffset += itemHeight
+                                                    }
+                                                }
                                             }
-                                        }
-                                    )
-                                }
+                                        )
+                                    }
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DragHandle,
                                     contentDescription = "Перетащить",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
-
+                            
                             // Кнопка удаления
                             IconButton(
                                 onClick = {
@@ -303,7 +316,7 @@ fun DayDetailsContent(
                         OutlinedButton(
                             onClick = {
                                 val newList = items.toMutableList()
-                                newList.add("" to false)
+                                newList.add(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false))
                                 items = newList
                             },
                             modifier = Modifier
@@ -367,7 +380,7 @@ fun DayDetailsContent(
                 Button(
                     onClick = { 
                         // Сохраняем в формате "Имя|attended"
-                        onSave(items.filter { it.first.isNotBlank() }.map { "${it.first}|${it.second}" }, repeatUntilEndOfMonth) 
+                        onSave(items.filter { it.name.isNotBlank() }.map { "${it.name}|${it.attended}" }, repeatUntilEndOfMonth)
                     },
                     shape = RoundedCornerShape(12.dp),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
