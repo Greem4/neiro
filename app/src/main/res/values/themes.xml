@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Neiro" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Меняем родителя на .NoActionBar (без светлой приписки),
+        чтобы система не принуждала к белому фону.
+    -->
+    <style name="Theme.Neiro" parent="android:Theme.Material.NoActionBar">
+        <!-- Устанавливаем темный фон для окна при загрузке -->
+        <item name="android:windowBackground">@color/splash_background</item>
+        <!-- Делаем статус-бар тоже темным в тон фону -->
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>
