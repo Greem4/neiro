@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -22,10 +23,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -76,15 +80,34 @@ fun DayDetailsContent(
     // Внутренняя модель для отслеживания прихода (формат "Name|attended")
     data class StudentItem(val id: String, val name: String, val attended: Boolean)
 
+    val initialStudents = initialNames.filter { !it.startsWith("__") }
     var items by remember { 
         mutableStateOf(
-            initialNames.ifEmpty { listOf("") }.map { 
+            initialStudents.ifEmpty { listOf("") }.map { 
                 val parts = it.split("|")
                 val name = parts[0]
-                val attended = parts.getOrNull(1)?.toBoolean() ?: true
+                val attended = parts.getOrNull(1)?.toBoolean() ?: false
                 StudentItem(id = UUID.randomUUID().toString(), name = name, attended = attended)
             }
         )
+    }
+
+    var intensivePrice by remember { 
+        mutableStateOf(initialNames.find { it.startsWith("__INTENSIVE__:") }?.split("|")?.get(0)?.removePrefix("__INTENSIVE__:") ?: "") 
+    }
+    var diagnosticsPrice by remember { 
+        mutableStateOf(initialNames.find { it.startsWith("__DIAGNOSTICS__:") }?.split("|")?.get(0)?.removePrefix("__DIAGNOSTICS__:") ?: "") 
+    }
+
+    // Состояния для фокуса
+    val focusRequester = remember { FocusRequester() }
+    var focusItemId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(focusItemId) {
+        if (focusItemId != null) {
+            focusRequester.requestFocus()
+            focusItemId = null
+        }
     }
 
     // Флаг повторения до конца месяца
@@ -172,14 +195,17 @@ fun DayDetailsContent(
                     )
                 }
 
-                if (userProfile.pricePerSession > 0) {
-                    val totalMoney = attendedCount * userProfile.pricePerSession
+                if (userProfile.pricePerSession > 0 || intensivePrice.isNotBlank() || diagnosticsPrice.isNotBlank()) {
+                    val studentsMoney = attendedCount * userProfile.pricePerSession
+                    val extraMoney = (intensivePrice.toDoubleOrNull() ?: 0.0) + (diagnosticsPrice.toDoubleOrNull() ?: 0.0)
+                    val totalMoney = studentsMoney + extraMoney
+                    
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "Итого ($attendedCount): ${totalMoney.toInt()} ₽",
+                            text = "Итого: ${totalMoney.toInt()} ₽",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -276,7 +302,9 @@ fun DayDetailsContent(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     ) 
                                 },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .then(if (student.id == focusItemId) Modifier.focusRequester(focusRequester) else Modifier),
                                 singleLine = true,
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
@@ -367,8 +395,10 @@ fun DayDetailsContent(
                         OutlinedButton(
                             onClick = {
                                 val newList = items.toMutableList()
-                                newList.add(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false))
+                                val newId = UUID.randomUUID().toString()
+                                newList.add(StudentItem(id = newId, name = "", attended = false))
                                 items = newList
+                                focusItemId = newId
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -381,6 +411,56 @@ fun DayDetailsContent(
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+
+                // Дополнительный доход (Интенсив и Диагностика)
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Дополнительно",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = intensivePrice,
+                                onValueChange = { intensivePrice = it.filter { char -> char.isDigit() } },
+                                label = { Text("Интенсив", style = MaterialTheme.typography.bodySmall) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                suffix = { Text("₽", style = MaterialTheme.typography.bodySmall) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                            )
+                            
+                            OutlinedTextField(
+                                value = diagnosticsPrice,
+                                onValueChange = { diagnosticsPrice = it.filter { char -> char.isDigit() } },
+                                label = { Text("Диагностика", style = MaterialTheme.typography.bodySmall) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                suffix = { Text("₽", style = MaterialTheme.typography.bodySmall) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                            )
                         }
                     }
                 }
@@ -431,7 +511,11 @@ fun DayDetailsContent(
                 Button(
                     onClick = { 
                         // Сохраняем в формате "Имя|attended"
-                        onSave(items.filter { it.name.isNotBlank() }.map { "${it.name}|${it.attended}" }, repeatUntilEndOfMonth)
+                        val finalNames = items.filter { it.name.isNotBlank() }.map { "${it.name}|${it.attended}" }.toMutableList()
+                        if (intensivePrice.isNotBlank()) finalNames.add("__INTENSIVE__:$intensivePrice")
+                        if (diagnosticsPrice.isNotBlank()) finalNames.add("__DIAGNOSTICS__:$diagnosticsPrice")
+                        
+                        onSave(finalNames, repeatUntilEndOfMonth)
                     },
                     shape = RoundedCornerShape(12.dp),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)

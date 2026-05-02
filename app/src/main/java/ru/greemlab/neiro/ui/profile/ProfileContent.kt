@@ -68,28 +68,35 @@ private fun ProfileContentImpl(
     
     // Вспомогательная функция для парсинга записи "Имя|attended"
     fun isAttended(sessionString: String): Boolean {
+        if (sessionString.startsWith("__")) return false
         val parts = sessionString.split("|")
-        return parts.getOrNull(1)?.toBoolean() ?: false // Если нет галки, считаем что НЕ проведено
+        return parts.getOrNull(1)?.toBoolean() ?: false
     }
 
-    // Все сессии во всех днях
-    val allSessions = dayData.values.flatten()
+    // Все сессии (только дети)
+    val allSessions = dayData.values.flatten().filter { !it.startsWith("__") }
     
+    // Дополнительные доходы (все спец. записи)
+    val allExtras = dayData.values.flatten().filter { it.startsWith("__") }
+    val totalExtras = allExtras.sumOf { 
+        it.split("|")[0].substringAfter(":").toDoubleOrNull() ?: 0.0 
+    }
+
     // 1. Занятий проведено (только те, где стоит галка)
     val pastSessionsCount = allSessions.count { isAttended(it) }
     
     // 2. Сколько осталось (все остальные записи в базе)
     val futureSessionsCount = allSessions.size - pastSessionsCount
     
-    // 3. Заработано всего (только за проведенные)
-    val totalEarned = pastSessionsCount * profile.pricePerSession
+    // 3. Заработано всего (проведенные + доп. доход)
+    val totalEarned = (pastSessionsCount * profile.pricePerSession) + totalExtras
     
     // 4. Заработано с учетом налога
     val earnedWithTax = (totalEarned - profile.monthlyTaxAmount).coerceAtLeast(0.0)
     
-    // 5. Ожидаемый заработок (вообще все записи в календаре * цена - налог)
+    // 5. Ожидаемый заработок (вообще все записи в календаре * цена + доп. доход - налог)
     val totalSessions = allSessions.size
-    val totalExpectedGross = totalSessions * profile.pricePerSession
+    val totalExpectedGross = (totalSessions * profile.pricePerSession) + totalExtras
     val expectedEarnings = (totalExpectedGross - profile.monthlyTaxAmount).coerceAtLeast(0.0)
 
     Column(

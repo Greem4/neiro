@@ -97,8 +97,12 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                         // чтобы они не считались проведенными в статистике до ручного подтверждения
                         val futureNames = if (nextDate.isAfter(date)) {
                             names.map { nameWithStatus ->
-                                val name = nameWithStatus.split("|")[0]
-                                "$name|false"
+                                if (nameWithStatus.startsWith("__")) {
+                                    nameWithStatus
+                                } else {
+                                    val name = nameWithStatus.split("|")[0]
+                                    "$name|false"
+                                }
                             }
                         } else {
                             names
