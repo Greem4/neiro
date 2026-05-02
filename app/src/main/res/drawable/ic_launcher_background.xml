@@ -1,37 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Основной яркий фон -->
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="54"
-                android:startY="0"
-                android:endX="54"
-                android:endY="108"
-                android:type="linear">
-                <item android:offset="0" android:color="#24A1DE" />
-                <item android:offset="1" android:color="#1E96C8" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Центральный светлый блик для эффекта линзы/сферы -->
-    <path android:pathData="M54,54m-54,0a54,54 0,1 1,108 0a54,54 0,1 1,-108 0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="54"
-                android:centerY="35"
-                android:gradientRadius="70"
-                android:type="radial">
-                <item android:offset="0" android:color="#40FFFFFF" />
-                <item android:offset="1" android:color="#00FFFFFF" />
-            </gradient>
-        </aapt:attr>
-    </path>
+    <!-- Белый фон для создания эффекта рамки вокруг синего круга -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M0,0h108v108h-108z" />
 </vector>

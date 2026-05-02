@@ -7,42 +7,45 @@
     android:viewportHeight="108">
 
     <!--
-      Буква N сделана еще компактнее для соответствия современным стандартам иконок.
-      Она занимает центральную область, гарантируя отсутствие обрезки на любых устройствах.
+        Синий круг уменьшен до радиуса 32 (диаметр 64),
+        чтобы при наложении на белый фон (ic_launcher_background)
+        по бокам оставалась белая кайма, как у Telegram.
     -->
-
-    <!-- Тень -->
-    <path
-        android:pathData="M44,40 L44,70 M44,42 L64,68 L64,40"
-        android:strokeColor="#15000000"
-        android:strokeWidth="11"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
-
-    <!-- Основная буква N -->
-    <path
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M44,38 L44,68 M44,38 L64,68 L64,38">
-        <aapt:attr name="android:strokeColor">
+    <path android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0">
+        <aapt:attr name="android:fillColor">
             <gradient
                 android:startX="54"
-                android:startY="38"
+                android:startY="22"
                 android:endX="54"
-                android:endY="68"
+                android:endY="86"
                 android:type="linear">
-                <item android:offset="0" android:color="#FFFFFF" />
-                <item android:offset="1" android:color="#F5F5F5" />
+                <item android:offset="0" android:color="#24A1DE" />
+                <item android:offset="1" android:color="#1E96C8" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Блик -->
+    <!-- Тень под буквой (пропорционально уменьшена) -->
     <path
-        android:pathData="M44,38 L44,46 M44,38 L50,46"
-        android:strokeColor="#30FFFFFF"
-        android:strokeWidth="3"
+        android:pathData="M46,43 L46,67 M46,45 L62,65 L62,43"
+        android:strokeColor="#15000000"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Белая буква N (пропорционально уменьшена) -->
+    <path
+        android:pathData="M46,41 L46,65 M46,41 L62,65 L62,41"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Легкий блик сверху круга -->
+    <path
+        android:pathData="M54,22 a32,32 0 0 1 32,32"
+        android:strokeColor="#20FFFFFF"
+        android:strokeWidth="2"
         android:strokeLineCap="round" />
 
 </vector>
