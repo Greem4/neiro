@@ -2,8 +2,11 @@ package ru.greemlab.neiro.ui.components
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -27,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -90,6 +94,38 @@ fun DayDetailsContent(
     val listState = rememberLazyListState()
     var draggedItemId by remember { mutableStateOf<String?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
+
+    // Логика авто-скролла при перетаскивании
+    LaunchedEffect(draggedItemId) {
+        if (draggedItemId == null) return@LaunchedEffect
+        while (true) {
+            val layoutInfo = listState.layoutInfo
+            val draggedItem = layoutInfo.visibleItemsInfo.find { it.key == draggedItemId }
+            
+            if (draggedItem != null) {
+                val topEdge = layoutInfo.viewportStartOffset
+                val bottomEdge = layoutInfo.viewportEndOffset
+                val itemTop = draggedItem.offset + draggingOffset
+                val itemBottom = itemTop + draggedItem.size
+                
+                val padding = 120f // Увеличенная зона срабатывания
+                
+                if (itemTop < topEdge + padding && listState.canScrollBackward) {
+                    // Скорость зависит от близости к краю
+                    val intensity = ((topEdge + padding) - itemTop) / padding
+                    val scrollAmount = (intensity * 20f).coerceIn(2f, 25f)
+                    listState.scrollBy(-scrollAmount)
+                    draggingOffset -= scrollAmount // Точная компенсация
+                } else if (itemBottom > bottomEdge - padding && listState.canScrollForward) {
+                    val intensity = (itemBottom - (bottomEdge - padding)) / padding
+                    val scrollAmount = (intensity * 20f).coerceIn(2f, 25f)
+                    listState.scrollBy(scrollAmount)
+                    draggingOffset += scrollAmount
+                }
+            }
+            delay(12) // Более частый цикл для плавности
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -166,9 +202,23 @@ fun DayDetailsContent(
             ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, student ->
                     val isDragging = draggedItemId == student.id
-                    val scale by animateFloatAsState(if (isDragging) 1.05f else 1f, label = "scale")
-                    val rotation by animateFloatAsState(if (isDragging) -2f else 0f, label = "rotation")
-                    val elevation by animateFloatAsState(if (isDragging) 8f else 0f, label = "elevation")
+                    
+                    // Плавные пружинные анимации
+                    val scale by animateFloatAsState(
+                        targetValue = if (isDragging) 1.05f else 1f,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "scale"
+                    )
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isDragging) -1.5f else 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "rotation"
+                    )
+                    val elevation by animateFloatAsState(
+                        targetValue = if (isDragging) 12f else 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "elevation"
+                    )
                     
                     Surface(
                         modifier = Modifier
@@ -179,7 +229,7 @@ fun DayDetailsContent(
                                 scaleY = scale
                                 rotationZ = rotation
                                 shadowElevation = elevation
-                                alpha = if (isDragging) 0.9f else 1f
+                                alpha = if (isDragging) 0.85f else 1f
                             },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isDragging) {
@@ -187,7 +237,7 @@ fun DayDetailsContent(
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                         },
-                        tonalElevation = if (isDragging) 4.dp else 0.dp
+                        tonalElevation = if (isDragging) 6.dp else 0.dp
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -261,7 +311,8 @@ fun DayDetailsContent(
                                                 draggingOffset += dragAmount.y
                                                 
                                                 val itemHeight = 64f // Приблизительная высота элемента
-                                                val moveThreshold = itemHeight * 0.8f 
+                                                // Увеличил порог до 0.9, чтобы переброс был менее "шустрым" и более осознанным
+                                                val moveThreshold = itemHeight * 0.9f
 
                                                 val currentIndex = items.indexOfFirst { it.id == draggedItemId }
                                                 if (currentIndex != -1) {
