@@ -42,7 +42,8 @@ fun ProfileContent(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val profile by profileViewModel.userProfile.collectAsState()
+    val profileState by profileViewModel.userProfile.collectAsState()
+    val profile = profileState ?: UserProfile()
     val dayData by calendarViewModel.dayData.collectAsState()
     
     ProfileContentImpl(
@@ -156,7 +157,7 @@ private fun ProfileContentImpl(
         ) {
             Icon(Icons.Default.Settings, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Настройки профиля")
+            Text(if (profile.isRegistered) "Настройки профиля" else "Создать профиль")
         }
     }
 }

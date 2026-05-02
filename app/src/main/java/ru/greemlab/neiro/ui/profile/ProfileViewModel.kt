@@ -14,30 +14,30 @@ import java.time.DayOfWeek
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val dataStore = CalendarDataStore(application)
 
-    val userProfile: StateFlow<UserProfile> = dataStore.userProfileFlow
+    val userProfile: StateFlow<UserProfile?> = dataStore.userProfileFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = UserProfile()
+            initialValue = null
         )
 
     fun updateName(name: String) {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             dataStore.saveUserProfile(current.copy(name = name))
         }
     }
 
     fun updateActivityType(type: String) {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             dataStore.saveUserProfile(current.copy(activityType = type))
         }
     }
 
     fun toggleWorkingDay(day: DayOfWeek) {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             val newDays = if (current.workingDays.contains(day)) {
                 current.workingDays - day
             } else {
@@ -49,21 +49,21 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun updatePrice(price: Double) {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             dataStore.saveUserProfile(current.copy(pricePerSession = price))
         }
     }
 
     fun updateTaxAmount(tax: Double) {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             dataStore.saveUserProfile(current.copy(monthlyTaxAmount = tax))
         }
     }
 
     fun completeRegistration() {
         viewModelScope.launch {
-            val current = userProfile.value
+            val current = userProfile.value ?: UserProfile()
             dataStore.saveUserProfile(current.copy(isRegistered = true))
         }
     }

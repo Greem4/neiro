@@ -48,7 +48,9 @@ fun CalendarHeader(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    isRegistered: Boolean = true,
+    onRegistrationRequired: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -91,7 +93,9 @@ fun CalendarHeader(
                 text = "Сегодня",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onTodayClick() }
+                modifier = Modifier.clickable { 
+                    if (isRegistered) onTodayClick() else onRegistrationRequired()
+                }
             )
         }
 

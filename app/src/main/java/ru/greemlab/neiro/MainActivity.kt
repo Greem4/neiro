@@ -29,15 +29,8 @@ class MainActivity : ComponentActivity() {
                 val profileViewModel: ProfileViewModel = viewModel()
                 val profile by profileViewModel.userProfile.collectAsState()
 
-                if (profile.isRegistered) {
-                    // Главный экран приложения — Календарь
+                if (profile != null) {
                     CalendarScreen(profileViewModel = profileViewModel)
-                } else {
-                    // Экран регистрации/настройки
-                    RegistrationScreen(
-                        viewModel = profileViewModel,
-                        onRegistrationComplete = { /* Flow handled by state */ }
-                    )
                 }
             }
         }

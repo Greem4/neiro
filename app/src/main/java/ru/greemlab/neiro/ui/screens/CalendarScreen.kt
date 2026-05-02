@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.LocalDate
 import java.time.YearMonth
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -49,7 +50,8 @@ fun CalendarScreen(
     val dayData by viewModel.dayData.collectAsState()
     
     // Состояние профиля для фильтрации календаря
-    val profile by profileViewModel.userProfile.collectAsState()
+    val profileState by profileViewModel.userProfile.collectAsState()
+    val profile = profileState ?: UserProfile()
     
     // Состояние видимости диалога редактирования дня
     var showDialog by remember { mutableStateOf(false) }
@@ -60,6 +62,9 @@ fun CalendarScreen(
     
     // Состояние экрана настроек
     var showSettings by remember { mutableStateOf(false) }
+
+    // Состояние диалога-предложения создать профиль
+    var showRegistrationPrompt by remember { mutableStateOf(false) }
 
     // Состояние диалога прибыли
     var showProfitDetails by remember { mutableStateOf(false) }
@@ -108,9 +113,10 @@ fun CalendarScreen(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
-                workingDays = profile.workingDays, // Передаем рабочие дни для фильтрации
+                workingDays = profile.workingDays,
                 pricePerSession = profile.pricePerSession,
                 monthlyTaxAmount = profile.monthlyTaxAmount,
+                isRegistered = profile.isRegistered,
                 onPreviousMonth = { viewModel.previousMonth() },
                 onNextMonth = { viewModel.nextMonth() },
                 onTodayClick = { viewModel.goToToday() },
@@ -118,17 +124,49 @@ fun CalendarScreen(
                     scope.launch { drawerState.open() }
                 },
                 onDateClick = {
-                    viewModel.selectDate(it)
-                    showDialog = true
+                    if (profile.isRegistered) {
+                        viewModel.selectDate(it)
+                        showDialog = true
+                    } else {
+                        showRegistrationPrompt = true
+                    }
                 },
                 onProfitClick = {
-                    showProfitDetails = true
+                    if (profile.isRegistered) showProfitDetails = true 
+                    else showRegistrationPrompt = true
                 },
                 onLessonsClick = {
-                    showLessonsDetails = true
+                    if (profile.isRegistered) showLessonsDetails = true
+                    else showRegistrationPrompt = true
+                },
+                onRegistrationRequired = {
+                    showRegistrationPrompt = true
                 }
             )
         }
+    }
+
+    // Диалог-предложение создать профиль
+    if (showRegistrationPrompt) {
+        AlertDialog(
+            onDismissRequest = { showRegistrationPrompt = false },
+            title = { Text("Требуется профиль") },
+            text = { Text("Чтобы планировать занятия и видеть статистику, нужно сначала настроить ваш профиль.") },
+            confirmButton = {
+                Button(onClick = {
+                    showRegistrationPrompt = false
+                    showSettings = true
+                }) {
+                    Text("Создать профиль")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegistrationPrompt = false }) {
+                    Text("Позже")
+                }
+            },
+            shape = RoundedCornerShape(28.dp)
+        )
     }
 
     // Отображение диалога статистики занятий
@@ -179,14 +217,17 @@ fun CalendarScreenContent(
     workingDays: Set<java.time.DayOfWeek> = emptySet(),
     pricePerSession: Double = 0.0,
     monthlyTaxAmount: Double = 0.0,
+    isRegistered: Boolean = true,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
-    onLessonsClick: () -> Unit = {}
+    onLessonsClick: () -> Unit = {},
+    onRegistrationRequired: () -> Unit = {}
 ) {
+    // ... (rest of calculations)
     // Расчет статистики за текущий месяц
     val monthData = remember(dayData, currentMonth) {
         dayData.filterKeys { it.month == currentMonth.month && it.year == currentMonth.year }
@@ -214,7 +255,9 @@ fun CalendarScreenContent(
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
                 onTodayClick = onTodayClick,
-                onMenuClick = onMenuClick
+                onMenuClick = onMenuClick,
+                isRegistered = isRegistered,
+                onRegistrationRequired = onRegistrationRequired
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -503,6 +546,7 @@ fun CalendarPreviewDark() {
             dayData = emptyMap(),
             pricePerSession = 1500.0,
             monthlyTaxAmount = 500.0,
+            isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
@@ -523,6 +567,7 @@ fun CalendarPreviewLight() {
             dayData = emptyMap(),
             pricePerSession = 1500.0,
             monthlyTaxAmount = 500.0,
+            isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.profile.DayChip
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import java.time.DayOfWeek
@@ -29,7 +30,8 @@ fun RegistrationScreen(
     viewModel: ProfileViewModel,
     onRegistrationComplete: () -> Unit
 ) {
-    val profile by viewModel.userProfile.collectAsState()
+    val profileState by viewModel.userProfile.collectAsState()
+    val profile = profileState ?: UserProfile()
     val scrollState = rememberScrollState()
 
     // Локальные состояния для всех полей ввода, чтобы избежать прыжков курсора
