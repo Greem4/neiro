@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.components.DayChip
 import java.time.DayOfWeek
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -64,13 +65,11 @@ private fun SettingsScreenImpl(
     val scrollState = rememberScrollState()
     val isNewUser = !profile.isRegistered
 
-    // Локальные состояния для всех полей ввода
     var nameText by remember { mutableStateOf("") }
     var activityText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
     var taxText by remember { mutableStateOf("") }
 
-    // Инициализация при загрузке профиля
     LaunchedEffect(profile.isRegistered) {
         if (nameText.isEmpty()) nameText = profile.name
         if (activityText.isEmpty()) activityText = profile.activityType
@@ -114,7 +113,7 @@ private fun SettingsScreenImpl(
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
             }
-            // Имя
+            
             OutlinedTextField(
                 value = nameText,
                 onValueChange = { 
@@ -130,7 +129,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Профессия
             OutlinedTextField(
                 value = activityText,
                 onValueChange = { 
@@ -146,7 +144,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Цена
             OutlinedTextField(
                 value = priceText,
                 onValueChange = { 
@@ -163,7 +160,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Налог
             OutlinedTextField(
                 value = taxText,
                 onValueChange = { 
@@ -180,7 +176,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Рабочие дни
             Text(
                 text = "Рабочие дни",
                 style = MaterialTheme.typography.titleMedium,
@@ -220,29 +215,6 @@ private fun SettingsScreenImpl(
 @Composable
 fun SettingsScreenLightPreview() {
     NeiroTheme(darkTheme = false) {
-        SettingsScreenImpl(
-            profile = UserProfile(
-                name = "Иван Иванов",
-                activityType = "Репетитор",
-                pricePerSession = 1500.0,
-                monthlyTaxAmount = 5000.0,
-                workingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
-            ),
-            onNameChange = {},
-            onActivityChange = {},
-            onPriceChange = {},
-            onTaxChange = {},
-            onToggleDay = {},
-            onBack = {}
-        )
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Preview(showBackground = true, name = "Settings Dark")
-@Composable
-fun SettingsScreenDarkPreview() {
-    NeiroTheme(darkTheme = true) {
         SettingsScreenImpl(
             profile = UserProfile(
                 name = "Иван Иванов",
