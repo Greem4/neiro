@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.components.DayChip
 import java.time.DayOfWeek
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -30,7 +31,8 @@ fun SettingsScreen(
     viewModel: ProfileViewModel,
     onBack: () -> Unit
 ) {
-    val profile by viewModel.userProfile.collectAsState()
+    val profileState by viewModel.userProfile.collectAsState()
+    val profile = profileState ?: UserProfile()
     
     SettingsScreenImpl(
         profile = profile,
@@ -39,7 +41,12 @@ fun SettingsScreen(
         onPriceChange = viewModel::updatePrice,
         onTaxChange = viewModel::updateTaxAmount,
         onToggleDay = viewModel::toggleWorkingDay,
-        onBack = onBack
+        onBack = {
+            if (!profile.isRegistered && profile.name.isNotBlank()) {
+                viewModel.completeRegistration()
+            }
+            onBack()
+        }
     )
 }
 
@@ -56,17 +63,16 @@ private fun SettingsScreenImpl(
     onBack: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val isNewUser = !profile.isRegistered
 
-    // Локальные состояния для всех полей ввода
     var nameText by remember { mutableStateOf("") }
     var activityText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
     var taxText by remember { mutableStateOf("") }
 
-    // Инициализация при загрузке профиля
-    LaunchedEffect(profile) {
-        if (nameText != profile.name && nameText.isEmpty()) nameText = profile.name
-        if (activityText != profile.activityType && activityText.isEmpty()) activityText = profile.activityType
+    LaunchedEffect(profile.isRegistered) {
+        if (nameText.isEmpty()) nameText = profile.name
+        if (activityText.isEmpty()) activityText = profile.activityType
         if (priceText.isEmpty() && profile.pricePerSession != 0.0) priceText = profile.pricePerSession.toString().removeSuffix(".0")
         if (taxText.isEmpty() && profile.monthlyTaxAmount != 0.0) taxText = profile.monthlyTaxAmount.toString().removeSuffix(".0")
     }
@@ -74,14 +80,10 @@ private fun SettingsScreenImpl(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(if (profile.isRegistered) "Настройки профиля" else "Добро пожаловать!") 
-                },
+                title = { Text("Настройки профиля") },
                 navigationIcon = {
-                    if (profile.isRegistered) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                        }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -94,15 +96,6 @@ private fun SettingsScreenImpl(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
-            if (!profile.isRegistered) {
-                Text(
-                    text = "Давайте настроим ваш профиль, чтобы начать работу с календарем.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
-            }
-
             // Имя
             OutlinedTextField(
                 value = nameText,
@@ -119,7 +112,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Профессия
             OutlinedTextField(
                 value = activityText,
                 onValueChange = { 
@@ -135,7 +127,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Цена
             OutlinedTextField(
                 value = priceText,
                 onValueChange = { 
@@ -152,7 +143,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Налог
             OutlinedTextField(
                 value = taxText,
                 onValueChange = { 
@@ -169,7 +159,6 @@ private fun SettingsScreenImpl(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Рабочие дни
             Text(
                 text = "Рабочие дни",
                 style = MaterialTheme.typography.titleMedium,
@@ -194,10 +183,11 @@ private fun SettingsScreenImpl(
             
             Button(
                 onClick = onBack,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                enabled = nameText.isNotBlank() && activityText.isNotBlank()
             ) {
-                Text("Готово")
+                Text(if (isNewUser) "Начать работу" else "Сохранить и выйти")
             }
         }
     }
@@ -208,29 +198,6 @@ private fun SettingsScreenImpl(
 @Composable
 fun SettingsScreenLightPreview() {
     NeiroTheme(darkTheme = false) {
-        SettingsScreenImpl(
-            profile = UserProfile(
-                name = "Иван Иванов",
-                activityType = "Репетитор",
-                pricePerSession = 1500.0,
-                monthlyTaxAmount = 5000.0,
-                workingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
-            ),
-            onNameChange = {},
-            onActivityChange = {},
-            onPriceChange = {},
-            onTaxChange = {},
-            onToggleDay = {},
-            onBack = {}
-        )
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Preview(showBackground = true, name = "Settings Dark")
-@Composable
-fun SettingsScreenDarkPreview() {
-    NeiroTheme(darkTheme = true) {
         SettingsScreenImpl(
             profile = UserProfile(
                 name = "Иван Иванов",

@@ -10,7 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
-import ru.greemlab.neiro.ui.registration.RegistrationScreen
 import ru.greemlab.neiro.ui.screens.CalendarScreen
 
 /**
@@ -29,15 +28,8 @@ class MainActivity : ComponentActivity() {
                 val profileViewModel: ProfileViewModel = viewModel()
                 val profile by profileViewModel.userProfile.collectAsState()
 
-                if (profile.isRegistered) {
-                    // Главный экран приложения — Календарь
+                if (profile != null) {
                     CalendarScreen(profileViewModel = profileViewModel)
-                } else {
-                    // Экран регистрации/настройки
-                    RegistrationScreen(
-                        viewModel = profileViewModel,
-                        onRegistrationComplete = { /* Flow handled by state */ }
-                    )
                 }
             }
         }
