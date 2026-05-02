@@ -42,7 +42,7 @@ fun DayDetailsDialog(
     initialNames: List<String>,
     userProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (List<String>) -> Unit
+    onSave: (List<String>, Boolean) -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -65,7 +65,7 @@ fun DayDetailsContent(
     initialNames: List<String>,
     userProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (List<String>) -> Unit
+    onSave: (List<String>, Boolean) -> Unit
 ) {
     // Внутренняя модель для отслеживания прихода (формат "Name|attended")
     var items by remember { 
@@ -78,6 +78,9 @@ fun DayDetailsContent(
             }
         )
     }
+
+    // Флаг повторения до конца месяца
+    var repeatUntilEndOfMonth by remember { mutableStateOf(false) }
     
     // Состояния для реализации Drag-and-Drop
     val listState = rememberLazyListState()
@@ -303,7 +306,9 @@ fun DayDetailsContent(
                                 newList.add("" to false)
                                 items = newList
                             },
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.primary
@@ -311,7 +316,35 @@ fun DayDetailsContent(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Добавить ученика", fontWeight = FontWeight.Medium)
+                            Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+
+                // Переключатель повторения внутри списка (после кнопки Добавить)
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        onClick = { repeatUntilEndOfMonth = !repeatUntilEndOfMonth }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = repeatUntilEndOfMonth,
+                                onCheckedChange = { repeatUntilEndOfMonth = it }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} до конца месяца",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -334,7 +367,7 @@ fun DayDetailsContent(
                 Button(
                     onClick = { 
                         // Сохраняем в формате "Имя|attended"
-                        onSave(items.filter { it.first.isNotBlank() }.map { "${it.first}|${it.second}" }) 
+                        onSave(items.filter { it.first.isNotBlank() }.map { "${it.first}|${it.second}" }, repeatUntilEndOfMonth) 
                     },
                     shape = RoundedCornerShape(12.dp),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
@@ -367,7 +400,7 @@ fun DayDetailsLightPreview() {
                     initialNames = testNames,
                     userProfile = UserProfile(pricePerSession = testPrice),
                     onDismiss = {},
-                    onSave = {}
+                    onSave = { _, _ -> }
                 )
             }
         }
@@ -389,7 +422,7 @@ fun DayDetailsDarkPreview() {
                     initialNames = listOf("Света", "Иван"),
                     userProfile = UserProfile(pricePerSession = 1500.0),
                     onDismiss = {},
-                    onSave = {}
+                    onSave = { _, _ -> }
                 )
             }
         }

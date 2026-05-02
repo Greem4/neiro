@@ -76,15 +76,45 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Сохранение списка имен для указанной даты в DataStore.
+     * @param date Дата сохранения.
+     * @param names Список имен в формате "Имя|attended".
+     * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
      */
-    fun saveNamesForDate(date: LocalDate, names: List<String>) {
+    fun saveNamesForDate(date: LocalDate, names: List<String>, repeatUntilMonthEnd: Boolean = false) {
         viewModelScope.launch {
             val newData = _dayData.value.toMutableMap()
-            if (names.isEmpty()) {
-                newData.remove(date)
+            
+            if (repeatUntilMonthEnd) {
+                // Находим все такие же дни недели до конца месяца
+                val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
+                var nextDate = date
+                
+                while (!nextDate.isAfter(lastDayOfMonth)) {
+                    if (names.isEmpty()) {
+                        newData.remove(nextDate)
+                    } else {
+                        // Для будущих дат сбрасываем статус "пришел" (attended = false)
+                        // чтобы они не считались проведенными в статистике до ручного подтверждения
+                        val futureNames = if (nextDate.isAfter(date)) {
+                            names.map { nameWithStatus ->
+                                val name = nameWithStatus.split("|")[0]
+                                "$name|false"
+                            }
+                        } else {
+                            names
+                        }
+                        newData[nextDate] = futureNames
+                    }
+                    nextDate = nextDate.plusWeeks(1)
+                }
             } else {
-                newData[date] = names
+                if (names.isEmpty()) {
+                    newData.remove(date)
+                } else {
+                    newData[date] = names
+                }
             }
+
             // Сохраняем всё состояние в DataStore
             dataStore.saveDayData(newData)
         }

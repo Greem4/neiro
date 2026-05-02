@@ -7,8 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
@@ -115,8 +113,8 @@ fun CalendarScreen(
             initialNames = dayData[selectedDate!!] ?: emptyList(),
             userProfile = profile, // Передаем профиль в диалог
             onDismiss = { showDialog = false },
-            onSave = { names ->
-                viewModel.saveNamesForDate(selectedDate!!, names)
+            onSave = { names, repeat ->
+                viewModel.saveNamesForDate(selectedDate!!, names, repeat)
                 showDialog = false
             }
         )
