@@ -50,7 +50,7 @@ fun CalendarScreen(
     val profile = profileState ?: UserProfile()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    
+
     // Состояния UI (диалоги и дочерние экраны)
     var showDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -116,7 +116,7 @@ fun CalendarScreen(
                     }
                 },
                 onProfitClick = {
-                    if (profile.isRegistered) showProfitDetails = true 
+                    if (profile.isRegistered) showProfitDetails = true
                     else showRegistrationPrompt = true
                 },
                 onLessonsClick = {
@@ -252,7 +252,7 @@ fun CalendarScreenContent(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     WeekDaysRow()
-                    
+
                     AnimatedContent(
                         targetState = currentMonth,
                         transitionSpec = {
