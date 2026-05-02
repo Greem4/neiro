@@ -31,10 +31,10 @@ fun rememberCalendarMonthStats(
         val totalExtras = allSessions.sumOf { SessionParser.getExtraAmount(it) }
         
         val grossEarnings = (completedCount * pricePerSession) + totalExtras
-        val netProfit = if (grossEarnings > 0) grossEarnings - monthlyTaxAmount else 0.0
+        val netProfit = (grossEarnings - monthlyTaxAmount).coerceAtLeast(0.0)
         
         val expectedGross = (studentsCount * pricePerSession) + totalExtras
-        val expectedNet = if (expectedGross > 0) expectedGross - monthlyTaxAmount else 0.0
+        val expectedNet = (expectedGross - monthlyTaxAmount).coerceAtLeast(0.0)
 
         CalendarMonthStats(
             completedCount = completedCount,
