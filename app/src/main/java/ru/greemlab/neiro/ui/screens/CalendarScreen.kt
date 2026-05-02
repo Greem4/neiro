@@ -85,30 +85,30 @@ fun CalendarScreen(
         }
     }
 
-    if (showSettings) {
-        SettingsScreen(
-            viewModel = profileViewModel,
-            onBack = { showSettings = false }
-        )
-    } else {
+    // Контент экрана
+    Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
+            gesturesEnabled = profile.isRegistered, // Отключаем жесты, если профиля нет
             drawerContent = {
-                ModalDrawerSheet(
-                    modifier = Modifier.fillMaxWidth(0.8f) // Занимает 80% ширины
-                ) {
-                    ProfileContent(
-                        profileViewModel = profileViewModel,
-                        calendarViewModel = viewModel,
-                        onOpenSettings = {
-                            scope.launch { drawerState.close() }
-                            showSettings = true
-                        }
-                    )
+                // Компонуем содержимое шторки только когда она реально открывается или открыта
+                // Это предотвращает любые "артефакты" и вспышки при первом запуске
+                if (drawerState.isOpen || drawerState.isAnimationRunning) {
+                    ModalDrawerSheet(
+                        modifier = Modifier.fillMaxWidth(0.8f)
+                    ) {
+                        ProfileContent(
+                            profileViewModel = profileViewModel,
+                            calendarViewModel = viewModel,
+                            onOpenSettings = {
+                                scope.launch { drawerState.close() }
+                                showSettings = true
+                            }
+                        )
+                    }
                 }
             }
         ) {
-            // Контент экрана
             CalendarScreenContent(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
@@ -142,6 +142,15 @@ fun CalendarScreen(
                 onRegistrationRequired = {
                     showRegistrationPrompt = true
                 }
+            )
+        }
+
+        // Поверх календаря показываем настройки, если нужно
+        // Это предотвращает пересоздание всего дерева UI (и вспышки)
+        if (showSettings) {
+            SettingsScreen(
+                viewModel = profileViewModel,
+                onBack = { showSettings = false }
             )
         }
     }

@@ -10,7 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
-import ru.greemlab.neiro.ui.registration.RegistrationScreen
 import ru.greemlab.neiro.ui.screens.CalendarScreen
 
 /**
