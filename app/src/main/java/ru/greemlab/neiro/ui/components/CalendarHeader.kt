@@ -4,8 +4,10 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -54,12 +56,10 @@ fun CalendarHeader(
         // Левая часть: Кнопка меню, Название месяца и кнопка перехода к текущей дате
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onMenuClick) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Меню профиля",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
+                NeiroLogo(size = 32.dp)
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Text(
                 text = currentMonth.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("ru"))

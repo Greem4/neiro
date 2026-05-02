@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
+import ru.greemlab.neiro.ui.components.NeiroLogo
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.*
@@ -110,12 +111,7 @@ private fun ProfileContentImpl(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 24.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.AccountCircle,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            NeiroLogo(size = 64.dp)
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
