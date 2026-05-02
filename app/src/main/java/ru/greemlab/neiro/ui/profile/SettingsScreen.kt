@@ -74,10 +74,14 @@ private fun SettingsScreenImpl(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки профиля") },
+                title = { 
+                    Text(if (profile.isRegistered) "Настройки профиля" else "Добро пожаловать!") 
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    if (profile.isRegistered) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        }
                     }
                 }
             )
@@ -90,6 +94,15 @@ private fun SettingsScreenImpl(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
+            if (!profile.isRegistered) {
+                Text(
+                    text = "Давайте настроим ваш профиль, чтобы начать работу с календарем.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+            }
+
             // Имя
             OutlinedTextField(
                 value = nameText,
