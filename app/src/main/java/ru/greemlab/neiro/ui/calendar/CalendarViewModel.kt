@@ -79,48 +79,78 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
      * @param date Дата сохранения.
      * @param names Список имен в формате "Имя|attended".
      * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
+     * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
      */
-    fun saveNamesForDate(date: LocalDate, names: List<String>, repeatUntilMonthEnd: Boolean = false) {
+    fun saveNamesForDate(
+        date: LocalDate, 
+        names: List<String>, 
+        repeatUntilMonthEnd: Boolean = false,
+        repeatNextMonth: Boolean = false
+    ) {
         viewModelScope.launch {
             val newData = _dayData.value.toMutableMap()
             
+            // 1. Обработка текущего месяца
             if (repeatUntilMonthEnd) {
-                // Находим все такие же дни недели до конца месяца
                 val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
                 var nextDate = date
-                
                 while (!nextDate.isAfter(lastDayOfMonth)) {
-                    if (names.isEmpty()) {
-                        newData.remove(nextDate)
-                    } else {
-                        // Для будущих дат сбрасываем статус "пришел" (attended = false)
-                        // чтобы они не считались проведенными в статистике до ручного подтверждения
-                        val futureNames = if (nextDate.isAfter(date)) {
-                            names.map { nameWithStatus ->
-                                if (nameWithStatus.startsWith("__")) {
-                                    nameWithStatus
-                                } else {
-                                    val name = nameWithStatus.split("|")[0]
-                                    "$name|false"
-                                }
-                            }
-                        } else {
-                            names
-                        }
-                        newData[nextDate] = futureNames
-                    }
+                    updateDateData(newData, nextDate, date, names)
                     nextDate = nextDate.plusWeeks(1)
                 }
             } else {
-                if (names.isEmpty()) {
-                    newData.remove(date)
-                } else {
-                    newData[date] = names
+                updateDateData(newData, date, date, names)
+            }
+            
+            // 2. Обработка следующего месяца
+            if (repeatNextMonth) {
+                val nextMonth = YearMonth.from(date).plusMonths(1)
+                val lastDayOfNextMonth = nextMonth.atEndOfMonth()
+                
+                // Находим первый такой же день недели в следующем месяце
+                var nextMonthDate = nextMonth.atDay(1)
+                while (nextMonthDate.dayOfWeek != date.dayOfWeek) {
+                    nextMonthDate = nextMonthDate.plusDays(1)
+                }
+                
+                // Повторяем каждую неделю до конца следующего месяца
+                while (!nextMonthDate.isAfter(lastDayOfNextMonth)) {
+                    updateDateData(newData, nextMonthDate, date, names)
+                    nextMonthDate = nextMonthDate.plusWeeks(1)
                 }
             }
 
             // Сохраняем всё состояние в DataStore
             dataStore.saveDayData(newData)
+        }
+    }
+
+    /**
+     * Вспомогательный метод для обновления данных конкретной даты.
+     */
+    private fun updateDateData(
+        data: MutableMap<LocalDate, List<String>>,
+        targetDate: LocalDate,
+        originalDate: LocalDate,
+        names: List<String>
+    ) {
+        if (names.isEmpty()) {
+            data.remove(targetDate)
+        } else {
+            // Для будущих дат сбрасываем статус "пришел" (attended = false)
+            val processedNames = if (targetDate.isAfter(originalDate)) {
+                names.map { nameWithStatus ->
+                    if (nameWithStatus.startsWith("__")) {
+                        nameWithStatus
+                    } else {
+                        val name = nameWithStatus.split("|")[0]
+                        "$name|false"
+                    }
+                }
+            } else {
+                names
+            }
+            data[targetDate] = processedNames
         }
     }
 }

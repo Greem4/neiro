@@ -181,8 +181,8 @@ fun CalendarScreen(
             initialNames = dayData[selectedDate!!] ?: emptyList(),
             userProfile = profile,
             onDismiss = { showDialog = false },
-            onSave = { names, repeat ->
-                viewModel.saveNamesForDate(selectedDate!!, names, repeat)
+            onSave = { names, repeat, repeatNext ->
+                viewModel.saveNamesForDate(selectedDate!!, names, repeat, repeatNext)
                 showDialog = false
             }
         )
