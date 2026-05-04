@@ -1,6 +1,5 @@
 package ru.greemlab.neiro.ui.settings
 
-import android.content.Context
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,7 +26,7 @@ import java.io.OutputStreamWriter
 @Composable
 fun AppSettingsScreen(
     onBack: () -> Unit,
-    viewModel: AppSettingsViewModel = viewModel()
+    viewModel: AppSettingsViewModel = viewModel(),
 ) {
     val theme by viewModel.theme.collectAsState()
     val context = LocalContext.current

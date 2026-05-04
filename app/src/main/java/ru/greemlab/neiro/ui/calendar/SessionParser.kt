@@ -36,14 +36,6 @@ object SessionParser {
     }
 
     /**
-     * Извлекает имя ученика из записи.
-     */
-    fun getName(sessionString: String): String {
-        if (isExtra(sessionString)) return ""
-        return sessionString.split("|")[0]
-    }
-
-    /**
      * Извлекает сумму дополнительного дохода из специальной записи.
      */
     fun getExtraAmount(sessionString: String): Double {

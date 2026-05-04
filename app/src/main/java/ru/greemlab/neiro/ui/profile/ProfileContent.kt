@@ -16,7 +16,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
@@ -32,7 +31,7 @@ fun ProfileContent(
     calendarViewModel: CalendarViewModel,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val profileState by profileViewModel.userProfile.collectAsState()
     val profile = profileState ?: UserProfile()

@@ -20,7 +20,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "system"
+            initialValue = "system",
         )
 
     fun setTheme(theme: String) {
@@ -45,7 +45,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
                 } else {
                     onResult(false)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 onResult(false)
             }
         }

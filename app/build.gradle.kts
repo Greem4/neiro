@@ -22,7 +22,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -46,7 +46,6 @@ kotlin {
 dependencies {
     // Compose BOM
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.remote.creation.core)
 
     // Compose UI
     implementation(libs.androidx.compose.ui)

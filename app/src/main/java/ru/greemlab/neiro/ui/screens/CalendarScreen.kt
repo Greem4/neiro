@@ -40,7 +40,7 @@ import java.util.Locale
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
-    profileViewModel: ProfileViewModel = viewModel()
+    profileViewModel: ProfileViewModel = viewModel(),
 ) {
     // Состояния из ViewModels
     val currentMonth by viewModel.currentMonth.collectAsState()
@@ -53,7 +53,7 @@ fun CalendarScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // Состояния UI (диалоги и дочерние экраны)
-    var showDialog by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(value = false) }
     var showSettings by remember { mutableStateOf(false) }
     var showAppSettings by remember { mutableStateOf(false) }
     var showRegistrationPrompt by remember { mutableStateOf(false) }
@@ -130,7 +130,9 @@ fun CalendarScreen(
                     if (profile.isRegistered) showLessonsDetails = true
                     else showRegistrationPrompt = true
                 },
-                onRegistrationRequired = { showRegistrationPrompt = true }
+                onRegistrationRequired = { 
+                    showRegistrationPrompt = true 
+                }
             )
         }
 
@@ -175,7 +177,7 @@ fun CalendarScreen(
         )
     }
 
-    if (showDialog && selectedDate != null) {
+    if (showDialog && (selectedDate != null)) {
         DayDetailsDialog(
             date = selectedDate!!,
             initialNames = dayData[selectedDate!!] ?: emptyList(),
@@ -271,7 +273,8 @@ fun CalendarScreenContent(
                         transitionSpec = {
                             if (targetState.isAfter(initialState)) {
                                 (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> -width } + fadeOut())
+                                    slideOutHorizontally { width -> -width } + fadeOut(),
+                                )
                             } else {
                                 (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
                                     slideOutHorizontally { width -> width } + fadeOut())
