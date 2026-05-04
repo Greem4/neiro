@@ -22,6 +22,20 @@ object SessionParser {
     }
 
     /**
+     * Проверяет, является ли запись интенсивом.
+     */
+    fun isIntensive(sessionString: String): Boolean {
+        return sessionString.startsWith("__INTENSIVE__:")
+    }
+
+    /**
+     * Проверяет, является ли запись диагностикой.
+     */
+    fun isDiagnostics(sessionString: String): Boolean {
+        return sessionString.startsWith("__DIAGNOSTICS__:")
+    }
+
+    /**
      * Извлекает имя ученика из записи.
      */
     fun getName(sessionString: String): String {
