@@ -42,7 +42,7 @@ fun DayDetailsDialog(
     initialNames: List<String>,
     userProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean) -> Unit
+    onSave: (List<String>, Boolean, Boolean) -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -65,7 +65,7 @@ fun DayDetailsContent(
     initialNames: List<String>,
     userProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean) -> Unit
+    onSave: (List<String>, Boolean, Boolean) -> Unit
 ) {
     val initialStudents = initialNames.filter { !it.startsWith("__") }
     var items by remember { 
@@ -91,6 +91,7 @@ fun DayDetailsContent(
     val focusRequester = remember { FocusRequester() }
     var focusItemId by remember { mutableStateOf<String?>(null) }
     var repeatUntilEndOfMonth by remember { mutableStateOf(false) }
+    var repeatNextMonth by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
     var draggedItemId by remember { mutableStateOf<String?>(null) }
@@ -249,6 +250,23 @@ fun DayDetailsContent(
                             )
                         }
                     }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        onClick = { repeatNextMonth = !repeatNextMonth }
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = repeatNextMonth, onCheckedChange = { repeatNextMonth = it })
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} следующего месяца",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 
@@ -260,7 +278,7 @@ fun DayDetailsContent(
                     val finalNames = items.filter { it.name.isNotBlank() }.map { "${it.name}|${it.attended}" }.toMutableList()
                     if (intensivePrice.isNotBlank()) finalNames.add("__INTENSIVE__:$intensivePrice")
                     if (diagnosticsPrice.isNotBlank()) finalNames.add("__DIAGNOSTICS__:$diagnosticsPrice")
-                    onSave(finalNames, repeatUntilEndOfMonth)
+                    onSave(finalNames, repeatUntilEndOfMonth, repeatNextMonth)
                 }
             )
         }
@@ -279,7 +297,7 @@ fun DayDetailsLightPreview() {
                     initialNames = listOf("Света", "Иван"),
                     userProfile = UserProfile(pricePerSession = 1200.0),
                     onDismiss = {},
-                    onSave = { _, _ -> }
+                    onSave = { _, _, _ -> }
                 )
             }
         }

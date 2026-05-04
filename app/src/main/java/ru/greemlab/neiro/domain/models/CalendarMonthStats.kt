@@ -7,8 +7,10 @@ data class CalendarMonthStats(
     val completedCount: Int,
     val totalScheduled: Int,
     val remainingCount: Int,
-    val netProfit: Double,
-    val grossEarnings: Double,
-    val expectedNet: Double,
+    val totalEarned: Double, // Грязный доход (факт)
+    val netProfit: Double,   // Чистый доход (за вычетом налога)
+    val intensiveEarnings: Double,
+    val diagnosticsEarnings: Double,
+    val expectedIncome: Double,
     val taxAmount: Double
 )

@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.ui.settings.AppSettingsScreen
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import java.time.LocalDate
@@ -39,7 +40,7 @@ import java.util.Locale
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
-    profileViewModel: ProfileViewModel = viewModel()
+    profileViewModel: ProfileViewModel = viewModel(),
 ) {
     // Состояния из ViewModels
     val currentMonth by viewModel.currentMonth.collectAsState()
@@ -52,8 +53,9 @@ fun CalendarScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // Состояния UI (диалоги и дочерние экраны)
-    var showDialog by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(value = false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showAppSettings by remember { mutableStateOf(false) }
     var showRegistrationPrompt by remember { mutableStateOf(false) }
     var showProfitDetails by remember { mutableStateOf(false) }
     var showLessonsDetails by remember { mutableStateOf(false) }
@@ -67,10 +69,11 @@ fun CalendarScreen(
     )
 
     // Обработка системной кнопки "Назад"
-    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showProfitDetails || showLessonsDetails
+    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings || showProfitDetails || showLessonsDetails
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
             showSettings -> showSettings = false
+            showAppSettings -> showAppSettings = false
             showProfitDetails -> showProfitDetails = false
             showLessonsDetails -> showLessonsDetails = false
             else -> scope.launch { drawerState.close() }
@@ -90,6 +93,10 @@ fun CalendarScreen(
                             onOpenSettings = {
                                 scope.launch { drawerState.close() }
                                 showSettings = true
+                            },
+                            onOpenAppSettings = {
+                                scope.launch { drawerState.close() }
+                                showAppSettings = true
                             }
                         )
                     }
@@ -123,7 +130,9 @@ fun CalendarScreen(
                     if (profile.isRegistered) showLessonsDetails = true
                     else showRegistrationPrompt = true
                 },
-                onRegistrationRequired = { showRegistrationPrompt = true }
+                onRegistrationRequired = { 
+                    showRegistrationPrompt = true 
+                }
             )
         }
 
@@ -131,6 +140,12 @@ fun CalendarScreen(
             SettingsScreen(
                 viewModel = profileViewModel,
                 onBack = { showSettings = false }
+            )
+        }
+
+        if (showAppSettings) {
+            AppSettingsScreen(
+                onBack = { showAppSettings = false }
             )
         }
     }
@@ -162,14 +177,14 @@ fun CalendarScreen(
         )
     }
 
-    if (showDialog && selectedDate != null) {
+    if (showDialog && (selectedDate != null)) {
         DayDetailsDialog(
             date = selectedDate!!,
             initialNames = dayData[selectedDate!!] ?: emptyList(),
             userProfile = profile,
             onDismiss = { showDialog = false },
-            onSave = { names, repeat ->
-                viewModel.saveNamesForDate(selectedDate!!, names, repeat)
+            onSave = { names, repeat, repeatNext ->
+                viewModel.saveNamesForDate(selectedDate!!, names, repeat, repeatNext)
                 showDialog = false
             }
         )
@@ -258,7 +273,8 @@ fun CalendarScreenContent(
                         transitionSpec = {
                             if (targetState.isAfter(initialState)) {
                                 (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> -width } + fadeOut())
+                                    slideOutHorizontally { width -> -width } + fadeOut(),
+                                )
                             } else {
                                 (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
                                     slideOutHorizontally { width -> width } + fadeOut())
@@ -289,7 +305,7 @@ fun CalendarPreviewDark() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0),
+            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
@@ -309,7 +325,7 @@ fun CalendarPreviewLight() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0),
+            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},

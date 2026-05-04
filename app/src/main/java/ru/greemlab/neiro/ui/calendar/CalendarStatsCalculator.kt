@@ -25,24 +25,51 @@ fun rememberCalendarMonthStats(
         val monthData = dayData.filterKeys { 
             it.month == currentMonth.month && it.year == currentMonth.year 
         }
-        val allSessions = monthData.values.flatten()
-        val completedCount = allSessions.count { SessionParser.isAttended(it) }
-        val studentsCount = allSessions.count { !SessionParser.isExtra(it) }
-        val totalExtras = allSessions.sumOf { SessionParser.getExtraAmount(it) }
-        
-        val grossEarnings = (completedCount * pricePerSession) + totalExtras
-        val netProfit = (grossEarnings - monthlyTaxAmount).coerceAtLeast(0.0)
-        
-        val expectedGross = (studentsCount * pricePerSession) + totalExtras
-        val expectedNet = (expectedGross - monthlyTaxAmount).coerceAtLeast(0.0)
+
+        var completedSessionsCount = 0
+        var totalScheduledSessionsCount = 0
+        var totalGrossEarned = 0.0
+        var intensiveEarnings = 0.0
+        var diagnosticsEarnings = 0.0
+        var expectedIncome = 0.0
+
+        monthData.forEach { (_, sessions) ->
+            sessions.forEach { session ->
+                when {
+                    SessionParser.isIntensive(session) -> {
+                        val amount = SessionParser.getExtraAmount(session)
+                        intensiveEarnings += amount
+                        totalGrossEarned += amount
+                    }
+                    SessionParser.isDiagnostics(session) -> {
+                        val amount = SessionParser.getExtraAmount(session)
+                        diagnosticsEarnings += amount
+                        totalGrossEarned += amount
+                    }
+                    !SessionParser.isExtra(session) -> {
+                        totalScheduledSessionsCount++
+                        if (SessionParser.isAttended(session)) {
+                            completedSessionsCount++
+                            totalGrossEarned += pricePerSession
+                        } else {
+                            expectedIncome += pricePerSession
+                        }
+                    }
+                }
+            }
+        }
+
+        val netProfit = (totalGrossEarned - monthlyTaxAmount).coerceAtLeast(0.0)
 
         CalendarMonthStats(
-            completedCount = completedCount,
-            totalScheduled = studentsCount,
-            remainingCount = studentsCount - completedCount,
+            completedCount = completedSessionsCount,
+            totalScheduled = totalScheduledSessionsCount,
+            remainingCount = totalScheduledSessionsCount - completedSessionsCount,
+            totalEarned = totalGrossEarned,
             netProfit = netProfit,
-            grossEarnings = grossEarnings,
-            expectedNet = expectedNet,
+            intensiveEarnings = intensiveEarnings,
+            diagnosticsEarnings = diagnosticsEarnings,
+            expectedIncome = expectedIncome,
             taxAmount = monthlyTaxAmount
         )
     }

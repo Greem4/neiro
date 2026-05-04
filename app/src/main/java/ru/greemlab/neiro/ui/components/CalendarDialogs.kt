@@ -93,30 +93,36 @@ fun ProfitDetailsDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 ProfitRow(
-                    label = "Заработано чистыми",
+                    label = "Чистый доход",
                     value = stats.netProfit,
                     color = Color(0xFF4CAF50),
                     isBold = true
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                
                 ProfitRow(
                     label = "Заработано всего (грязными)",
-                    value = stats.grossEarnings,
+                    value = stats.totalEarned,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+
                 ProfitRow(
-                    label = "Ожидаемый доход (план)",
-                    value = stats.expectedNet,
+                    label = "Заработано интенсив",
+                    value = stats.intensiveEarnings,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                ProfitRow(
+                    label = "Заработано диагностика",
+                    value = stats.diagnosticsEarnings,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                ProfitRow(
+                    label = "Ожидаемый доход",
+                    value = stats.expectedIncome,
                     color = MaterialTheme.colorScheme.primary
                 )
-                if (stats.taxAmount > 0) {
-                    ProfitRow(
-                        label = "Налог (вычтен)",
-                        value = stats.taxAmount,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                        prefix = "-"
-                    )
-                }
             }
         }
     )
