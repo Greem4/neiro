@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.ui.settings.AppSettingsScreen
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import java.time.LocalDate
@@ -54,6 +55,7 @@ fun CalendarScreen(
     // Состояния UI (диалоги и дочерние экраны)
     var showDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showAppSettings by remember { mutableStateOf(false) }
     var showRegistrationPrompt by remember { mutableStateOf(false) }
     var showProfitDetails by remember { mutableStateOf(false) }
     var showLessonsDetails by remember { mutableStateOf(false) }
@@ -67,10 +69,11 @@ fun CalendarScreen(
     )
 
     // Обработка системной кнопки "Назад"
-    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showProfitDetails || showLessonsDetails
+    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings || showProfitDetails || showLessonsDetails
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
             showSettings -> showSettings = false
+            showAppSettings -> showAppSettings = false
             showProfitDetails -> showProfitDetails = false
             showLessonsDetails -> showLessonsDetails = false
             else -> scope.launch { drawerState.close() }
@@ -90,6 +93,10 @@ fun CalendarScreen(
                             onOpenSettings = {
                                 scope.launch { drawerState.close() }
                                 showSettings = true
+                            },
+                            onOpenAppSettings = {
+                                scope.launch { drawerState.close() }
+                                showAppSettings = true
                             }
                         )
                     }
@@ -131,6 +138,12 @@ fun CalendarScreen(
             SettingsScreen(
                 viewModel = profileViewModel,
                 onBack = { showSettings = false }
+            )
+        }
+
+        if (showAppSettings) {
+            AppSettingsScreen(
+                onBack = { showAppSettings = false }
             )
         }
     }

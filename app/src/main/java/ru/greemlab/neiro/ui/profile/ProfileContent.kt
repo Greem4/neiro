@@ -31,6 +31,7 @@ fun ProfileContent(
     profileViewModel: ProfileViewModel,
     calendarViewModel: CalendarViewModel,
     onOpenSettings: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val profileState by profileViewModel.userProfile.collectAsState()
@@ -41,6 +42,7 @@ fun ProfileContent(
         profile = profile,
         dayData = dayData,
         onOpenSettings = onOpenSettings,
+        onOpenAppSettings = onOpenAppSettings,
         modifier = modifier
     )
 }
@@ -51,6 +53,7 @@ private fun ProfileContentImpl(
     profile: UserProfile,
     dayData: Map<LocalDate, List<String>>,
     onOpenSettings: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
     nameStyle: TextStyle = MaterialTheme.typography.headlineSmall,
     professionStyle: TextStyle = MaterialTheme.typography.bodyMedium
@@ -115,13 +118,23 @@ private fun ProfileContentImpl(
 
         OutlinedButton(
             onClick = onOpenSettings,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             shape = RoundedCornerShape(12.dp),
             contentPadding = PaddingValues(12.dp)
         ) {
             Icon(Icons.Default.Settings, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(if (profile.isRegistered) "Настройки профиля" else "Создать профиль")
+        }
+
+        TextButton(
+            onClick = onOpenAppSettings,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Настройки приложения", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -140,7 +153,8 @@ fun ProfileContentLightPreview() {
                     monthlyTaxAmount = 5000.0
                 ),
                 dayData = emptyMap(),
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenAppSettings = {}
             )
         }
     }
