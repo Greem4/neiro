@@ -121,8 +121,9 @@ fun StudentItemRow(
                                 onValueChange = { onPriceChange(it.filter { c -> c.isDigit() }) },
                                 placeholder = { 
                                     Text(
-                                        "Введите сумму (₽)",
+                                        "Сумма (₽)",
                                         style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 1,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     ) 
                                 },
@@ -151,7 +152,7 @@ fun StudentItemRow(
                                     MaterialTheme.colorScheme.tertiary 
                                 else 
                                     MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
+                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                             )
                         }
                     }

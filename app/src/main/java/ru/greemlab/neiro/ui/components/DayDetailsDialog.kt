@@ -267,11 +267,12 @@ fun DayDetailsContent(
                                     },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.tertiary)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Интенсив", style = MaterialTheme.typography.labelLarge)
+                                    Text("Интенсив", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                                 }
 
                                 OutlinedButton(
@@ -282,11 +283,12 @@ fun DayDetailsContent(
                                     },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.secondary)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Диагностика", style = MaterialTheme.typography.labelLarge)
+                                    Text("Диагностика", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                                 }
                             }
                         }
