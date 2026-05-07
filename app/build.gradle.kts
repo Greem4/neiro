@@ -12,7 +12,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.2.0"
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -34,6 +34,17 @@ android {
 
     buildFeatures {
         compose = true
+    }
+}
+
+// Настройка имени выходного APK файла
+androidComponents {
+    onVariants { variant ->
+        val vName = android.defaultConfig.versionName ?: "unknown"
+        variant.outputs.forEach { output ->
+            // Название в формате: neiro-v0.4.0-pre-release.apk
+            output.outputFileName.set("neiro-v$vName-pre-release.apk")
+        }
     }
 }
 
