@@ -30,6 +30,7 @@ fun StudentItemRow(
     elevation: Float,
     focusRequester: FocusRequester,
     isFocused: Boolean,
+    isPlanningMode: Boolean = true,
     onAttendedChange: (Boolean) -> Unit,
     onNameChange: (String) -> Unit,
     onDelete: () -> Unit,
@@ -71,32 +72,44 @@ fun StudentItemRow(
                 )
             }
 
-            TextField(
-                value = student.name,
-                onValueChange = onNameChange,
-                placeholder = { 
-                    Text(
-                        "Фамилия ${index + 1}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    ) 
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .then(if (isFocused) Modifier.focusRequester(focusRequester) else Modifier),
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
+            if (isPlanningMode) {
+                TextField(
+                    value = student.name,
+                    onValueChange = onNameChange,
+                    placeholder = { 
+                        Text(
+                            "Фамилия ${index + 1}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        ) 
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (isFocused) Modifier.focusRequester(focusRequester) else Modifier),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = if (student.attended) MaterialTheme.colorScheme.onSurface 
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                )
+            } else {
+                Text(
+                    text = student.name.ifEmpty { "Без имени" },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp, top = 12.dp, bottom = 12.dp),
+                    style = MaterialTheme.typography.bodyLarge,
                     color = if (student.attended) MaterialTheme.colorScheme.onSurface 
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-            )
+            }
             
             Box(
                 modifier = Modifier

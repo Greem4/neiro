@@ -75,6 +75,49 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * Переключает статус посещения для ученика.
+     */
+    fun toggleAttendance(date: LocalDate, index: Int) {
+        viewModelScope.launch {
+            val currentList = _dayData.value[date] ?: return@launch
+            val newList = currentList.toMutableList()
+            if (index in newList.indices) {
+                val item = newList[index]
+                if (!SessionParser.isExtra(item)) {
+                    val parts = item.split("|")
+                    val name = parts[0]
+                    val currentAttended = parts.getOrNull(1)?.toBoolean() ?: false
+                    newList[index] = "$name|${!currentAttended}"
+                    
+                    val newData = _dayData.value.toMutableMap()
+                    newData[date] = newList
+                    dataStore.saveDayData(newData)
+                }
+            }
+        }
+    }
+
+    /**
+     * Удаляет запись (ученика или доп. доход) из списка на дату.
+     */
+    fun deleteSession(date: LocalDate, index: Int) {
+        viewModelScope.launch {
+            val currentList = _dayData.value[date] ?: return@launch
+            val newList = currentList.toMutableList()
+            if (index in newList.indices) {
+                newList.removeAt(index)
+                val newData = _dayData.value.toMutableMap()
+                if (newList.isEmpty()) {
+                    newData.remove(date)
+                } else {
+                    newData[date] = newList
+                }
+                dataStore.saveDayData(newData)
+            }
+        }
+    }
+
+    /**
      * Сохранение списка имен для указанной даты в DataStore.
      * @param date Дата сохранения.
      * @param names Список имен в формате "Имя|attended".

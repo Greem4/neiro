@@ -39,13 +39,14 @@ fun DayCard(
     isSelected: Boolean,
     namesCount: Int = 0,
     isWorkingDay: Boolean = true, // По умолчанию все рабочие, если не указано иное
-    onDateClick: (LocalDate) -> Unit
+    onDateClick: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val today = LocalDate.now()
     val isToday = date == today
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
             .background(

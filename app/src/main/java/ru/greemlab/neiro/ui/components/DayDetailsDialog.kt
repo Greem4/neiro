@@ -93,6 +93,8 @@ fun DayDetailsContent(
     var repeatUntilEndOfMonth by remember { mutableStateOf(false) }
     var repeatNextMonth by remember { mutableStateOf(false) }
     
+    var isPlanningMode by remember { mutableStateOf(false) }
+    
     val listState = rememberLazyListState()
     var draggedItemId by remember { mutableStateOf<String?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
@@ -152,7 +154,9 @@ fun DayDetailsContent(
                 date = date,
                 totalCount = totalCount,
                 totalMoney = totalMoney,
-                showMoney = userProfile.pricePerSession > 0 || intensivePrice.isNotBlank() || diagnosticsPrice.isNotBlank()
+                showMoney = userProfile.pricePerSession > 0 || intensivePrice.isNotBlank() || diagnosticsPrice.isNotBlank(),
+                isPlanningMode = isPlanningMode,
+                onTogglePlanningMode = { isPlanningMode = !isPlanningMode }
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -179,6 +183,7 @@ fun DayDetailsContent(
                         elevation = elevation,
                         focusRequester = focusRequester,
                         isFocused = student.id == focusItemId,
+                        isPlanningMode = isPlanningMode,
                         onAttendedChange = { attended ->
                             items = items.toMutableList().apply { this[index] = student.copy(attended = attended) }
                         },
@@ -206,65 +211,67 @@ fun DayDetailsContent(
                     )
                 }
 
-                item {
-                    if (items.size < 12) {
-                        OutlinedButton(
-                            onClick = {
-                                val newId = UUID.randomUUID().toString()
-                                items = items + StudentItem(id = newId, name = "", attended = false)
-                                focusItemId = newId
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            shape = RoundedCornerShape(12.dp)
+                if (isPlanningMode) {
+                    item {
+                        if (items.size < 12) {
+                            OutlinedButton(
+                                onClick = {
+                                    val newId = UUID.randomUUID().toString()
+                                    items = items + StudentItem(id = newId, name = "", attended = false)
+                                    focusItemId = newId
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+
+                    item {
+                        AdditionalIncomeSection(
+                            intensivePrice = intensivePrice,
+                            onIntensivePriceChange = { intensivePrice = it },
+                            diagnosticsPrice = diagnosticsPrice,
+                            onDiagnosticsPriceChange = { diagnosticsPrice = it }
+                        )
+                    }
+
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                            onClick = { repeatUntilEndOfMonth = !repeatUntilEndOfMonth }
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = repeatUntilEndOfMonth, onCheckedChange = { repeatUntilEndOfMonth = it })
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} до конца месяца",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                }
 
-                item {
-                    AdditionalIncomeSection(
-                        intensivePrice = intensivePrice,
-                        onIntensivePriceChange = { intensivePrice = it },
-                        diagnosticsPrice = diagnosticsPrice,
-                        onDiagnosticsPriceChange = { diagnosticsPrice = it }
-                    )
-                }
-
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                        onClick = { repeatUntilEndOfMonth = !repeatUntilEndOfMonth }
-                    ) {
-                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = repeatUntilEndOfMonth, onCheckedChange = { repeatUntilEndOfMonth = it })
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} до конца месяца",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                        onClick = { repeatNextMonth = !repeatNextMonth }
-                    ) {
-                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = repeatNextMonth, onCheckedChange = { repeatNextMonth = it })
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} следующего месяца",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                            onClick = { repeatNextMonth = !repeatNextMonth }
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = repeatNextMonth, onCheckedChange = { repeatNextMonth = it })
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} следующего месяца",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

@@ -8,6 +8,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
@@ -30,6 +32,14 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
 import ru.greemlab.neiro.ui.components.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
+import ru.greemlab.neiro.ui.calendar.SessionParser
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -122,6 +132,12 @@ fun CalendarScreen(
                         showRegistrationPrompt = true
                     }
                 },
+                onToggleAttendance = { date, index -> viewModel.toggleAttendance(date, index) },
+                onDeleteSession = { date, index -> viewModel.deleteSession(date, index) },
+                onEditDay = { date ->
+                    viewModel.selectDate(date)
+                    showDialog = true
+                },
                 onProfitClick = {
                     if (profile.isRegistered) showProfitDetails = true
                     else showRegistrationPrompt = true
@@ -208,6 +224,9 @@ fun CalendarScreenContent(
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
     onDateClick: (LocalDate) -> Unit,
+    onToggleAttendance: (LocalDate, Int) -> Unit = { _, _ -> },
+    onDeleteSession: (LocalDate, Int) -> Unit = { _, _ -> },
+    onEditDay: (LocalDate) -> Unit = {},
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {}
@@ -218,8 +237,10 @@ fun CalendarScreenContent(
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .fillMaxSize()
                 .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
@@ -255,7 +276,16 @@ fun CalendarScreenContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Прогресс месяца
+            MonthlyProgressCard(
+                completed = stats.completedCount,
+                total = stats.totalScheduled,
+                expectedIncome = stats.expectedIncome
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -296,6 +326,61 @@ fun CalendarScreenContent(
     }
 }
 
+@Composable
+fun MonthlyProgressCard(
+    completed: Int,
+    total: Int,
+    expectedIncome: Double,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (total > 0) completed.toFloat() / total else 0f
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "План на месяц",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "$completed из $total занятий",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+                strokeCap = StrokeCap.Round,
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Ожидаемый доход: ${String.format(Locale.getDefault(), "%.0f", expectedIncome)} ₽",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.End)
+            )
+        }
+    }
+}
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Dark Theme")
 @Composable
@@ -311,7 +396,10 @@ fun CalendarPreviewDark() {
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {}
+            onDateClick = {},
+            onToggleAttendance = { _, _ -> },
+            onDeleteSession = { _, _ -> },
+            onEditDay = {}
         )
     }
 }
@@ -331,7 +419,10 @@ fun CalendarPreviewLight() {
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {}
+            onDateClick = {},
+            onToggleAttendance = { _, _ -> },
+            onDeleteSession = { _, _ -> },
+            onEditDay = {}
         )
     }
 }

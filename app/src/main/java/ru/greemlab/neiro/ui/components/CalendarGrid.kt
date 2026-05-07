@@ -3,10 +3,11 @@ package ru.greemlab.neiro.ui.components
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -63,21 +64,27 @@ fun CalendarGrid(
     // Объединяем все дни в один список для отображения в сетке
     val allDays = startPaddingDays + currentMonthDays + endPaddingDays
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        items(allDays) { date ->
-            DayCard(
-                date = date,
-                isCurrentMonth = YearMonth.from(date) == currentMonth,
-                isSelected = date == selectedDate,
-                namesCount = dayData[date]?.size ?: 0,
-                isWorkingDay = workingDays.isEmpty() || workingDays.contains(date.dayOfWeek),
-                onDateClick = onDateClick
-            )
+        allDays.chunked(7).forEach { week ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                week.forEach { date ->
+                    DayCard(
+                        date = date,
+                        isCurrentMonth = YearMonth.from(date) == currentMonth,
+                        isSelected = date == selectedDate,
+                        namesCount = dayData[date]?.size ?: 0,
+                        isWorkingDay = workingDays.isEmpty() || workingDays.contains(date.dayOfWeek),
+                        onDateClick = onDateClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }
