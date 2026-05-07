@@ -173,7 +173,9 @@ fun StudentItemRow(
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (student.attended) MaterialTheme.colorScheme.onSurface 
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    fontWeight = if (student.type != StudentItemType.STUDENT) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (student.type != StudentItemType.STUDENT) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
             
