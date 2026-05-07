@@ -110,29 +110,24 @@ fun StudentItemRow(
                             )
                         )
                     } else {
-                        // Для интенсива и диагностики только ввод суммы
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                        // Для интенсива и диагностики: ввод суммы сверху, тип занятия снизу
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
                         ) {
-                            Text(
-                                text = if (student.type == StudentItemType.INTENSIVE) "Интенсив:" else "Диагностика:",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = if (student.type == StudentItemType.INTENSIVE) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary
-                            )
                             TextField(
                                 value = student.price,
                                 onValueChange = { onPriceChange(it.filter { c -> c.isDigit() }) },
                                 placeholder = { 
                                     Text(
-                                        "0 ₽",
+                                        "Введите сумму (₽)",
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     ) 
                                 },
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .fillMaxWidth()
                                     .then(if (isFocused) Modifier.focusRequester(focusRequester) else Modifier),
                                 singleLine = true,
                                 colors = TextFieldDefaults.colors(
@@ -142,10 +137,21 @@ fun StudentItemRow(
                                     focusedIndicatorColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
                                 ),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.Bold,
+                                textStyle = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                            )
+                            
+                            Text(
+                                text = if (student.type == StudentItemType.INTENSIVE) "Интенсив" else "Диагностика",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (student.type == StudentItemType.INTENSIVE) 
+                                    MaterialTheme.colorScheme.tertiary 
+                                else 
+                                    MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
                             )
                         }
                     }
@@ -162,7 +168,7 @@ fun StudentItemRow(
                     text = displayText,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 16.dp, top = 12.dp, bottom = 12.dp),
+                        .padding(start = 16.dp, top = 14.dp, bottom = 14.dp),
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (student.attended) MaterialTheme.colorScheme.onSurface 
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
