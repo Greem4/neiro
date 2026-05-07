@@ -1,45 +1,45 @@
 package ru.greemlab.neiro.ui.screens
 
-import android.content.res.Configuration
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ru.greemlab.neiro.ui.profile.ProfileContent
-import ru.greemlab.neiro.ui.profile.ProfileViewModel
-import ru.greemlab.neiro.ui.profile.SettingsScreen
-import ru.greemlab.neiro.ui.settings.AppSettingsScreen
-import ru.greemlab.neiro.domain.models.UserProfile
+import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import java.time.LocalDate
-import java.time.YearMonth
+import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
 import ru.greemlab.neiro.ui.components.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.text.font.FontWeight
-import ru.greemlab.neiro.ui.calendar.SessionParser
-import java.time.format.DateTimeFormatter
+import ru.greemlab.neiro.ui.profile.ProfileContent
+import ru.greemlab.neiro.ui.profile.ProfileViewModel
+import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
 import java.util.Locale
 
 /**
@@ -63,7 +63,7 @@ fun CalendarScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // Состояния UI (диалоги и дочерние экраны)
-    var showDialog by remember { mutableStateOf(value = false) }
+    var showDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showAppSettings by remember { mutableStateOf(false) }
     var showRegistrationPrompt by remember { mutableStateOf(false) }
@@ -79,13 +79,11 @@ fun CalendarScreen(
     )
 
     // Обработка системной кнопки "Назад"
-    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings || showProfitDetails || showLessonsDetails
+    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
             showSettings -> showSettings = false
             showAppSettings -> showAppSettings = false
-            showProfitDetails -> showProfitDetails = false
-            showLessonsDetails -> showLessonsDetails = false
             else -> scope.launch { drawerState.close() }
         }
     }
@@ -131,12 +129,6 @@ fun CalendarScreen(
                     } else {
                         showRegistrationPrompt = true
                     }
-                },
-                onToggleAttendance = { date, index -> viewModel.toggleAttendance(date, index) },
-                onDeleteSession = { date, index -> viewModel.deleteSession(date, index) },
-                onEditDay = { date ->
-                    viewModel.selectDate(date)
-                    showDialog = true
                 },
                 onProfitClick = {
                     if (profile.isRegistered) showProfitDetails = true
@@ -217,16 +209,13 @@ fun CalendarScreenContent(
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
     stats: CalendarMonthStats,
-    workingDays: Set<java.time.DayOfWeek> = emptySet(),
+    workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
     onDateClick: (LocalDate) -> Unit,
-    onToggleAttendance: (LocalDate, Int) -> Unit = { _, _ -> },
-    onDeleteSession: (LocalDate, Int) -> Unit = { _, _ -> },
-    onEditDay: (LocalDate) -> Unit = {},
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {}
@@ -268,7 +257,7 @@ fun CalendarScreenContent(
                 )
                 StatCard(
                     label = "Прибыль",
-                    value = String.format(Locale.getDefault(), "%.0f ₽", stats.netProfit),
+                    value = String.format(Locale("ru"), "%.0f ₽", stats.netProfit),
                     icon = Icons.Rounded.Payments,
                     color = Color(0xFF4CAF50),
                     modifier = Modifier.weight(1f),
@@ -303,11 +292,12 @@ fun CalendarScreenContent(
                         transitionSpec = {
                             if (targetState.isAfter(initialState)) {
                                 (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> -width } + fadeOut(),
+                                    slideOutHorizontally { width -> -width } + fadeOut()
                                 )
                             } else {
                                 (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> width } + fadeOut())
+                                    slideOutHorizontally { width -> width } + fadeOut()
+                                )
                             }
                         },
                         label = "CalendarGridTransition"
@@ -372,7 +362,7 @@ fun MonthlyProgressCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Ожидаемый доход: ${String.format(Locale.getDefault(), "%.0f", expectedIncome)} ₽",
+                text = "Ожидаемый доход: ${String.format(Locale("ru"), "%.0f", expectedIncome)} ₽",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.End)
@@ -382,7 +372,7 @@ fun MonthlyProgressCard(
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Dark Theme")
+@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, name = "Dark Theme")
 @Composable
 fun CalendarPreviewDark() {
     NeiroTheme(darkTheme = true) {
@@ -390,16 +380,23 @@ fun CalendarPreviewDark() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            stats = CalendarMonthStats(
+                completedCount = 12,
+                totalScheduled = 20,
+                remainingCount = 8,
+                totalEarned = 15000.0,
+                netProfit = 14000.0,
+                intensiveEarnings = 0.0,
+                diagnosticsEarnings = 0.0,
+                expectedIncome = 25000.0,
+                taxAmount = 1000.0
+            ),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {},
-            onToggleAttendance = { _, _ -> },
-            onDeleteSession = { _, _ -> },
-            onEditDay = {}
+            onDateClick = {}
         )
     }
 }
@@ -413,16 +410,23 @@ fun CalendarPreviewLight() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            stats = CalendarMonthStats(
+                completedCount = 12,
+                totalScheduled = 20,
+                remainingCount = 8,
+                totalEarned = 15000.0,
+                netProfit = 14000.0,
+                intensiveEarnings = 0.0,
+                diagnosticsEarnings = 0.0,
+                expectedIncome = 25000.0,
+                taxAmount = 1000.0
+            ),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {},
-            onToggleAttendance = { _, _ -> },
-            onDeleteSession = { _, _ -> },
-            onEditDay = {}
+            onDateClick = {}
         )
     }
 }
