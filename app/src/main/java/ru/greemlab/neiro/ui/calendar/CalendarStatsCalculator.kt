@@ -38,13 +38,21 @@ fun rememberCalendarMonthStats(
                 when {
                     SessionParser.isIntensive(session) -> {
                         val amount = SessionParser.getExtraAmount(session)
-                        intensiveEarnings += amount
-                        totalGrossEarned += amount
+                        if (SessionParser.isAttended(session)) {
+                            intensiveEarnings += amount
+                            totalGrossEarned += amount
+                        } else {
+                            expectedIncome += amount
+                        }
                     }
                     SessionParser.isDiagnostics(session) -> {
                         val amount = SessionParser.getExtraAmount(session)
-                        diagnosticsEarnings += amount
-                        totalGrossEarned += amount
+                        if (SessionParser.isAttended(session)) {
+                            diagnosticsEarnings += amount
+                            totalGrossEarned += amount
+                        } else {
+                            expectedIncome += amount
+                        }
                     }
                     !SessionParser.isExtra(session) -> {
                         totalScheduledSessionsCount++

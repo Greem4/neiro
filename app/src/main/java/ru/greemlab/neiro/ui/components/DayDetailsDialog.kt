@@ -67,25 +67,40 @@ fun DayDetailsContent(
     onDismiss: () -> Unit,
     onSave: (List<String>, Boolean, Boolean) -> Unit
 ) {
-    val initialStudents = initialNames.filter { !it.startsWith("__") }
     var items by remember { 
         mutableStateOf(
-            initialStudents.ifEmpty { listOf("") }.map { 
-                val parts = it.split("|")
-                StudentItem(
-                    id = UUID.randomUUID().toString(),
-                    name = parts[0],
-                    attended = parts.getOrNull(1)?.toBoolean() ?: false
-                )
-            }
+            initialNames.filter { it.isNotBlank() }.map { 
+                if (it.startsWith("__INTENSIVE__:")) {
+                    val content = it.removePrefix("__INTENSIVE__:")
+                    val parts = content.split("|")
+                    StudentItem(
+                        id = UUID.randomUUID().toString(),
+                        name = parts.getOrNull(1) ?: "",
+                        attended = parts.getOrNull(2)?.toBoolean() ?: true,
+                        type = StudentItemType.INTENSIVE,
+                        price = parts[0]
+                    )
+                } else if (it.startsWith("__DIAGNOSTICS__:")) {
+                    val content = it.removePrefix("__DIAGNOSTICS__:")
+                    val parts = content.split("|")
+                    StudentItem(
+                        id = UUID.randomUUID().toString(),
+                        name = parts.getOrNull(1) ?: "",
+                        attended = parts.getOrNull(2)?.toBoolean() ?: true,
+                        type = StudentItemType.DIAGNOSTICS,
+                        price = parts[0]
+                    )
+                } else {
+                    val parts = it.split("|")
+                    StudentItem(
+                        id = UUID.randomUUID().toString(),
+                        name = parts[0],
+                        attended = parts.getOrNull(1)?.toBoolean() ?: false,
+                        type = StudentItemType.STUDENT
+                    )
+                }
+            }.let { if (it.isEmpty()) listOf(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false)) else it }
         )
-    }
-
-    var intensivePrice by remember { 
-        mutableStateOf(initialNames.find { it.startsWith("__INTENSIVE__:") }?.split("|")?.get(0)?.removePrefix("__INTENSIVE__:") ?: "") 
-    }
-    var diagnosticsPrice by remember { 
-        mutableStateOf(initialNames.find { it.startsWith("__DIAGNOSTICS__:") }?.split("|")?.get(0)?.removePrefix("__DIAGNOSTICS__:") ?: "") 
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -144,17 +159,21 @@ fun DayDetailsContent(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp).fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val totalCount = items.filter { it.name.isNotBlank() }.size
-            val attendedCount = items.filter { it.name.isNotBlank() && it.attended }.size
-            val totalMoney = (attendedCount * userProfile.pricePerSession) + 
-                            (intensivePrice.toDoubleOrNull() ?: 0.0) + 
-                            (diagnosticsPrice.toDoubleOrNull() ?: 0.0)
+            val studentCount = items.filter { it.type == StudentItemType.STUDENT && it.name.isNotBlank() }.size
+            val attendedStudents = items.filter { it.type == StudentItemType.STUDENT && it.name.isNotBlank() && it.attended }.size
+            
+            val intensiveMoney = items.filter { it.type == StudentItemType.INTENSIVE && it.attended }
+                .sumOf { it.price.toDoubleOrNull() ?: 0.0 }
+            val diagnosticsMoney = items.filter { it.type == StudentItemType.DIAGNOSTICS && it.attended }
+                .sumOf { it.price.toDoubleOrNull() ?: 0.0 }
+            
+            val totalMoney = (attendedStudents * userProfile.pricePerSession) + intensiveMoney + diagnosticsMoney
 
             DayDetailsHeader(
                 date = date,
-                totalCount = totalCount,
+                totalCount = studentCount,
                 totalMoney = totalMoney,
-                showMoney = userProfile.pricePerSession > 0 || intensivePrice.isNotBlank() || diagnosticsPrice.isNotBlank(),
+                showMoney = userProfile.pricePerSession > 0 || intensiveMoney > 0 || diagnosticsMoney > 0,
                 isPlanningMode = isPlanningMode,
                 onTogglePlanningMode = { isPlanningMode = !isPlanningMode }
             )
@@ -190,6 +209,9 @@ fun DayDetailsContent(
                         onNameChange = { name ->
                             items = items.toMutableList().apply { this[index] = student.copy(name = name) }
                         },
+                        onPriceChange = { price ->
+                            items = items.toMutableList().apply { this[index] = student.copy(price = price) }
+                        },
                         onDelete = { items = items.toMutableList().apply { removeAt(index) } },
                         onDragStart = { draggedItemId = student.id },
                         onDragEnd = { draggedItemId = null; draggingOffset = 0f },
@@ -213,30 +235,61 @@ fun DayDetailsContent(
 
                 if (isPlanningMode) {
                     item {
-                        if (items.size < 12) {
-                            OutlinedButton(
-                                onClick = {
-                                    val newId = UUID.randomUUID().toString()
-                                    items = items + StudentItem(id = newId, name = "", attended = false)
-                                    focusItemId = newId
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                shape = RoundedCornerShape(12.dp)
+                        Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (items.count { it.type == StudentItemType.STUDENT } < 12) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val newId = UUID.randomUUID().toString()
+                                        items = items + StudentItem(id = newId, name = "", attended = false, type = StudentItemType.STUDENT)
+                                        focusItemId = newId
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Добавить ребенка", fontWeight = FontWeight.Medium)
+                                OutlinedButton(
+                                    onClick = {
+                                        val newId = UUID.randomUUID().toString()
+                                        items = items + StudentItem(id = newId, name = "", attended = true, type = StudentItemType.INTENSIVE, price = "")
+                                        focusItemId = newId
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.tertiary)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Интенсив", style = MaterialTheme.typography.labelLarge)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val newId = UUID.randomUUID().toString()
+                                        items = items + StudentItem(id = newId, name = "", attended = true, type = StudentItemType.DIAGNOSTICS, price = "")
+                                        focusItemId = newId
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.secondary)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Диагностика", style = MaterialTheme.typography.labelLarge)
+                                }
                             }
                         }
-                    }
-
-                    item {
-                        AdditionalIncomeSection(
-                            intensivePrice = intensivePrice,
-                            onIntensivePriceChange = { intensivePrice = it },
-                            diagnosticsPrice = diagnosticsPrice,
-                            onDiagnosticsPriceChange = { diagnosticsPrice = it }
-                        )
                     }
 
                     item {
@@ -282,9 +335,16 @@ fun DayDetailsContent(
             DayDetailsFooter(
                 onDismiss = onDismiss,
                 onSave = {
-                    val finalNames = items.filter { it.name.isNotBlank() }.map { "${it.name}|${it.attended}" }.toMutableList()
-                    if (intensivePrice.isNotBlank()) finalNames.add("__INTENSIVE__:$intensivePrice")
-                    if (diagnosticsPrice.isNotBlank()) finalNames.add("__DIAGNOSTICS__:$diagnosticsPrice")
+                    val finalNames = items.filter { 
+                        (it.type == StudentItemType.STUDENT && it.name.isNotBlank()) ||
+                        (it.type != StudentItemType.STUDENT && it.price.isNotBlank())
+                    }.map { 
+                        when (it.type) {
+                            StudentItemType.INTENSIVE -> "__INTENSIVE__:${it.price}|${it.name}|${it.attended}"
+                            StudentItemType.DIAGNOSTICS -> "__DIAGNOSTICS__:${it.price}|${it.name}|${it.attended}"
+                            else -> "${it.name}|${it.attended}"
+                        }
+                    }
                     onSave(finalNames, repeatUntilEndOfMonth, repeatNextMonth)
                 }
             )

@@ -6,12 +6,17 @@ package ru.greemlab.neiro.ui.calendar
 object SessionParser {
     
     /**
-     * Проверяет, является ли запись подтвержденным занятием ("Имя|true").
+     * Проверяет, была ли сессия (включая интенсив/диагностику) посещена.
      */
     fun isAttended(sessionString: String): Boolean {
-        if (isExtra(sessionString)) return false
         val parts = sessionString.split("|")
-        return parts.getOrNull(1)?.toBoolean() ?: false
+        return if (isExtra(sessionString)) {
+            // Формат для экстра: __TYPE__:AMOUNT|name|attended
+            parts.getOrNull(2)?.toBoolean() ?: true // По умолчанию считаем true для старых данных
+        } else {
+            // Формат для ученика: name|attended
+            parts.getOrNull(1)?.toBoolean() ?: false
+        }
     }
 
     /**
@@ -40,7 +45,7 @@ object SessionParser {
      */
     fun getExtraAmount(sessionString: String): Double {
         if (!isExtra(sessionString)) return 0.0
-        // Формат: __TYPE__:AMOUNT|attended ( attended обычно не используется для экстра)
+        // Формат: __TYPE__:AMOUNT|name|attended
         val valuePart = sessionString.split("|")[0]
         return valuePart.substringAfter(":").toDoubleOrNull() ?: 0.0
     }
