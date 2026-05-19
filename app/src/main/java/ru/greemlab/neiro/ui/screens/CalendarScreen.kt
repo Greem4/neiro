@@ -30,6 +30,7 @@ import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
+import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
 import ru.greemlab.neiro.ui.components.*
 import ru.greemlab.neiro.ui.profile.ProfileContent
@@ -90,6 +91,7 @@ fun CalendarScreen(
     var showRegistrationPrompt by remember { mutableStateOf(false) }
     var showProfitDetails by remember { mutableStateOf(false) }
     var showLessonsDetails by remember { mutableStateOf(false) }
+    var showDaySummary by remember { mutableStateOf(false) }
 
     // Расчет статистики за текущий месяц
     val stats = rememberCalendarMonthStats(
@@ -145,12 +147,18 @@ fun CalendarScreen(
                 onNextMonth = { viewModel.nextMonth() },
                 onTodayClick = { viewModel.goToToday() },
                 onMenuClick = { scope.launch { drawerState.open() } },
-                onDateClick = {
-                    if (profile.isRegistered) {
-                        viewModel.selectDate(it)
+                showDaySummary = showDaySummary,
+                pricePerSession = profile.pricePerSession,
+                onDateClick = { date ->
+                    if (!profile.isRegistered) {
+                        showRegistrationPrompt = true
+                        return@CalendarScreenContent
+                    }
+                    if (selectedDate == date && showDaySummary) {
                         showDialog = true
                     } else {
-                        showRegistrationPrompt = true
+                        viewModel.selectDate(date)
+                        showDaySummary = true
                     }
                 },
                 onProfitClick = {
@@ -240,6 +248,8 @@ fun CalendarScreenContent(
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
+    showDaySummary: Boolean = false,
+    pricePerSession: Double = 0.0,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
@@ -249,6 +259,10 @@ fun CalendarScreenContent(
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {}
 ) {
+    val daySummaryStats = remember(selectedDate, dayData, pricePerSession) {
+        val date = selectedDate ?: return@remember null
+        computeDayStats(dayData[date] ?: emptyList(), pricePerSession)
+    }
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -335,6 +349,14 @@ fun CalendarScreenContent(
                         )
                     }
                 }
+            }
+
+            if (selectedDate != null && daySummaryStats != null) {
+                DaySummaryPanel(
+                    visible = showDaySummary,
+                    date = selectedDate,
+                    stats = daySummaryStats,
+                )
             }
         }
     }
