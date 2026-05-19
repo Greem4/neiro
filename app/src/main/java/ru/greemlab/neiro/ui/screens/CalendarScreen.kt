@@ -45,7 +45,29 @@ private val ProfitGreen = Color(0xFF4CAF50)
 
 /**
  * Основной экран календаря.
+ *
  * Управляет состоянием отображения диалогов и взаимодействует с [CalendarViewModel].
+ *
+ * ## Профиль (боковая панель)
+ *
+ * Профиль реализован через [ModalNavigationDrawer] и [ProfileContent].
+ * Панель **не открывается сама** — только явным действием пользователя:
+ *
+ * - **Свайп слева направо** с любой точки левого края экрана (по всей высоте).
+ *   Панель следует за пальцем во время жеста; закрывается свайпом обратно влево.
+ * - **Тап по кругу с буквой «N»** в шапке ([NeiroLogo] в [CalendarHeader]).
+ *
+ * Закрытие профиля:
+ * - свайп влево по панели или основному экрану;
+ * - тап по затемнённой области;
+ * - системная кнопка «Назад» ([BackHandler]).
+ *
+ * Жесты drawer отключаются, пока открыт любой оверлей (диалог дня, настройки,
+ * детализация занятий/прибыли и т.д.), чтобы не конфликтовать с прокруткой и жестами внутри них.
+ *
+ * @see ru.greemlab.neiro.ui.components.NeiroLogo
+ *
+ * Подробнее: `docs/profile-drawer.md` в корне репозитория.
  */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -77,6 +99,10 @@ fun CalendarScreen(
         monthlyTaxAmount = profile.monthlyTaxAmount
     )
 
+    // Жест «вытащить профиль» — только когда нет модальных оверлеев поверх календаря.
+    val drawerGesturesEnabled = !showSettings && !showAppSettings && !showDialog &&
+        !showRegistrationPrompt && !showProfitDetails && !showLessonsDetails
+
     // Обработка системной кнопки "Назад"
     val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings
     BackHandler(enabled = isAnyOverlayOpen) {
@@ -90,23 +116,21 @@ fun CalendarScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
-            gesturesEnabled = profile.isRegistered,
+            gesturesEnabled = drawerGesturesEnabled,
             drawerContent = {
-                if (drawerState.isOpen || drawerState.isAnimationRunning) {
-                    ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
-                        ProfileContent(
-                            profileViewModel = profileViewModel,
-                            calendarViewModel = viewModel,
-                            onOpenSettings = {
-                                scope.launch { drawerState.close() }
-                                showSettings = true
-                            },
-                            onOpenAppSettings = {
-                                scope.launch { drawerState.close() }
-                                showAppSettings = true
-                            }
-                        )
-                    }
+                ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
+                    ProfileContent(
+                        profileViewModel = profileViewModel,
+                        calendarViewModel = viewModel,
+                        onOpenSettings = {
+                            scope.launch { drawerState.close() }
+                            showSettings = true
+                        },
+                        onOpenAppSettings = {
+                            scope.launch { drawerState.close() }
+                            showAppSettings = true
+                        }
+                    )
                 }
             }
         ) {
@@ -199,11 +223,17 @@ fun CalendarScreen(
 }
 
 /**
- * Чистый UI контент экрана календаря.
+ * Чистый UI контент экрана календаря (без drawer и диалогов).
+ *
+ * Используется в [CalendarScreen] и в Compose Preview.
+ *
+ * @param onMenuClick Открытие профиля по тапу на логотип «N» в шапке.
+ *                    Реализация (анимация drawer) — в [CalendarScreen].
  */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarScreenContent(
+    modifier: Modifier = Modifier,
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
@@ -220,7 +250,7 @@ fun CalendarScreenContent(
     onRegistrationRequired: () -> Unit = {}
 ) {
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
         Column(

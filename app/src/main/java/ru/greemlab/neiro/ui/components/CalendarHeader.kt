@@ -1,9 +1,7 @@
 package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +29,11 @@ import java.time.YearMonth
 
 /**
  * Шапка календаря с отображением текущего месяца и кнопками навигации.
+ *
+ * @param onMenuClick Вызывается при тапе по кругу [NeiroLogo] с буквой «N»
+ *                    (единственная зона в шапке, открывающая профиль).
+ * @param onRegistrationRequired Показ подсказки регистрации при тапе «Сегодня»,
+ *                               если [isRegistered] == false.
  */
 @Composable
 fun CalendarHeader(
@@ -43,7 +46,6 @@ fun CalendarHeader(
     onRegistrationRequired: () -> Unit = {},
 ) {
     val title = remember(currentMonth) { "${getMonthName(currentMonth)} ${currentMonth.year}" }
-    val menuInteraction = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier
@@ -56,18 +58,7 @@ fun CalendarHeader(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable(
-                        interactionSource = menuInteraction,
-                        indication = null,
-                        onClick = onMenuClick,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                NeiroLogo(size = 30.dp)
-            }
+            NeiroLogo(size = 30.dp, onClick = onMenuClick)
 
             Spacer(modifier = Modifier.width(4.dp))
 
