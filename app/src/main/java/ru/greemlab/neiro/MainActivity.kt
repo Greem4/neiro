@@ -15,17 +15,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.splashscreen.SplashScreenViewProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.screens.CalendarScreen
@@ -34,8 +32,8 @@ import ru.greemlab.neiro.ui.settings.AppSettingsViewModel
 /**
  * Главная Activity приложения.
  *
- * Использует SplashScreen API: системный сплеш с launcher-иконкой удерживается до
- * загрузки профиля, а затем сама иконка «выстреливает» по своей же диагонали
+ * Использует SplashScreen API: сплеш держится до первого кадра UI, затем иконка
+ * «выстреливает» по диагонали буквы N
  * (вправо-вверх — туда, куда направлена черта буквы N) и растворяется,
  * открывая UI без шва.
  */
@@ -64,16 +62,12 @@ class MainActivity : ComponentActivity() {
 
             NeiroTheme(darkTheme = isDarkTheme) {
                 val profileViewModel: ProfileViewModel = viewModel()
-                val profile by profileViewModel.userProfile.collectAsState()
 
-                // Как только профиль загрузился — даём системе снять сплеш.
-                // Минимальная задержка нужна, чтобы анимация всегда успела
-                // проиграться полностью, даже на горячем кэше DataStore.
-                LaunchedEffect(profile) {
-                    if (profile != null) {
-                        delay(SPLASH_MIN_HOLD_MS)
-                        keepSplashOnScreen = false
-                    }
+                // Снимаем сплеш после первого кадра UI — не ждём DataStore.
+                // CalendarScreen сам подхватит профиль, когда он придёт.
+                LaunchedEffect(Unit) {
+                    withFrameNanos { }
+                    keepSplashOnScreen = false
                 }
 
                 // Тёмный «холст» того же цвета, что и сплеш — за счёт этого
@@ -83,9 +77,7 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(SplashBackground),
                 ) {
-                    if (profile != null) {
-                        CalendarScreen(profileViewModel = profileViewModel)
-                    }
+                    CalendarScreen(profileViewModel = profileViewModel)
                 }
             }
         }
@@ -165,17 +157,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        /** Минимальное время удержания сплеша — чтобы анимация всегда играла полностью. */
-        const val SPLASH_MIN_HOLD_MS = 350L
+        /** Общая длительность вылета иконки (короче — ощущается быстрее). */
+        const val EXIT_DURATION_MS = 400L
 
-        /** Общая длительность вылета иконки. */
-        const val EXIT_DURATION_MS = 750L
-
-        /** Доля времени на «замах» перед вылетом. */
-        const val REV_UP_END = 0.18f
+        /** Доля времени на короткий «замах» перед вылетом. */
+        const val REV_UP_END = 0.12f
 
         /** На какой доле полёта начинает гаснуть фон сплеша. */
-        const val BG_FADE_START = 0.55f
+        const val BG_FADE_START = 0.35f
     }
 }
 
