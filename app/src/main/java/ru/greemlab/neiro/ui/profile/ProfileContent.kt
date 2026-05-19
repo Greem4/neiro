@@ -25,6 +25,13 @@ import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.StatRow
 import java.time.LocalDate
 
+/**
+ * Содержимое боковой панели профиля в [ModalNavigationDrawer][androidx.compose.material3.ModalNavigationDrawer].
+ *
+ * Показывает сводную статистику, кнопки перехода в настройки профиля и приложения.
+ * Отображается на [CalendarScreen]; открытие/закрытие панели — жестами drawer
+ * или тапом по «N» в шапке (см. `docs/profile-drawer.md`).
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ProfileContent(
