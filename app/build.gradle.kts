@@ -71,6 +71,9 @@ dependencies {
     // Core KTX
     implementation(libs.androidx.core.ktx)
 
+    // Splash Screen API (бесшовный сплеш на API 24+)
+    implementation(libs.androidx.core.splashscreen)
+
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
