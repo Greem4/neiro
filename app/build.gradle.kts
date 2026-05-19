@@ -12,7 +12,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.4.4"
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,10 +31,23 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/DEPENDENCIES",
+                "/META-INF/LICENSE*",
+                "/META-INF/NOTICE*",
+                "/META-INF/*.kotlin_module",
+            )
+        }
     }
 }
 
@@ -85,6 +98,9 @@ dependencies {
 
     // Baseline profile (ускоряет холодный старт Compose)
     implementation(libs.androidx.profileinstaller)
+
+    // Core library desugaring (java.time на API < 26)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Test
     testImplementation(libs.junit)

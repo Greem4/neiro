@@ -1,8 +1,6 @@
 package ru.greemlab.neiro.data
 
 import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -20,78 +18,85 @@ import java.time.LocalDate
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "calendar_data")
 
+private const val DAY_DATA_KEY = "day_data_json"
+private const val PROFILE_KEY = "user_profile_json"
+private const val THEME_KEY = "app_theme"
+private const val EMPTY_OBJECT = "{}"
+
+const val THEME_SYSTEM = "system"
+const val THEME_LIGHT = "light"
+const val THEME_DARK = "dark"
+
 data class StoreSnapshot(
     val profile: UserProfile,
     val dayData: Map<LocalDate, List<String>>,
     val theme: String,
 ) {
     companion object {
-        val Empty = StoreSnapshot(UserProfile(), emptyMap(), "system")
+        val Empty = StoreSnapshot(UserProfile(), emptyMap(), THEME_SYSTEM)
     }
 }
 
 /**
- * Класс для управления постоянным хранением данных календаря и профиля.
- * Использует Jetpack DataStore и GSON для сериализации.
+ * Управление постоянным хранением данных календаря и профиля.
+ * Использует Jetpack DataStore + GSON. Все чтения проходят через единый снимок
+ * с кэшированием, чтобы UI стартовал без задержек.
  */
 class CalendarDataStore(private val context: Context) {
-    private val gson = Gson()
-    private val dataKey = stringPreferencesKey("day_data_json")
-    private val profileKey = stringPreferencesKey("user_profile_json")
-    private val themeKey = stringPreferencesKey("app_theme")
+
+    private val gson: Gson = UserProfileJson.gson
+    private val dataKey = stringPreferencesKey(DAY_DATA_KEY)
+    private val profileKey = stringPreferencesKey(PROFILE_KEY)
+    private val themeKey = stringPreferencesKey(THEME_KEY)
 
     @Volatile
     private var cached: StoreSnapshot = StoreSnapshot.Empty
 
     private val dayDataJsonType = object : TypeToken<Map<String, List<String>>>() {}.type
+    private val backupJsonType = object : TypeToken<Map<String, String>>() {}.type
 
     fun peekSnapshot(): StoreSnapshot = cached
 
     /** Прогрев кэша до показа UI — один проход чтения и парсинга. */
     suspend fun warmUp() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            cached = parseSnapshot(context.dataStore.data.first())
-        }
+        cached = parseSnapshot(context.dataStore.data.first())
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun snapshots(): Flow<StoreSnapshot> = context.dataStore.data
-        .map { prefs ->
-            parseSnapshot(prefs).also { cached = it }
-        }
+    private val snapshots: Flow<StoreSnapshot> = context.dataStore.data
+        .map { prefs -> parseSnapshot(prefs).also { cached = it } }
         .onStart { emit(cached) }
+        .distinctUntilChanged()
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    val themeFlow: Flow<String> = snapshots()
+    val themeFlow: Flow<String> = snapshots
         .map { it.theme }
         .distinctUntilChanged()
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    val dayDataFlow: Flow<Map<LocalDate, List<String>>> = snapshots()
+    val dayDataFlow: Flow<Map<LocalDate, List<String>>> = snapshots
         .map { it.dayData }
         .distinctUntilChanged()
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    val userProfileFlow: Flow<UserProfile> = snapshots()
+    val userProfileFlow: Flow<UserProfile> = snapshots
         .map { it.profile }
         .distinctUntilChanged()
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun parseSnapshot(prefs: Preferences): StoreSnapshot = StoreSnapshot(
         profile = UserProfileJson.fromJson(prefs[profileKey]),
         dayData = parseDayData(prefs[dataKey]),
-        theme = prefs[themeKey] ?: "system",
+        theme = prefs[themeKey] ?: THEME_SYSTEM,
     )
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun parseDayData(json: String?): Map<LocalDate, List<String>> {
-        val raw = json ?: "{}"
-        return try {
-            val rawMap: Map<String, List<String>> = gson.fromJson(raw, dayDataJsonType) ?: emptyMap()
-            rawMap.mapKeys { LocalDate.parse(it.key) }
-        } catch (_: Exception) {
-            emptyMap()
-        }
+        if (json.isNullOrEmpty() || json == EMPTY_OBJECT) return emptyMap()
+        return runCatching {
+            val rawMap: Map<String, List<String>> =
+                gson.fromJson(json, dayDataJsonType) ?: return emptyMap()
+            buildMap(rawMap.size) {
+                for ((key, value) in rawMap) {
+                    val date = runCatching { LocalDate.parse(key) }.getOrNull() ?: continue
+                    put(date, value)
+                }
+            }
+        }.getOrDefault(emptyMap())
     }
 
     suspend fun migrateProfileIfNeeded() {
@@ -106,45 +111,43 @@ class CalendarDataStore(private val context: Context) {
     }
 
     suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
-        context.dataStore.edit { preferences ->
-            val stringMap = data.mapKeys { it.key.toString() }
-            preferences[dataKey] = gson.toJson(stringMap)
+        val serialized = if (data.isEmpty()) {
+            EMPTY_OBJECT
+        } else {
+            val stringMap = LinkedHashMap<String, List<String>>(data.size)
+            for ((date, value) in data) stringMap[date.toString()] = value
+            gson.toJson(stringMap)
         }
+        context.dataStore.edit { prefs -> prefs[dataKey] = serialized }
     }
 
     suspend fun saveUserProfile(profile: UserProfile) {
-        context.dataStore.edit { preferences ->
-            preferences[profileKey] = UserProfileJson.toJson(profile)
-        }
+        val json = UserProfileJson.toJson(profile)
+        context.dataStore.edit { prefs -> prefs[profileKey] = json }
     }
 
     suspend fun saveTheme(theme: String) {
-        context.dataStore.edit { it[themeKey] = theme }
+        context.dataStore.edit { prefs -> prefs[themeKey] = theme }
     }
 
     suspend fun getAllDataJson(): String {
         val prefs = context.dataStore.data.first()
         val data = mapOf(
-            "day_data" to (prefs[dataKey] ?: "{}"),
-            "user_profile" to (prefs[profileKey] ?: "{}"),
-            "app_theme" to (prefs[themeKey] ?: "system"),
+            "day_data" to (prefs[dataKey] ?: EMPTY_OBJECT),
+            "user_profile" to (prefs[profileKey] ?: EMPTY_OBJECT),
+            "app_theme" to (prefs[themeKey] ?: THEME_SYSTEM),
         )
         return gson.toJson(data)
     }
 
-    suspend fun restoreAllDataFromJson(json: String): Boolean {
-        return try {
-            val type = object : TypeToken<Map<String, String>>() {}.type
-            val fullData: Map<String, String> = gson.fromJson(json, type)
-
-            context.dataStore.edit { preferences ->
-                fullData["day_data"]?.let { preferences[dataKey] = it }
-                fullData["user_profile"]?.let { preferences[profileKey] = it }
-                fullData["app_theme"]?.let { preferences[themeKey] = it }
-            }
-            true
-        } catch (_: Exception) {
-            false
+    suspend fun restoreAllDataFromJson(json: String): Boolean = runCatching {
+        val fullData: Map<String, String> = gson.fromJson(json, backupJsonType)
+            ?: return@runCatching false
+        context.dataStore.edit { prefs ->
+            fullData["day_data"]?.let { prefs[dataKey] = it }
+            fullData["user_profile"]?.let { prefs[profileKey] = it }
+            fullData["app_theme"]?.let { prefs[themeKey] = it }
         }
-    }
+        true
+    }.getOrDefault(false)
 }

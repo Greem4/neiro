@@ -1,11 +1,17 @@
 package ru.greemlab.neiro.ui.components
 
-import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -14,16 +20,19 @@ import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
+private val ProfitGreen = Color(0xFF4CAF50)
+
 /**
  * Диалог с подробной статистикой занятий.
  */
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun LessonsDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
+    val title = remember(currentMonth) { "Занятия за ${getMonthName(currentMonth)}" }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -32,48 +41,49 @@ fun LessonsDetailsDialog(
         shape = RoundedCornerShape(28.dp),
         title = {
             Text(
-                text = "Занятия за ${getMonthName(currentMonth)}",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 LessonStatRow(
                     label = "Проведено",
                     value = stats.completedCount,
                     color = MaterialTheme.colorScheme.primary,
-                    isBold = true
+                    isBold = true,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 LessonStatRow(
                     label = "Всего запланировано",
                     value = stats.totalScheduled,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 LessonStatRow(
                     label = "Осталось / Не подтверждено",
                     value = stats.remainingCount,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
+        },
     )
 }
 
 /**
  * Диалог с подробной информацией о прибыли.
  */
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ProfitDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
+    val title = remember(currentMonth) { "Финансы за ${getMonthName(currentMonth)}" }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -82,49 +92,49 @@ fun ProfitDetailsDialog(
         shape = RoundedCornerShape(28.dp),
         title = {
             Text(
-                text = "Финансы за ${getMonthName(currentMonth)}",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 ProfitRow(
                     label = "Чистый доход",
                     value = stats.netProfit,
-                    color = Color(0xFF4CAF50),
-                    isBold = true
+                    color = ProfitGreen,
+                    isBold = true,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                
+
                 ProfitRow(
                     label = "Заработано всего (грязными)",
                     value = stats.totalEarned,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 ProfitRow(
                     label = "Заработано интенсив",
                     value = stats.intensiveEarnings,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                
+
                 ProfitRow(
                     label = "Заработано диагностика",
                     value = stats.diagnosticsEarnings,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                
+
                 ProfitRow(
                     label = "Ожидаемый доход",
                     value = stats.expectedIncome,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
-        }
+        },
     )
 }
 
@@ -134,7 +144,7 @@ fun ProfitDetailsDialog(
 @Composable
 fun RegistrationPromptDialog(
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -146,6 +156,6 @@ fun RegistrationPromptDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Позже") }
         },
-        shape = RoundedCornerShape(28.dp)
+        shape = RoundedCornerShape(28.dp),
     )
 }

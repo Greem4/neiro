@@ -1,15 +1,20 @@
 package ru.greemlab.neiro.ui.components
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -19,47 +24,45 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.time.LocalDate
 import ru.greemlab.neiro.theme.NeiroTheme
+import java.time.LocalDate
 
 /**
  * Компонент отдельной ячейки дня в календаре.
- * 
- * @param date Дата, которую отображает ячейка.
- * @param isCurrentMonth Принадлежит ли дата текущему выбранному месяцу.
+ *
+ * @param date Дата ячейки.
+ * @param today Текущая дата (передаётся снаружи, чтобы не пересчитывать в каждой ячейке).
+ * @param isCurrentMonth Принадлежит ли дата текущему отображаемому месяцу.
  * @param isSelected Выбрана ли эта дата пользователем.
- * @param namesCount Количество людей, записанных на этот день.
- * @param onDateClick Обработчик нажатия на ячейку.
+ * @param namesCount Количество записей на этот день.
+ * @param isWorkingDay Подсвечивать ли как рабочий день.
+ * @param onDateClick Обработчик нажатия.
  */
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DayCard(
     date: LocalDate,
+    today: LocalDate,
     isCurrentMonth: Boolean,
     isSelected: Boolean,
     namesCount: Int = 0,
-    isWorkingDay: Boolean = true, // По умолчанию все рабочие, если не указано иное
+    isWorkingDay: Boolean = true,
     onDateClick: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val today = LocalDate.now()
     val isToday = date == today
+    val backgroundColor =
+        if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+
+    val dayNumber = remember(date) { date.dayOfMonth.toString() }
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    Color.Transparent
-                }
-            )
+            .background(backgroundColor)
             .clickable { onDateClick(date) },
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
-        // Подсветка "Сегодня"
         if (isToday) {
             Box(
                 modifier = Modifier
@@ -67,19 +70,18 @@ fun DayCard(
                     .padding(4.dp)
                     .background(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = CircleShape
-                    )
+                        shape = CircleShape,
+                    ),
             )
         }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.alpha(if (isWorkingDay) 1f else 0.3f) // Полупрозрачные нерабочие дни
+            modifier = if (isWorkingDay) Modifier else Modifier.alpha(0.3f),
         ) {
-            // Число месяца
             Text(
-                text = date.dayOfMonth.toString(),
+                text = dayNumber,
                 color = when {
                     isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
                     isToday -> MaterialTheme.colorScheme.primary
@@ -87,38 +89,36 @@ fun DayCard(
                     else -> MaterialTheme.colorScheme.onSurface
                 },
                 fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
             )
-            
-            // Превью: индикатор количества записей (точки или число)
+
             if (namesCount > 0) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = 2.dp),
                 ) {
                     if (namesCount <= 3) {
-                        // Если мало людей - рисуем точки
+                        val dotColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        }
                         repeat(namesCount) {
                             Box(
                                 modifier = Modifier
                                     .size(4.dp)
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary 
-                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                        shape = CircleShape
-                                    )
+                                    .background(color = dotColor, shape = CircleShape),
                             )
                         }
                     } else {
-                        // Если много - пишем число
                         Text(
                             text = namesCount.toString(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
                             ),
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 2.dp)
+                            modifier = Modifier.padding(bottom = 2.dp),
                         )
                     }
                 }
@@ -127,17 +127,17 @@ fun DayCard(
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Preview(widthDp = 50, heightDp = 50)
 @Composable
-fun DayCardPreview() {
+private fun DayCardPreview() {
     NeiroTheme {
         DayCard(
             date = LocalDate.now(),
+            today = LocalDate.now(),
             isCurrentMonth = true,
             isSelected = false,
             namesCount = 3,
-            onDateClick = {}
+            onDateClick = {},
         )
     }
 }
