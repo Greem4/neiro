@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Логотип для экрана загрузки: синий круг + N, без белой рамки adaptive-icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="22"
+                android:endX="54"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#2DB1E5" />
+                <item android:offset="0.55" android:color="#1F97CA" />
+                <item android:offset="1.0" android:color="#1789B6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path android:pathData="M54,34m-18,0a18,10 0,1 1,36 0a18,10 0,1 1,-36 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="24"
+                android:endX="54"
+                android:endY="41"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#42FFFFFF" />
+                <item android:offset="1.0" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M46,43 L46,67 M46,45 L62,65 L62,43"
+        android:strokeColor="#1A000000"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M46,41 L46,65 M46,41 L62,65 L62,41"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+</vector>
