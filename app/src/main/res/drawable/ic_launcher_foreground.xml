@@ -7,9 +7,26 @@
     android:viewportHeight="108">
 
     <!--
-        Синий круг уменьшен до радиуса 32 (диаметр 64),
-        чтобы при наложении на белый фон (ic_launcher_background)
-        по бокам оставалась белая кайма, как у Telegram.
+        Лёгкое внешнее свечение по краю круга. На белой "телеграм-кайме"
+        почти не заметно, но добавляет мягкость и глубину при кадрировании
+        иконки в круг/squircle разными лаунчерами.
+    -->
+    <path android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="34"
+                android:type="radial">
+                <item android:offset="0.92" android:color="#0024A1DE" />
+                <item android:offset="1.00" android:color="#2A24A1DE" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!--
+        Основной синий круг (r=32 в viewport 108).
+        3-точечный градиент даёт мягкий объём, как у Telegram, но чуть глубже.
     -->
     <path android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0">
         <aapt:attr name="android:fillColor">
@@ -19,33 +36,36 @@
                 android:endX="54"
                 android:endY="86"
                 android:type="linear">
-                <item android:offset="0" android:color="#24A1DE" />
-                <item android:offset="1" android:color="#1E96C8" />
+                <item android:offset="0.0" android:color="#2BAEE4" />
+                <item android:offset="0.55" android:color="#1F9BCD" />
+                <item android:offset="1.0" android:color="#1689B8" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Тень под буквой (пропорционально уменьшена) -->
+    <!-- Тонкий внутренний контур: имитация стеклянной грани -->
     <path
-        android:pathData="M46,43 L46,67 M46,45 L62,65 L62,43"
-        android:strokeColor="#15000000"
+        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0"
+        android:fillColor="#00000000"
+        android:strokeColor="#22FFFFFF"
+        android:strokeWidth="1" />
+
+    <!-- Тень под буквой N: даёт лёгкий объём -->
+    <path
+        android:pathData="M44,43 L44,69 M44,43 L64,69 L64,43"
+        android:fillColor="#00000000"
+        android:strokeColor="#22000000"
         android:strokeWidth="10"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 
-    <!-- Белая буква N (пропорционально уменьшена) -->
+    <!-- Белая буква N (оптически отцентрована относительно круга) -->
     <path
-        android:pathData="M46,41 L46,65 M46,41 L62,65 L62,41"
+        android:pathData="M44,41 L44,67 M44,41 L64,67 L64,41"
+        android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="8"
+        android:strokeWidth="8.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
-
-    <!-- Легкий блик сверху круга -->
-    <path
-        android:pathData="M54,22 a32,32 0 0 1 32,32"
-        android:strokeColor="#20FFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round" />
 
 </vector>
