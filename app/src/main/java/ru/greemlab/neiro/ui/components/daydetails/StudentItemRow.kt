@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun StudentItemRow(
+    modifier: Modifier = Modifier,
     student: StudentItem,
     index: Int,
     isDragging: Boolean,
@@ -47,7 +48,7 @@ fun StudentItemRow(
     }
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
                 translationY = if (isDragging) draggingOffset else 0f

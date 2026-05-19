@@ -2,8 +2,10 @@ package ru.greemlab.neiro.ui.components
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -17,7 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -111,8 +115,24 @@ fun DayDetailsContent(
     var isPlanningMode by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val itemSpacingPx = with(density) { 8.dp.toPx() }
     var draggedItemId by remember { mutableStateOf<String?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
+
+    fun itemOffsetDelta(fromIndex: Int, toIndex: Int): Float {
+        if (fromIndex == toIndex) return 0f
+        val layoutInfo = listState.layoutInfo
+        val fromKey = items[fromIndex].id
+        val toKey = items[toIndex].id
+        val fromInfo = layoutInfo.visibleItemsInfo.find { it.key == fromKey }
+        val toInfo = layoutInfo.visibleItemsInfo.find { it.key == toKey }
+        if (fromInfo != null && toInfo != null) {
+            return (toInfo.offset - fromInfo.offset).toFloat()
+        }
+        val fallbackSize = fromInfo?.size ?: layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 64
+        return if (toIndex > fromIndex) fallbackSize + itemSpacingPx else -(fallbackSize + itemSpacingPx)
+    }
 
     LaunchedEffect(focusItemId) {
         if (focusItemId != null) {
@@ -188,11 +208,29 @@ fun DayDetailsContent(
             ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, student ->
                     val isDragging = draggedItemId == student.id
-                    val scale by animateFloatAsState(if (isDragging) 1.05f else 1f, spring(stiffness = Spring.StiffnessLow))
-                    val rotation by animateFloatAsState(if (isDragging) -1.5f else 0f, spring(stiffness = Spring.StiffnessMediumLow))
-                    val elevation by animateFloatAsState(if (isDragging) 12f else 0f, spring(stiffness = Spring.StiffnessLow))
-                    
+                    val dragAnimSpec: AnimationSpec<Float> = if (isDragging) {
+                        snap()
+                    } else {
+                        spring(stiffness = Spring.StiffnessLow)
+                    }
+                    val scale by animateFloatAsState(
+                        targetValue = if (isDragging) 1.05f else 1f,
+                        animationSpec = dragAnimSpec,
+                        label = "dragScale"
+                    )
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isDragging) -1.5f else 0f,
+                        animationSpec = if (isDragging) snap() else spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "dragRotation"
+                    )
+                    val elevation by animateFloatAsState(
+                        targetValue = if (isDragging) 12f else 0f,
+                        animationSpec = dragAnimSpec,
+                        label = "dragElevation"
+                    )
+
                     StudentItemRow(
+                        modifier = Modifier.zIndex(if (isDragging) 1f else 0f),
                         student = student,
                         index = index,
                         isDragging = isDragging,
@@ -217,16 +255,26 @@ fun DayDetailsContent(
                         onDragEnd = { draggedItemId = null; draggingOffset = 0f },
                         onDrag = { dy ->
                             draggingOffset += dy
-                            val itemHeight = 64f
-                            val threshold = itemHeight * 0.9f
                             val currentIndex = items.indexOfFirst { it.id == draggedItemId }
-                            if (currentIndex != -1) {
-                                if (draggingOffset > threshold && currentIndex < items.size - 1) {
-                                    items = items.toMutableList().apply { add(currentIndex + 1, removeAt(currentIndex)) }
-                                    draggingOffset -= itemHeight
-                                } else if (draggingOffset < -threshold && currentIndex > 0) {
-                                    items = items.toMutableList().apply { add(currentIndex - 1, removeAt(currentIndex)) }
-                                    draggingOffset += itemHeight
+                            if (currentIndex == -1) return@StudentItemRow
+
+                            if (currentIndex < items.size - 1) {
+                                val deltaDown = itemOffsetDelta(currentIndex, currentIndex + 1)
+                                if (draggingOffset > deltaDown * 0.5f) {
+                                    items = items.toMutableList().apply {
+                                        add(currentIndex + 1, removeAt(currentIndex))
+                                    }
+                                    draggingOffset -= deltaDown
+                                    return@StudentItemRow
+                                }
+                            }
+                            if (currentIndex > 0) {
+                                val deltaUp = itemOffsetDelta(currentIndex, currentIndex - 1)
+                                if (draggingOffset < deltaUp * 0.5f) {
+                                    items = items.toMutableList().apply {
+                                        add(currentIndex - 1, removeAt(currentIndex))
+                                    }
+                                    draggingOffset -= deltaUp
                                 }
                             }
                         }

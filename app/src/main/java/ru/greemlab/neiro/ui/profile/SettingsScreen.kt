@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,8 +33,14 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val profileState by viewModel.userProfile.collectAsState()
-    val profile = profileState ?: UserProfile()
-    
+    if (profileState == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    val profile = profileState!!
+
     SettingsScreenImpl(
         profile = profile,
         onNameChange = viewModel::updateName,
@@ -70,11 +77,19 @@ private fun SettingsScreenImpl(
     var priceText by remember { mutableStateOf("") }
     var taxText by remember { mutableStateOf("") }
 
-    LaunchedEffect(profile.isRegistered) {
-        if (nameText.isEmpty()) nameText = profile.name
-        if (activityText.isEmpty()) activityText = profile.activityType
-        if (priceText.isEmpty() && profile.pricePerSession != 0.0) priceText = profile.pricePerSession.toString().removeSuffix(".0")
-        if (taxText.isEmpty() && profile.monthlyTaxAmount != 0.0) taxText = profile.monthlyTaxAmount.toString().removeSuffix(".0")
+    LaunchedEffect(Unit) {
+        nameText = profile.name
+        activityText = profile.activityType
+        priceText = if (profile.pricePerSession != 0.0) {
+            profile.pricePerSession.toString().removeSuffix(".0")
+        } else {
+            ""
+        }
+        taxText = if (profile.monthlyTaxAmount != 0.0) {
+            profile.monthlyTaxAmount.toString().removeSuffix(".0")
+        } else {
+            ""
+        }
     }
 
     Scaffold(
@@ -99,7 +114,7 @@ private fun SettingsScreenImpl(
             // Имя
             OutlinedTextField(
                 value = nameText,
-                onValueChange = { 
+                onValueChange = {
                     nameText = it
                     onNameChange(it)
                 },
@@ -114,7 +129,7 @@ private fun SettingsScreenImpl(
 
             OutlinedTextField(
                 value = activityText,
-                onValueChange = { 
+                onValueChange = {
                     activityText = it
                     onActivityChange(it)
                 },
@@ -129,7 +144,7 @@ private fun SettingsScreenImpl(
 
             OutlinedTextField(
                 value = priceText,
-                onValueChange = { 
+                onValueChange = {
                     priceText = it
                     onPriceChange(it.toDoubleOrNull() ?: 0.0)
                 },
@@ -145,7 +160,7 @@ private fun SettingsScreenImpl(
 
             OutlinedTextField(
                 value = taxText,
-                onValueChange = { 
+                onValueChange = {
                     taxText = it
                     onTaxChange(it.toDoubleOrNull() ?: 0.0)
                 },

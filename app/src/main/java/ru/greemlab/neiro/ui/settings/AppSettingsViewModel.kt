@@ -9,12 +9,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import ru.greemlab.neiro.data.CalendarDataStore
+import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
 class AppSettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val dataStore = CalendarDataStore(application)
+    private val dataStore = CalendarDataStoreProvider.get(application)
 
     val theme: StateFlow<String> = dataStore.themeFlow
         .stateIn(

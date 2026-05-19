@@ -44,11 +44,13 @@ class CalendarDataStore(private val context: Context) {
     val dayDataFlow: Flow<Map<LocalDate, List<String>>> = context.dataStore.data
         .map { preferences ->
             val json = preferences[dataKey] ?: "{}"
-            val type = object : TypeToken<Map<String, List<String>>>() {}.type
-            val rawMap: Map<String, List<String>> = gson.fromJson(json, type)
-            
-            // Конвертируем String ключи обратно в LocalDate
-            rawMap.mapKeys { LocalDate.parse(it.key) }
+            try {
+                val type = object : TypeToken<Map<String, List<String>>>() {}.type
+                val rawMap: Map<String, List<String>> = gson.fromJson(json, type) ?: emptyMap()
+                rawMap.mapKeys { LocalDate.parse(it.key) }
+            } catch (_: Exception) {
+                emptyMap()
+            }
         }
 
     /**
@@ -56,9 +58,22 @@ class CalendarDataStore(private val context: Context) {
      */
     val userProfileFlow: Flow<UserProfile> = context.dataStore.data
         .map { preferences ->
-            val json = preferences[profileKey] ?: return@map UserProfile()
-            gson.fromJson(json, UserProfile::class.java)
+            UserProfileJson.fromJson(preferences[profileKey])
         }
+
+    /**
+     * Однократная миграция старых профилей (например, без флага isRegistered).
+     */
+    suspend fun migrateProfileIfNeeded() {
+        context.dataStore.edit { prefs ->
+            val json = prefs[profileKey] ?: return@edit
+            val raw = UserProfileJson.fromJsonRaw(json)
+            val normalized = raw.normalizeLegacy()
+            if (normalized != raw) {
+                prefs[profileKey] = UserProfileJson.toJson(normalized)
+            }
+        }
+    }
 
     /**
      * Сохранить обновленные данные календаря.
@@ -76,8 +91,7 @@ class CalendarDataStore(private val context: Context) {
      */
     suspend fun saveUserProfile(profile: UserProfile) {
         context.dataStore.edit { preferences ->
-            val json = gson.toJson(profile)
-            preferences[profileKey] = json
+            preferences[profileKey] = UserProfileJson.toJson(profile)
         }
     }
 
@@ -96,6 +110,7 @@ class CalendarDataStore(private val context: Context) {
             mapOf(
                 "day_data" to (prefs[dataKey] ?: "{}"),
                 "user_profile" to (prefs[profileKey] ?: "{}"),
+                "app_theme" to (prefs[themeKey] ?: "system"),
             )
         }
         return gson.toJson(data.first())
@@ -108,10 +123,11 @@ class CalendarDataStore(private val context: Context) {
         return try {
             val type = object : TypeToken<Map<String, String>>() {}.type
             val fullData: Map<String, String> = gson.fromJson(json, type)
-            
+
             context.dataStore.edit { preferences ->
                 fullData["day_data"]?.let { preferences[dataKey] = it }
                 fullData["user_profile"]?.let { preferences[profileKey] = it }
+                fullData["app_theme"]?.let { preferences[themeKey] = it }
             }
             true
         } catch (_: Exception) {

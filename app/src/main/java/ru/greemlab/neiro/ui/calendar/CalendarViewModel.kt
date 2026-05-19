@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
-import ru.greemlab.neiro.data.CalendarDataStore
+import ru.greemlab.neiro.data.CalendarDataStoreProvider
 
 /**
  * ViewModel для управления состоянием календаря с поддержкой сохранения данных в DataStore.
@@ -21,7 +21,7 @@ import ru.greemlab.neiro.data.CalendarDataStore
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
     
     // Хранилище данных
-    private val dataStore = CalendarDataStore(application)
+    private val dataStore = CalendarDataStoreProvider.get(application)
 
     // Текущий отображаемый месяц
     private val _currentMonth = MutableStateFlow(YearMonth.now())
