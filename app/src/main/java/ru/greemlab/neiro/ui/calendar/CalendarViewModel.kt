@@ -1,78 +1,53 @@
 package ru.greemlab.neiro.ui.calendar
 
 import android.app.Application
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import java.time.LocalDate
 import java.time.YearMonth
-import ru.greemlab.neiro.data.CalendarDataStoreProvider
 
 /**
  * ViewModel для управления состоянием календаря с поддержкой сохранения данных в DataStore.
  */
-@RequiresApi(Build.VERSION_CODES.O)
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
-    
-    // Хранилище данных
+
     private val dataStore = CalendarDataStoreProvider.get(application)
 
-    // Текущий отображаемый месяц
     private val _currentMonth = MutableStateFlow(YearMonth.now())
     val currentMonth: StateFlow<YearMonth> = _currentMonth.asStateFlow()
 
-    // Текущая выбранная дата
     private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
-    // Данные о людях для каждой даты (дата -> список фамилий)
-    private val _dayData = MutableStateFlow(
-        CalendarDataStoreProvider.peekDayData(application),
-    )
-    val dayData: StateFlow<Map<LocalDate, List<String>>> = _dayData.asStateFlow()
+    /** Данные о людях для каждой даты (дата → список фамилий). */
+    val dayData: StateFlow<Map<LocalDate, List<String>>> = dataStore.dayDataFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = CalendarDataStoreProvider.peekDayData(application),
+        )
 
-    init {
-        viewModelScope.launch {
-            dataStore.dayDataFlow.collectLatest { savedData ->
-                if (savedData != _dayData.value) {
-                    _dayData.value = savedData
-                }
-            }
-        }
-    }
-
-    /**
-     * Переход к следующему месяцу.
-     */
     fun nextMonth() {
         _currentMonth.value = _currentMonth.value.plusMonths(1)
     }
 
-    /**
-     * Переход к предыдущему месяцу.
-     */
     fun previousMonth() {
         _currentMonth.value = _currentMonth.value.minusMonths(1)
     }
 
-    /**
-     * Установка календаря на текущую системную дату.
-     */
     fun goToToday() {
         val today = LocalDate.now()
         _currentMonth.value = YearMonth.from(today)
         _selectedDate.value = today
     }
 
-    /**
-     * Выбор конкретной даты в календаре.
-     */
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
     }
@@ -82,21 +57,19 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
      */
     fun toggleAttendance(date: LocalDate, index: Int) {
         viewModelScope.launch {
-            val currentList = _dayData.value[date] ?: return@launch
-            val newList = currentList.toMutableList()
-            if (index in newList.indices) {
-                val item = newList[index]
-                if (!SessionParser.isExtra(item)) {
-                    val parts = item.split("|")
-                    val name = parts[0]
-                    val currentAttended = parts.getOrNull(1)?.toBoolean() ?: false
-                    newList[index] = "$name|${!currentAttended}"
-                    
-                    val newData = _dayData.value.toMutableMap()
-                    newData[date] = newList
-                    dataStore.saveDayData(newData)
-                }
+            val current = dayData.value
+            val list = current[date] ?: return@launch
+            val item = list.getOrNull(index) ?: return@launch
+            if (SessionParser.isExtra(item)) return@launch
+
+            val sep = item.indexOf('|')
+            val name = if (sep < 0) item else item.substring(0, sep)
+            val currentAttended = if (sep < 0) false else item.substring(sep + 1).toBoolean()
+            val updated = list.toMutableList().apply {
+                this[index] = "$name|${!currentAttended}"
             }
+
+            dataStore.saveDayData(current + (date to updated))
         }
     }
 
@@ -105,98 +78,85 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
      */
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
-            val currentList = _dayData.value[date] ?: return@launch
-            val newList = currentList.toMutableList()
-            if (index in newList.indices) {
-                newList.removeAt(index)
-                val newData = _dayData.value.toMutableMap()
-                if (newList.isEmpty()) {
-                    newData.remove(date)
-                } else {
-                    newData[date] = newList
-                }
-                dataStore.saveDayData(newData)
-            }
-        }
-    }
+            val current = dayData.value
+            val list = current[date] ?: return@launch
+            if (index !in list.indices) return@launch
 
-    /**
-     * Сохранение списка имен для указанной даты в DataStore.
-     * @param date Дата сохранения.
-     * @param names Список имен в формате "Имя|attended".
-     * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
-     * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
-     */
-    fun saveNamesForDate(
-        date: LocalDate, 
-        names: List<String>, 
-        repeatUntilMonthEnd: Boolean = false,
-        repeatNextMonth: Boolean = false
-    ) {
-        viewModelScope.launch {
-            val newData = _dayData.value.toMutableMap()
-            
-            // 1. Обработка текущего месяца
-            if (repeatUntilMonthEnd) {
-                val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
-                var nextDate = date
-                while (!nextDate.isAfter(lastDayOfMonth)) {
-                    updateDateData(newData, nextDate, date, names)
-                    nextDate = nextDate.plusWeeks(1)
-                }
-            } else {
-                updateDateData(newData, date, date, names)
+            val updated = list.toMutableList().apply { removeAt(index) }
+            val newData = current.toMutableMap().apply {
+                if (updated.isEmpty()) remove(date) else put(date, updated)
             }
-            
-            // 2. Обработка следующего месяца
-            if (repeatNextMonth) {
-                val nextMonth = YearMonth.from(date).plusMonths(1)
-                val lastDayOfNextMonth = nextMonth.atEndOfMonth()
-                
-                // Находим первый такой же день недели в следующем месяце
-                var nextMonthDate = nextMonth.atDay(1)
-                while (nextMonthDate.dayOfWeek != date.dayOfWeek) {
-                    nextMonthDate = nextMonthDate.plusDays(1)
-                }
-                
-                // Повторяем каждую неделю до конца следующего месяца
-                while (!nextMonthDate.isAfter(lastDayOfNextMonth)) {
-                    updateDateData(newData, nextMonthDate, date, names)
-                    nextMonthDate = nextMonthDate.plusWeeks(1)
-                }
-            }
-
-            // Сохраняем всё состояние в DataStore
             dataStore.saveDayData(newData)
         }
     }
 
     /**
-     * Вспомогательный метод для обновления данных конкретной даты.
+     * Сохранение списка имён для указанной даты в DataStore.
+     *
+     * @param date Дата сохранения.
+     * @param names Список имён в формате "Имя|attended".
+     * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
+     * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
      */
+    fun saveNamesForDate(
+        date: LocalDate,
+        names: List<String>,
+        repeatUntilMonthEnd: Boolean = false,
+        repeatNextMonth: Boolean = false,
+    ) {
+        viewModelScope.launch {
+            val newData = dayData.value.toMutableMap()
+
+            if (repeatUntilMonthEnd) {
+                val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
+                var cursor = date
+                while (!cursor.isAfter(lastDayOfMonth)) {
+                    updateDateData(newData, cursor, date, names)
+                    cursor = cursor.plusWeeks(1)
+                }
+            } else {
+                updateDateData(newData, date, date, names)
+            }
+
+            if (repeatNextMonth) {
+                val nextMonth = YearMonth.from(date).plusMonths(1)
+                val lastDayOfNextMonth = nextMonth.atEndOfMonth()
+                var cursor = nextMonth.atDay(1)
+                while (cursor.dayOfWeek != date.dayOfWeek) {
+                    cursor = cursor.plusDays(1)
+                }
+                while (!cursor.isAfter(lastDayOfNextMonth)) {
+                    updateDateData(newData, cursor, date, names)
+                    cursor = cursor.plusWeeks(1)
+                }
+            }
+
+            dataStore.saveDayData(newData)
+        }
+    }
+
     private fun updateDateData(
         data: MutableMap<LocalDate, List<String>>,
         targetDate: LocalDate,
         originalDate: LocalDate,
-        names: List<String>
+        names: List<String>,
     ) {
         if (names.isEmpty()) {
             data.remove(targetDate)
+            return
+        }
+        // Для будущих дат сбрасываем статус «пришёл» (attended = false).
+        val processed = if (targetDate.isAfter(originalDate)) resetAttendance(names) else names
+        data[targetDate] = processed
+    }
+
+    private fun resetAttendance(names: List<String>): List<String> = names.map { raw ->
+        if (SessionParser.isExtra(raw)) {
+            raw
         } else {
-            // Для будущих дат сбрасываем статус "пришел" (attended = false)
-            val processedNames = if (targetDate.isAfter(originalDate)) {
-                names.map { nameWithStatus ->
-                    if (nameWithStatus.startsWith("__")) {
-                        nameWithStatus
-                    } else {
-                        val name = nameWithStatus.split("|")[0]
-                        "$name|false"
-                    }
-                }
-            } else {
-                names
-            }
-            data[targetDate] = processedNames
+            val sep = raw.indexOf('|')
+            val name = if (sep < 0) raw else raw.substring(0, sep)
+            "$name|false"
         }
     }
 }

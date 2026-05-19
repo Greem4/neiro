@@ -9,15 +9,21 @@ import ru.greemlab.neiro.data.CalendarDataStoreProvider
 
 class NeiroApplication : Application() {
 
+    // Single app-scope для фоновых задач прогрева и миграций.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
-        // Прогреваем DataStore до открытия Activity — UI стартует уже с данными.
-        CalendarDataStoreProvider.warmUp(this)
-        // Миграция профиля делается отдельно, не на пути запуска.
+
+        // Синхронный SharedPreferences-кэш заполняет StoreSnapshot прямо в конструкторе
+        // CalendarDataStore — поэтому UI стартует с данными без блокировки main-потока.
+        CalendarDataStoreProvider.get(this)
+
+        // Фоновая гидратация из DataStore + миграции; запускается параллельно со стартом UI.
         appScope.launch {
-            CalendarDataStoreProvider.get(this@NeiroApplication).migrateProfileIfNeeded()
+            val store = CalendarDataStoreProvider.get(this@NeiroApplication)
+            store.warmUp()
+            store.migrateProfileIfNeeded()
         }
     }
 }

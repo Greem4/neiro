@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+  <!-- На Android 12+ системный splash тоже без белого круга за иконкой. -->
+  <style name="Theme.Neiro" parent="Theme.SplashScreen">
+    <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+    <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+    <item name="postSplashScreenTheme">@style/Theme.Neiro.Base</item>
+  </style>
+
+</resources>

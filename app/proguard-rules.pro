@@ -1,8 +1,10 @@
-# Сохраняем атрибуты, важные для Gson / Compose.
+# Сохраняем атрибуты, важные для Gson / Compose / kotlinx.
 -keepattributes Signature
 -keepattributes *Annotation*
 -keepattributes EnclosingMethod
 -keepattributes InnerClasses
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
 # --- Gson ---
 -dontwarn sun.misc.**
@@ -17,9 +19,31 @@
 
 # --- Доменные модели (сериализуются Gson через рефлексию) ---
 -keep class ru.greemlab.neiro.domain.models.** { *; }
+-keep class ru.greemlab.neiro.data.UserProfileJson { *; }
+-keep class ru.greemlab.neiro.data.StoreSnapshot { *; }
 
 # --- Kotlin metadata, нужна Compose ---
 -keep class kotlin.Metadata { *; }
+-keepclassmembers class kotlin.Metadata { public <methods>; }
+
+# --- AndroidX ViewModel: R8 full mode иначе обрезает рефлексивный конструктор ---
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+-keepclassmembers class * extends androidx.lifecycle.AndroidViewModel {
+    <init>(android.app.Application);
+}
 
 # --- Compose: оставляем сгенерированные функции с runtime-аннотациями ---
 -keep,allowobfuscation,allowshrinking class androidx.compose.runtime.Composer
+-keep,allowobfuscation,allowshrinking class androidx.compose.runtime.internal.ComposableLambda
+
+# --- Java time desugar: ничего лишнего из desugared API не дёргаем ---
+-dontwarn java.lang.invoke.StringConcatFactory
+
+# --- Безопасные «универсальные» правила для kotlinx.coroutines ---
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+-dontwarn kotlinx.coroutines.flow.**
+-dontwarn kotlinx.coroutines.debug.**

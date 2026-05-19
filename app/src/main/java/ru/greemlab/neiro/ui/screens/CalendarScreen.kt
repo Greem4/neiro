@@ -4,10 +4,9 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -37,10 +36,12 @@ import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.util.Locale
+
+private val ProfitGreen = Color(0xFF4CAF50)
 
 /**
  * Основной экран календаря.
@@ -253,11 +254,14 @@ fun CalendarScreenContent(
                     modifier = Modifier.weight(1f),
                     onClick = onLessonsClick
                 )
+                val profitValue = remember(stats.netProfit) {
+                    String.format(RU_LOCALE, "%.0f ₽", stats.netProfit)
+                }
                 StatCard(
                     label = "Прибыль",
-                    value = String.format(Locale("ru"), "%.0f ₽", stats.netProfit),
+                    value = profitValue,
                     icon = Icons.Rounded.Payments,
-                    color = Color(0xFF4CAF50),
+                    color = ProfitGreen,
                     modifier = Modifier.weight(1f),
                     onClick = onProfitClick
                 )
@@ -285,19 +289,11 @@ fun CalendarScreenContent(
                 Column(modifier = Modifier.padding(12.dp)) {
                     WeekDaysRow()
 
+                    // Лёгкая crossfade-анимация вместо тяжёлой slide+fade —
+                    // на первом кадре отрисовка мгновенная, без накладной анимации.
                     AnimatedContent(
                         targetState = currentMonth,
-                        transitionSpec = {
-                            if (targetState.isAfter(initialState)) {
-                                (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> -width } + fadeOut()
-                                )
-                            } else {
-                                (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { width -> width } + fadeOut()
-                                )
-                            }
-                        },
+                        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
                         label = "CalendarGridTransition"
                     ) { targetMonth ->
                         CalendarGrid(
@@ -359,8 +355,11 @@ fun MonthlyProgressCard(
                 trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
             )
             Spacer(modifier = Modifier.height(4.dp))
+            val incomeText = remember(expectedIncome) {
+                "Ожидаемый доход: ${String.format(RU_LOCALE, "%.0f", expectedIncome)} ₽"
+            }
             Text(
-                text = "Ожидаемый доход: ${String.format(Locale("ru"), "%.0f", expectedIncome)} ₽",
+                text = incomeText,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.End)

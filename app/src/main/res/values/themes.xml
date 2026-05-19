@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Neiro" parent="android:Theme.Material.NoActionBar">
+    <!-- Базовая тема: тёмный фон как раньше, без белых системных панелей. -->
+    <style name="Theme.Neiro.Base" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <!--
+        Splash: тёмный фон + логотип (синий круг с N), без белой подложки ic_launcher_round.
+        iconBackgroundColor = тот же #121212, иначе Android рисует белый круг за иконкой.
+    -->
+    <style name="Theme.Neiro" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.Neiro.Base</item>
     </style>
 
 </resources>

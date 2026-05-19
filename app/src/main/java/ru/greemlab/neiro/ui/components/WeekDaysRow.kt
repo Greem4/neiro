@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,35 +12,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+private val WEEK_DAYS = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+private const val WEEKEND_START_INDEX = 5
+
 /**
- * Строка с сокращенными названиями дней недели (Пн, Вт, ...).
+ * Строка с сокращёнными названиями дней недели (Пн, Вт, ...).
  * Отображается над сеткой календаря. Выходные дни подсвечиваются другим цветом.
  */
 @Composable
 fun WeekDaysRow() {
-    val days = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        days.forEachIndexed { index, day ->
-            // Сб и Вс — выходные дни
-            val isWeekend = index >= 5
-
+        val weekdayColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val weekendColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+        WEEK_DAYS.forEachIndexed { index, day ->
             Text(
                 text = day,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
-                color = if (isWeekend) {
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = if (index >= WEEKEND_START_INDEX) weekendColor else weekdayColor,
                 fontWeight = FontWeight.Medium,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
             )
         }
     }

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
+import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.StatRow
@@ -58,16 +59,15 @@ private fun ProfileContentImpl(
 ) {
     val scrollState = rememberScrollState()
 
-    val allData = dayData.values.flatten()
-    val allSessions = allData.filter { !SessionParser.isExtra(it) }
-    val totalExtras = allData.sumOf { SessionParser.getExtraAmount(it) }
-
-    val pastSessionsCount = allSessions.count { SessionParser.isAttended(it) }
-    val futureSessionsCount = allSessions.size - pastSessionsCount
-    val totalEarned = (pastSessionsCount * profile.pricePerSession) + totalExtras
-    val earnedWithTax = (totalEarned - profile.monthlyTaxAmount).coerceAtLeast(0.0)
-    val totalExpectedGross = (allSessions.size * profile.pricePerSession) + totalExtras
-    val expectedEarnings = (totalExpectedGross - profile.monthlyTaxAmount).coerceAtLeast(0.0)
+    // Все агрегаты по dayData кэшируем — один проход вместо нескольких filter/sum.
+    val stats = remember(dayData, profile.pricePerSession, profile.monthlyTaxAmount) {
+        computeProfileStats(dayData, profile.pricePerSession, profile.monthlyTaxAmount)
+    }
+    val pastSessionsCount = stats.attendedStudents
+    val futureSessionsCount = stats.totalStudents - stats.attendedStudents
+    val totalEarned = stats.totalEarned
+    val earnedWithTax = stats.netEarned
+    val expectedEarnings = stats.netExpected
 
     Column(
         modifier = modifier
@@ -135,6 +135,50 @@ private fun ProfileContentImpl(
             Text("Настройки приложения", style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+private data class ProfileStats(
+    val attendedStudents: Int,
+    val totalStudents: Int,
+    val totalEarned: Double,
+    val netEarned: Double,
+    val netExpected: Double,
+)
+
+private fun computeProfileStats(
+    dayData: Map<LocalDate, List<String>>,
+    pricePerSession: Double,
+    monthlyTax: Double,
+): ProfileStats {
+    var attended = 0
+    var total = 0
+    var extrasEarned = 0.0
+    var extrasExpected = 0.0
+    for ((_, list) in dayData) {
+        for (raw in list) {
+            when (val session = SessionParser.parse(raw)) {
+                is Session.Student -> {
+                    total++
+                    if (session.attended) attended++
+                }
+                is Session.Intensive -> {
+                    if (session.attended) extrasEarned += session.amount else extrasExpected += session.amount
+                }
+                is Session.Diagnostics -> {
+                    if (session.attended) extrasEarned += session.amount else extrasExpected += session.amount
+                }
+            }
+        }
+    }
+    val gross = attended * pricePerSession + extrasEarned
+    val grossExpected = total * pricePerSession + extrasEarned + extrasExpected
+    return ProfileStats(
+        attendedStudents = attended,
+        totalStudents = total,
+        totalEarned = gross,
+        netEarned = (gross - monthlyTax).coerceAtLeast(0.0),
+        netExpected = (grossExpected - monthlyTax).coerceAtLeast(0.0),
+    )
 }
 
 @RequiresApi(Build.VERSION_CODES.O)

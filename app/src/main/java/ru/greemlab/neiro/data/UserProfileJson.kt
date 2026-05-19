@@ -24,11 +24,9 @@ object UserProfileJson {
 
     fun fromJsonRaw(json: String?): UserProfile {
         if (json.isNullOrBlank() || json == "{}") return UserProfile()
-        return try {
-            gson.fromJson(json, UserProfile::class.java) ?: UserProfile()
-        } catch (_: Exception) {
-            UserProfile()
-        }
+        return runCatching { gson.fromJson(json, UserProfile::class.java) }
+            .getOrNull()
+            ?: UserProfile()
     }
 
     fun fromJson(json: String?): UserProfile = fromJsonRaw(json).normalizeLegacy()
@@ -57,14 +55,12 @@ private object DayOfWeekAdapter : JsonSerializer<DayOfWeek>, JsonDeserializer<Da
         typeOfT: Type,
         context: JsonDeserializationContext,
     ): DayOfWeek {
-        val raw = when {
-            json.isJsonPrimitive -> json.asString
-            else -> json.toString()
-        }
-        return runCatching { DayOfWeek.valueOf(raw.trim().uppercase()) }
+        val raw = if (json.isJsonPrimitive) json.asString else json.toString()
+        val trimmed = raw.trim()
+        return runCatching { DayOfWeek.valueOf(trimmed.uppercase()) }
             .getOrElse {
                 // Поддержка старых числовых значений (1 = MONDAY … 7 = SUNDAY)
-                DayOfWeek.of(raw.trim().toInt().coerceIn(1, 7))
+                DayOfWeek.of(trimmed.toInt().coerceIn(1, 7))
             }
     }
 }
