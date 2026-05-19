@@ -91,7 +91,6 @@ fun CalendarScreen(
     var showRegistrationPrompt by remember { mutableStateOf(false) }
     var showProfitDetails by remember { mutableStateOf(false) }
     var showLessonsDetails by remember { mutableStateOf(false) }
-    var showDaySummary by remember { mutableStateOf(false) }
 
     // Расчет статистики за текущий месяц
     val stats = rememberCalendarMonthStats(
@@ -147,18 +146,16 @@ fun CalendarScreen(
                 onNextMonth = { viewModel.nextMonth() },
                 onTodayClick = { viewModel.goToToday() },
                 onMenuClick = { scope.launch { drawerState.open() } },
-                showDaySummary = showDaySummary,
                 pricePerSession = profile.pricePerSession,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
                         showRegistrationPrompt = true
                         return@CalendarScreenContent
                     }
-                    if (selectedDate == date && showDaySummary) {
+                    if (selectedDate == date) {
                         showDialog = true
                     } else {
                         viewModel.selectDate(date)
-                        showDaySummary = true
                     }
                 },
                 onProfitClick = {
@@ -248,7 +245,6 @@ fun CalendarScreenContent(
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
-    showDaySummary: Boolean = false,
     pricePerSession: Double = 0.0,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -272,7 +268,7 @@ fun CalendarScreenContent(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
@@ -284,7 +280,7 @@ fun CalendarScreenContent(
                 onRegistrationRequired = onRegistrationRequired
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -311,7 +307,7 @@ fun CalendarScreenContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Прогресс месяца
             MonthlyProgressCard(
@@ -320,7 +316,15 @@ fun CalendarScreenContent(
                 expectedIncome = stats.expectedIncome
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (isRegistered && selectedDate != null && daySummaryStats != null) {
+                DaySummarySlot(
+                    date = selectedDate,
+                    stats = daySummaryStats,
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -330,11 +334,9 @@ fun CalendarScreenContent(
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(10.dp)) {
                     WeekDaysRow()
 
-                    // Лёгкая crossfade-анимация вместо тяжёлой slide+fade —
-                    // на первом кадре отрисовка мгновенная, без накладной анимации.
                     AnimatedContent(
                         targetState = currentMonth,
                         transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
@@ -349,14 +351,6 @@ fun CalendarScreenContent(
                         )
                     }
                 }
-            }
-
-            if (selectedDate != null && daySummaryStats != null) {
-                DaySummaryPanel(
-                    visible = showDaySummary,
-                    date = selectedDate,
-                    stats = daySummaryStats,
-                )
             }
         }
     }
