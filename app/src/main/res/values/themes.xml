@@ -1,14 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <!--
-        Меняем родителя на .NoActionBar (без светлой приписки),
-        чтобы система не принуждала к белому фону.
+        Тема сплеш-экрана. Использует системный SplashScreen API
+        (`androidx.core:core-splashscreen`), что позволяет:
+          1) гарантированно показывать launcher-иконку на тёмном фоне
+             (одинаково на API 24+),
+          2) анимировать её "вылет" в `OnExitAnimationListener` уже
+             после загрузки данных приложения.
+    -->
+    <style name="Theme.Neiro.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <!--
+            На сплеше показываем ТОЛЬКО foreground (синий круг + N) без белой
+            подложки `ic_launcher_background`. Так на тёмном сплеше нет белой
+            "каймы" по бокам, а сам launcher-icon на главном экране остаётся
+            в "телеграм-стиле" с белой рамкой.
+        -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Neiro</item>
+    </style>
+
+    <!--
+        Основная тема приложения. Системный сплеш автоматически переключится
+        на неё после вызова splashScreen.setKeepOnScreenCondition / анимации.
     -->
     <style name="Theme.Neiro" parent="android:Theme.Material.NoActionBar">
-        <!-- Устанавливаем темный фон для окна при загрузке -->
         <item name="android:windowBackground">@color/splash_background</item>
-        <!-- Делаем статус-бар тоже темным в тон фону -->
         <item name="android:statusBarColor">@color/splash_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
 </resources>
