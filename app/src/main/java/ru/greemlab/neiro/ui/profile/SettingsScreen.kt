@@ -178,7 +178,7 @@ private fun SettingsScreenImpl(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                DayOfWeek.values().forEach { day ->
+                for (day in DayOfWeek.entries) {
                     DayChip(
                         day = day,
                         isSelected = profile.workingDays.contains(day),

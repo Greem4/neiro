@@ -7,13 +7,17 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.EditOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.*
+
+private val DATE_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
 @Composable
 fun DayDetailsHeader(
@@ -24,13 +28,14 @@ fun DayDetailsHeader(
     isPlanningMode: Boolean,
     onTogglePlanningMode: () -> Unit
 ) {
+    val dateText = remember(date) { date.format(DATE_FORMAT) }
     Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ru"))),
+                text = dateText,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary

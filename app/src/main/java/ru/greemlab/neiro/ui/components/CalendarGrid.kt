@@ -38,20 +38,23 @@ fun CalendarGrid(
     val grid = remember(currentMonth) { buildMonthGrid(currentMonth) }
     val today = remember { LocalDate.now() }
     val hasWorkingDayFilter = workingDays.isNotEmpty()
+    // Compose не считает Map стабильным — но size() в hot path безопасен,
+    // а ключи здесь сравниваются по equals (LocalDate).
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        val days = grid.days
         var i = 0
-        while (i < grid.days.size) {
+        while (i < days.size) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 for (j in 0 until 7) {
-                    val date = grid.days[i + j]
+                    val date = days[i + j]
                     DayCard(
                         date = date,
                         today = today,
-                        isCurrentMonth = YearMonth.from(date) == currentMonth,
+                        isCurrentMonth = date.month == currentMonth.month && date.year == currentMonth.year,
                         isSelected = date == selectedDate,
                         namesCount = dayData[date]?.size ?: 0,
                         isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),

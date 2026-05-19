@@ -1,9 +1,12 @@
 package ru.greemlab.neiro
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,7 +21,10 @@ import ru.greemlab.neiro.ui.settings.AppSettingsViewModel
 
 class MainActivity : ComponentActivity() {
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Системный splash должен ставиться ДО super.onCreate — иначе будет чёрная вспышка.
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 

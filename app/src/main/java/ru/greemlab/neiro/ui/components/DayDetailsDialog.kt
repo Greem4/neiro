@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -30,11 +31,19 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import java.time.LocalDate
+import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.ui.calendar.Session
+import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.components.daydetails.*
+
+private const val INTENSIVE_PREFIX = "__INTENSIVE__:"
+private const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
+private val RU_LOCALE: Locale = Locale.forLanguageTag("ru")
+private const val MAX_STUDENTS = 12
 
 /**
  * Диалоговое окно для редактирования списка людей (фамилий) на выбранную дату.
@@ -71,54 +80,59 @@ fun DayDetailsContent(
     onDismiss: () -> Unit,
     onSave: (List<String>, Boolean, Boolean) -> Unit
 ) {
-    var items by remember { 
-        mutableStateOf(
-            initialNames.filter { it.isNotBlank() }.map { 
-                if (it.startsWith("__INTENSIVE__:")) {
-                    val content = it.removePrefix("__INTENSIVE__:")
-                    val parts = content.split("|")
-                    StudentItem(
-                        id = UUID.randomUUID().toString(),
-                        name = parts.getOrNull(1) ?: "",
-                        attended = parts.getOrNull(2)?.toBoolean() ?: true,
-                        type = StudentItemType.INTENSIVE,
-                        price = parts[0]
-                    )
-                } else if (it.startsWith("__DIAGNOSTICS__:")) {
-                    val content = it.removePrefix("__DIAGNOSTICS__:")
-                    val parts = content.split("|")
-                    StudentItem(
-                        id = UUID.randomUUID().toString(),
-                        name = parts.getOrNull(1) ?: "",
-                        attended = parts.getOrNull(2)?.toBoolean() ?: true,
-                        type = StudentItemType.DIAGNOSTICS,
-                        price = parts[0]
-                    )
-                } else {
-                    val parts = it.split("|")
-                    StudentItem(
-                        id = UUID.randomUUID().toString(),
-                        name = parts[0],
-                        attended = parts.getOrNull(1)?.toBoolean() ?: false,
-                        type = StudentItemType.STUDENT
-                    )
-                }
-            }.let { if (it.isEmpty()) listOf(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false)) else it }
-        )
+    // mutableStateListOf вместо var items by remember { mutableStateOf(List<...>) } —
+    // даёт O(1) изменения отдельных элементов без копирования списка.
+    val items: SnapshotStateList<StudentItem> = remember(initialNames) {
+        mutableStateListOf<StudentItem>().apply {
+            addAll(parseInitialItems(initialNames))
+        }
     }
 
     val focusRequester = remember { FocusRequester() }
     var focusItemId by remember { mutableStateOf<String?>(null) }
     var repeatUntilEndOfMonth by remember { mutableStateOf(false) }
     var repeatNextMonth by remember { mutableStateOf(false) }
-    
     var isPlanningMode by remember { mutableStateOf(false) }
-    
+
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val itemSpacingPx = with(density) { 8.dp.toPx() }
     var draggedItemId by remember { mutableStateOf<String?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
+
+    // derivedStateOf — пересчёт только когда меняются нужные элементы списка.
+    val studentCount by remember(items) {
+        derivedStateOf { items.count { it.type == StudentItemType.STUDENT && it.name.isNotBlank() } }
+    }
+    val attendedStudents by remember(items) {
+        derivedStateOf { items.count { it.type == StudentItemType.STUDENT && it.name.isNotBlank() && it.attended } }
+    }
+    val intensiveMoney by remember(items) {
+        derivedStateOf {
+            items.sumOf {
+                if (it.type == StudentItemType.INTENSIVE && it.attended) {
+                    it.price.toDoubleOrNull() ?: 0.0
+                } else 0.0
+            }
+        }
+    }
+    val diagnosticsMoney by remember(items) {
+        derivedStateOf {
+            items.sumOf {
+                if (it.type == StudentItemType.DIAGNOSTICS && it.attended) {
+                    it.price.toDoubleOrNull() ?: 0.0
+                } else 0.0
+            }
+        }
+    }
+    val totalMoney by remember(items, userProfile.pricePerSession) {
+        derivedStateOf {
+            (attendedStudents * userProfile.pricePerSession) + intensiveMoney + diagnosticsMoney
+        }
+    }
+    val showMoney by remember(userProfile.pricePerSession) {
+        derivedStateOf { userProfile.pricePerSession > 0 || intensiveMoney > 0 || diagnosticsMoney > 0 }
+    }
 
     fun itemOffsetDelta(fromIndex: Int, toIndex: Int): Float {
         if (fromIndex == toIndex) return 0f
@@ -141,19 +155,18 @@ fun DayDetailsContent(
         }
     }
 
-    // Логика авто-скролла при перетаскивании
     LaunchedEffect(draggedItemId) {
         if (draggedItemId == null) return@LaunchedEffect
         while (true) {
             val layoutInfo = listState.layoutInfo
             val draggedItem = layoutInfo.visibleItemsInfo.find { it.key == draggedItemId }
-            
+
             if (draggedItem != null) {
                 val topEdge = layoutInfo.viewportStartOffset
                 val bottomEdge = layoutInfo.viewportEndOffset
                 val itemTop = draggedItem.offset + draggingOffset
                 val itemBottom = itemTop + draggedItem.size
-                
+
                 val padding = 120f
                 if (itemTop < topEdge + padding && listState.canScrollBackward) {
                     val scrollAmount = (((topEdge + padding) - itemTop) / padding * 20f).coerceIn(2f, 25f)
@@ -179,25 +192,15 @@ fun DayDetailsContent(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp).fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val studentCount = items.filter { it.type == StudentItemType.STUDENT && it.name.isNotBlank() }.size
-            val attendedStudents = items.filter { it.type == StudentItemType.STUDENT && it.name.isNotBlank() && it.attended }.size
-            
-            val intensiveMoney = items.filter { it.type == StudentItemType.INTENSIVE && it.attended }
-                .sumOf { it.price.toDoubleOrNull() ?: 0.0 }
-            val diagnosticsMoney = items.filter { it.type == StudentItemType.DIAGNOSTICS && it.attended }
-                .sumOf { it.price.toDoubleOrNull() ?: 0.0 }
-            
-            val totalMoney = (attendedStudents * userProfile.pricePerSession) + intensiveMoney + diagnosticsMoney
-
             DayDetailsHeader(
                 date = date,
                 totalCount = studentCount,
                 totalMoney = totalMoney,
-                showMoney = userProfile.pricePerSession > 0 || intensiveMoney > 0 || diagnosticsMoney > 0,
+                showMoney = showMoney,
                 isPlanningMode = isPlanningMode,
                 onTogglePlanningMode = { isPlanningMode = !isPlanningMode }
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
             LazyColumn(
@@ -241,16 +244,10 @@ fun DayDetailsContent(
                         focusRequester = focusRequester,
                         isFocused = student.id == focusItemId,
                         isPlanningMode = isPlanningMode,
-                        onAttendedChange = { attended ->
-                            items = items.toMutableList().apply { this[index] = student.copy(attended = attended) }
-                        },
-                        onNameChange = { name ->
-                            items = items.toMutableList().apply { this[index] = student.copy(name = name) }
-                        },
-                        onPriceChange = { price ->
-                            items = items.toMutableList().apply { this[index] = student.copy(price = price) }
-                        },
-                        onDelete = { items = items.toMutableList().apply { removeAt(index) } },
+                        onAttendedChange = { attended -> items[index] = student.copy(attended = attended) },
+                        onNameChange = { name -> items[index] = student.copy(name = name) },
+                        onPriceChange = { price -> items[index] = student.copy(price = price) },
+                        onDelete = { items.removeAt(index) },
                         onDragStart = { draggedItemId = student.id },
                         onDragEnd = { draggedItemId = null; draggingOffset = 0f },
                         onDrag = { dy ->
@@ -261,9 +258,7 @@ fun DayDetailsContent(
                             if (currentIndex < items.size - 1) {
                                 val deltaDown = itemOffsetDelta(currentIndex, currentIndex + 1)
                                 if (draggingOffset > deltaDown * 0.5f) {
-                                    items = items.toMutableList().apply {
-                                        add(currentIndex + 1, removeAt(currentIndex))
-                                    }
+                                    items.add(currentIndex + 1, items.removeAt(currentIndex))
                                     draggingOffset -= deltaDown
                                     return@StudentItemRow
                                 }
@@ -271,9 +266,7 @@ fun DayDetailsContent(
                             if (currentIndex > 0) {
                                 val deltaUp = itemOffsetDelta(currentIndex, currentIndex - 1)
                                 if (draggingOffset < deltaUp * 0.5f) {
-                                    items = items.toMutableList().apply {
-                                        add(currentIndex - 1, removeAt(currentIndex))
-                                    }
+                                    items.add(currentIndex - 1, items.removeAt(currentIndex))
                                     draggingOffset -= deltaUp
                                 }
                             }
@@ -287,11 +280,14 @@ fun DayDetailsContent(
                             modifier = Modifier.padding(top = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (items.count { it.type == StudentItemType.STUDENT } < 12) {
+                            val canAddStudent by remember(items) {
+                                derivedStateOf { items.count { it.type == StudentItemType.STUDENT } < MAX_STUDENTS }
+                            }
+                            if (canAddStudent) {
                                 OutlinedButton(
                                     onClick = {
                                         val newId = UUID.randomUUID().toString()
-                                        items = items + StudentItem(id = newId, name = "", attended = false, type = StudentItemType.STUDENT)
+                                        items.add(StudentItem(id = newId, name = "", attended = false, type = StudentItemType.STUDENT))
                                         focusItemId = newId
                                     },
                                     modifier = Modifier.fillMaxWidth(),
@@ -310,7 +306,7 @@ fun DayDetailsContent(
                                 OutlinedButton(
                                     onClick = {
                                         val newId = UUID.randomUUID().toString()
-                                        items = items + StudentItem(id = newId, name = "", attended = true, type = StudentItemType.INTENSIVE, price = "")
+                                        items.add(StudentItem(id = newId, name = "", attended = true, type = StudentItemType.INTENSIVE, price = ""))
                                         focusItemId = newId
                                     },
                                     modifier = Modifier.weight(1f),
@@ -326,7 +322,7 @@ fun DayDetailsContent(
                                 OutlinedButton(
                                     onClick = {
                                         val newId = UUID.randomUUID().toString()
-                                        items = items + StudentItem(id = newId, name = "", attended = true, type = StudentItemType.DIAGNOSTICS, price = "")
+                                        items.add(StudentItem(id = newId, name = "", attended = true, type = StudentItemType.DIAGNOSTICS, price = ""))
                                         focusItemId = newId
                                     },
                                     modifier = Modifier.weight(1f),
@@ -343,6 +339,10 @@ fun DayDetailsContent(
                     }
 
                     item {
+                        // День недели мемоизируем — toLowerCase + getDisplayName аллоцирует строки.
+                        val dayOfWeekLower = remember(date) {
+                            date.dayOfWeek.getDisplayName(TextStyle.FULL, RU_LOCALE).lowercase(RU_LOCALE)
+                        }
                         Surface(
                             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                             shape = RoundedCornerShape(12.dp),
@@ -353,7 +353,7 @@ fun DayDetailsContent(
                                 Checkbox(checked = repeatUntilEndOfMonth, onCheckedChange = { repeatUntilEndOfMonth = it })
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} до конца месяца",
+                                    text = "Дублировать на все $dayOfWeekLower до конца месяца",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -370,7 +370,7 @@ fun DayDetailsContent(
                                 Checkbox(checked = repeatNextMonth, onCheckedChange = { repeatNextMonth = it })
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Дублировать на все ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("ru")).lowercase()} следующего месяца",
+                                    text = "Дублировать на все $dayOfWeekLower следующего месяца",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -385,14 +385,16 @@ fun DayDetailsContent(
             DayDetailsFooter(
                 onDismiss = onDismiss,
                 onSave = {
-                    val finalNames = items.filter { 
-                        (it.type == StudentItemType.STUDENT && it.name.isNotBlank()) ||
-                        (it.type != StudentItemType.STUDENT && it.price.isNotBlank())
-                    }.map { 
-                        when (it.type) {
-                            StudentItemType.INTENSIVE -> "__INTENSIVE__:${it.price}|${it.name}|${it.attended}"
-                            StudentItemType.DIAGNOSTICS -> "__DIAGNOSTICS__:${it.price}|${it.name}|${it.attended}"
-                            else -> "${it.name}|${it.attended}"
+                    val finalNames = buildList(items.size) {
+                        for (it in items) {
+                            when (it.type) {
+                                StudentItemType.STUDENT -> if (it.name.isNotBlank())
+                                    add("${it.name}|${it.attended}")
+                                StudentItemType.INTENSIVE -> if (it.price.isNotBlank())
+                                    add("$INTENSIVE_PREFIX${it.price}|${it.name}|${it.attended}")
+                                StudentItemType.DIAGNOSTICS -> if (it.price.isNotBlank())
+                                    add("$DIAGNOSTICS_PREFIX${it.price}|${it.name}|${it.attended}")
+                            }
                         }
                     }
                     onSave(finalNames, repeatUntilEndOfMonth, repeatNextMonth)
@@ -400,6 +402,39 @@ fun DayDetailsContent(
             )
         }
     }
+}
+
+private fun parseInitialItems(initialNames: List<String>): List<StudentItem> {
+    val parsed = ArrayList<StudentItem>(initialNames.size)
+    for (raw in initialNames) {
+        if (raw.isBlank()) continue
+        val item = when (val session = SessionParser.parse(raw)) {
+            is Session.Intensive -> StudentItem(
+                id = UUID.randomUUID().toString(),
+                name = session.name,
+                attended = session.attended,
+                type = StudentItemType.INTENSIVE,
+                price = session.amount.let { if (it == 0.0) "" else it.toLong().toString() },
+            )
+            is Session.Diagnostics -> StudentItem(
+                id = UUID.randomUUID().toString(),
+                name = session.name,
+                attended = session.attended,
+                type = StudentItemType.DIAGNOSTICS,
+                price = session.amount.let { if (it == 0.0) "" else it.toLong().toString() },
+            )
+            is Session.Student -> StudentItem(
+                id = UUID.randomUUID().toString(),
+                name = session.name,
+                attended = session.attended,
+                type = StudentItemType.STUDENT,
+            )
+        }
+        parsed += item
+    }
+    return if (parsed.isEmpty()) {
+        listOf(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false))
+    } else parsed
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
