@@ -11,8 +11,8 @@ android {
         applicationId = "ru.greemlab.neiro"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.4.0"
+        versionCode = 2
+        versionName = "0.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -42,7 +42,7 @@ androidComponents {
     onVariants { variant ->
         val vName = android.defaultConfig.versionName ?: "unknown"
         variant.outputs.forEach { output ->
-            // Название в формате: neiro-v0.4.0-pre-release.apk
+            // Название в формате: neiro-v0.4.1-pre-release.apk
             output.outputFileName.set("neiro-v$vName-pre-release.apk")
         }
     }
