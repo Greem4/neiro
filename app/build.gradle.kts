@@ -12,14 +12,15 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.4.1"
+        versionName = "0.4.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -71,9 +72,6 @@ dependencies {
     // Core KTX
     implementation(libs.androidx.core.ktx)
 
-    // Splash Screen API (бесшовный сплеш на API 24+)
-    implementation(libs.androidx.core.splashscreen)
-
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
@@ -84,6 +82,9 @@ dependencies {
     // DataStore для сохранения данных
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
+
+    // Baseline profile (ускоряет холодный старт Compose)
+    implementation(libs.androidx.profileinstaller)
 
     // Test
     testImplementation(libs.junit)

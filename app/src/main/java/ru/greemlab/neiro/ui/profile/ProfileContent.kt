@@ -33,8 +33,7 @@ fun ProfileContent(
     onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val profileState by profileViewModel.userProfile.collectAsState()
-    val profile = profileState ?: UserProfile()
+    val profile by profileViewModel.userProfile.collectAsState()
     val dayData by calendarViewModel.dayData.collectAsState()
     
     ProfileContentImpl(

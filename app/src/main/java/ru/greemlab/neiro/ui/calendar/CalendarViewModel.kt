@@ -32,14 +32,17 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
     // Данные о людях для каждой даты (дата -> список фамилий)
-    private val _dayData = MutableStateFlow<Map<LocalDate, List<String>>>(emptyMap())
+    private val _dayData = MutableStateFlow(
+        CalendarDataStoreProvider.peekDayData(application),
+    )
     val dayData: StateFlow<Map<LocalDate, List<String>>> = _dayData.asStateFlow()
 
     init {
-        // Загружаем данные из постоянного хранилища при старте
         viewModelScope.launch {
             dataStore.dayDataFlow.collectLatest { savedData ->
-                _dayData.value = savedData
+                if (savedData != _dayData.value) {
+                    _dayData.value = savedData
+                }
             }
         }
     }

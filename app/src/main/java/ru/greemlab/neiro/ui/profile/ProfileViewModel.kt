@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import ru.greemlab.neiro.data.CalendarDataStore
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.DayOfWeek
@@ -15,23 +14,16 @@ import java.time.DayOfWeek
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val dataStore = CalendarDataStoreProvider.get(application)
 
-    init {
-        viewModelScope.launch {
-            dataStore.migrateProfileIfNeeded()
-        }
-    }
-
-    val userProfile: StateFlow<UserProfile?> = dataStore.userProfileFlow
+    val userProfile: StateFlow<UserProfile> = dataStore.userProfileFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = null
+            initialValue = CalendarDataStoreProvider.peekProfile(application),
         )
 
     private fun updateProfile(transform: (UserProfile) -> UserProfile) {
         viewModelScope.launch {
-            val current = userProfile.value ?: return@launch
-            dataStore.saveUserProfile(transform(current))
+            dataStore.saveUserProfile(transform(userProfile.value))
         }
     }
 

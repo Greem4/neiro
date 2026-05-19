@@ -32,14 +32,7 @@ fun SettingsScreen(
     viewModel: ProfileViewModel,
     onBack: () -> Unit
 ) {
-    val profileState by viewModel.userProfile.collectAsState()
-    if (profileState == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
-    val profile = profileState!!
+    val profile by viewModel.userProfile.collectAsState()
 
     SettingsScreenImpl(
         profile = profile,

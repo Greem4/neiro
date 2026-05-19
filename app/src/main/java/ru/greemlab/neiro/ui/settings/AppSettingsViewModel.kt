@@ -19,8 +19,8 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     val theme: StateFlow<String> = dataStore.themeFlow
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "system",
+            started = SharingStarted.Eagerly,
+            initialValue = CalendarDataStoreProvider.get(application).peekSnapshot().theme,
         )
 
     fun setTheme(theme: String) {

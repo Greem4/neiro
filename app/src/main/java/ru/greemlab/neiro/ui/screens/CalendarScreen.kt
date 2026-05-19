@@ -56,9 +56,7 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.dayData.collectAsState()
-    val profileState by profileViewModel.userProfile.collectAsState()
-    
-    val profile = profileState ?: UserProfile()
+    val profile by profileViewModel.userProfile.collectAsState()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
