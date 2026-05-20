@@ -10,15 +10,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
+import ru.greemlab.neiro.data.CalendarRepository
 import java.time.LocalDate
 import java.time.YearMonth
 
 /**
- * ViewModel для управления состоянием календаря с поддержкой сохранения данных в DataStore.
+ * ViewModel для управления состоянием календаря.
+ *
+ * Чтение через Flow, запись — через единый [CalendarRepository], который
+ * сам сериализует параллельные записи через mutex.
  */
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val dataStore = CalendarDataStoreProvider.get(application)
+    private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
 
     private val _currentMonth = MutableStateFlow(YearMonth.now())
     val currentMonth: StateFlow<YearMonth> = _currentMonth.asStateFlow()
@@ -26,8 +30,8 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
-    /** Данные о людях для каждой даты (дата → список фамилий). */
-    val dayData: StateFlow<Map<LocalDate, List<String>>> = dataStore.dayDataFlow
+    /** Данные о людях для каждой даты (дата → список записей). */
+    val dayData: StateFlow<Map<LocalDate, List<String>>> = repository.dayDataFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
@@ -53,7 +57,8 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Переключает статус посещения для ученика.
+     * Переключает статус посещения для записи на указанной дате.
+     * Игнорирует «экстра» записи (интенсив/диагностика) — у них статус меняется по-другому.
      */
     fun toggleAttendance(date: LocalDate, index: Int) {
         viewModelScope.launch {
@@ -64,18 +69,16 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
 
             val sep = item.indexOf('|')
             val name = if (sep < 0) item else item.substring(0, sep)
-            val currentAttended = if (sep < 0) false else item.substring(sep + 1).toBoolean()
+            val currentAttended = SessionParser.isAttended(item)
             val updated = list.toMutableList().apply {
                 this[index] = "$name|${!currentAttended}"
             }
 
-            dataStore.saveDayData(current + (date to updated))
+            repository.saveDayData(current + (date to updated))
         }
     }
 
-    /**
-     * Удаляет запись (ученика или доп. доход) из списка на дату.
-     */
+    /** Удаляет запись (ученика или доп. доход) из списка на дату. */
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
             val current = dayData.value
@@ -86,15 +89,15 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             val newData = current.toMutableMap().apply {
                 if (updated.isEmpty()) remove(date) else put(date, updated)
             }
-            dataStore.saveDayData(newData)
+            repository.saveDayData(newData)
         }
     }
 
     /**
-     * Сохранение списка имён для указанной даты в DataStore.
+     * Сохранение списка записей для указанной даты.
      *
      * @param date Дата сохранения.
-     * @param names Список имён в формате "Имя|attended".
+     * @param names Список записей в формате "Имя|attended" или с префиксами экстра-сессий.
      * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
      * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
      */
@@ -131,7 +134,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 }
             }
 
-            dataStore.saveDayData(newData)
+            repository.saveDayData(newData)
         }
     }
 
@@ -145,7 +148,6 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             data.remove(targetDate)
             return
         }
-        // Для будущих дат сбрасываем статус «пришёл» (attended = false).
         val processed = if (targetDate.isAfter(originalDate)) resetAttendance(names) else names
         data[targetDate] = processed
     }

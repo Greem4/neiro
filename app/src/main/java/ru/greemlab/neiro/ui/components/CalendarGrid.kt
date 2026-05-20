@@ -8,11 +8,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import ru.greemlab.neiro.ui.calendar.SessionParser
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 
 private const val GRID_CELLS = 42 // 6 недель × 7 дней
@@ -20,12 +27,14 @@ private const val GRID_CELLS = 42 // 6 недель × 7 дней
 @Immutable
 private data class MonthGrid(
     val days: List<LocalDate>,
-    val currentMonth: YearMonth,
 )
 
 /**
- * Сетка календаря, отображающая дни месяца.
- * Включает дни предыдущего/следующего месяца для прямоугольной формы 6×7.
+ * Сетка календаря. Показывает дни текущего месяца плюс выравнивание
+ * предыдущего/следующего месяцев до прямоугольника 6×7.
+ *
+ * Текущая дата [today] обновляется автоматически при пересечении полуночи —
+ * пока экран открыт, выделение «сегодня» переезжает на новый день.
  */
 @Composable
 fun CalendarGrid(
@@ -36,10 +45,8 @@ fun CalendarGrid(
     onDateClick: (LocalDate) -> Unit,
 ) {
     val grid = remember(currentMonth) { buildMonthGrid(currentMonth) }
-    val today = remember { LocalDate.now() }
+    val today by rememberCurrentDate()
     val hasWorkingDayFilter = workingDays.isNotEmpty()
-    // Compose не считает Map стабильным — но size() в hot path безопасен,
-    // а ключи здесь сравниваются по equals (LocalDate).
 
     Column(modifier = Modifier.fillMaxWidth()) {
         val days = grid.days
@@ -51,12 +58,15 @@ fun CalendarGrid(
             ) {
                 for (j in 0 until 7) {
                     val date = days[i + j]
+                    val sessions = dayData[date]
+                    // Считаем только учеников (точки), не экстра-сессии.
+                    val studentsCount = sessions?.count { !SessionParser.isExtra(it) } ?: 0
                     DayCard(
                         date = date,
                         today = today,
                         isCurrentMonth = date.month == currentMonth.month && date.year == currentMonth.year,
                         isSelected = date == selectedDate,
-                        namesCount = dayData[date]?.size ?: 0,
+                        namesCount = studentsCount,
                         isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
                         onDateClick = onDateClick,
                         modifier = Modifier.weight(1f),
@@ -68,6 +78,22 @@ fun CalendarGrid(
         }
     }
 }
+
+/**
+ * Возвращает текущую дату с авто-обновлением сразу после полуночи.
+ * Реализация: засыпаем до 00:00:01 следующих суток и обновляем значение.
+ */
+@Composable
+private fun rememberCurrentDate(): androidx.compose.runtime.State<LocalDate> =
+    produceState(initialValue = LocalDate.now()) {
+        while (true) {
+            val now = LocalDateTime.now()
+            val nextMidnight = now.toLocalDate().plusDays(1).atTime(LocalTime.MIDNIGHT)
+            val delayMs = Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1_000)
+            delay(delayMs + 1_000)
+            value = LocalDate.now()
+        }
+    }
 
 private fun buildMonthGrid(currentMonth: YearMonth): MonthGrid {
     val firstDayOfMonth = currentMonth.atDay(1)
@@ -89,5 +115,5 @@ private fun buildMonthGrid(currentMonth: YearMonth): MonthGrid {
     while (days.size < GRID_CELLS) {
         days += nextMonth.atDay(nextDay++)
     }
-    return MonthGrid(days = days, currentMonth = currentMonth)
+    return MonthGrid(days = days)
 }

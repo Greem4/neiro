@@ -1,8 +1,6 @@
 package ru.greemlab.neiro.ui.screens
 
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -17,9 +15,10 @@ import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -27,8 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.ProfitGreen
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
@@ -37,46 +36,47 @@ import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
-import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 
-private val ProfitGreen = Color(0xFF4CAF50)
+/**
+ * Все типы overlay, отображающихся поверх календаря.
+ * Хранение в одном sealed класс гарантирует, что одновременно открыт
+ * не более одного overlay — и BackHandler закрывает именно его.
+ */
+private sealed interface CalendarOverlay {
+    data object None : CalendarOverlay
+    data object Settings : CalendarOverlay
+    data object AppSettings : CalendarOverlay
+    data object RegistrationPrompt : CalendarOverlay
+    data object ProfitDetails : CalendarOverlay
+    data object LessonsDetails : CalendarOverlay
+    data object DayDetails : CalendarOverlay
+}
 
 /**
  * Основной экран календаря.
  *
- * Управляет состоянием отображения диалогов и взаимодействует с [CalendarViewModel].
- *
  * ## Профиль (боковая панель)
  *
  * Профиль реализован через [ModalNavigationDrawer] и [ProfileContent].
- * Панель **не открывается сама** — только явным действием пользователя:
+ * Панель не открывается сама — только явным действием пользователя:
+ * свайп слева направо или тап по логотипу «N» в шапке.
  *
- * - **Свайп слева направо** с любой точки левого края экрана (по всей высоте).
- *   Панель следует за пальцем во время жеста; закрывается свайпом обратно влево.
- * - **Тап по кругу с буквой «N»** в шапке ([NeiroLogo] в [CalendarHeader]).
- *
- * Закрытие профиля:
- * - свайп влево по панели или основному экрану;
- * - тап по затемнённой области;
- * - системная кнопка «Назад» ([BackHandler]).
- *
- * Жесты drawer отключаются, пока открыт любой оверлей (диалог дня, настройки,
- * детализация занятий/прибыли и т.д.), чтобы не конфликтовать с прокруткой и жестами внутри них.
+ * Жесты drawer отключаются, пока открыт любой overlay, чтобы не конфликтовать
+ * с прокруткой и жестами внутри них.
  *
  * @see ru.greemlab.neiro.ui.components.NeiroLogo
  *
  * Подробнее: `docs/profile-drawer.md` в корне репозитория.
  */
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
     profileViewModel: ProfileViewModel = viewModel(),
 ) {
-    // Состояния из ViewModels
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.dayData.collectAsState()
@@ -84,33 +84,24 @@ fun CalendarScreen(
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    // Состояния UI (диалоги и дочерние экраны)
-    var showDialog by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var showAppSettings by remember { mutableStateOf(false) }
-    var showRegistrationPrompt by remember { mutableStateOf(false) }
-    var showProfitDetails by remember { mutableStateOf(false) }
-    var showLessonsDetails by remember { mutableStateOf(false) }
+    var overlay by rememberSaveable(stateSaver = OverlaySaver) {
+        mutableStateOf<CalendarOverlay>(CalendarOverlay.None)
+    }
 
-    // Расчет статистики за текущий месяц
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
         dayData = dayData,
         pricePerSession = profile.pricePerSession,
-        monthlyTaxAmount = profile.monthlyTaxAmount
+        monthlyTaxAmount = profile.monthlyTaxAmount,
     )
 
-    // Жест «вытащить профиль» — только когда нет модальных оверлеев поверх календаря.
-    val drawerGesturesEnabled = !showSettings && !showAppSettings && !showDialog &&
-        !showRegistrationPrompt && !showProfitDetails && !showLessonsDetails
+    val drawerGesturesEnabled = overlay is CalendarOverlay.None
 
-    // Обработка системной кнопки "Назад"
-    val isAnyOverlayOpen = drawerState.isOpen || showSettings || showAppSettings
+    val isAnyOverlayOpen = drawerState.isOpen || overlay !is CalendarOverlay.None
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
-            showSettings -> showSettings = false
-            showAppSettings -> showAppSettings = false
-            else -> scope.launch { drawerState.close() }
+            overlay !is CalendarOverlay.None -> overlay = CalendarOverlay.None
+            drawerState.isOpen -> scope.launch { drawerState.close() }
         }
     }
 
@@ -125,15 +116,15 @@ fun CalendarScreen(
                         calendarViewModel = viewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
-                            showSettings = true
+                            overlay = CalendarOverlay.Settings
                         },
                         onOpenAppSettings = {
                             scope.launch { drawerState.close() }
-                            showAppSettings = true
-                        }
+                            overlay = CalendarOverlay.AppSettings
+                        },
                     )
                 }
-            }
+            },
         ) {
             CalendarScreenContent(
                 currentMonth = currentMonth,
@@ -142,100 +133,125 @@ fun CalendarScreen(
                 stats = stats,
                 workingDays = profile.workingDays,
                 isRegistered = profile.isRegistered,
-                onPreviousMonth = { viewModel.previousMonth() },
-                onNextMonth = { viewModel.nextMonth() },
-                onTodayClick = { viewModel.goToToday() },
+                onPreviousMonth = viewModel::previousMonth,
+                onNextMonth = viewModel::nextMonth,
+                onTodayClick = viewModel::goToToday,
                 onMenuClick = { scope.launch { drawerState.open() } },
                 pricePerSession = profile.pricePerSession,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
-                        showRegistrationPrompt = true
+                        overlay = CalendarOverlay.RegistrationPrompt
                         return@CalendarScreenContent
                     }
                     if (selectedDate == date) {
-                        showDialog = true
+                        overlay = CalendarOverlay.DayDetails
                     } else {
                         viewModel.selectDate(date)
                     }
                 },
                 onProfitClick = {
-                    if (profile.isRegistered) showProfitDetails = true
-                    else showRegistrationPrompt = true
+                    overlay = if (profile.isRegistered) {
+                        CalendarOverlay.ProfitDetails
+                    } else {
+                        CalendarOverlay.RegistrationPrompt
+                    }
                 },
                 onLessonsClick = {
-                    if (profile.isRegistered) showLessonsDetails = true
-                    else showRegistrationPrompt = true
+                    overlay = if (profile.isRegistered) {
+                        CalendarOverlay.LessonsDetails
+                    } else {
+                        CalendarOverlay.RegistrationPrompt
+                    }
                 },
-                onRegistrationRequired = { 
-                    showRegistrationPrompt = true 
-                }
+                onRegistrationRequired = { overlay = CalendarOverlay.RegistrationPrompt },
             )
         }
 
-        if (showSettings) {
+        if (overlay is CalendarOverlay.Settings) {
             SettingsScreen(
                 viewModel = profileViewModel,
-                onBack = { showSettings = false }
+                onBack = { overlay = CalendarOverlay.None },
             )
         }
 
-        if (showAppSettings) {
-            AppSettingsScreen(
-                onBack = { showAppSettings = false }
-            )
+        if (overlay is CalendarOverlay.AppSettings) {
+            AppSettingsScreen(onBack = { overlay = CalendarOverlay.None })
         }
     }
 
-    // Диалоговые окна
-    if (showRegistrationPrompt) {
-        RegistrationPromptDialog(
-            onDismiss = { showRegistrationPrompt = false },
-            onConfirm = {
-                showRegistrationPrompt = false
-                showSettings = true
-            }
+    when (overlay) {
+        is CalendarOverlay.RegistrationPrompt -> RegistrationPromptDialog(
+            onDismiss = { overlay = CalendarOverlay.None },
+            onConfirm = { overlay = CalendarOverlay.Settings },
         )
-    }
 
-    if (showLessonsDetails) {
-        LessonsDetailsDialog(
+        is CalendarOverlay.LessonsDetails -> LessonsDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
-            onDismiss = { showLessonsDetails = false }
+            onDismiss = { overlay = CalendarOverlay.None },
         )
-    }
 
-    if (showProfitDetails) {
-        ProfitDetailsDialog(
+        is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
-            onDismiss = { showProfitDetails = false }
+            onDismiss = { overlay = CalendarOverlay.None },
         )
-    }
 
-    if (showDialog && (selectedDate != null)) {
-        DayDetailsDialog(
-            date = selectedDate!!,
-            initialNames = dayData[selectedDate!!] ?: emptyList(),
-            userProfile = profile,
-            onDismiss = { showDialog = false },
-            onSave = { names, repeat, repeatNext ->
-                viewModel.saveNamesForDate(selectedDate!!, names, repeat, repeatNext)
-                showDialog = false
+        is CalendarOverlay.DayDetails -> {
+            val date = selectedDate
+            if (date != null) {
+                DayDetailsDialog(
+                    date = date,
+                    initialNames = dayData[date].orEmpty(),
+                    userProfile = profile,
+                    onDismiss = { overlay = CalendarOverlay.None },
+                    onSave = { names, repeat, repeatNext ->
+                        viewModel.saveNamesForDate(date, names, repeat, repeatNext)
+                        overlay = CalendarOverlay.None
+                    },
+                )
+            } else {
+                overlay = CalendarOverlay.None
             }
-        )
+        }
+
+        else -> Unit
     }
 }
 
 /**
- * Чистый UI контент экрана календаря (без drawer и диалогов).
- *
- * Используется в [CalendarScreen] и в Compose Preview.
- *
- * @param onMenuClick Открытие профиля по тапу на логотип «N» в шапке.
- *                    Реализация (анимация drawer) — в [CalendarScreen].
+ * Сохраняем тип overlay при ротации устройства, чтобы пользователь не терял
+ * открытый диалог. Сериализуем как строку — это компактно и достаточно.
  */
-@RequiresApi(Build.VERSION_CODES.O)
+private val OverlaySaver = Saver<CalendarOverlay, String>(
+    save = { value ->
+        when (value) {
+            CalendarOverlay.None -> "none"
+            CalendarOverlay.Settings -> "settings"
+            CalendarOverlay.AppSettings -> "app_settings"
+            CalendarOverlay.RegistrationPrompt -> "registration"
+            CalendarOverlay.ProfitDetails -> "profit"
+            CalendarOverlay.LessonsDetails -> "lessons"
+            CalendarOverlay.DayDetails -> "day"
+        }
+    },
+    restore = { token ->
+        when (token) {
+            "settings" -> CalendarOverlay.Settings
+            "app_settings" -> CalendarOverlay.AppSettings
+            "registration" -> CalendarOverlay.RegistrationPrompt
+            "profit" -> CalendarOverlay.ProfitDetails
+            "lessons" -> CalendarOverlay.LessonsDetails
+            "day" -> CalendarOverlay.DayDetails
+            else -> CalendarOverlay.None
+        }
+    },
+)
+
+/**
+ * Чистый UI календарного экрана (без drawer и overlay).
+ * Используется в [CalendarScreen] и в Compose Preview.
+ */
 @Composable
 fun CalendarScreenContent(
     modifier: Modifier = Modifier,
@@ -253,22 +269,22 @@ fun CalendarScreenContent(
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
-    onRegistrationRequired: () -> Unit = {}
+    onRegistrationRequired: () -> Unit = {},
 ) {
     val daySummaryStats = remember(selectedDate, dayData, pricePerSession) {
         val date = selectedDate ?: return@remember null
-        computeDayStats(dayData[date] ?: emptyList(), pricePerSession)
+        computeDayStats(dayData[date].orEmpty(), pricePerSession)
     }
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = MaterialTheme.colorScheme.background,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
@@ -277,14 +293,14 @@ fun CalendarScreenContent(
                 onTodayClick = onTodayClick,
                 onMenuClick = onMenuClick,
                 isRegistered = isRegistered,
-                onRegistrationRequired = onRegistrationRequired
+                onRegistrationRequired = onRegistrationRequired,
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 StatCard(
                     label = "Занятий",
@@ -292,28 +308,25 @@ fun CalendarScreenContent(
                     icon = Icons.Rounded.School,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
-                    onClick = onLessonsClick
+                    onClick = onLessonsClick,
                 )
-                val profitValue = remember(stats.netProfit) {
-                    String.format(RU_LOCALE, "%.0f ₽", stats.netProfit)
-                }
+                val profitValue = remember(stats.netProfit) { formatRubles(stats.netProfit) }
                 StatCard(
                     label = "Прибыль",
                     value = profitValue,
                     icon = Icons.Rounded.Payments,
                     color = ProfitGreen,
                     modifier = Modifier.weight(1f),
-                    onClick = onProfitClick
+                    onClick = onProfitClick,
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Прогресс месяца
             MonthlyProgressCard(
                 completed = stats.completedCount,
                 total = stats.totalScheduled,
-                expectedIncome = stats.expectedIncome
+                expectedIncome = stats.expectedIncome,
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -330,9 +343,9 @@ fun CalendarScreenContent(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
                     WeekDaysRow()
@@ -340,14 +353,14 @@ fun CalendarScreenContent(
                     AnimatedContent(
                         targetState = currentMonth,
                         transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
-                        label = "CalendarGridTransition"
+                        label = "CalendarGridTransition",
                     ) { targetMonth ->
                         CalendarGrid(
                             currentMonth = targetMonth,
                             selectedDate = selectedDate,
                             dayData = dayData,
                             workingDays = workingDays,
-                            onDateClick = onDateClick
+                            onDateClick = onDateClick,
                         )
                     }
                 }
@@ -357,37 +370,39 @@ fun CalendarScreenContent(
 }
 
 @Composable
-fun MonthlyProgressCard(
+private fun MonthlyProgressCard(
     completed: Int,
     total: Int,
     expectedIncome: Double,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val progress = if (total > 0) completed.toFloat() / total else 0f
-    
+    val progress = if (total > 0) {
+        (completed.toFloat() / total).coerceIn(0f, 1f)
+    } else 0f
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+        ),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "План на месяц",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = "$completed из $total занятий",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -398,78 +413,72 @@ fun MonthlyProgressCard(
                     .height(8.dp),
                 strokeCap = StrokeCap.Round,
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
             )
             Spacer(modifier = Modifier.height(4.dp))
             val incomeText = remember(expectedIncome) {
-                "Ожидаемый доход: ${String.format(RU_LOCALE, "%.0f", expectedIncome)} ₽"
+                "Ожидаемый доход: ${formatRubles(expectedIncome)}"
             }
             Text(
                 text = incomeText,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.End)
+                modifier = Modifier.align(Alignment.End),
             )
         }
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
-@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, name = "Dark Theme")
+@Preview(
+    showBackground = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+    name = "Dark Theme",
+)
 @Composable
-fun CalendarPreviewDark() {
+private fun CalendarPreviewDark() {
     NeiroTheme(darkTheme = true) {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(
-                completedCount = 12,
-                totalScheduled = 20,
-                remainingCount = 8,
-                totalEarned = 15000.0,
-                netProfit = 14000.0,
-                intensiveEarnings = 0.0,
-                diagnosticsEarnings = 0.0,
-                expectedIncome = 25000.0,
-                taxAmount = 1000.0
-            ),
+            stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {}
+            onDateClick = {},
         )
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Preview(showBackground = true, name = "Light Theme")
 @Composable
-fun CalendarPreviewLight() {
+private fun CalendarPreviewLight() {
     NeiroTheme(darkTheme = false) {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
-            stats = CalendarMonthStats(
-                completedCount = 12,
-                totalScheduled = 20,
-                remainingCount = 8,
-                totalEarned = 15000.0,
-                netProfit = 14000.0,
-                intensiveEarnings = 0.0,
-                diagnosticsEarnings = 0.0,
-                expectedIncome = 25000.0,
-                taxAmount = 1000.0
-            ),
+            stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},
             onNextMonth = {},
             onTodayClick = {},
             onMenuClick = {},
-            onDateClick = {}
+            onDateClick = {},
         )
     }
 }
+
+private fun previewStats() = CalendarMonthStats(
+    completedCount = 12,
+    totalScheduled = 20,
+    remainingCount = 8,
+    totalEarned = 15000.0,
+    netProfit = 14000.0,
+    intensiveEarnings = 0.0,
+    diagnosticsEarnings = 0.0,
+    expectedIncome = 25000.0,
+    taxAmount = 1000.0,
+)

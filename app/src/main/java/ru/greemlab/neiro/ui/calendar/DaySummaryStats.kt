@@ -9,10 +9,7 @@ data class DaySummaryStats(
     val attendedLessons: Int = 0,
     val earned: Double = 0.0,
     val expected: Double = 0.0,
-) {
-    val hasSessions: Boolean
-        get() = totalLessons > 0 || earned > 0.0 || expected > 0.0
-}
+)
 
 internal fun computeDayStats(
     sessions: List<String>,

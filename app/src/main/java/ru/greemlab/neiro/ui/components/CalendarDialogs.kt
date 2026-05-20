@@ -13,18 +13,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.theme.ProfitGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
-private val ProfitGreen = Color(0xFF4CAF50)
-
-/**
- * Диалог с подробной статистикой занятий.
- */
+/** Диалог с подробной статистикой занятий за месяц. */
 @Composable
 fun LessonsDetailsDialog(
     currentMonth: YearMonth,
@@ -73,9 +69,7 @@ fun LessonsDetailsDialog(
     )
 }
 
-/**
- * Диалог с подробной информацией о прибыли.
- */
+/** Диалог с подробной информацией о прибыли за месяц. */
 @Composable
 fun ProfitDetailsDialog(
     currentMonth: YearMonth,
@@ -111,22 +105,35 @@ fun ProfitDetailsDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                 ProfitRow(
-                    label = "Заработано всего (грязными)",
+                    label = "Заработано всего ",
                     value = stats.totalEarned,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
 
-                ProfitRow(
-                    label = "Заработано интенсив",
-                    value = stats.intensiveEarnings,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                if (stats.taxAmount > 0.0) {
+                    ProfitRow(
+                        label = "Налог за месяц",
+                        value = stats.taxAmount,
+                        color = MaterialTheme.colorScheme.error,
+                        prefix = "−",
+                    )
+                }
 
-                ProfitRow(
-                    label = "Заработано диагностика",
-                    value = stats.diagnosticsEarnings,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                if (stats.intensiveEarnings > 0.0) {
+                    ProfitRow(
+                        label = "Заработано интенсив",
+                        value = stats.intensiveEarnings,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                if (stats.diagnosticsEarnings > 0.0) {
+                    ProfitRow(
+                        label = "Заработано диагностика",
+                        value = stats.diagnosticsEarnings,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
 
                 ProfitRow(
                     label = "Ожидаемый доход",
@@ -138,9 +145,7 @@ fun ProfitDetailsDialog(
     )
 }
 
-/**
- * Диалог-предложение завершить регистрацию/настройку профиля.
- */
+/** Диалог-предложение завершить регистрацию/настройку профиля. */
 @Composable
 fun RegistrationPromptDialog(
     onDismiss: () -> Unit,

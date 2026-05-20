@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.ui.util.formatNumber
+import ru.greemlab.neiro.ui.util.formatRubles
 
 @Composable
 fun StatCard(
@@ -124,7 +124,11 @@ fun StatRow(label: String, value: String, isHighlight: Boolean = false) {
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = if (isHighlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            color = if (isHighlight) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         )
     }
 }
@@ -137,7 +141,7 @@ fun ProfitRow(
     isBold: Boolean = false,
     prefix: String = "",
 ) {
-    val formattedValue = remember(value, prefix) { "$prefix${formatNumber(value)} ₽" }
+    val formattedValue = remember(value, prefix) { "$prefix${formatRubles(value)}" }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

@@ -39,12 +39,20 @@ fun StudentItemRow(
     onDelete: () -> Unit,
     onDragStart: () -> Unit,
     onDragEnd: () -> Unit,
-    onDrag: (Float) -> Unit
+    onDrag: (Float) -> Unit,
 ) {
     val backgroundColor = when (student.type) {
-        StudentItemType.INTENSIVE -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-        StudentItemType.DIAGNOSTICS -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-        else -> if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        StudentItemType.INTENSIVE ->
+            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+
+        StudentItemType.DIAGNOSTICS ->
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+
+        else -> if (isDragging) {
+            MaterialTheme.colorScheme.surfaceVariant
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        }
     }
 
     Surface(
@@ -60,24 +68,35 @@ fun StudentItemRow(
             },
         shape = RoundedCornerShape(12.dp),
         color = backgroundColor,
-        tonalElevation = if (isDragging) 6.dp else 0.dp
+        tonalElevation = if (isDragging) 6.dp else 0.dp,
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 4.dp)
+                .padding(end = 4.dp),
         ) {
             IconButton(onClick = { onAttendedChange(!student.attended) }) {
                 Icon(
-                    imageVector = if (student.attended) Icons.Default.CheckCircle else Icons.Outlined.Circle,
-                    contentDescription = if (student.attended) "Пришел" else "Не пришел",
+                    imageVector = if (student.attended) {
+                        Icons.Default.CheckCircle
+                    } else {
+                        Icons.Outlined.Circle
+                    },
+                    contentDescription = if (student.attended) "Отметить как «не пришёл»"
+                    else "Отметить как «пришёл»",
                     tint = when {
-                        !student.attended -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        student.type == StudentItemType.INTENSIVE -> MaterialTheme.colorScheme.tertiary
-                        student.type == StudentItemType.DIAGNOSTICS -> MaterialTheme.colorScheme.secondary
+                        !student.attended ->
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
+                        student.type == StudentItemType.INTENSIVE ->
+                            MaterialTheme.colorScheme.tertiary
+
+                        student.type == StudentItemType.DIAGNOSTICS ->
+                            MaterialTheme.colorScheme.secondary
+
                         else -> MaterialTheme.colorScheme.primary
-                    }
+                    },
                 )
             }
 
@@ -87,73 +106,67 @@ fun StudentItemRow(
                         TextField(
                             value = student.name,
                             onValueChange = onNameChange,
-                            placeholder = { 
+                            placeholder = {
                                 Text(
                                     "Фамилия ${index + 1}",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                ) 
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(if (isFocused) Modifier.focusRequester(focusRequester) else Modifier),
                             singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
+                            colors = transparentTextFieldColors(),
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                color = if (student.attended) MaterialTheme.colorScheme.onSurface 
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
+                                color = if (student.attended) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                },
+                            ),
                         )
                     } else {
-                        // Для интенсива и диагностики: ввод суммы сверху, тип занятия снизу
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                                .padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
                         ) {
                             TextField(
                                 value = student.price,
                                 onValueChange = { onPriceChange(it.filter { c -> c.isDigit() }) },
-                                placeholder = { 
+                                placeholder = {
                                     Text(
                                         "Сумма (₽)",
                                         style = MaterialTheme.typography.bodyLarge,
                                         maxLines = 1,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    ) 
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            .copy(alpha = 0.5f),
+                                    )
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .then(if (isFocused) Modifier.focusRequester(focusRequester) else Modifier),
                                 singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    disabledContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                ),
+                                colors = transparentTextFieldColors(),
                                 textStyle = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                ),
                             )
-                            
+
                             Text(
-                                text = if (student.type == StudentItemType.INTENSIVE) "Интенсив" else "Диагностика",
+                                text = if (student.type == StudentItemType.INTENSIVE) {
+                                    "Интенсив"
+                                } else "Диагностика",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (student.type == StudentItemType.INTENSIVE) 
-                                    MaterialTheme.colorScheme.tertiary 
-                                else 
-                                    MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                                color = if (student.type == StudentItemType.INTENSIVE) {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.secondary
+                                },
+                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
                             )
                         }
                     }
@@ -165,21 +178,26 @@ fun StudentItemRow(
                 } else {
                     student.name.ifEmpty { "Без имени" }
                 }
-                
+
                 Text(
                     text = displayText,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 16.dp, top = 14.dp, bottom = 14.dp),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = if (student.attended) MaterialTheme.colorScheme.onSurface 
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    fontWeight = if (student.type != StudentItemType.STUDENT) FontWeight.Bold else FontWeight.Normal,
+                    color = if (student.attended) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    },
+                    fontWeight = if (student.type != StudentItemType.STUDENT) {
+                        FontWeight.Bold
+                    } else FontWeight.Normal,
                     maxLines = 1,
-                    softWrap = false
+                    softWrap = false,
                 )
             }
-            
+
             Box(
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
@@ -191,26 +209,35 @@ fun StudentItemRow(
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 onDrag(dragAmount.y)
-                            }
+                            },
                         )
-                    }
+                    },
             ) {
                 Icon(
                     imageVector = Icons.Default.DragHandle,
-                    contentDescription = "Перетащить",
+                    contentDescription = "Перетащить запись",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(24.dp),
                 )
             }
-            
+
             IconButton(onClick = onDelete) {
                 Icon(
-                    imageVector = Icons.Default.Delete, 
-                    contentDescription = "Удалить",
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Удалить запись",
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
     }
 }
+
+@Composable
+private fun transparentTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    disabledContainerColor = Color.Transparent,
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+)

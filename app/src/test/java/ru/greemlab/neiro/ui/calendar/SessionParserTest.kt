@@ -1,0 +1,126 @@
+package ru.greemlab.neiro.ui.calendar
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SessionParserTest {
+
+    @Test
+    fun `parses plain student name without separator as not attended`() {
+        val result = SessionParser.parse("Иванов") as Session.Student
+        assertEquals("Иванов", result.name)
+        assertFalse(result.attended)
+    }
+
+    @Test
+    fun `parses student with attended=true`() {
+        val result = SessionParser.parse("Иванов|true") as Session.Student
+        assertEquals("Иванов", result.name)
+        assertTrue(result.attended)
+    }
+
+    @Test
+    fun `parses student with attended=false`() {
+        val result = SessionParser.parse("Иванов|false") as Session.Student
+        assertEquals("Иванов", result.name)
+        assertFalse(result.attended)
+    }
+
+    @Test
+    fun `parses student with invalid attended falls back to false`() {
+        val result = SessionParser.parse("Иванов|garbage") as Session.Student
+        assertEquals("Иванов", result.name)
+        assertFalse(result.attended)
+    }
+
+    @Test
+    fun `parses intensive with full payload`() {
+        val raw = "__INTENSIVE__:1500|Петров|true"
+        val result = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(1500.0, result.amount, 0.0)
+        assertEquals("Петров", result.name)
+        assertTrue(result.attended)
+    }
+
+    @Test
+    fun `parses intensive with only amount and name (legacy)`() {
+        val raw = "__INTENSIVE__:1500|Петров"
+        val result = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(1500.0, result.amount, 0.0)
+        assertEquals("Петров", result.name)
+        // Legacy: без флага считаем посещённым.
+        assertTrue(result.attended)
+    }
+
+    @Test
+    fun `parses intensive with only amount (legacy)`() {
+        val raw = "__INTENSIVE__:2000"
+        val result = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(2000.0, result.amount, 0.0)
+        assertEquals("", result.name)
+        assertTrue(result.attended)
+    }
+
+    @Test
+    fun `parses diagnostics with full payload`() {
+        val raw = "__DIAGNOSTICS__:900|Сидоров|false"
+        val result = SessionParser.parse(raw) as Session.Diagnostics
+        assertEquals(900.0, result.amount, 0.0)
+        assertEquals("Сидоров", result.name)
+        assertFalse(result.attended)
+    }
+
+    @Test
+    fun `isExtra detects intensive and diagnostics`() {
+        assertTrue(SessionParser.isExtra("__INTENSIVE__:100|name|true"))
+        assertTrue(SessionParser.isExtra("__DIAGNOSTICS__:100|name|true"))
+        assertFalse(SessionParser.isExtra("Иванов|true"))
+        assertFalse(SessionParser.isExtra("Иванов"))
+    }
+
+    @Test
+    fun `getExtraAmount returns 0 for non-extra`() {
+        assertEquals(0.0, SessionParser.getExtraAmount("Иванов|true"), 0.0)
+    }
+
+    @Test
+    fun `getExtraAmount parses intensive amount`() {
+        assertEquals(1500.0, SessionParser.getExtraAmount("__INTENSIVE__:1500|Петров|true"), 0.0)
+    }
+
+    @Test
+    fun `isAttended works for all session kinds`() {
+        assertTrue(SessionParser.isAttended("Иванов|true"))
+        assertFalse(SessionParser.isAttended("Иванов|false"))
+        assertTrue(SessionParser.isAttended("__INTENSIVE__:100|name|true"))
+        assertFalse(SessionParser.isAttended("__DIAGNOSTICS__:100|name|false"))
+    }
+
+    @Test
+    fun `SessionFormat round-trips student`() {
+        val raw = SessionFormat.serializeStudent("Иванов", true)
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals("Иванов", parsed.name)
+        assertTrue(parsed.attended)
+    }
+
+    @Test
+    fun `SessionFormat round-trips intensive`() {
+        val raw = SessionFormat.serializeIntensive("1500", "Петров", true)
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(1500.0, parsed.amount, 0.0)
+        assertEquals("Петров", parsed.name)
+        assertTrue(parsed.attended)
+    }
+
+    @Test
+    fun `SessionFormat round-trips diagnostics`() {
+        val raw = SessionFormat.serializeDiagnostics("900", "Сидоров", false)
+        val parsed = SessionParser.parse(raw) as Session.Diagnostics
+        assertEquals(900.0, parsed.amount, 0.0)
+        assertEquals("Сидоров", parsed.name)
+        assertFalse(parsed.attended)
+    }
+}

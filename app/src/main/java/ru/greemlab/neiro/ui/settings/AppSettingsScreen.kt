@@ -6,10 +6,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.SettingsSuggest
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,8 +22,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-import java.io.OutputStreamWriter
+import ru.greemlab.neiro.data.ImportResult
+import ru.greemlab.neiro.data.THEME_DARK
+import ru.greemlab.neiro.data.THEME_LIGHT
+import ru.greemlab.neiro.data.THEME_SYSTEM
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,37 +35,30 @@ fun AppSettingsScreen(
 ) {
     val theme by viewModel.theme.collectAsState()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
-    // Export launcher
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        uri?.let {
-            scope.launch {
-                val data = viewModel.exportData()
-                context.contentResolver.openOutputStream(it)?.use { outputStream ->
-                    OutputStreamWriter(outputStream).use { writer ->
-                        writer.write(data)
-                    }
-                }
-                Toast.makeText(context, "Данные экспортированы", Toast.LENGTH_SHORT).show()
+        uri ?: return@rememberLauncherForActivityResult
+        viewModel.exportData(context, uri) { result ->
+            val text = when (result) {
+                is ExportResult.Success -> "Данные экспортированы"
+                is ExportResult.Failure -> "Ошибка экспорта: ${result.reason}"
             }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Import launcher
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        uri?.let {
-            viewModel.importData(context, it) { success ->
-                if (success) {
-                    Toast.makeText(context, "Данные импортированы", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Ошибка импорта", Toast.LENGTH_SHORT).show()
-                }
+        uri ?: return@rememberLauncherForActivityResult
+        viewModel.importData(context, uri) { result ->
+            val text = when (result) {
+                is ImportResult.Success -> "Данные импортированы"
+                is ImportResult.Failure -> "Ошибка импорта: ${result.reason}"
             }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -86,21 +84,21 @@ fun AppSettingsScreen(
             SettingsSection(title = "Внешний вид") {
                 ThemeOption(
                     title = "Системная",
-                    selected = theme == "system",
-                    onClick = { viewModel.setTheme("system") },
-                    icon = Icons.Rounded.SettingsSuggest
+                    selected = theme == THEME_SYSTEM,
+                    onClick = { viewModel.setTheme(THEME_SYSTEM) },
+                    icon = Icons.Rounded.SettingsSuggest,
                 )
                 ThemeOption(
                     title = "Светлая",
-                    selected = theme == "light",
-                    onClick = { viewModel.setTheme("light") },
-                    icon = Icons.Rounded.LightMode
+                    selected = theme == THEME_LIGHT,
+                    onClick = { viewModel.setTheme(THEME_LIGHT) },
+                    icon = Icons.Rounded.LightMode,
                 )
                 ThemeOption(
-                    title = "Темная",
-                    selected = theme == "dark",
-                    onClick = { viewModel.setTheme("dark") },
-                    icon = Icons.Rounded.DarkMode
+                    title = "Тёмная",
+                    selected = theme == THEME_DARK,
+                    onClick = { viewModel.setTheme(THEME_DARK) },
+                    icon = Icons.Rounded.DarkMode,
                 )
             }
 
@@ -108,9 +106,9 @@ fun AppSettingsScreen(
                 OutlinedButton(
                     onClick = { exportLauncher.launch("neiro_backup.json") },
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp)
+                    contentPadding = PaddingValues(12.dp),
                 ) {
-                    Icon(Icons.Rounded.Download, null)
+                    Icon(Icons.Rounded.Download, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Экспорт данных")
                 }
@@ -118,9 +116,9 @@ fun AppSettingsScreen(
                 OutlinedButton(
                     onClick = { importLauncher.launch(arrayOf("application/json")) },
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp)
+                    contentPadding = PaddingValues(12.dp),
                 ) {
-                    Icon(Icons.Rounded.Upload, null)
+                    Icon(Icons.Rounded.Upload, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Импорт данных")
                 }
@@ -130,26 +128,26 @@ fun AppSettingsScreen(
 }
 
 @Composable
-fun SettingsSection(
+private fun SettingsSection(
     title: String,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
         )
         content()
     }
 }
 
 @Composable
-fun ThemeOption(
+private fun ThemeOption(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
-    icon: ImageVector
+    icon: ImageVector,
 ) {
     Row(
         modifier = Modifier
@@ -157,12 +155,12 @@ fun ThemeOption(
             .selectable(
                 selected = selected,
                 onClick = onClick,
-                role = Role.RadioButton
+                role = Role.RadioButton,
             )
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Text(title, modifier = Modifier.weight(1f))
         RadioButton(selected = selected, onClick = null)

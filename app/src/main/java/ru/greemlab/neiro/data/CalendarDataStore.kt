@@ -8,12 +8,19 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.LocalDate
 
@@ -29,6 +36,10 @@ const val THEME_SYSTEM = "system"
 const val THEME_LIGHT = "light"
 const val THEME_DARK = "dark"
 
+/**
+ * Снимок всего состояния приложения. Передаётся в peek-API,
+ * чтобы первый кадр UI стартовал с готовыми данными.
+ */
 data class StoreSnapshot(
     val profile: UserProfile,
     val dayData: Map<LocalDate, List<String>>,
@@ -40,39 +51,43 @@ data class StoreSnapshot(
 }
 
 /**
- * Управление постоянным хранением данных календаря и профиля.
+ * Реализация [CalendarRepository] поверх Jetpack DataStore.
  *
- * Архитектура двухслойная:
- *  1. Авторитативный источник — Jetpack DataStore (асинхронно, переживает миграции схемы).
- *  2. Синхронный зеркальный кэш на SharedPreferences — нужен только для того, чтобы
- *     первый кадр UI стартовал с уже готовыми данными без блокировки main-потока.
+ * Архитектура хранения двухслойная:
+ *  1. Авторитативный источник — DataStore (асинхронный, переживает миграции).
+ *  2. Синхронное зеркало в [SharedPreferences] — заполняет [StoreSnapshot]
+ *     прямо в конструкторе, чтобы первый кадр UI был с реальными данными.
  *
- * После любой записи в DataStore мы дублируем JSON в [syncCache], чтобы при следующем
- * холодном старте UI получил данные мгновенно через [peekSnapshot].
+ * Все write-операции сериализуются через [writeMutex] — это исключает гонки
+ * параллельных корутин (например, быстрый ввод в полях профиля).
  */
-class CalendarDataStore(private val context: Context) {
+class CalendarDataStore(context: Context) : CalendarRepository {
 
+    private val appContext: Context = context.applicationContext
     private val gson: Gson = UserProfileJson.gson
+
     private val dataKey = stringPreferencesKey(DAY_DATA_KEY)
     private val profileKey = stringPreferencesKey(PROFILE_KEY)
     private val themeKey = stringPreferencesKey(THEME_KEY)
 
     private val syncCache: SharedPreferences =
-        context.getSharedPreferences(SYNC_CACHE_NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(SYNC_CACHE_NAME, Context.MODE_PRIVATE)
 
-    @Volatile
-    private var cached: StoreSnapshot = loadFromSyncCache()
+    private val cachedState: MutableStateFlow<StoreSnapshot> =
+        MutableStateFlow(loadFromSyncCache())
+
+    /** Все записи в DataStore идут только под этим mutex — параллельные апдейты не теряются. */
+    private val writeMutex = Mutex()
 
     private val dayDataJsonType = object : TypeToken<Map<String, List<String>>>() {}.type
     private val backupJsonType = object : TypeToken<Map<String, String>>() {}.type
 
-    fun peekSnapshot(): StoreSnapshot = cached
+    override fun peekSnapshot(): StoreSnapshot = cachedState.value
 
-    /** Гидратация из DataStore — выполняется в фоне, обновляет cached и sync-зеркало. */
-    suspend fun warmUp() {
-        val prefs = context.dataStore.data.first()
+    override suspend fun warmUp() {
+        val prefs = appContext.dataStore.data.first()
         val snapshot = parseSnapshot(prefs)
-        cached = snapshot
+        cachedState.value = snapshot
         writeSyncCache(
             dayJson = prefs[dataKey],
             profileJson = prefs[profileKey],
@@ -80,10 +95,10 @@ class CalendarDataStore(private val context: Context) {
         )
     }
 
-    private val snapshots: Flow<StoreSnapshot> = context.dataStore.data
+    private val snapshotsFlow: Flow<StoreSnapshot> = appContext.dataStore.data
         .map { prefs ->
             val snapshot = parseSnapshot(prefs)
-            cached = snapshot
+            cachedState.value = snapshot
             writeSyncCache(
                 dayJson = prefs[dataKey],
                 profileJson = prefs[profileKey],
@@ -91,18 +106,18 @@ class CalendarDataStore(private val context: Context) {
             )
             snapshot
         }
-        .onStart { emit(cached) }
+        .onStart { emit(cachedState.value) }
         .distinctUntilChanged()
 
-    val themeFlow: Flow<String> = snapshots
+    override val themeFlow: Flow<String> = snapshotsFlow
         .map { it.theme }
         .distinctUntilChanged()
 
-    val dayDataFlow: Flow<Map<LocalDate, List<String>>> = snapshots
+    override val dayDataFlow: Flow<Map<LocalDate, List<String>>> = snapshotsFlow
         .map { it.dayData }
         .distinctUntilChanged()
 
-    val userProfileFlow: Flow<UserProfile> = snapshots
+    override val userProfileFlow: Flow<UserProfile> = snapshotsFlow
         .map { it.profile }
         .distinctUntilChanged()
 
@@ -126,59 +141,100 @@ class CalendarDataStore(private val context: Context) {
         }.getOrDefault(emptyMap())
     }
 
-    suspend fun migrateProfileIfNeeded() {
-        context.dataStore.edit { prefs ->
-            val json = prefs[profileKey] ?: return@edit
-            val raw = UserProfileJson.fromJsonRaw(json)
-            val normalized = raw.normalizeLegacy()
-            if (normalized != raw) {
-                prefs[profileKey] = UserProfileJson.toJson(normalized)
+    override suspend fun migrateProfileIfNeeded() {
+        writeMutex.withLock {
+            appContext.dataStore.edit { prefs ->
+                val json = prefs[profileKey] ?: return@edit
+                val raw = UserProfileJson.fromJsonRaw(json)
+                val normalized = raw.normalizeLegacy()
+                if (normalized != raw) {
+                    prefs[profileKey] = UserProfileJson.toJson(normalized)
+                }
             }
         }
     }
 
-    suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
-        val serialized = serializeDayData(data)
-        context.dataStore.edit { prefs -> prefs[dataKey] = serialized }
-        syncCache.edit().putString(DAY_DATA_KEY, serialized).apply()
+    override suspend fun updateProfile(transform: (UserProfile) -> UserProfile) {
+        writeMutex.withLock {
+            val current = cachedState.value.profile
+            val updated = transform(current)
+            if (updated == current) return@withLock
+            val json = UserProfileJson.toJson(updated)
+            appContext.dataStore.edit { prefs -> prefs[profileKey] = json }
+            // cached обновляется коллектором Flow, но peek-API должен видеть свежее значение
+            // немедленно, поэтому подменяем атомарно здесь.
+            cachedState.value = cachedState.value.copy(profile = updated)
+            writeSyncCache(profileJson = json)
+        }
     }
 
-    suspend fun saveUserProfile(profile: UserProfile) {
-        val json = UserProfileJson.toJson(profile)
-        context.dataStore.edit { prefs -> prefs[profileKey] = json }
-        syncCache.edit().putString(PROFILE_KEY, json).apply()
+    override suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
+        writeMutex.withLock {
+            val serialized = serializeDayData(data)
+            appContext.dataStore.edit { prefs -> prefs[dataKey] = serialized }
+            cachedState.value = cachedState.value.copy(dayData = data)
+            writeSyncCache(dayJson = serialized)
+        }
     }
 
-    suspend fun saveTheme(theme: String) {
-        context.dataStore.edit { prefs -> prefs[themeKey] = theme }
-        syncCache.edit().putString(THEME_KEY, theme).apply()
+    override suspend fun saveTheme(theme: String) {
+        writeMutex.withLock {
+            appContext.dataStore.edit { prefs -> prefs[themeKey] = theme }
+            cachedState.value = cachedState.value.copy(theme = theme)
+            writeSyncCache(themeValue = theme)
+        }
     }
 
-    suspend fun getAllDataJson(): String {
-        val prefs = context.dataStore.data.first()
+    override suspend fun exportAllData(): String = withContext(Dispatchers.IO) {
+        val prefs = appContext.dataStore.data.first()
         val data = mapOf(
             "day_data" to (prefs[dataKey] ?: EMPTY_OBJECT),
             "user_profile" to (prefs[profileKey] ?: EMPTY_OBJECT),
             "app_theme" to (prefs[themeKey] ?: THEME_SYSTEM),
         )
-        return gson.toJson(data)
+        gson.toJson(data)
     }
 
-    suspend fun restoreAllDataFromJson(json: String): Boolean = runCatching {
-        val fullData: Map<String, String> = gson.fromJson(json, backupJsonType)
-            ?: return@runCatching false
-        context.dataStore.edit { prefs ->
-            fullData["day_data"]?.let { prefs[dataKey] = it }
-            fullData["user_profile"]?.let { prefs[profileKey] = it }
-            fullData["app_theme"]?.let { prefs[themeKey] = it }
+    override suspend fun restoreAllData(json: String): ImportResult {
+        val parsed: Map<String, String>? = runCatching {
+            withContext(Dispatchers.Default) {
+                gson.fromJson<Map<String, String>>(json, backupJsonType)
+            }
+        }.getOrElse { error ->
+            return when (error) {
+                is JsonSyntaxException -> ImportResult.Failure("Файл повреждён: неверный JSON")
+                else -> ImportResult.Failure("Не удалось прочитать файл")
+            }
         }
-        writeSyncCache(
-            dayJson = fullData["day_data"],
-            profileJson = fullData["user_profile"],
-            themeValue = fullData["app_theme"],
-        )
-        true
-    }.getOrDefault(false)
+        if (parsed == null) return ImportResult.Failure("Файл пуст")
+
+        val dayJson = parsed["day_data"]
+        val profileJson = parsed["user_profile"]
+        val themeValue = parsed["app_theme"]
+
+        // Валидируем перед записью — лучше отказать, чем затереть рабочие данные мусором.
+        val parsedDayData = parseDayData(dayJson)
+        val parsedProfile = UserProfileJson.fromJson(profileJson)
+
+        return writeMutex.withLock {
+            appContext.dataStore.edit { prefs ->
+                if (dayJson != null) prefs[dataKey] = dayJson
+                if (profileJson != null) prefs[profileKey] = profileJson
+                if (themeValue != null) prefs[themeKey] = themeValue
+            }
+            cachedState.value = StoreSnapshot(
+                profile = parsedProfile,
+                dayData = parsedDayData,
+                theme = themeValue ?: cachedState.value.theme,
+            )
+            writeSyncCache(
+                dayJson = dayJson,
+                profileJson = profileJson,
+                themeValue = themeValue,
+            )
+            ImportResult.Success
+        }
+    }
 
     private fun serializeDayData(data: Map<LocalDate, List<String>>): String {
         if (data.isEmpty()) return EMPTY_OBJECT
@@ -198,8 +254,11 @@ class CalendarDataStore(private val context: Context) {
         )
     }
 
-    private fun writeSyncCache(dayJson: String?, profileJson: String?, themeValue: String?) {
-        // Не пишем туда же, что и так лежит — экономим IO.
+    private fun writeSyncCache(
+        dayJson: String? = null,
+        profileJson: String? = null,
+        themeValue: String? = null,
+    ) {
         val editor = syncCache.edit()
         var changed = false
         if (dayJson != null && syncCache.getString(DAY_DATA_KEY, null) != dayJson) {
@@ -213,4 +272,8 @@ class CalendarDataStore(private val context: Context) {
         }
         if (changed) editor.apply()
     }
+
+    /** Read-only снимок состояния как StateFlow — нужен для отладки/тестов. */
+    @Suppress("unused")
+    fun snapshotState(): kotlinx.coroutines.flow.StateFlow<StoreSnapshot> = cachedState.asStateFlow()
 }

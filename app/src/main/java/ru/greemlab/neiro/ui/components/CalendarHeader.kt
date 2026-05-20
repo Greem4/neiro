@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -28,12 +30,10 @@ import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
 /**
- * Шапка календаря с отображением текущего месяца и кнопками навигации.
+ * Шапка календаря с навигацией по месяцам и кнопками «Сегодня»/«N» (профиль).
  *
- * @param onMenuClick Вызывается при тапе по кругу [NeiroLogo] с буквой «N»
- *                    (единственная зона в шапке, открывающая профиль).
- * @param onRegistrationRequired Показ подсказки регистрации при тапе «Сегодня»,
- *                               если [isRegistered] == false.
+ * @param onMenuClick Тап по кругу [NeiroLogo] — открывает боковую панель профиля.
+ * @param onRegistrationRequired Показ подсказки при тапе «Сегодня», если [isRegistered] == false.
  */
 @Composable
 fun CalendarHeader(
@@ -75,9 +75,12 @@ fun CalendarHeader(
                 text = "Сегодня",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    if (isRegistered) onTodayClick() else onRegistrationRequired()
-                },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        if (isRegistered) onTodayClick() else onRegistrationRequired()
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
 

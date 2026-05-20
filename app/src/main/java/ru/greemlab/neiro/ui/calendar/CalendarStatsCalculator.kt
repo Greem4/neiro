@@ -3,17 +3,15 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
 import java.time.format.TextStyle
-import java.util.Locale
-
-private val RU_LOCALE: Locale = Locale.forLanguageTag("ru")
 
 /**
  * Рассчитывает и кэширует статистику за выбранный месяц.
- * Делает один проход по всем дням, минуя промежуточные map/filter.
+ * Один проход по всем дням без промежуточных коллекций.
  */
 @Composable
 fun rememberCalendarMonthStats(
@@ -76,7 +74,9 @@ internal fun computeMonthStats(
         }
     }
 
-    val netProfit = (grossEarned - monthlyTaxAmount).coerceAtLeast(0.0)
+    // Чистый доход может быть отрицательным, если налог превышает выручку —
+    // показываем как есть, иначе пользователь не поймёт, что в минусе.
+    val netProfit = grossEarned - monthlyTaxAmount
 
     return CalendarMonthStats(
         completedCount = completed,
@@ -91,9 +91,7 @@ internal fun computeMonthStats(
     )
 }
 
-/**
- * Возвращает название месяца на русском языке с заглавной буквы.
- */
+/** Возвращает название месяца на русском языке с заглавной буквы. */
 fun getMonthName(month: YearMonth): String =
     month.month
         .getDisplayName(TextStyle.FULL_STANDALONE, RU_LOCALE)

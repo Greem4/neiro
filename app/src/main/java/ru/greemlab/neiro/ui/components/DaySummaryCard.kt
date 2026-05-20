@@ -35,6 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.theme.ExpectedAmber
+import ru.greemlab.neiro.theme.ProfitGreen
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -42,12 +44,10 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 
-private val ProfitGreen = Color(0xFF4CAF50)
-private val ExpectedAmber = Color(0xFFFF9800)
 private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
-/** Фиксированная высота слота — календарь не прыгает. Подкручивай при необходимости. */
+/** Фиксированная высота слота — календарь не прыгает при анимации смены даты. */
 val DaySummarySlotHeight: Dp = 178.dp
 
 @Composable
@@ -78,7 +78,7 @@ fun DaySummarySlot(
 }
 
 @Composable
-fun DaySummaryCard(
+private fun DaySummaryCard(
     date: LocalDate,
     stats: DaySummaryStats,
     modifier: Modifier = Modifier,
@@ -105,27 +105,14 @@ fun DaySummaryCard(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Text(
-                    text = "ещё раз ✎",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    maxLines = 1,
-                )
-            }
+            Text(
+                text = dateLabel,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -143,9 +130,7 @@ fun DaySummaryCard(
                     tint = MaterialTheme.colorScheme.tertiary,
                     value = if (stats.totalLessons > 0) {
                         "${stats.attendedLessons}/${stats.totalLessons}"
-                    } else {
-                        "0"
-                    },
+                    } else "0",
                     label = "проведено",
                     modifier = Modifier.weight(1f),
                 )
@@ -175,7 +160,6 @@ fun DaySummaryCard(
     }
 }
 
-/** Подпись сверху, сумма снизу — как у плиток «занятий» / «проведено». */
 @Composable
 private fun DayMoneyCard(
     label: String,

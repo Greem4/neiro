@@ -5,15 +5,15 @@ import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.LocalDate
 
 /**
- * Единый экземпляр хранилища на приложение — все ViewModel читают одни и те же данные.
- * Использует double-checked locking, чтобы доступ из любого потока был дешёвым.
+ * Единый экземпляр хранилища на приложение.
+ * DCL гарантирует дешёвое получение из любого потока после первой инициализации.
  */
 object CalendarDataStoreProvider {
 
     @Volatile
-    private var instance: CalendarDataStore? = null
+    private var instance: CalendarRepository? = null
 
-    fun get(context: Context): CalendarDataStore =
+    fun get(context: Context): CalendarRepository =
         instance ?: synchronized(this) {
             instance ?: CalendarDataStore(context.applicationContext).also { instance = it }
         }

@@ -39,29 +39,33 @@ sealed interface Session {
 }
 
 /**
- * Утилита для парсинга строковых данных о сессиях (учениках и доп. доходах).
- * Парсит один раз без лишних аллокаций и регулярных выражений.
+ * Утилита парсинга строковых записей о сессиях. Без аллокаций и без regex.
+ *
+ * Все константы префиксов вынесены в [SessionFormat] — это позволяет
+ * другим модулям сериализовать данные обратно без дублирования строк.
  */
 object SessionParser {
-    private const val INTENSIVE_PREFIX = "__INTENSIVE__:"
-    private const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
-    private const val EXTRA_MARKER = "__"
-
     fun parse(raw: String): Session = when {
-        raw.startsWith(INTENSIVE_PREFIX) -> parseExtra(raw, INTENSIVE_PREFIX.length, intensive = true)
-        raw.startsWith(DIAGNOSTICS_PREFIX) -> parseExtra(raw, DIAGNOSTICS_PREFIX.length, intensive = false)
+        raw.startsWith(SessionFormat.INTENSIVE_PREFIX) ->
+            parseExtra(raw, SessionFormat.INTENSIVE_PREFIX.length, intensive = true)
+
+        raw.startsWith(SessionFormat.DIAGNOSTICS_PREFIX) ->
+            parseExtra(raw, SessionFormat.DIAGNOSTICS_PREFIX.length, intensive = false)
+
         else -> parseStudent(raw)
     }
 
-    fun isExtra(raw: String): Boolean = raw.startsWith(EXTRA_MARKER)
+    fun isExtra(raw: String): Boolean =
+        raw.startsWith(SessionFormat.INTENSIVE_PREFIX) ||
+            raw.startsWith(SessionFormat.DIAGNOSTICS_PREFIX)
 
-    fun isIntensive(raw: String): Boolean = raw.startsWith(INTENSIVE_PREFIX)
+    fun isIntensive(raw: String): Boolean = raw.startsWith(SessionFormat.INTENSIVE_PREFIX)
 
-    fun isDiagnostics(raw: String): Boolean = raw.startsWith(DIAGNOSTICS_PREFIX)
+    fun isDiagnostics(raw: String): Boolean = raw.startsWith(SessionFormat.DIAGNOSTICS_PREFIX)
 
     /** Сумма доп. дохода. Возвращает 0.0 для обычных учеников. */
     fun getExtraAmount(raw: String): Double {
-        if (!raw.startsWith(EXTRA_MARKER)) return 0.0
+        if (!isExtra(raw)) return 0.0
         val colon = raw.indexOf(':')
         if (colon < 0) return 0.0
         val sep = raw.indexOf('|', startIndex = colon + 1)
@@ -71,7 +75,7 @@ object SessionParser {
 
     /**
      * Проверяет, была ли сессия (включая интенсив/диагностику) посещена.
-     * Для старых записей экстра-сессий значение по умолчанию = true.
+     * Для старых записей экстра-сессий значение по умолчанию — true.
      */
     fun isAttended(raw: String): Boolean = when (val s = parse(raw)) {
         is Session.Extra -> s.attended
@@ -120,4 +124,21 @@ object SessionParser {
         "false" -> false
         else -> null
     }
+}
+
+/**
+ * Константы и хелперы сериализации сессий в строку. Используются и при парсинге,
+ * и при сериализации в [ru.greemlab.neiro.ui.components.DayDetailsDialog].
+ */
+object SessionFormat {
+    const val INTENSIVE_PREFIX = "__INTENSIVE__:"
+    const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
+
+    fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
+
+    fun serializeIntensive(price: String, name: String, attended: Boolean): String =
+        "$INTENSIVE_PREFIX$price|$name|$attended"
+
+    fun serializeDiagnostics(price: String, name: String, attended: Boolean): String =
+        "$DIAGNOSTICS_PREFIX$price|$name|$attended"
 }

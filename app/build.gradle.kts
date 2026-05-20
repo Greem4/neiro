@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.5.0"
+        versionName = "0.5.55"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -77,11 +77,12 @@ android {
         }
     }
 
-    // Lint в release-сборке выключен — отдельный шаг CI быстрее запускать вручную.
+    // Lint работает в release, но не блокирует сборку — баги видны, но не валят CI.
     lint {
-        checkReleaseBuilds = false
+        checkReleaseBuilds = true
         abortOnError = false
         checkDependencies = false
+        warningsAsErrors = false
     }
 }
 
@@ -137,9 +138,6 @@ dependencies {
     // DataStore для сохранения данных
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
-
-    // Immutable-коллекции — стабильные параметры для Compose, меньше рекомпозиций.
-    implementation(libs.kotlinx.collections.immutable)
 
     // Baseline profile (ускоряет холодный старт Compose)
     implementation(libs.androidx.profileinstaller)

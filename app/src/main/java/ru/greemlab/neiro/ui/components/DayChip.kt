@@ -14,15 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.DayOfWeek
 import java.time.format.TextStyle
-import java.util.Locale
 
-private val RU_LOCALE: Locale = Locale.forLanguageTag("ru")
-
-/**
- * Компактный выбор дня недели в виде кружка.
- */
+/** Компактный чип выбора дня недели в виде кружка. */
 @Composable
 fun DayChip(
     day: DayOfWeek,

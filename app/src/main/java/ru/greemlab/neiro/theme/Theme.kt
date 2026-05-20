@@ -2,14 +2,15 @@ package ru.greemlab.neiro.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-/**
- * Конфигурация цветовой схемы для темной темы.
- */
 private val DarkColorScheme = darkColorScheme(
     background = DarkBackground,
     surface = DarkSurface,
@@ -17,13 +18,19 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = OnPrimaryDark,
     primaryContainer = PrimaryContainerDark,
     onPrimaryContainer = OnPrimaryContainerDark,
+    secondary = SecondaryDark,
+    onSecondary = OnSecondaryDark,
+    secondaryContainer = SecondaryContainerDark,
+    onSecondaryContainer = OnSecondaryContainerDark,
+    tertiary = TertiaryDark,
+    onTertiary = OnTertiaryDark,
+    tertiaryContainer = TertiaryContainerDark,
+    onTertiaryContainer = OnTertiaryContainerDark,
+    error = ErrorDark,
     onBackground = Color.White,
-    onSurface = Color.White
+    onSurface = Color.White,
 )
 
-/**
- * Конфигурация цветовой схемы для светлой темы.
- */
 private val LightColorScheme = lightColorScheme(
     background = LightBackground,
     surface = LightSurface,
@@ -31,29 +38,39 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = OnPrimaryLight,
     primaryContainer = PrimaryContainerLight,
     onPrimaryContainer = OnPrimaryContainerLight,
+    secondary = SecondaryLight,
+    onSecondary = OnSecondaryLight,
+    secondaryContainer = SecondaryContainerLight,
+    onSecondaryContainer = OnSecondaryContainerLight,
+    tertiary = TertiaryLight,
+    onTertiary = OnTertiaryLight,
+    tertiaryContainer = TertiaryContainerLight,
+    onTertiaryContainer = OnTertiaryContainerLight,
+    error = ErrorLight,
     onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F)
+    onSurface = Color(0xFF1C1B1F),
 )
 
 /**
- * Основная тема приложения Neiro.
- * Обеспечивает применение цветовой схемы и типографики ко всем вложенным Composable-функциям.
- * 
- * @param darkTheme Использовать ли темную тему. По умолчанию определяется системными настройками.
- * @param dynamicColor Использовать ли динамические цвета (Material You) на Android 12+.
- * @param content Вложенный UI контент.
+ * Тема приложения Neiro.
+ *
+ * @param darkTheme Включить тёмную тему. По умолчанию определяется системой.
+ * @param dynamicColor Включить Material You (Android 12+). По умолчанию выключено
+ *                    для сохранения фирменного стиля.
+ * @param content Контент внутри темы.
  */
 @Composable
 fun NeiroTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // По умолчанию отключено для сохранения фирменного стиля
-    content: @Composable () -> Unit
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
+
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
@@ -61,6 +78,6 @@ fun NeiroTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content
+        content = content,
     )
 }
