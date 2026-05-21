@@ -538,7 +538,7 @@ private fun StatBadge(
                 color = color.copy(alpha = 0.8f),
             )
             Text(
-                text = ": $value",
+                text = " $value",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Black,
                 color = color,
