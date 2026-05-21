@@ -24,7 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.components.DayChip
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import java.time.DayOfWeek
@@ -293,14 +293,14 @@ private fun YClientsAccountSection(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = null,
-                                tint = ProfitGreen,
+                                tint = ScheduleHeaderGreen,
                                 modifier = Modifier.size(14.dp),
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Подключено",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = ProfitGreen,
+                                color = ScheduleHeaderGreen,
                             )
                         }
                     }

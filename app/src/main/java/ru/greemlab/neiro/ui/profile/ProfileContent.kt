@@ -23,7 +23,7 @@ import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.YClientsYellow
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.ProfileTotals
@@ -344,7 +344,7 @@ private fun YClientsStatusLine(
             } else {
                 "Готово · новых записей нет"
             }
-            Triple(Icons.Rounded.CheckCircle, ProfitGreen, label)
+            Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
         }
         isLoading -> Triple(
             Icons.Rounded.Sync,
@@ -358,7 +358,7 @@ private fun YClientsStatusLine(
             } else {
                 "Подключено · нажмите, чтобы загрузить записи"
             }
-            Triple(Icons.Rounded.CheckCircle, ProfitGreen, label)
+            Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
         }
         else -> Triple(
             Icons.Rounded.CloudSync,
