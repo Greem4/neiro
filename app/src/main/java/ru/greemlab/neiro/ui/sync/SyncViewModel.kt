@@ -13,6 +13,9 @@ import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.ui.calendar.Session
+import ru.greemlab.neiro.ui.calendar.SessionFormat
+import ru.greemlab.neiro.ui.calendar.SessionParser
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -123,6 +126,15 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Преобразует записи YClients в формат календаря и сохраняет.
+     *
+     * Правила слияния:
+     *  - имя из YClients добавляется к дате, только если на этом дне ещё нет такого
+     *    же имени (сравнение по нормализованной форме — без регистра/пробелов,
+     *    с приведением `ё` → `е`);
+     *  - проверка учитывает и обычных учеников, и интенсивы/диагностики, потому
+     *    что у них тоже есть поле имени;
+     *  - в рамках одного батча второй визит одного и того же клиента в один день
+     *    тоже игнорируется (защита от внутреннего дубля).
      */
     private suspend fun mergeRecordsToCalendar(records: List<RecordData>): Int {
         if (records.isEmpty()) return 0
@@ -130,32 +142,36 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var syncedCount = 0
 
-        val recordsByDate = records.groupBy { record ->
-            parseRecordDate(record.date)
-        }
+        val recordsByDate = records
+            .mapNotNull { record ->
+                val date = parseRecordDate(record.date) ?: return@mapNotNull null
+                date to record
+            }
+            .sortedBy { (_, record) -> record.datetime ?: record.date }
+            .groupBy({ it.first }, { it.second })
 
         for ((date, dayRecords) in recordsByDate) {
-            if (date == null) continue
+            val existingRaw = currentDayData[date].orEmpty()
+            val takenNames = existingRaw
+                .mapNotNull { entry -> sessionDisplayName(entry)?.normalizeForDedup() }
+                .toMutableSet()
 
-            val existingNames = currentDayData[date].orEmpty().toMutableSet()
-            val newNames = mutableListOf<String>()
+            val newEntries = mutableListOf<String>()
 
             for (record in dayRecords) {
                 val clientName = extractClientName(record)
-                if (clientName.isNotBlank()) {
-                    val attended = record.attendance == 1 || record.visitAttendance == 1
-                    val entry = "$clientName|$attended"
+                if (clientName.isBlank()) continue
 
-                    if (!existingNames.any { it.startsWith("$clientName|") }) {
-                        newNames.add(entry)
-                        syncedCount++
-                    }
-                }
+                val key = clientName.normalizeForDedup()
+                if (!takenNames.add(key)) continue
+
+                val attended = record.attendance == 1 || record.visitAttendance == 1
+                newEntries += SessionFormat.serializeStudent(clientName, attended)
+                syncedCount++
             }
 
-            if (newNames.isNotEmpty()) {
-                val mergedList = currentDayData[date].orEmpty() + newNames
-                currentDayData[date] = mergedList
+            if (newEntries.isNotEmpty()) {
+                currentDayData[date] = existingRaw + newEntries
             }
         }
 
@@ -165,6 +181,17 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
         return syncedCount
     }
+
+    /** Имя из сериализованной записи дня (для всех типов сессий). */
+    private fun sessionDisplayName(raw: String): String? =
+        when (val session = SessionParser.parse(raw)) {
+            is Session.Student -> session.name.takeIf { it.isNotBlank() }
+            is Session.Extra -> session.name.takeIf { it.isNotBlank() }
+        }
+
+    /** Нормализованный ключ для сравнения имён (без регистра, пробелов и `ё`/`е`). */
+    private fun String.normalizeForDedup(): String =
+        trim().lowercase().replace('ё', 'е')
 
     private fun parseRecordDate(dateString: String): LocalDate? {
         return try {

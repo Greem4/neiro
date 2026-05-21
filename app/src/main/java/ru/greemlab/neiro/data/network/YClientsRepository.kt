@@ -80,6 +80,10 @@ class YClientsRepository(context: Context) {
 
     /**
      * Получить записи за период.
+     *
+     * Внутри проходит по всем страницам YClients (`page=1..N`), пока сервер не вернёт
+     * страницу меньше [PAGE_SIZE] — иначе при большом числе занятий часть месяца
+     * терялась бы из-за пагинации.
      */
     suspend fun getRecords(
         startDate: LocalDate,
@@ -87,26 +91,40 @@ class YClientsRepository(context: Context) {
     ): ApiResult<List<RecordData>> = withContext(Dispatchers.IO) {
         try {
             val formatter = DateTimeFormatter.ISO_LOCAL_DATE
-            val response = api.getRecords(
-                companyId = tokenStorage.companyId,
-                startDate = startDate.format(formatter),
-                endDate = endDate.format(formatter),
-                staffId = tokenStorage.staffId,
-            )
+            val start = startDate.format(formatter)
+            val end = endDate.format(formatter)
+            val all = mutableListOf<RecordData>()
 
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body?.success == true) {
-                    ApiResult.Success(body.data.orEmpty())
-                } else {
-                    ApiResult.Error("Не удалось получить записи")
-                }
-            } else {
-                ApiResult.Error(
-                    message = "Ошибка загрузки записей",
-                    code = response.code(),
+            var page = 1
+            while (page <= MAX_PAGES) {
+                val response = api.getRecords(
+                    companyId = tokenStorage.companyId,
+                    startDate = start,
+                    endDate = end,
+                    staffId = tokenStorage.staffId,
+                    page = page,
+                    count = PAGE_SIZE,
                 )
+
+                if (!response.isSuccessful) {
+                    return@withContext ApiResult.Error(
+                        message = "Ошибка загрузки записей",
+                        code = response.code(),
+                    )
+                }
+
+                val body = response.body()
+                if (body?.success != true) {
+                    return@withContext ApiResult.Error("Не удалось получить записи")
+                }
+
+                val pageData = body.data.orEmpty()
+                all += pageData
+                if (pageData.size < PAGE_SIZE) break
+                page++
             }
+
+            ApiResult.Success(all)
         } catch (e: Exception) {
             ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
@@ -189,6 +207,12 @@ class YClientsRepository(context: Context) {
     }
 
     companion object {
+        /** Размер страницы для запроса /records. */
+        private const val PAGE_SIZE = 200
+
+        /** Предел постраничного обхода — защита от бесконечного цикла. */
+        private const val MAX_PAGES = 50
+
         @Volatile
         private var instance: YClientsRepository? = null
 
