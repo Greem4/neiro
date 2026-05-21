@@ -41,6 +41,8 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -63,9 +65,10 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
-private val StatusGreen = Color(0xFF4CAF50)
-private val StatusOrange = Color(0xFFFF9800)
+private val StatusLavender = Color(0xFFA7B2FF)
+private val StatusPeach = Color(0xFFFFAD80)
 private val StatusRed = Color(0xFFF44336)
+private val StatusGreen = Color(0xFF4CAF50)
 
 /**
  * Данные для отображения записи в расписании.
@@ -91,6 +94,7 @@ fun DayDetailsDialog(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
+    recentStudents: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (List<String>, Boolean, Boolean) -> Unit,
 ) {
@@ -102,8 +106,9 @@ fun DayDetailsDialog(
             date = date,
             initialNames = initialNames,
             userProfile = userProfile,
+            recentStudents = recentStudents,
             onDismiss = onDismiss,
-            onSave = { onSave(it, false, false) }
+            onSave = onSave
         )
     }
 }
@@ -113,11 +118,14 @@ private fun DayDetailsContent(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
+    recentStudents: List<String>,
     onDismiss: () -> Unit,
-    onSave: (List<String>) -> Unit,
+    onSave: (List<String>, Boolean, Boolean) -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
+    var repeatUntilMonthEnd by remember { mutableStateOf(false) }
+    var repeatNextMonth by remember { mutableStateOf(false) }
 
     val entries = remember(currentNames.toList()) {
         parseEntries(currentNames)
@@ -251,6 +259,36 @@ private fun DayDetailsContent(
                     }
 
                     if (isPlanningMode) {
+                        if (recentStudents.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Быстрое добавление:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    recentStudents.take(3).forEach { name ->
+                                        TextButton(
+                                            onClick = {
+                                                currentNames.add(SessionFormat.serializeStudentExtended(name, AttendanceStatus.EXPECTED))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            colors = ButtonDefaults.textButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                            )
+                                        ) {
+                                            Text(name, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
                             ExtraButtonsRow(
@@ -270,6 +308,43 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Кнопки действий
+            if (isPlanningMode && entries.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = repeatUntilMonthEnd,
+                            onCheckedChange = { repeatUntilMonthEnd = it }
+                        )
+                        Text(
+                            "Повторять до конца месяца",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = repeatNextMonth,
+                            onCheckedChange = { repeatNextMonth = it }
+                        )
+                        Text(
+                            "Дублировать в следующем месяце",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -280,7 +355,7 @@ private fun DayDetailsContent(
                 if (isPlanningMode) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onSave(currentNames.toList()) },
+                        onClick = { onSave(currentNames.toList(), repeatUntilMonthEnd, repeatNextMonth) },
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
@@ -398,7 +473,7 @@ private fun StatsRow(stats: DayStats) {
     ) {
         // Ожидают
         StatBadge(
-            icon = Icons.Rounded.Add,
+            icon = Icons.Rounded.History,
             count = stats.expectedCount,
             color = StatusGreen,
             label = "ожидают",
@@ -409,16 +484,16 @@ private fun StatsRow(stats: DayStats) {
         StatBadge(
             icon = Icons.Rounded.Check,
             count = stats.confirmedCount,
-            color = StatusOrange,
+            color = StatusLavender,
             label = "подтв.",
             modifier = Modifier.weight(1f),
         )
 
         // Пришли (в деньги)
         StatBadge(
-            icon = Icons.Rounded.Check,
+            icon = Icons.Rounded.Add,
             count = stats.arrivedCount,
-            color = Color(0xFF2E7D32),
+            color = StatusPeach,
             label = "пришли",
             modifier = Modifier.weight(1f),
         )
@@ -623,8 +698,9 @@ private fun DayDetailsLightPreview() {
                         "Якуборов Рашит|2|14:00-14:50|+79681234569|6,11л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
+                    recentStudents = listOf("Тимур", "Владимир"),
                     onDismiss = {},
-                    onSave = {},
+                    onSave = { _, _, _ -> },
                 )
             }
         }
@@ -644,8 +720,9 @@ private fun DayDetailsDarkPreview() {
                         "Моторнов Егор|3|16:00-16:50|+79631234575|5л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
+                    recentStudents = emptyList(),
                     onDismiss = {},
-                    onSave = {},
+                    onSave = { _, _, _ -> },
                 )
             }
         }
@@ -662,8 +739,9 @@ private fun DayDetailsEmptyPreview() {
                     date = LocalDate.now(),
                     initialNames = emptyList(),
                     userProfile = UserProfile(pricePerSession = 1400.0),
+                    recentStudents = emptyList(),
                     onDismiss = {},
-                    onSave = {},
+                    onSave = { _, _, _ -> },
                 )
             }
         }

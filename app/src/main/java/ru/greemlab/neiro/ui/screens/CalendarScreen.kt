@@ -223,14 +223,16 @@ fun CalendarScreen(
 
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
+            val recentStudents by viewModel.recentStudents.collectAsState()
             if (date != null) {
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
+                    recentStudents = recentStudents,
                     onDismiss = { overlay = CalendarOverlay.None },
-                    onSave = { updatedNames, _, _ ->
-                        viewModel.saveNamesForDate(date, updatedNames)
+                    onSave = { updatedNames, repeatMonth, repeatNext ->
+                        viewModel.saveNamesForDate(date, updatedNames, repeatMonth, repeatNext)
                         overlay = CalendarOverlay.None
                     },
                 )

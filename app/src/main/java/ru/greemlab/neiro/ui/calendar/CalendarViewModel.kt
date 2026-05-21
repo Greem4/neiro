@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
@@ -36,6 +37,28 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = CalendarDataStoreProvider.peekDayData(application),
+        )
+
+    /** Список уникальных имен учеников для быстрого выбора. */
+    val recentStudents: StateFlow<List<String>> = repository.dayDataFlow
+        .map { data: Map<LocalDate, List<String>> ->
+            data.values.flatten()
+                .mapNotNull { raw ->
+                    val session = SessionParser.parse(raw)
+                    if (session is Session.Student) session.name else null
+                }
+                .filter { it.isNotBlank() }
+                .groupBy { it }
+                .mapValues { it.value.size }
+                .toList()
+                .sortedByDescending { it.second }
+                .map { it.first }
+                .take(10)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList(),
         )
 
     fun nextMonth() {

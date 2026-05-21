@@ -18,6 +18,7 @@ data class CalendarMonthStats(
     val diagnosticsEarnings: Double,
     val expectedIncome: Double,
     val taxAmount: Double,
+    val statsByStudent: Map<String, StudentMonthStats> = emptyMap(),
 ) {
     companion object {
         val Empty = CalendarMonthStats(
@@ -32,6 +33,18 @@ data class CalendarMonthStats(
             diagnosticsEarnings = 0.0,
             expectedIncome = 0.0,
             taxAmount = 0.0,
+            statsByStudent = emptyMap(),
         )
     }
 }
+
+/**
+ * Статистика по конкретному ученику за месяц.
+ */
+@Immutable
+data class StudentMonthStats(
+    val name: String,
+    val completedCount: Int,
+    val totalScheduled: Int,
+    val totalEarned: Double,
+)

@@ -37,11 +37,20 @@ val OnTertiaryContainerLight = Color(0xFF341101)
 val ErrorLight = Color(0xFFB3261E)
 
 // --- Семантические цвета приложения ---
-/** Цвет «прибыли» — используется в карточках статистики и диалогах. */
-val ProfitGreen = Color(0xFF4CAF50)
+/** Цвет «прибыли» (уже пришли и оплатили) — Peach из скриншота. */
+val ProfitGreen = Color(0xFFFFAD80)
 
-/** Цвет «ожидается» — оранжево-янтарный, отличается от прибыли по тональности. */
-val ExpectedAmber = Color(0xFFFF9800)
+/** Цвет «подтвердили» (галочка что придут) — Lavender из скриншота. */
+val ExpectedAmber = Color(0xFFA7B2FF)
+
+/** Цвет шапки записи (время и иконка). */
+val ScheduleHeaderGreen = Color(0xFF33AB84)
+
+/** Цвет «ожидания» (новое из скрина) — Мятный. */
+val StatusExpectedMint = Color(0xFFB2DFDB)
+
+/** Цвет отмены (минус). */
+val StatusRedBody = Color(0xFFFF8A80)
 
 /** Фирменный жёлтый YClients — используется для кнопки входа/синхронизации с YClients. */
 val YClientsYellow = Color(0xFFFFCD00)

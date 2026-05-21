@@ -40,6 +40,8 @@ internal fun computeMonthStats(
     var diagnosticsEarnings = 0.0
     var expectedIncome = 0.0
 
+    val studentStatsMap = mutableMapOf<String, ru.greemlab.neiro.domain.models.StudentMonthStats>()
+
     val month: Month = currentMonth.month
     val year = currentMonth.year
 
@@ -75,13 +77,23 @@ internal fun computeMonthStats(
 
                 is Session.Student -> {
                     scheduled++
-                    if (session.attended) {
+                    val isAttended = session.attended
+                    if (isAttended) {
                         completed++
                         completedSessions++
                         grossEarned += pricePerSession
                     } else {
                         expectedIncome += pricePerSession
                     }
+
+                    // Собираем стастику по ученикам
+                    val name = session.name.ifBlank { "Без имени" }
+                    val current = studentStatsMap[name] ?: ru.greemlab.neiro.domain.models.StudentMonthStats(name, 0, 0, 0.0)
+                    studentStatsMap[name] = current.copy(
+                        completedCount = current.completedCount + (if (isAttended) 1 else 0),
+                        totalScheduled = current.totalScheduled + 1,
+                        totalEarned = current.totalEarned + (if (isAttended) pricePerSession else 0.0)
+                    )
                 }
             }
         }
@@ -103,6 +115,7 @@ internal fun computeMonthStats(
         diagnosticsEarnings = diagnosticsEarnings,
         expectedIncome = expectedIncome,
         taxAmount = monthlyTaxAmount,
+        statsByStudent = studentStatsMap,
     )
 }
 

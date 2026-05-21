@@ -1,21 +1,13 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,21 +22,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.StatusExpectedMint
+import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
-private val StatusGreen = Color(0xFF4CAF50)
-private val StatusGreenDark = Color(0xFF2E7D32)
-private val StatusOrange = Color(0xFFFF9800)
-private val StatusRed = Color(0xFFF44336)
-
 /**
- * Компактный элемент расписания для отображения записи.
- *
- * @param time Время записи, например "10:00-10:50"
- * @param name Имя клиента
- * @param comment Комментарий к записи (например, возраст, объём)
- * @param status Статус записи
+ * Элемент расписания: фон стандартный, цвет меняется только у имени.
  */
 @Composable
 fun ScheduleSlotItem(
@@ -55,26 +42,26 @@ fun ScheduleSlotItem(
     modifier: Modifier = Modifier,
     isDiagnostics: Boolean = false,
 ) {
-    val statusColor = when (status) {
-        AttendanceStatus.EXPECTED -> StatusGreen
-        AttendanceStatus.CONFIRMED -> StatusOrange
-        AttendanceStatus.ARRIVED -> StatusGreenDark
-        AttendanceStatus.CANCELLED -> StatusRed
+    // Цвет для текста имени в зависимости от статуса
+    val nameColor = when (status) {
+        AttendanceStatus.ARRIVED -> ProfitGreen
+        AttendanceStatus.CONFIRMED -> ExpectedAmber
+        AttendanceStatus.CANCELLED -> StatusRedBody
+        AttendanceStatus.EXPECTED -> StatusExpectedMint
     }
 
-    val backgroundColor = if (isDiagnostics) {
-        Color(0xFF5C6BC0)
-    } else {
-        statusColor.copy(alpha = 0.12f)
+    val icon = when (status) {
+        AttendanceStatus.ARRIVED -> Icons.Rounded.Add
+        AttendanceStatus.CONFIRMED -> Icons.Rounded.Check
+        AttendanceStatus.CANCELLED -> Icons.Rounded.Remove
+        AttendanceStatus.EXPECTED -> Icons.Rounded.History
     }
-
-    val contentColor = if (isDiagnostics) Color.White else MaterialTheme.colorScheme.onSurface
-    val secondaryContentColor = if (isDiagnostics) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = backgroundColor,
+        // Фон карточки - стандартный surfaceVariant
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
         Row(
             modifier = Modifier
@@ -82,82 +69,67 @@ fun ScheduleSlotItem(
                 .height(56.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Цветная полоска слева
+            // Зеленая полоска слева («поле зеленое»)
             Box(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
-                    .background(if (isDiagnostics) Color.White.copy(alpha = 0.4f) else statusColor)
+                    .background(if (isDiagnostics) Color(0xFF5C6BC0) else ScheduleHeaderGreen)
             )
 
-            // Время
+            // Время (стандартный цвет)
             if (time.isNotEmpty()) {
                 Text(
                     text = time.substringBefore("-"),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = contentColor,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Основная информация
+            // Имя (ЦВЕТ МЕНЯЕТСЯ) и комментарий
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(vertical = 6.dp),
             ) {
-                // Имя + комментарий
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name.ifEmpty { "Без имени" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (comment.isNotEmpty()) {
                     Text(
-                        text = name.ifEmpty { "Без имени" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = contentColor,
+                        text = comment,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (comment.isNotEmpty()) {
-                        Text(
-                            text = " $comment",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = secondaryContentColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
 
-            // Индикатор статуса
+            // Иконка (зеленая на белом)
             Surface(
                 modifier = Modifier
                     .padding(end = 8.dp)
-                    .size(28.dp),
+                    .size(24.dp),
                 shape = CircleShape,
-                color = if (isDiagnostics) Color.White.copy(alpha = 0.2f) else statusColor,
+                color = Color.White,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = when (status) {
-                            AttendanceStatus.EXPECTED -> Icons.Rounded.Add
-                            AttendanceStatus.CONFIRMED,
-                            AttendanceStatus.ARRIVED,
-                            -> Icons.Rounded.Check
-                            AttendanceStatus.CANCELLED -> Icons.Rounded.Remove
-                        },
-                        contentDescription = when (status) {
-                            AttendanceStatus.EXPECTED -> "Ожидает"
-                            AttendanceStatus.CONFIRMED -> "Подтвердил, что придёт"
-                            AttendanceStatus.ARRIVED -> "Пришёл"
-                            AttendanceStatus.CANCELLED -> "Не пришёл"
-                        },
-                        tint = if (isDiagnostics) Color.White else Color.White,
-                        modifier = Modifier.size(18.dp),
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isDiagnostics) Color(0xFF5C6BC0) else ScheduleHeaderGreen,
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
@@ -165,37 +137,27 @@ fun ScheduleSlotItem(
     }
 }
 
-
 @Preview(showBackground = true)
 @Composable
-private fun ScheduleSlotItemPreviewExpected() {
+private fun ScheduleSlotItemPreview() {
     NeiroTheme {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ScheduleSlotItem(
-                time = "10:00-10:50",
-                name = "Шахабутдинов Тимур",
-                comment = "5л",
+                time = "10:00",
+                name = "Ерженинов Владислав",
+                comment = "7.6(Юля)",
                 status = AttendanceStatus.EXPECTED,
             )
-            Spacer(modifier = Modifier.height(8.dp))
             ScheduleSlotItem(
-                time = "11:00-11:50",
-                name = "Зорин Владимир",
-                comment = "2.8Г",
-                status = AttendanceStatus.CONFIRMED,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            ScheduleSlotItem(
-                time = "12:00-12:50",
-                name = "Савельев Михаил",
-                comment = "5л",
+                time = "12:00",
+                name = "Пирогов Лев",
+                comment = "Нейрокоррекция",
                 status = AttendanceStatus.ARRIVED,
             )
-            Spacer(modifier = Modifier.height(8.dp))
             ScheduleSlotItem(
-                time = "14:00-14:50",
-                name = "Якубов Рашит",
-                comment = "6,11л",
+                time = "15:00",
+                name = "Петрушкин Михаил",
+                comment = "1,9г (Алина)",
                 status = AttendanceStatus.CANCELLED,
             )
         }
