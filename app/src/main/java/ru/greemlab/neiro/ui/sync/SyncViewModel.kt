@@ -64,6 +64,112 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Автоматически заполняет профиль на основе данных синхронизации, если он ещё не заполнен.
+     * Это позволяет пользователю сразу видеть свои данные без ручного ввода.
+     */
+    private suspend fun autoFillProfile(records: List<RecordData>) {
+        val currentProfile = calendarRepository.userProfileFlow.first()
+        // Если имя уже заполнено вручную, мы не хотим его затирать.
+        // Но если оно пустое, мы можем попробовать заполнить его и другие поля.
+        if (currentProfile.name.isNotBlank() && currentProfile.isRegistered) return
+
+        calendarRepository.updateProfile { profile ->
+            var updated = profile
+            var changed = false
+
+            // 1. Имя берем из аккаунта YClients, если своего нет
+            if (updated.name.isBlank()) {
+                yclientsUserName?.let { 
+                    updated = updated.copy(name = it) 
+                    changed = true
+                }
+            }
+
+            if (records.isNotEmpty()) {
+                // 2. Вид деятельности — попробуем угадать по самой частой услуге
+                if (updated.activityType.isBlank()) {
+                    val bestTitle = records.flatMap { it.services.orEmpty() }
+                        .mapNotNull { it.title }
+                        .groupBy { it }
+                        .maxByOrNull { it.value.size }?.key
+                    
+                    bestTitle?.let { title ->
+                        updated = updated.copy(activityType = cleanActivityType(title))
+                        changed = true
+                    }
+                }
+
+                // 3. Рабочие дни — все дни недели, в которые есть записи в выборке
+                if (updated.workingDays.isEmpty()) {
+                    val days = records.mapNotNull { parseRecordDate(it.date)?.dayOfWeek }.toSet()
+                    if (days.isNotEmpty()) {
+                        updated = updated.copy(workingDays = days)
+                        changed = true
+                    }
+                }
+
+                // 4. Цены: берем самые частые значения из списка услуг
+                val allServices = records.flatMap { it.services.orEmpty() }
+                val diagKeywords = listOf("диагностика", "пробн", "тест")
+
+                val (diagServices, regularServices) = allServices.partition { service ->
+                    diagKeywords.any { kw -> service.title?.contains(kw, ignoreCase = true) == true }
+                }
+
+                if (updated.pricePerSession == 0.0) {
+                    val commonPrice = regularServices.mapNotNull { it.cost }
+                        .groupBy { it }.maxByOrNull { it.value.size }?.key
+                    if (commonPrice != null) {
+                        updated = updated.copy(pricePerSession = commonPrice)
+                        changed = true
+                    }
+                }
+
+                if (updated.pricePerDiagnostics == 0.0) {
+                    val commonDiagPrice = diagServices.mapNotNull { it.cost }
+                        .groupBy { it }.maxByOrNull { it.value.size }?.key
+                    if (commonDiagPrice != null) {
+                        updated = updated.copy(pricePerDiagnostics = commonDiagPrice)
+                        changed = true
+                    }
+                }
+            }
+
+            // Если удалось заполнить хотя бы имя, считаем первичную настройку завершённой
+            if (updated.name.isNotBlank() && !updated.isRegistered) {
+                updated = updated.copy(isRegistered = true)
+                changed = true
+            }
+
+            if (changed) updated else profile
+        }
+    }
+
+    private fun cleanActivityType(title: String): String {
+        val prefixes = listOf(
+            "прием", "консультация", "занятие", "сеанс", "урок",
+            "индивидуальное", "групповое", "первичное", "повторное", "логопедическое"
+        )
+        var result = title.lowercase()
+
+        var changed = true
+        while (changed) {
+            changed = false
+            for (prefix in prefixes) {
+                if (result.startsWith(prefix)) {
+                    result = result.substring(prefix.length).trim()
+                    changed = true
+                }
+            }
+        }
+
+        // Удаляем цену или время в скобках: "Занятие (1500)" -> "Занятие"
+        result = result.replace(Regex("\\(.*\\)"), "").trim()
+
+        return result.replaceFirstChar { it.uppercase() }
+    }
+
+    /**
      * Синхронизирует записи за текущий месяц.
      */
     fun syncCurrentMonth() {
@@ -88,6 +194,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             when (val result = yclientsRepository.getRecords(startDate, endDate)) {
                 is ApiResult.Success -> {
                     val records = result.data
+                    autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records)
 
                     _uiState.value = _uiState.value.copy(
@@ -122,6 +229,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             when (val result = yclientsRepository.getRecords(startDate, endDate)) {
                 is ApiResult.Success -> {
                     val records = result.data
+                    autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records)
 
                     _uiState.value = _uiState.value.copy(
