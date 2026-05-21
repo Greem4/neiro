@@ -189,14 +189,14 @@ private fun ProfileContentImpl(
 /**
  * Жёлтая кнопка YClients с двойной ролью.
  *
- * Поведение зависит от состояния авторизации (флаг хранится в [TokenStorage]
+ * Поведение зависит от состояния авторизации (флаг хранится в `TokenStorage`
  * и переживает перезапуск приложения):
  *  - если пользователь ещё не вошёл — открывает экран авторизации;
  *  - если уже вошёл — запускает синхронизацию текущего месяца.
  *
  * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
- * синхронизация …», прогресс или ошибка. Когда пользователь авторизован,
- * рядом появляется небольшой `TextButton` для управления аккаунтом (выйти).
+ * синхронизация …», прогресс или ошибка. Управление аккаунтом (просмотр имени,
+ * выход) живёт в «Настройках профиля» — `SettingsScreen`.
  */
 @Composable
 private fun YClientsActionBlock(
@@ -256,19 +256,6 @@ private fun YClientsActionBlock(
             hasSuccess = hasSuccess,
             syncState = syncState,
         )
-
-        if (isLoggedIn) {
-            TextButton(
-                onClick = onOpenYClients,
-                modifier = Modifier.align(Alignment.End),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    text = "Управление аккаунтом",
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
     }
 }
 

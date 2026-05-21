@@ -180,7 +180,9 @@ fun CalendarScreen(
         if (overlay is CalendarOverlay.Settings) {
             SettingsScreen(
                 viewModel = profileViewModel,
+                syncViewModel = syncViewModel,
                 onBack = { overlay = CalendarOverlay.None },
+                onOpenYClientsAuth = { overlay = CalendarOverlay.YClients },
             )
         }
 
