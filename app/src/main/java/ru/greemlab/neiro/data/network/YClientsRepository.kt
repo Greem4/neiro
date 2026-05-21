@@ -255,10 +255,10 @@ class YClientsRepository(context: Context) {
 
         /**
          * Минимальное число совпавших токенов имени для матча сотрудника.
-         * Берём 2 — это обычно «фамилия + имя», достаточно надёжно отличает
-         * тёзок и устойчиво к лишнему отчеству в одной из строк.
+         * Берём 1 — этого достаточно для поиска, если имя в профиле короткое.
+         * Приоритет всё равно у тех, у кого совпадений больше.
          */
-        private const val MIN_NAME_MATCH_SCORE = 2
+        private const val MIN_NAME_MATCH_SCORE = 1
 
         @Volatile
         private var instance: YClientsRepository? = null

@@ -49,11 +49,28 @@ class TokenStorage(context: Context) {
 
     var companyId: Int
         get() = prefs.getInt(KEY_COMPANY_ID, BuildConfig.YCLIENTS_COMPANY_ID)
-        set(value) = prefs.edit().putInt(KEY_COMPANY_ID, value).apply()
+        set(value) {
+            val oldId = prefs.getInt(KEY_COMPANY_ID, -1)
+            if (oldId != value) {
+                prefs.edit()
+                    .putInt(KEY_COMPANY_ID, value)
+                    .remove(KEY_STAFF_ID)
+                    .apply()
+            }
+        }
 
     var staffId: Int?
-        get() = prefs.getInt(KEY_STAFF_ID, -1).takeIf { it >= 0 }
-        set(value) = prefs.edit().putInt(KEY_STAFF_ID, value ?: -1).apply()
+        get() {
+            val savedForCompany = prefs.getInt(KEY_STAFF_ID_COMPANY, -1)
+            if (savedForCompany != companyId) return null
+            return prefs.getInt(KEY_STAFF_ID, -1).takeIf { it >= 0 }
+        }
+        set(value) {
+            prefs.edit()
+                .putInt(KEY_STAFF_ID, value ?: -1)
+                .putInt(KEY_STAFF_ID_COMPANY, if (value != null) companyId else -1)
+                .apply()
+        }
 
     var userLogin: String?
         get() = prefs.getString(KEY_USER_LOGIN, null)
@@ -71,6 +88,7 @@ class TokenStorage(context: Context) {
             .remove(KEY_USER_LOGIN)
             .remove(KEY_USER_NAME)
             .remove(KEY_STAFF_ID)
+            .remove(KEY_STAFF_ID_COMPANY)
             .apply()
         _isLoggedIn.value = false
     }
@@ -81,6 +99,7 @@ class TokenStorage(context: Context) {
         private const val KEY_USER_TOKEN = "user_token"
         private const val KEY_COMPANY_ID = "company_id"
         private const val KEY_STAFF_ID = "staff_id"
+        private const val KEY_STAFF_ID_COMPANY = "staff_id_company"
         private const val KEY_USER_LOGIN = "user_login"
         private const val KEY_USER_NAME = "user_name"
     }

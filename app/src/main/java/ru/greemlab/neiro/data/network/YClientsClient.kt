@@ -44,7 +44,8 @@ object YClientsClient {
 
         val authInterceptor = Interceptor { chain ->
             val originalRequest = chain.request()
-            val authHeader = buildAuthHeader(storage)
+            val isAuthRequest = originalRequest.url.encodedPath.endsWith("/auth")
+            val authHeader = buildAuthHeader(storage, isAuthRequest)
 
             val newRequest = originalRequest.newBuilder()
                 .header("Accept", ACCEPT_HEADER)
@@ -83,13 +84,13 @@ object YClientsClient {
             .create(YClientsApi::class.java)
     }
 
-    private fun buildAuthHeader(storage: TokenStorage): String {
+    private fun buildAuthHeader(storage: TokenStorage, isAuthRequest: Boolean): String {
         val partnerToken = storage.partnerToken
         val userToken = storage.userToken
 
         return when {
             partnerToken.isBlank() -> ""
-            userToken.isNullOrBlank() -> "Bearer $partnerToken"
+            isAuthRequest || userToken.isNullOrBlank() -> "Bearer $partnerToken"
             else -> "Bearer $partnerToken, User $userToken"
         }
     }
