@@ -18,15 +18,17 @@ fun rememberCalendarMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-): CalendarMonthStats = remember(currentMonth, dayData, pricePerSession, monthlyTaxAmount) {
-    computeMonthStats(currentMonth, dayData, pricePerSession, monthlyTaxAmount)
+): CalendarMonthStats = remember(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount) {
+    computeMonthStats(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount)
 }
 
 internal fun computeMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
 ): CalendarMonthStats {
     var completed = 0
@@ -58,12 +60,13 @@ internal fun computeMonthStats(
 
                 is Session.Diagnostics -> {
                     scheduled++
+                    val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
                     if (session.attended) {
                         completed++
-                        diagnosticsEarnings += session.amount
-                        grossEarned += session.amount
+                        diagnosticsEarnings += price
+                        grossEarned += price
                     } else {
-                        expectedIncome += session.amount
+                        expectedIncome += price
                     }
                 }
 

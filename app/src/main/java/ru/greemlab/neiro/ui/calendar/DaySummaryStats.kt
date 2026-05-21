@@ -14,6 +14,7 @@ data class DaySummaryStats(
 internal fun computeDayStats(
     sessions: List<String>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
@@ -31,11 +32,12 @@ internal fun computeDayStats(
 
             is Session.Diagnostics -> {
                 totalLessons++
+                val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
                 if (session.attended) {
                     attendedLessons++
-                    earned += session.amount
+                    earned += price
                 } else {
-                    expected += session.amount
+                    expected += price
                 }
             }
 

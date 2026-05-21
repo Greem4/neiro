@@ -32,12 +32,14 @@ data class ProfileTotals(
  *
  * @param dayData Полные данные календаря (дата → список записей).
  * @param pricePerSession Стоимость одного занятия ученика.
+ * @param pricePerDiagnostics Стоимость одной диагностики.
  * @param today Сегодняшняя дата — нужна, чтобы разделить «прошлое» и «будущее».
  * @param monthlyTaxAmount Налог за месяц — вычитается из [totalEarned] для расчёта [ProfileTotals.netEarned].
  */
 internal fun computeProfileTotals(
     dayData: Map<LocalDate, List<String>>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
     today: LocalDate,
     monthlyTaxAmount: Double = 0.0,
 ): ProfileTotals {
@@ -68,11 +70,12 @@ internal fun computeProfileTotals(
 
                 is Session.Diagnostics -> {
                     if (isFuture) futureSessions++ else pastSessions++
+                    val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
                     if (session.attended) {
                         attended++
-                        earned += session.amount
+                        earned += price
                     } else if (isFuture) {
-                        expectedFuture += session.amount
+                        expectedFuture += price
                     }
                 }
             }

@@ -10,7 +10,7 @@ class ProfileTotalsCalculatorTest {
 
     @Test
     fun `empty data yields empty totals`() {
-        val totals = computeProfileTotals(emptyMap(), pricePerSession = 1000.0, today = today, monthlyTaxAmount = 0.0)
+        val totals = computeProfileTotals(emptyMap(), pricePerSession = 1000.0, pricePerDiagnostics = 0.0, today = today, monthlyTaxAmount = 0.0)
         assertEquals(ProfileTotals.Empty, totals)
     }
 
@@ -21,7 +21,7 @@ class ProfileTotalsCalculatorTest {
             LocalDate.of(2025, 5, 20) to listOf("C|false"), // future
             LocalDate.of(2025, 5, 15) to listOf("D|true"), // today = past per logic
         )
-        val totals = computeProfileTotals(dayData, pricePerSession = 1000.0, today = today)
+        val totals = computeProfileTotals(dayData, pricePerSession = 1000.0, pricePerDiagnostics = 0.0, today = today)
         assertEquals(3, totals.pastSessions)
         assertEquals(1, totals.futureSessions)
         assertEquals(2, totals.attendedSessions)
@@ -36,11 +36,21 @@ class ProfileTotalsCalculatorTest {
             LocalDate.of(2025, 5, 1) to listOf("__INTENSIVE__:2000|Дима|true"),
             LocalDate.of(2025, 5, 20) to listOf("__DIAGNOSTICS__:800|Аня|false"),
         )
-        val totals = computeProfileTotals(dayData, pricePerSession = 0.0, today = today)
+        val totals = computeProfileTotals(dayData, pricePerSession = 0.0, pricePerDiagnostics = 0.0, today = today)
         assertEquals(2000.0, totals.totalEarned, 0.0)
         assertEquals(800.0, totals.expectedFromFuture, 0.0)
         assertEquals(0, totals.attendedSessions)
         assertEquals(0, totals.pastSessions)
-        assertEquals(0, totals.futureSessions)
+        assertEquals(1, totals.futureSessions) // Diagnostics counts as session
+    }
+
+    @Test
+    fun `diagnostics uses global price from profile`() {
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf("__DIAGNOSTICS__:500|Аня|true"),
+        )
+        val totals = computeProfileTotals(dayData, pricePerSession = 0.0, pricePerDiagnostics = 4000.0, today = today)
+        assertEquals(4000.0, totals.totalEarned, 0.0)
+        assertEquals(1, totals.attendedSessions)
     }
 }

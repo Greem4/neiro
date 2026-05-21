@@ -95,6 +95,7 @@ fun CalendarScreen(
         currentMonth = currentMonth,
         dayData = dayData,
         pricePerSession = profile.pricePerSession,
+        pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
     )
 
@@ -148,6 +149,7 @@ fun CalendarScreen(
                 onTodayClick = viewModel::goToToday,
                 onMenuClick = { scope.launch { drawerState.open() } },
                 pricePerSession = profile.pricePerSession,
+                pricePerDiagnostics = profile.pricePerDiagnostics,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
                         overlay = CalendarOverlay.RegistrationPrompt
@@ -286,6 +288,7 @@ fun CalendarScreenContent(
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
+    pricePerDiagnostics: Double = 0.0,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
@@ -295,9 +298,9 @@ fun CalendarScreenContent(
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {},
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession) {
+    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics) {
         val date = selectedDate ?: return@remember null
-        computeDayStats(dayData[date].orEmpty(), pricePerSession)
+        computeDayStats(dayData[date].orEmpty(), pricePerSession, pricePerDiagnostics)
     }
     Surface(
         modifier = modifier.fillMaxSize(),

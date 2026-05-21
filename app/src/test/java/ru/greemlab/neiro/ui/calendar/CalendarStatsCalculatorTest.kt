@@ -17,6 +17,7 @@ class CalendarStatsCalculatorTest {
             currentMonth = month,
             dayData = emptyMap(),
             pricePerSession = pricePerSession,
+            pricePerDiagnostics = 0.0,
             monthlyTaxAmount = monthlyTax,
         )
         assertEquals(0, stats.completedCount)
@@ -33,7 +34,7 @@ class CalendarStatsCalculatorTest {
             LocalDate.of(2025, 5, 10) to listOf("Иванов|true", "Петров|false"),
             LocalDate.of(2025, 4, 10) to listOf("Сидоров|true"), // другой месяц
         )
-        val stats = computeMonthStats(month, dayData, pricePerSession, monthlyTax)
+        val stats = computeMonthStats(month, dayData, pricePerSession, 0.0, monthlyTax)
         assertEquals(1, stats.completedCount)
         assertEquals(2, stats.totalScheduled)
         assertEquals(1000.0, stats.totalEarned, 0.0)
@@ -49,13 +50,25 @@ class CalendarStatsCalculatorTest {
                 "Иванов|true",
             ),
         )
-        val stats = computeMonthStats(month, dayData, pricePerSession, monthlyTax)
+        val stats = computeMonthStats(month, dayData, pricePerSession, 0.0, monthlyTax)
         assertEquals(1, stats.completedCount)
-        assertEquals(1, stats.totalScheduled)
+        assertEquals(2, stats.totalScheduled)
         assertEquals(2000.0, stats.intensiveEarnings, 0.0)
         assertEquals(0.0, stats.diagnosticsEarnings, 0.0)
         assertEquals(1000.0 + 2000.0, stats.totalEarned, 0.0)
         assertEquals(500.0, stats.expectedIncome, 0.0)
+    }
+
+    @Test
+    fun `diagnostics uses global price`() {
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf(
+                "__DIAGNOSTICS__:500|Аня|true",
+            ),
+        )
+        val stats = computeMonthStats(month, dayData, 0.0, 3000.0, 0.0)
+        assertEquals(1, stats.completedCount)
+        assertEquals(3000.0, stats.diagnosticsEarnings, 0.0)
     }
 
     @Test
@@ -66,6 +79,7 @@ class CalendarStatsCalculatorTest {
                 LocalDate.of(2025, 5, 10) to listOf("Иванов|true"),
             ),
             pricePerSession = 500.0,
+            pricePerDiagnostics = 0.0,
             monthlyTaxAmount = 1000.0,
         )
         // 500 - 1000 = -500, должно сохраняться (а не обрезаться до 0).
