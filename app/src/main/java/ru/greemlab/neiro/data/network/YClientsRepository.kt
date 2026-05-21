@@ -84,12 +84,29 @@ class YClientsRepository(context: Context) {
      * Внутри проходит по всем страницам YClients (`page=1..N`), пока сервер не вернёт
      * страницу меньше [PAGE_SIZE] — иначе при большом числе занятий часть месяца
      * терялась бы из-за пагинации.
+     *
+     * Защита от «чужих» записей:
+     *  - если `staffId` неизвестен (детект при логине не сработал) — пробуем
+     *    определить его ещё раз; без `staff_id` API возвращает записи всех
+     *    сотрудников филиала, и в календарь попадают чужие ученики;
+     *  - дополнительно фильтруем результат на клиенте по `staffId`, даже если
+     *    запрос ушёл с фильтром — это страхует от случаев, когда сервер
+     *    игнорирует фильтр (например, особенности прав текущего user_token).
      */
     suspend fun getRecords(
         startDate: LocalDate,
         endDate: LocalDate,
     ): ApiResult<List<RecordData>> = withContext(Dispatchers.IO) {
         try {
+            val effectiveStaffId = tokenStorage.staffId ?: detectAndSaveStaffId()
+            if (effectiveStaffId == null) {
+                return@withContext ApiResult.Error(
+                    "Не удалось определить сотрудника YClients. " +
+                            "Проверьте, что имя в вашем профиле YClients совпадает с " +
+                            "карточкой сотрудника в филиале.",
+                )
+            }
+
             val formatter = DateTimeFormatter.ISO_LOCAL_DATE
             val start = startDate.format(formatter)
             val end = endDate.format(formatter)
@@ -101,7 +118,7 @@ class YClientsRepository(context: Context) {
                     companyId = tokenStorage.companyId,
                     startDate = start,
                     endDate = end,
-                    staffId = tokenStorage.staffId,
+                    staffId = effectiveStaffId,
                     page = page,
                     count = PAGE_SIZE,
                 )
@@ -119,7 +136,7 @@ class YClientsRepository(context: Context) {
                 }
 
                 val pageData = body.data.orEmpty()
-                all += pageData
+                all += pageData.filter { it.staffId == effectiveStaffId }
                 if (pageData.size < PAGE_SIZE) break
                 page++
             }
@@ -136,9 +153,21 @@ class YClientsRepository(context: Context) {
      * Используем публичный /book_staff (требует только partner_token), чтобы не натыкаться
      * на 403 от приватных эндпоинтов, если у текущего пользователя нет admin-прав.
      *
-     * Эвристика поиска: совпадение имени пользователя из /auth с полем `name` сотрудника
-     * (без учёта регистра и порядка слов). Это покрывает кейсы вроде
-     * "Зеленкина Светлана Васильевна" vs "Светлана Зеленкина".
+     * Эвристика поиска: считаем пересечение нормализованных токенов имени
+     * (см. [normalizeNameTokens]) и берём сотрудника с наибольшим совпадением,
+     * но не менее **двух** общих токенов — иначе слишком велик риск ложного
+     * матча по одному имени, когда в филиале несколько тёзок.
+     *
+     * Это устойчиво к асимметрии форматов:
+     *  - `/auth` возвращает «Зеленкина Светлана Васильевна» (с отчеством);
+     *  - `/book_staff` хранит «Светлана Зеленкина» (без отчества).
+     * Прошлая версия требовала, чтобы **все** токены ника были у сотрудника,
+     * и из-за лишнего «Васильевна» матч просто не находился. В результате
+     * `staffId` оставался null, а API без фильтра возвращал расписание всех
+     * сотрудников филиала.
+     *
+     * Также при равном счёте предпочитаем действующих сотрудников (`fired == 0`),
+     * чтобы случайно не зацепиться за карточку уволенного тёзки.
      */
     suspend fun detectAndSaveStaffId(): Int? = withContext(Dispatchers.IO) {
         val userName = tokenStorage.userName?.trim().orEmpty()
@@ -149,10 +178,21 @@ class YClientsRepository(context: Context) {
             val staffList = response.body()?.takeIf { it.success }?.data ?: return@withContext null
 
             val needleTokens = userName.normalizeNameTokens()
-            val match = staffList.firstOrNull { staff ->
-                val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
-                staffTokens.isNotEmpty() && needleTokens.all { it in staffTokens }
-            }
+            if (needleTokens.isEmpty()) return@withContext null
+
+            val match = staffList
+                .mapNotNull { staff ->
+                    val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
+                    if (staffTokens.isEmpty()) return@mapNotNull null
+                    val score = (staffTokens intersect needleTokens).size
+                    if (score < MIN_NAME_MATCH_SCORE) null else staff to score
+                }
+                .sortedWith(
+                    compareByDescending<Pair<StaffData, Int>> { (it.first.fired ?: 0) == 0 }
+                        .thenByDescending { it.second },
+                )
+                .firstOrNull()
+                ?.first
 
             match?.id?.also { tokenStorage.staffId = it }
         } catch (e: Exception) {
@@ -212,6 +252,13 @@ class YClientsRepository(context: Context) {
 
         /** Предел постраничного обхода — защита от бесконечного цикла. */
         private const val MAX_PAGES = 50
+
+        /**
+         * Минимальное число совпавших токенов имени для матча сотрудника.
+         * Берём 2 — это обычно «фамилия + имя», достаточно надёжно отличает
+         * тёзок и устойчиво к лишнему отчеству в одной из строк.
+         */
+        private const val MIN_NAME_MATCH_SCORE = 2
 
         @Volatile
         private var instance: YClientsRepository? = null
