@@ -32,10 +32,12 @@ import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
 import ru.greemlab.neiro.ui.components.*
+import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -50,6 +52,7 @@ private sealed interface CalendarOverlay {
     data object None : CalendarOverlay
     data object Settings : CalendarOverlay
     data object AppSettings : CalendarOverlay
+    data object YClients : CalendarOverlay
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
@@ -122,6 +125,10 @@ fun CalendarScreen(
                             scope.launch { drawerState.close() }
                             overlay = CalendarOverlay.AppSettings
                         },
+                        onOpenYClients = {
+                            scope.launch { drawerState.close() }
+                            overlay = CalendarOverlay.YClients
+                        },
                     )
                 }
             },
@@ -177,6 +184,16 @@ fun CalendarScreen(
         if (overlay is CalendarOverlay.AppSettings) {
             AppSettingsScreen(onBack = { overlay = CalendarOverlay.None })
         }
+
+        if (overlay is CalendarOverlay.YClients) {
+            val syncViewModel: SyncViewModel = viewModel()
+            AuthScreen(
+                onBack = { overlay = CalendarOverlay.None },
+                onLoginSuccess = {
+                    syncViewModel.syncCurrentMonth()
+                },
+            )
+        }
     }
 
     when (overlay) {
@@ -229,6 +246,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.None -> "none"
             CalendarOverlay.Settings -> "settings"
             CalendarOverlay.AppSettings -> "app_settings"
+            CalendarOverlay.YClients -> "yclients"
             CalendarOverlay.RegistrationPrompt -> "registration"
             CalendarOverlay.ProfitDetails -> "profit"
             CalendarOverlay.LessonsDetails -> "lessons"
@@ -239,6 +257,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
         when (token) {
             "settings" -> CalendarOverlay.Settings
             "app_settings" -> CalendarOverlay.AppSettings
+            "yclients" -> CalendarOverlay.YClients
             "registration" -> CalendarOverlay.RegistrationPrompt
             "profit" -> CalendarOverlay.ProfitDetails
             "lessons" -> CalendarOverlay.LessonsDetails

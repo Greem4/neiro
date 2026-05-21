@@ -139,6 +139,15 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
 
+    // Network (YClients API)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
+    // Security для хранения токенов
+    implementation(libs.security.crypto)
+
     // Baseline profile (ускоряет холодный старт Compose)
     implementation(libs.androidx.profileinstaller)
 

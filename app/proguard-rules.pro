@@ -21,6 +21,21 @@
 -keep class ru.greemlab.neiro.domain.models.** { *; }
 -keep class ru.greemlab.neiro.data.UserProfileJson { *; }
 -keep class ru.greemlab.neiro.data.StoreSnapshot { *; }
+-keep class ru.greemlab.neiro.data.network.** { *; }
+
+# --- Retrofit ---
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+
+# --- OkHttp ---
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
 
 # --- Kotlin metadata, нужна Compose ---
 -keep class kotlin.Metadata { *; }

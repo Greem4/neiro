@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ fun ProfileContent(
     calendarViewModel: CalendarViewModel,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onOpenYClients: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val profile by profileViewModel.userProfile.collectAsState()
@@ -47,6 +49,7 @@ fun ProfileContent(
         dayData = dayData,
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
+        onOpenYClients = onOpenYClients,
         modifier = modifier,
     )
 }
@@ -57,6 +60,7 @@ private fun ProfileContentImpl(
     dayData: Map<LocalDate, List<String>>,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onOpenYClients: () -> Unit = {},
     modifier: Modifier = Modifier,
     nameStyle: TextStyle = MaterialTheme.typography.headlineSmall,
     professionStyle: TextStyle = MaterialTheme.typography.bodyMedium,
@@ -126,6 +130,19 @@ private fun ProfileContentImpl(
                 StatRow("Без налога", earnedText)
                 StatRow("Ожидаемый доход", expectedText)
             }
+        }
+
+        Button(
+            onClick = onOpenYClients,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(12.dp),
+        ) {
+            Icon(Icons.Rounded.CloudSync, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("YClients")
         }
 
         OutlinedButton(
