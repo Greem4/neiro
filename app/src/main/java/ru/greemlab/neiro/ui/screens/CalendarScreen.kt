@@ -109,6 +109,8 @@ fun CalendarScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val drawerSyncViewModel: SyncViewModel = viewModel()
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = drawerGesturesEnabled,
@@ -117,6 +119,7 @@ fun CalendarScreen(
                     ProfileContent(
                         profileViewModel = profileViewModel,
                         calendarViewModel = viewModel,
+                        syncViewModel = drawerSyncViewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
                             overlay = CalendarOverlay.Settings

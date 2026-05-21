@@ -127,59 +127,83 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Преобразует записи YClients в формат календаря и сохраняет.
      *
-     * Правила слияния:
-     *  - имя из YClients добавляется к дате, только если на этом дне ещё нет такого
-     *    же имени (сравнение по нормализованной форме — без регистра/пробелов,
-     *    с приведением `ё` → `е`);
-     *  - проверка учитывает и обычных учеников, и интенсивы/диагностики, потому
-     *    что у них тоже есть поле имени;
-     *  - в рамках одного батча второй визит одного и того же клиента в один день
-     *    тоже игнорируется (защита от внутреннего дубля).
+     * Правила слияния (на каждый день отдельно):
+     *  - записи из YClients сортируются по `datetime` (по возрастанию) — самое
+     *    раннее занятие оказывается сверху, самое позднее — снизу;
+     *  - если на этом дне уже была запись с таким же именем (сравнение по
+     *    нормализованной форме — без регистра/пробелов, с `ё` → `е`),
+     *    то она переиспользуется «как есть» — это сохраняет ручные правки
+     *    пользователя (флаг «пришёл», тип записи: интенсив/диагностика/ученик);
+     *  - локальные записи, которым нет соответствия в YClients (т.е. добавленные
+     *    вручную), кладутся ниже синхронизированных, в исходном порядке;
+     *  - дубли внутри одного батча (несколько визитов одного клиента в один
+     *    день) сворачиваются в одну запись.
+     *
+     * Возвращает количество дней, в которых что-то реально изменилось.
      */
     private suspend fun mergeRecordsToCalendar(records: List<RecordData>): Int {
         if (records.isEmpty()) return 0
 
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
-        var syncedCount = 0
+        var newlyAdded = 0
+        var changedDays = 0
 
         val recordsByDate = records
             .mapNotNull { record ->
                 val date = parseRecordDate(record.date) ?: return@mapNotNull null
                 date to record
             }
-            .sortedBy { (_, record) -> record.datetime ?: record.date }
             .groupBy({ it.first }, { it.second })
 
         for ((date, dayRecords) in recordsByDate) {
             val existingRaw = currentDayData[date].orEmpty()
-            val takenNames = existingRaw
-                .mapNotNull { entry -> sessionDisplayName(entry)?.normalizeForDedup() }
-                .toMutableSet()
+            val existingByName = existingRaw
+                .mapNotNull { entry ->
+                    sessionDisplayName(entry)
+                        ?.normalizeForDedup()
+                        ?.let { it to entry }
+                }
+                .toMap()
 
-            val newEntries = mutableListOf<String>()
+            val sortedRecords = dayRecords.sortedBy { it.datetime ?: it.date }
 
-            for (record in dayRecords) {
+            val seenKeys = mutableSetOf<String>()
+            val syncedEntries = mutableListOf<String>()
+
+            for (record in sortedRecords) {
                 val clientName = extractClientName(record)
                 if (clientName.isBlank()) continue
 
                 val key = clientName.normalizeForDedup()
-                if (!takenNames.add(key)) continue
+                if (!seenKeys.add(key)) continue
 
-                val attended = record.attendance == 1 || record.visitAttendance == 1
-                newEntries += SessionFormat.serializeStudent(clientName, attended)
-                syncedCount++
+                val existingEntry = existingByName[key]
+                if (existingEntry != null) {
+                    syncedEntries += existingEntry
+                } else {
+                    val attended = record.attendance == 1 || record.visitAttendance == 1
+                    syncedEntries += SessionFormat.serializeStudent(clientName, attended)
+                    newlyAdded++
+                }
             }
 
-            if (newEntries.isNotEmpty()) {
-                currentDayData[date] = existingRaw + newEntries
+            val leftover = existingRaw.filter { entry ->
+                val name = sessionDisplayName(entry)?.normalizeForDedup()
+                name == null || name !in seenKeys
+            }
+
+            val merged = syncedEntries + leftover
+            if (merged != existingRaw) {
+                currentDayData[date] = merged
+                changedDays++
             }
         }
 
-        if (syncedCount > 0) {
+        if (changedDays > 0) {
             calendarRepository.saveDayData(currentDayData)
         }
 
-        return syncedCount
+        return newlyAdded
     }
 
     /** Имя из сериализованной записи дня (для всех типов сессий). */
