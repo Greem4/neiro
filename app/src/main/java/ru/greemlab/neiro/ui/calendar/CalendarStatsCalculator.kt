@@ -42,7 +42,11 @@ internal fun computeMonthStats(
     for ((date, sessions) in dayData) {
         if (date.month != month || date.year != year) continue
         for (raw in sessions) {
-            when (val session = SessionParser.parse(raw)) {
+            val session = SessionParser.parse(raw)
+
+            if (session.isEffectivelyDeleted()) continue
+
+            when (session) {
                 is Session.Intensive -> {
                     if (session.attended) {
                         intensiveEarnings += session.amount

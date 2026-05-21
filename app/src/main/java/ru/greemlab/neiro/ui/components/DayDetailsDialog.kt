@@ -318,19 +318,26 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
     return rawNames.mapNotNull { raw ->
         if (raw.isBlank()) return@mapNotNull null
 
-        when (val session = SessionParser.parse(raw)) {
+        val session = SessionParser.parse(raw)
+        val isDeleted = session.isEffectivelyDeleted()
+
+        when (session) {
             is Session.Student -> ScheduleEntry(
                 name = session.name,
                 time = session.time,
                 comment = session.comment,
-                status = session.status,
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
             )
 
             is Session.Intensive -> ScheduleEntry(
                 name = session.name,
                 time = "",
                 comment = "",
-                status = if (session.attended) AttendanceStatus.ARRIVED else AttendanceStatus.EXPECTED,
+                status = when {
+                    isDeleted -> AttendanceStatus.CANCELLED
+                    session.attended -> AttendanceStatus.ARRIVED
+                    else -> AttendanceStatus.EXPECTED
+                },
                 isExtra = true,
                 extraType = "Интенсив",
                 extraAmount = session.amount,
@@ -340,7 +347,11 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = "",
                 comment = "",
-                status = if (session.attended) AttendanceStatus.ARRIVED else AttendanceStatus.EXPECTED,
+                status = when {
+                    isDeleted -> AttendanceStatus.CANCELLED
+                    session.attended -> AttendanceStatus.ARRIVED
+                    else -> AttendanceStatus.EXPECTED
+                },
                 isExtra = true,
                 extraType = "Диагностика",
                 extraAmount = session.amount,

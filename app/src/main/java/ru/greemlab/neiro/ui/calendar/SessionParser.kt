@@ -73,6 +73,20 @@ sealed interface Session {
     val attended: Boolean
     val status: AttendanceStatus get() = AttendanceStatus.fromBoolean(attended)
 
+    /**
+     * Проверяет, является ли запись «удалённой» (отменённой).
+     * Такие записи не учитываются в статистике и счётчиках, но видны в списке дня.
+     */
+    fun isEffectivelyDeleted(): Boolean {
+        val name = when (this) {
+            is Student -> name
+            is Extra -> name
+        }
+        return status == AttendanceStatus.CANCELLED ||
+                name.startsWith("-") || name.startsWith("—") ||
+                name.startsWith("–") || name.startsWith("−")
+    }
+
     @Immutable
     data class Student(
         val name: String,
@@ -150,6 +164,9 @@ object SessionParser {
 
     /** Возвращает статус attendance из сырой строки. */
     fun getStatus(raw: String): AttendanceStatus = parse(raw).status
+
+    /** Проверяет, является ли запись «удалённой» (отменённой). */
+    fun isEffectivelyDeleted(raw: String): Boolean = parse(raw).isEffectivelyDeleted()
 
     /**
      * Парсит запись ученика.

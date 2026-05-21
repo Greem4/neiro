@@ -59,8 +59,10 @@ fun CalendarGrid(
                 for (j in 0 until 7) {
                     val date = days[i + j]
                     val sessions = dayData[date]
-                    // Считаем только учеников (точки), не экстра-сессии.
-                    val studentsCount = sessions?.count { !SessionParser.isExtra(it) } ?: 0
+                    // Считаем только учеников (точки), не экстра-сессии и не отменённые.
+                    val studentsCount = sessions?.count { raw ->
+                        !SessionParser.isExtra(raw) && !SessionParser.isEffectivelyDeleted(raw)
+                    } ?: 0
                     DayCard(
                         date = date,
                         today = today,

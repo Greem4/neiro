@@ -21,7 +21,10 @@ internal fun computeDayStats(
     var expected = 0.0
 
     for (raw in sessions) {
-        when (val session = SessionParser.parse(raw)) {
+        val session = SessionParser.parse(raw)
+        if (session.isEffectivelyDeleted()) continue
+
+        when (session) {
             is Session.Intensive -> {
                 if (session.attended) earned += session.amount else expected += session.amount
             }
