@@ -57,7 +57,9 @@ internal fun computeMonthStats(
                 }
 
                 is Session.Diagnostics -> {
+                    scheduled++
                     if (session.attended) {
+                        completed++
                         diagnosticsEarnings += session.amount
                         grossEarned += session.amount
                     } else {

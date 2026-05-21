@@ -30,7 +30,13 @@ internal fun computeDayStats(
             }
 
             is Session.Diagnostics -> {
-                if (session.attended) earned += session.amount else expected += session.amount
+                totalLessons++
+                if (session.attended) {
+                    attendedLessons++
+                    earned += session.amount
+                } else {
+                    expected += session.amount
+                }
             }
 
             is Session.Student -> {

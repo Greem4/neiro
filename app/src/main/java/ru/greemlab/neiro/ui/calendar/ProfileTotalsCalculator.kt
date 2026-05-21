@@ -67,8 +67,13 @@ internal fun computeProfileTotals(
                 }
 
                 is Session.Diagnostics -> {
-                    if (session.attended) earned += session.amount
-                    else if (isFuture) expectedFuture += session.amount
+                    if (isFuture) futureSessions++ else pastSessions++
+                    if (session.attended) {
+                        attended++
+                        earned += session.amount
+                    } else if (isFuture) {
+                        expectedFuture += session.amount
+                    }
                 }
             }
         }
