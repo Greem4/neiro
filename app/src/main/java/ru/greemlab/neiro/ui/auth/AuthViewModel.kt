@@ -35,7 +35,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             companyId = repository.companyId.toString(),
             isLoggedIn = repository.isLoggedIn.value,
             userName = repository.userName,
-            showPartnerTokenSetup = !repository.hasPartnerToken(),
+            // Если токен уже зашит через BuildConfig — не показываем настройки.
+            showPartnerTokenSetup = false,
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -102,7 +103,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
         if (!repository.hasPartnerToken()) {
             _uiState.value = state.copy(
-                error = "Сначала настройте Partner Token",
+                error = "Partner Token не настроен. Проверьте local.properties и пересоберите приложение.",
                 showPartnerTokenSetup = true,
             )
             return
@@ -122,6 +123,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
             when (val result = repository.login(state.login, state.password)) {
                 is ApiResult.Success -> {
+                    // Параллельно ищем staff_id текущего пользователя в списке сотрудников филиала.
+                    // Если не нашли — не фатально, расписание просто будет без фильтра по сотруднику.
+                    repository.detectAndSaveStaffId()
+
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoggedIn = true,

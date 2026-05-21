@@ -69,4 +69,13 @@ interface YClientsApi {
         @Path("company_id") companyId: Int,
         @Path("record_id") recordId: Long,
     ): Response<RecordsResponse>
+
+    /**
+     * Публичный список сотрудников филиала (используется виджетом онлайн-записи).
+     * Доступен только с partner_token, без user_token.
+     */
+    @GET("book_staff/{company_id}")
+    suspend fun getBookStaff(
+        @Path("company_id") companyId: Int,
+    ): Response<StaffResponse>
 }

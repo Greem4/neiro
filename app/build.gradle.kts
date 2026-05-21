@@ -1,9 +1,23 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// ------------------------------------------------------------
+// Секреты YClients из local.properties → BuildConfig.
+// Сам local.properties в .gitignore, ключи не уезжают в репозиторий.
+// При пустых значениях приложение собирается, но API не заработает,
+// пока пользователь не введёт Partner Token вручную (через UI).
+// ------------------------------------------------------------
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val yclientsPartnerToken: String = localProps.getProperty("YCLIENTS_PARTNER_TOKEN", "")
+val yclientsCompanyId: String = localProps.getProperty("YCLIENTS_COMPANY_ID", "0")
 
 android {
     namespace = "ru.greemlab.neiro"
@@ -19,6 +33,11 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables { useSupportLibrary = true }
+
+        // YClients: Partner Token и ID филиала прокидываются из local.properties.
+        // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
+        buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
+        buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
     }
 
     // Уменьшаем APK: только нужные локали (актуальный API в AGP 9.x).
@@ -51,9 +70,11 @@ android {
     }
 
     // Сразу отключаем всё, что приложению не нужно — экономит время сборки и размер APK.
-    // (buildConfig/aidl/renderScript уже отключены по умолчанию в AGP 9.x.)
+    // buildConfig включён намеренно: пробрасываем секреты YClients (Partner Token, Company ID)
+    // из local.properties в скомпилированный класс BuildConfig.
     buildFeatures {
         compose = true
+        buildConfig = true
         resValues = false
         shaders = false
         viewBinding = false

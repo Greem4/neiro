@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
@@ -80,14 +79,6 @@ fun AuthScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Назад",
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.showPartnerTokenSetup() }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Настройки API",
                         )
                     }
                 },

@@ -148,7 +148,7 @@ private fun YClientsWebView(
 ) {
     AndroidView(
         factory = { context ->
-            WebView(context).apply {
+            WebView(context).apply webView@ {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -168,10 +168,12 @@ private fun YClientsWebView(
                     userAgentString = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                 }
 
-                // Включаем куки для авторизации
+                // Включаем куки для авторизации.
+                // this@webView — ссылка на внешний WebView (внутри apply { ... } получателем
+                // является CookieManager, поэтому нужен лейбл).
                 CookieManager.getInstance().apply {
                     setAcceptCookie(true)
-                    setAcceptThirdPartyCookies(this@apply, true)
+                    setAcceptThirdPartyCookies(this@webView, true)
                 }
 
                 webViewClient = object : WebViewClient() {

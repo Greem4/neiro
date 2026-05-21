@@ -113,6 +113,36 @@ class YClientsRepository(context: Context) {
     }
 
     /**
+     * Найти сотрудника филиала по имени из ответа /auth и сохранить его staffId.
+     *
+     * Используем публичный /book_staff (требует только partner_token), чтобы не натыкаться
+     * на 403 от приватных эндпоинтов, если у текущего пользователя нет admin-прав.
+     *
+     * Эвристика поиска: совпадение имени пользователя из /auth с полем `name` сотрудника
+     * (без учёта регистра и порядка слов). Это покрывает кейсы вроде
+     * "Зеленкина Светлана Васильевна" vs "Светлана Зеленкина".
+     */
+    suspend fun detectAndSaveStaffId(): Int? = withContext(Dispatchers.IO) {
+        val userName = tokenStorage.userName?.trim().orEmpty()
+        if (userName.isBlank()) return@withContext null
+
+        try {
+            val response = api.getBookStaff(tokenStorage.companyId)
+            val staffList = response.body()?.takeIf { it.success }?.data ?: return@withContext null
+
+            val needleTokens = userName.normalizeNameTokens()
+            val match = staffList.firstOrNull { staff ->
+                val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
+                staffTokens.isNotEmpty() && needleTokens.all { it in staffTokens }
+            }
+
+            match?.id?.also { tokenStorage.staffId = it }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
      * Получить список клиентов.
      */
     suspend fun getClients(): ApiResult<List<ClientData>> = withContext(Dispatchers.IO) {
@@ -138,6 +168,14 @@ class YClientsRepository(context: Context) {
             ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
     }
+
+    private fun String.normalizeNameTokens(): Set<String> =
+        lowercase()
+            .replace('ё', 'е')
+            .split(' ', '\t', '\n', '-', '.', ',')
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .toSet()
 
     private fun parseErrorMessage(errorBody: String?): String? {
         if (errorBody.isNullOrBlank()) return null

@@ -7,6 +7,7 @@ import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import ru.greemlab.neiro.BuildConfig
 
 /**
  * Безопасное хранилище токенов авторизации.
@@ -29,8 +30,14 @@ class TokenStorage(context: Context) {
     private val _isLoggedIn = MutableStateFlow(hasUserToken())
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
+    /**
+     * Partner Token: по умолчанию берётся из BuildConfig (зашит в приложение через local.properties).
+     * Можно переопределить через UI настроек (на случай ротации без пересборки).
+     */
     var partnerToken: String
-        get() = prefs.getString(KEY_PARTNER_TOKEN, DEFAULT_PARTNER_TOKEN) ?: DEFAULT_PARTNER_TOKEN
+        get() = prefs.getString(KEY_PARTNER_TOKEN, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.YCLIENTS_PARTNER_TOKEN
         set(value) = prefs.edit().putString(KEY_PARTNER_TOKEN, value).apply()
 
     var userToken: String?
@@ -41,7 +48,7 @@ class TokenStorage(context: Context) {
         }
 
     var companyId: Int
-        get() = prefs.getInt(KEY_COMPANY_ID, DEFAULT_COMPANY_ID)
+        get() = prefs.getInt(KEY_COMPANY_ID, BuildConfig.YCLIENTS_COMPANY_ID)
         set(value) = prefs.edit().putInt(KEY_COMPANY_ID, value).apply()
 
     var staffId: Int?
@@ -76,12 +83,5 @@ class TokenStorage(context: Context) {
         private const val KEY_STAFF_ID = "staff_id"
         private const val KEY_USER_LOGIN = "user_login"
         private const val KEY_USER_NAME = "user_name"
-
-        // ID компании из URL пользователя
-        private const val DEFAULT_COMPANY_ID = 520135
-
-        // Partner token нужно получить на developer.yclients.com
-        // Пока используем placeholder — пользователь должен ввести свой
-        private const val DEFAULT_PARTNER_TOKEN = ""
     }
 }

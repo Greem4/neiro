@@ -97,6 +97,26 @@ data class ClientsResponse(
     val meta: ClientsMeta?,
 )
 
+/**
+ * Ответ публичного эндпоинта /book_staff — список сотрудников филиала.
+ * Не требует user_token, только partner_token.
+ */
+data class StaffResponse(
+    val success: Boolean,
+    val data: List<StaffData>?,
+)
+
+/**
+ * Сотрудник салона (мастер/педагог/нейропсихолог и т.п.).
+ */
+data class StaffData(
+    val id: Int,
+    val name: String?,
+    val specialization: String?,
+    val bookable: Boolean?,
+    val fired: Int?,
+)
+
 data class ClientsMeta(
     @SerializedName("total_count") val totalCount: Int?,
 )
