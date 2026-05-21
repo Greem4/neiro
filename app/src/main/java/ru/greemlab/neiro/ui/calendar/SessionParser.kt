@@ -3,19 +3,51 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Immutable
 
 /**
+ * Статус записи из YClients.
+ *
+ *  - [EXPECTED] (0) — ожидает подтверждения, можно зачислить деньги
+ *  - [CONFIRMED] (1) — подтверждён, придёт
+ *  - [CANCELLED] (2) — не будет, не учитываем в деньгах
+ */
+enum class AttendanceStatus(val code: Int) {
+    EXPECTED(0),   // + зелёный, можно зачислять
+    CONFIRMED(1),  // ✓ оранжевый, подтверждён
+    CANCELLED(2);  // - красный, не будет
+
+    companion object {
+        fun fromCode(code: Int): AttendanceStatus = when (code) {
+            1 -> CONFIRMED
+            2 -> CANCELLED
+            else -> EXPECTED
+        }
+
+        fun fromBoolean(attended: Boolean): AttendanceStatus =
+            if (attended) CONFIRMED else EXPECTED
+    }
+}
+
+/**
  * Разобранное представление одной записи дневника.
  *
- * Сериализованный формат остался обратно-совместимым со старыми данными:
- *  - Обычное занятие: `name|attended`
+ * Сериализованный формат (обратно-совместимый со старыми данными):
+ *  - Обычное занятие: `name|attended` или расширенный `name|status|time|phone|comment`
  *  - Интенсив:        `__INTENSIVE__:amount|name|attended`
  *  - Диагностика:     `__DIAGNOSTICS__:amount|name|attended`
  */
 @Immutable
 sealed interface Session {
     val attended: Boolean
+    val status: AttendanceStatus get() = AttendanceStatus.fromBoolean(attended)
 
     @Immutable
-    data class Student(val name: String, override val attended: Boolean) : Session
+    data class Student(
+        val name: String,
+        override val attended: Boolean,
+        val time: String = "",        // Например "10:00-10:50"
+        val phone: String = "",       // Телефон клиента
+        val comment: String = "",     // Комментарий к записи
+        override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
+    ) : Session
 
     @Immutable
     sealed interface Extra : Session {
@@ -82,14 +114,53 @@ object SessionParser {
         is Session.Student -> s.attended
     }
 
+    /** Возвращает статус attendance из сырой строки. */
+    fun getStatus(raw: String): AttendanceStatus = parse(raw).status
+
+    /**
+     * Парсит запись ученика.
+     *
+     * Форматы (обратная совместимость):
+     *  - Старый: `name|attended` где attended = true/false
+     *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2
+     */
     private fun parseStudent(raw: String): Session.Student {
-        val sep = raw.indexOf('|')
-        return if (sep < 0) {
-            Session.Student(raw, attended = false)
+        val parts = raw.split('|')
+        if (parts.isEmpty()) return Session.Student("", attended = false)
+
+        val name = parts[0]
+
+        // Только имя
+        if (parts.size == 1) {
+            return Session.Student(name, attended = false)
+        }
+
+        // Проверяем второй элемент: это boolean (старый формат) или число (новый формат)?
+        val second = parts[1]
+        val statusCode = second.toIntOrNull()
+
+        return if (statusCode != null) {
+            // Новый формат: name|statusCode|time|phone|comment
+            val status = AttendanceStatus.fromCode(statusCode)
+            val time = parts.getOrNull(2).orEmpty()
+            val phone = parts.getOrNull(3).orEmpty()
+            val comment = parts.getOrNull(4).orEmpty()
+            Session.Student(
+                name = name,
+                attended = status == AttendanceStatus.CONFIRMED,
+                time = time,
+                phone = phone,
+                comment = comment,
+                status = status,
+            )
         } else {
-            val name = raw.substring(0, sep)
-            val attended = raw.substring(sep + 1).toBooleanStrictOrNullCompat() ?: false
-            Session.Student(name, attended)
+            // Старый формат: name|attended (true/false)
+            val attended = second.toBooleanStrictOrNullCompat() ?: false
+            Session.Student(
+                name = name,
+                attended = attended,
+                status = AttendanceStatus.fromBoolean(attended),
+            )
         }
     }
 
@@ -134,7 +205,20 @@ object SessionFormat {
     const val INTENSIVE_PREFIX = "__INTENSIVE__:"
     const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
 
+    /** Старый формат (для обратной совместимости). */
     fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
+
+    /**
+     * Новый расширенный формат записи ученика.
+     * Формат: `name|statusCode|time|phone|comment`
+     */
+    fun serializeStudentExtended(
+        name: String,
+        status: AttendanceStatus,
+        time: String = "",
+        phone: String = "",
+        comment: String = "",
+    ): String = "$name|${status.code}|$time|$phone|$comment"
 
     fun serializeIntensive(price: String, name: String, attended: Boolean): String =
         "$INTENSIVE_PREFIX$price|$name|$attended"

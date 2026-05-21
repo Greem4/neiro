@@ -13,10 +13,12 @@ import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -202,11 +204,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
                 val existingEntry = existingByName[key]
                 if (existingEntry != null) {
-                    syncedEntries += existingEntry
+                    // Обновляем существующую запись с новыми данными из YClients
+                    syncedEntries += updateEntryFromRecord(existingEntry, record)
                 } else {
-                    val clientName = extractClientName(record)
-                    val attended = record.attendance == 1 || record.visitAttendance == 1
-                    syncedEntries += SessionFormat.serializeStudent(clientName, attended)
+                    syncedEntries += createEntryFromRecord(record)
                     newlyAdded++
                 }
             }
@@ -348,6 +349,88 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             }
             else -> ""
         }.trim()
+    }
+
+    /**
+     * Создаёт новую запись из данных YClients с расширенным форматом.
+     */
+    private fun createEntryFromRecord(record: RecordData): String {
+        val clientName = extractClientName(record)
+        val status = mapAttendanceStatus(record)
+        val time = formatRecordTime(record)
+        val phone = record.client?.phone.orEmpty()
+        val comment = record.comment.orEmpty()
+
+        return SessionFormat.serializeStudentExtended(
+            name = clientName,
+            status = status,
+            time = time,
+            phone = phone,
+            comment = comment,
+        )
+    }
+
+    /**
+     * Обновляет существующую запись с новыми данными из YClients.
+     * Сохраняет локальные изменения, но обновляет время, телефон и комментарий.
+     */
+    private fun updateEntryFromRecord(existingEntry: String, record: RecordData): String {
+        val session = SessionParser.parse(existingEntry)
+        if (session !is Session.Student) return existingEntry
+
+        val status = mapAttendanceStatus(record)
+        val time = formatRecordTime(record)
+        val phone = record.client?.phone.orEmpty()
+        val comment = record.comment.orEmpty()
+
+        return SessionFormat.serializeStudentExtended(
+            name = session.name,
+            status = status,
+            time = time,
+            phone = phone,
+            comment = comment,
+        )
+    }
+
+    /**
+     * Преобразует статус attendance из YClients в [AttendanceStatus].
+     */
+    private fun mapAttendanceStatus(record: RecordData): AttendanceStatus {
+        val attendance = record.attendance
+        val visitAttendance = record.visitAttendance ?: 0
+
+        return when {
+            attendance == 2 || visitAttendance == 2 -> AttendanceStatus.CANCELLED
+            attendance == 1 || visitAttendance == 1 -> AttendanceStatus.CONFIRMED
+            else -> AttendanceStatus.EXPECTED
+        }
+    }
+
+    /**
+     * Форматирует время записи в виде "HH:mm-HH:mm".
+     */
+    private fun formatRecordTime(record: RecordData): String {
+        val datetime = record.datetime ?: return ""
+
+        return try {
+            val startTime = if (datetime.contains("T")) {
+                LocalTime.parse(datetime.substringAfter("T").take(5))
+            } else {
+                val timePart = datetime.substringAfter(" ").take(5)
+                LocalTime.parse(timePart)
+            }
+
+            val durationMinutes = record.seanceLength ?: record.length ?: 50
+            val endTime = startTime.plusMinutes(durationMinutes.toLong())
+
+            "${startTime.format(TIME_FORMAT)}-${endTime.format(TIME_FORMAT)}"
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    companion object {
+        private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
     }
 
     fun clearError() {

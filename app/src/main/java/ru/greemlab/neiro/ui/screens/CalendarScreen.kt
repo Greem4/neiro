@@ -227,10 +227,7 @@ fun CalendarScreen(
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     onDismiss = { overlay = CalendarOverlay.None },
-                    onSave = { names, repeat, repeatNext ->
-                        viewModel.saveNamesForDate(date, names, repeat, repeatNext)
-                        overlay = CalendarOverlay.None
-                    },
+                    onSave = { _, _, _ -> },
                 )
             } else {
                 overlay = CalendarOverlay.None
