@@ -323,20 +323,12 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
      * Преобразует записи YClients в формат календаря и сохраняет.
      *
      * Правила слияния (на каждый день отдельно):
-     *  - записи из YClients сортируются по `datetime` (по возрастанию) — самое
-     *    раннее занятие оказывается сверху, самое позднее — снизу;
-     *  - если на этом дне уже была запись с таким же именем (сравнение по
-     *    нормализованной форме — см. [normalizeForDedup]), то она
-     *    переиспользуется «как есть» — это сохраняет ручные правки пользователя
-     *    (флаг «пришёл», тип записи: интенсив/диагностика/ученик);
-     *  - локальные записи, которым нет соответствия в YClients (т.е. добавленные
-     *    вручную), кладутся ниже синхронизированных, в исходном порядке;
-     *  - дубли внутри одного батча (несколько визитов одного клиента в один
-     *    день) сворачиваются в одну запись; если хотя бы один из визитов
-     *    помечен «пришёл», именно он попадает в календарь;
-     *  - если в дне уже лежали несколько записей с одинаковым нормализованным
-     *    именем (остатки от старой логики), они тоже схлопываются — приоритет
-     *    у записи с отметкой посещения.
+     *  - записи из YClients сортируются по времени — это сохраняет порядок расписания;
+     *  - поддерживается несколько занятий одного ребенка в один день (они различаются по времени);
+     *  - при сопоставлении сначала ищем идеальный матч (имя + время), затем матч по имени
+     *    среди записей без времени (ручных), чтобы «подхватить» их и обновить данными из API;
+     *  - локальные записи, которым нет соответствия в YClients, сохраняются в конце списка;
+     *  - при обновлении существующей записи сохраняется её локальное имя (если пользователь его правил).
      *
      * Возвращает количество новых записей, реально добавленных в календарь.
      */
@@ -358,65 +350,53 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         for ((date, dayRecords) in recordsByDate) {
             val existingRaw = currentDayData[date].orEmpty()
 
-            // Группируем уже существующие записи по ключу. Если на день лежат
-            // дубли (например, после миграции данных) — берём ту, что отмечена
-            // «пришёл», чтобы не терять отметку посещения.
-            val existingByName: Map<String, String> = existingRaw
-                .mapNotNull { entry ->
-                    val key = sessionDisplayName(entry)?.normalizeForDedup()
-                    if (key.isNullOrEmpty()) null else key to entry
-                }
-                .groupBy({ it.first }, { it.second })
-                .mapValues { (_, entries) ->
-                    entries.maxByOrNull { SessionParser.getStatus(it).mergePriority }
-                        ?: entries.first()
-                }
+            // Пул существующих записей для сопоставления.
+            // При нахождении соответствия запись удаляется из пула.
+            val pool = existingRaw.map { it to SessionParser.parse(it) }.toMutableList()
 
-            // Свернём дубли визитов одного клиента в один день: оставим
-            // самый ранний по времени, но с «лучшим» флагом посещения.
+            // Сортируем и схлопываем только полные дубли YClients (если есть)
             val collapsedRecords = collapseDuplicateRecords(dayRecords)
-
-            val seenKeys = mutableSetOf<String>()
             val syncedEntries = mutableListOf<String>()
 
-            for ((key, record) in collapsedRecords) {
-                if (!seenKeys.add(key)) continue
+            for ((_, record) in collapsedRecords) {
+                val recordName = extractClientName(record)
+                val recordTime = formatRecordTime(record)
+                val normalizedRecordName = recordName.normalizeForDedup()
 
-                val existingEntry = existingByName[key]
-                if (existingEntry != null) {
-                    // Обновляем существующую запись с новыми данными из YClients
-                    syncedEntries += updateEntryFromRecord(existingEntry, record, userProfile)
+                // 1. Ищем идеальное совпадение: имя + время
+                var matchIndex = pool.indexOfFirst { (_, session) ->
+                    extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
+                            extractSessionTime(session) == recordTime
+                }
+
+                // 2. Если не нашли, ищем по имени среди записей БЕЗ времени (ручные)
+                if (matchIndex == -1) {
+                    matchIndex = pool.indexOfFirst { (_, session) ->
+                        extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
+                                extractSessionTime(session).isEmpty()
+                    }
+                }
+
+                // 3. Если всё равно не нашли, ищем просто по имени (мало ли время немного не совпало)
+                if (matchIndex == -1) {
+                    matchIndex = pool.indexOfFirst { (_, session) ->
+                        extractSessionName(session).normalizeForDedup() == normalizedRecordName
+                    }
+                }
+
+                if (matchIndex != -1) {
+                    val (existingRawEntry, _) = pool.removeAt(matchIndex)
+                    syncedEntries += updateEntryFromRecord(existingRawEntry, record, userProfile)
                 } else {
                     syncedEntries += createEntryFromRecord(record, userProfile)
                     newlyAdded++
                 }
             }
 
-            // Под синхронизированными — ручные записи. Параллельно схлопываем
-            // случайно образовавшиеся дубли по нормализованному имени, оставляя
-            // запись с отметкой «пришёл», если такая есть.
-            val leftover = mutableListOf<String>()
-            val leftoverIndexByKey = mutableMapOf<String, Int>()
-            for (entry in existingRaw) {
-                val key = sessionDisplayName(entry)?.normalizeForDedup()
-                if (key.isNullOrEmpty()) {
-                    leftover += entry
-                    continue
-                }
-                if (key in seenKeys) continue
+            // То, что осталось в пуле — это записи, которых нет в YClients (ручные или из других источников)
+            val leftover = pool.map { it.first }
 
-                val existingIdx = leftoverIndexByKey[key]
-                if (existingIdx == null) {
-                    leftoverIndexByKey[key] = leftover.size
-                    leftover += entry
-                } else if (
-                    SessionParser.getStatus(entry).mergePriority >
-                    SessionParser.getStatus(leftover[existingIdx]).mergePriority
-                ) {
-                    leftover[existingIdx] = entry
-                }
-            }
-
+            // Итоговый список дня: сначала синхронизированные (в порядке YClients), потом остальные.
             val merged = syncedEntries + leftover
             if (merged != existingRaw) {
                 currentDayData[date] = merged
@@ -432,27 +412,27 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Свернёт несколько записей одного клиента в одном дне в одну.
-     *
-     * Возвращает пары `(нормализованный ключ, запись)` в порядке самого
-     * раннего визита. Если у клиента было несколько визитов и хотя бы один
-     * с отметкой посещения — используется именно он (но позиция в списке
-     * остаётся «по времени первого визита»).
+     * Свернёт полные дубли записей в YClients, если они есть.
+     * Теперь НЕ схлопывает разные занятия одного клиента в один день (разное время = разные записи).
      */
     private fun collapseDuplicateRecords(
         dayRecords: List<RecordData>,
     ): List<Pair<String, RecordData>> {
         val ordered = LinkedHashMap<String, RecordData>()
+        // Сортируем по времени, чтобы порядок в календаре был естественным
         for (record in dayRecords.sortedBy { it.datetime ?: it.date }) {
             val name = extractClientName(record)
             if (name.isBlank()) continue
-            val key = name.normalizeForDedup()
-            if (key.isEmpty()) continue
+            val time = formatRecordTime(record)
+
+            // Ключ теперь включает время, чтобы не схлопывать разные сессии
+            val key = name.normalizeForDedup() + "|" + time
 
             val previous = ordered[key]
             if (previous == null) {
                 ordered[key] = record
             } else {
+                // Если вдруг в YClients две записи на одно и то же время, берем ту, где статус «лучше»
                 val previousStatus = mapAttendanceStatus(previous)
                 val currentStatus = mapAttendanceStatus(record)
                 if (currentStatus.mergePriority > previousStatus.mergePriority) {
@@ -463,12 +443,16 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         return ordered.entries.map { it.key to it.value }
     }
 
-    /** Имя из сериализованной записи дня (для всех типов сессий). */
-    private fun sessionDisplayName(raw: String): String? =
-        when (val session = SessionParser.parse(raw)) {
-            is Session.Student -> session.name.takeIf { it.isNotBlank() }
-            is Session.Extra -> session.name.takeIf { it.isNotBlank() }
-        }
+    private fun extractSessionName(session: Session): String = when (session) {
+        is Session.Student -> session.name
+        is Session.Extra -> session.name
+    }
+
+    private fun extractSessionTime(session: Session): String = when (session) {
+        is Session.Student -> session.time
+        is Session.Diagnostics -> session.time
+        is Session.Intensive -> ""
+    }
 
     /**
      * Нормализованный ключ для сравнения имён клиента.
