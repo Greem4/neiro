@@ -66,9 +66,9 @@ private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
 private val StatusLavender = Color(0xFFA7B2FF)
-private val StatusPeach = Color(0xFFFFAD80)
 private val StatusRed = Color(0xFFF44336)
 private val StatusGreen = Color(0xFF4CAF50)
+private val StatusMint = Color(0xFFB2DFDB)
 
 /**
  * Данные для отображения записи в расписании.
@@ -475,7 +475,7 @@ private fun StatsRow(stats: DayStats) {
         StatBadge(
             icon = Icons.Rounded.History,
             count = stats.expectedCount,
-            color = StatusGreen,
+            color = StatusMint,
             label = "ожидают",
             modifier = Modifier.weight(1f),
         )
@@ -493,7 +493,7 @@ private fun StatsRow(stats: DayStats) {
         StatBadge(
             icon = Icons.Rounded.Add,
             count = stats.arrivedCount,
-            color = StatusPeach,
+            color = StatusGreen,
             label = "пришли",
             modifier = Modifier.weight(1f),
         )
@@ -512,14 +512,14 @@ private fun StatsRow(stats: DayStats) {
         Spacer(modifier = Modifier.height(8.dp))
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = StatusGreen.copy(alpha = 0.15f),
         ) {
             Text(
                 text = "Итого: ${formatRubles(stats.totalMoney)}",
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = StatusGreen,
             )
         }
     }
