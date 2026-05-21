@@ -191,7 +191,12 @@ private fun DayDetailsContent(
                                 is Session.Student -> parsed.name
                                 is Session.Extra -> parsed.name
                             }
-                            name == entry.name && (if (parsed is Session.Student) parsed.time else "") == entry.time
+                            val time = when (parsed) {
+                                is Session.Student -> parsed.time
+                                is Session.Diagnostics -> parsed.time
+                                else -> ""
+                            }
+                            name == entry.name && time == entry.time
                         }
 
                         if (isPlanningMode) {
@@ -233,13 +238,14 @@ private fun DayDetailsContent(
                         } else {
                             ScheduleSlotItem(
                                 time = entry.time,
-                                name = if (entry.isExtra) {
+                                name = if (entry.isExtra && entry.extraType != "Диагностика") {
                                     "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
                                 } else {
                                     entry.name
                                 },
                                 comment = entry.comment,
                                 status = entry.status,
+                                isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
                             )
                         }
                     }
@@ -546,7 +552,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 
             is Session.Diagnostics -> ScheduleEntry(
                 name = session.name,
-                time = "",
+                time = session.time,
                 comment = "",
                 status = when {
                     isDeleted -> AttendanceStatus.CANCELLED

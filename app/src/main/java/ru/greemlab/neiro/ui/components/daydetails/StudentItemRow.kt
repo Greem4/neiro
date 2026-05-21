@@ -46,7 +46,7 @@ fun StudentItemRow(
             MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
 
         StudentItemType.DIAGNOSTICS ->
-            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+            Color(0xFF5C6BC0)
 
         else -> if (isDragging) {
             MaterialTheme.colorScheme.surfaceVariant
@@ -87,13 +87,14 @@ fun StudentItemRow(
                     else "Отметить как «пришёл»",
                     tint = when {
                         !student.attended ->
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            if (student.type == StudentItemType.DIAGNOSTICS) Color.White.copy(alpha = 0.6f) 
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 
                         student.type == StudentItemType.INTENSIVE ->
                             MaterialTheme.colorScheme.tertiary
 
                         student.type == StudentItemType.DIAGNOSTICS ->
-                            MaterialTheme.colorScheme.secondary
+                            Color.White
 
                         else -> MaterialTheme.colorScheme.primary
                     },
@@ -102,13 +103,13 @@ fun StudentItemRow(
 
             if (isPlanningMode) {
                 Column(modifier = Modifier.weight(1f)) {
-                    if (student.type == StudentItemType.STUDENT) {
+                    if (student.type != StudentItemType.INTENSIVE) {
                         TextField(
                             value = student.name,
                             onValueChange = onNameChange,
                             placeholder = {
                                 Text(
-                                    "Фамилия ${index + 1}",
+                                    if (student.type == StudentItemType.DIAGNOSTICS) "Имя (диагностика)" else "Фамилия ${index + 1}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 )
@@ -119,10 +120,11 @@ fun StudentItemRow(
                             singleLine = true,
                             colors = transparentTextFieldColors(),
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = if (student.type == StudentItemType.DIAGNOSTICS) FontWeight.Bold else FontWeight.Normal,
                                 color = if (student.attended) {
-                                    MaterialTheme.colorScheme.onSurface
+                                    if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.onSurface
                                 } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    (if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.5f)
                                 },
                             ),
                         )
@@ -156,27 +158,20 @@ fun StudentItemRow(
                             )
 
                             Text(
-                                text = if (student.type == StudentItemType.INTENSIVE) {
-                                    "Интенсив"
-                                } else "Диагностика",
+                                text = "Интенсив",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (student.type == StudentItemType.INTENSIVE) {
-                                    MaterialTheme.colorScheme.tertiary
-                                } else {
-                                    MaterialTheme.colorScheme.secondary
-                                },
+                                color = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
                             )
                         }
                     }
                 }
             } else {
-                val displayText = if (student.type != StudentItemType.STUDENT) {
-                    val label = if (student.type == StudentItemType.INTENSIVE) "Интенсив" else "Диагностика"
-                    "$label: ${student.price} ₽"
+                val displayText = if (student.type == StudentItemType.INTENSIVE) {
+                    "Интенсив: ${student.price} ₽"
                 } else {
-                    student.name.ifEmpty { "Без имени" }
+                    student.name.ifEmpty { if (student.type == StudentItemType.DIAGNOSTICS) "Диагностика" else "Без имени" }
                 }
 
                 Text(
@@ -186,9 +181,9 @@ fun StudentItemRow(
                         .padding(start = 16.dp, top = 14.dp, bottom = 14.dp),
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (student.attended) {
-                        MaterialTheme.colorScheme.onSurface
+                        if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.onSurface
                     } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        (if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.5f)
                     },
                     fontWeight = if (student.type != StudentItemType.STUDENT) {
                         FontWeight.Bold
@@ -216,7 +211,7 @@ fun StudentItemRow(
                 Icon(
                     imageVector = Icons.Default.DragHandle,
                     contentDescription = "Перетащить запись",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    tint = (if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.4f),
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -225,7 +220,7 @@ fun StudentItemRow(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Удалить запись",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                    tint = (if (student.type == StudentItemType.DIAGNOSTICS) Color.White else MaterialTheme.colorScheme.error).copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp),
                 )
             }

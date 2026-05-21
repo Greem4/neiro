@@ -115,6 +115,7 @@ sealed interface Session {
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
+        val time: String = "",
     ) : Extra
 }
 
@@ -225,19 +226,26 @@ object SessionParser {
         }
         var name = ""
         var attended = true // Старые записи без флага считаем посещёнными.
+        var time = ""
         if (firstSep >= 0) {
             val secondSep = raw.indexOf('|', startIndex = firstSep + 1)
             if (secondSep < 0) {
                 name = raw.substring(firstSep + 1)
             } else {
                 name = raw.substring(firstSep + 1, secondSep)
-                attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                val thirdSep = raw.indexOf('|', startIndex = secondSep + 1)
+                if (thirdSep < 0) {
+                    attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                } else {
+                    attended = raw.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
+                    time = raw.substring(thirdSep + 1)
+                }
             }
         }
         return if (intensive) {
             Session.Intensive(amount, name, attended)
         } else {
-            Session.Diagnostics(amount, name, attended)
+            Session.Diagnostics(amount, name, attended, time)
         }
     }
 
@@ -274,6 +282,6 @@ object SessionFormat {
     fun serializeIntensive(price: String, name: String, attended: Boolean): String =
         "$INTENSIVE_PREFIX$price|$name|$attended"
 
-    fun serializeDiagnostics(price: String, name: String, attended: Boolean): String =
-        "$DIAGNOSTICS_PREFIX$price|$name|$attended"
+    fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
+        "$DIAGNOSTICS_PREFIX$price|$name|$attended|$time"
 }

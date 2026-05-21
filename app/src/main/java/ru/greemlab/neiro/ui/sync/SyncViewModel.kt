@@ -13,6 +13,7 @@ import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -165,6 +166,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun mergeRecordsToCalendar(records: List<RecordData>): Int {
         if (records.isEmpty()) return 0
 
+        val userProfile = calendarRepository.userProfileFlow.first()
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var newlyAdded = 0
         var changedDays = 0
@@ -206,9 +208,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 val existingEntry = existingByName[key]
                 if (existingEntry != null) {
                     // Обновляем существующую запись с новыми данными из YClients
-                    syncedEntries += updateEntryFromRecord(existingEntry, record)
+                    syncedEntries += updateEntryFromRecord(existingEntry, record, userProfile)
                 } else {
-                    syncedEntries += createEntryFromRecord(record)
+                    syncedEntries += createEntryFromRecord(record, userProfile)
                     newlyAdded++
                 }
             }
@@ -355,9 +357,26 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Создаёт новую запись из данных YClients с расширенным форматом.
      */
-    private fun createEntryFromRecord(record: RecordData): String {
+    private fun createEntryFromRecord(record: RecordData, userProfile: UserProfile): String {
         val clientName = extractClientName(record)
         val status = mapAttendanceStatus(record)
+
+        // Если услуга содержит «диагностика», создаем специальную запись
+        val isDiagnostics = record.services?.any {
+            it.title?.contains("диагностика", ignoreCase = true) == true
+        } == true
+
+        if (isDiagnostics) {
+            val price = userProfile.pricePerDiagnostics.toInt().toString()
+            val time = formatRecordTime(record)
+            return SessionFormat.serializeDiagnostics(
+                price = price,
+                name = clientName,
+                attended = status == AttendanceStatus.ARRIVED,
+                time = time,
+            )
+        }
+
         val time = formatRecordTime(record)
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
@@ -375,11 +394,40 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
      * Обновляет существующую запись с новыми данными из YClients.
      * Сохраняет локальные изменения, но обновляет время, телефон и комментарий.
      */
-    private fun updateEntryFromRecord(existingEntry: String, record: RecordData): String {
+    private fun updateEntryFromRecord(
+        existingEntry: String,
+        record: RecordData,
+        userProfile: UserProfile,
+    ): String {
         val session = SessionParser.parse(existingEntry)
-        if (session !is Session.Student) return existingEntry
-
+        val clientName = extractClientName(record)
         val status = mapAttendanceStatus(record)
+
+        // Если в YClients это диагностика, обновляем тип записи, даже если раньше был Student
+        val isDiagnosticsInYClients = record.services?.any {
+            it.title?.contains("диагностика", ignoreCase = true) == true
+        } == true
+
+        if (isDiagnosticsInYClients) {
+            val price = userProfile.pricePerDiagnostics.toInt().toString()
+            val time = formatRecordTime(record)
+            return SessionFormat.serializeDiagnostics(
+                price = price,
+                name = clientName,
+                attended = status == AttendanceStatus.ARRIVED,
+                time = time,
+            )
+        }
+
+        // Если это не диагностика, но была диагностикой — превращаем в Student?
+        // Наверное, лучше оставить как есть или обновить как Student, если в YClients это обычная услуга.
+        if (session !is Session.Student) {
+            // Если в YClients это НЕ диагностика, но локально это была диагностика/интенсив,
+            // мы могли бы захотеть конвертировать её обратно в Student, если имена совпадают.
+            // Но пока просто обновим обычные записи.
+            return existingEntry
+        }
+
         val time = formatRecordTime(record)
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()

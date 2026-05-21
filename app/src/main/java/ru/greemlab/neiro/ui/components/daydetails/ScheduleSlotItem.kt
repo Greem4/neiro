@@ -53,6 +53,7 @@ fun ScheduleSlotItem(
     comment: String,
     status: AttendanceStatus,
     modifier: Modifier = Modifier,
+    isDiagnostics: Boolean = false,
 ) {
     val statusColor = when (status) {
         AttendanceStatus.EXPECTED -> StatusGreen
@@ -61,7 +62,14 @@ fun ScheduleSlotItem(
         AttendanceStatus.CANCELLED -> StatusRed
     }
 
-    val backgroundColor = statusColor.copy(alpha = 0.12f)
+    val backgroundColor = if (isDiagnostics) {
+        Color(0xFF5C6BC0)
+    } else {
+        statusColor.copy(alpha = 0.12f)
+    }
+
+    val contentColor = if (isDiagnostics) Color.White else MaterialTheme.colorScheme.onSurface
+    val secondaryContentColor = if (isDiagnostics) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -80,7 +88,7 @@ fun ScheduleSlotItem(
                     .width(4.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
-                    .background(statusColor)
+                    .background(if (isDiagnostics) Color.White.copy(alpha = 0.4f) else statusColor)
             )
 
             // Время
@@ -89,7 +97,7 @@ fun ScheduleSlotItem(
                     text = time.substringBefore("-"),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = contentColor,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -108,7 +116,7 @@ fun ScheduleSlotItem(
                         text = name.ifEmpty { "Без имени" },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = contentColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
@@ -117,13 +125,12 @@ fun ScheduleSlotItem(
                         Text(
                             text = " $comment",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = secondaryContentColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
-
             }
 
             // Индикатор статуса
@@ -132,7 +139,7 @@ fun ScheduleSlotItem(
                     .padding(end = 8.dp)
                     .size(28.dp),
                 shape = CircleShape,
-                color = statusColor,
+                color = if (isDiagnostics) Color.White.copy(alpha = 0.2f) else statusColor,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -149,7 +156,7 @@ fun ScheduleSlotItem(
                             AttendanceStatus.ARRIVED -> "Пришёл"
                             AttendanceStatus.CANCELLED -> "Не пришёл"
                         },
-                        tint = Color.White,
+                        tint = if (isDiagnostics) Color.White else Color.White,
                         modifier = Modifier.size(18.dp),
                     )
                 }
