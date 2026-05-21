@@ -8,6 +8,8 @@ import androidx.compose.runtime.Immutable
 @Immutable
 data class CalendarMonthStats(
     val completedCount: Int,
+    val completedSessionsCount: Int = 0,
+    val completedDiagnosticsCount: Int = 0,
     val totalScheduled: Int,
     val remainingCount: Int,
     val totalEarned: Double,
@@ -20,6 +22,8 @@ data class CalendarMonthStats(
     companion object {
         val Empty = CalendarMonthStats(
             completedCount = 0,
+            completedSessionsCount = 0,
+            completedDiagnosticsCount = 0,
             totalScheduled = 0,
             remainingCount = 0,
             totalEarned = 0.0,

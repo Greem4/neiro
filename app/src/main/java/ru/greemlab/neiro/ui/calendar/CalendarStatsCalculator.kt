@@ -32,6 +32,8 @@ internal fun computeMonthStats(
     monthlyTaxAmount: Double,
 ): CalendarMonthStats {
     var completed = 0
+    var completedSessions = 0
+    var completedDiagnostics = 0
     var scheduled = 0
     var grossEarned = 0.0
     var intensiveEarnings = 0.0
@@ -63,6 +65,7 @@ internal fun computeMonthStats(
                     val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
                     if (session.attended) {
                         completed++
+                        completedDiagnostics++
                         diagnosticsEarnings += price
                         grossEarned += price
                     } else {
@@ -74,6 +77,7 @@ internal fun computeMonthStats(
                     scheduled++
                     if (session.attended) {
                         completed++
+                        completedSessions++
                         grossEarned += pricePerSession
                     } else {
                         expectedIncome += pricePerSession
@@ -89,6 +93,8 @@ internal fun computeMonthStats(
 
     return CalendarMonthStats(
         completedCount = completed,
+        completedSessionsCount = completedSessions,
+        completedDiagnosticsCount = completedDiagnostics,
         totalScheduled = scheduled,
         remainingCount = scheduled - completed,
         totalEarned = grossEarned,

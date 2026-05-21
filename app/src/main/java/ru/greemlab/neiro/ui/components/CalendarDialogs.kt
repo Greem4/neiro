@@ -53,6 +53,23 @@ fun LessonsDetailsDialog(
                     color = MaterialTheme.colorScheme.primary,
                     isBold = true,
                 )
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LessonStatRow(
+                        label = "— Занятий",
+                        value = stats.completedSessionsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LessonStatRow(
+                        label = "— Диагностик",
+                        value = stats.completedDiagnosticsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 LessonStatRow(
                     label = "Всего запланировано",
