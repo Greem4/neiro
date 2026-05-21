@@ -169,21 +169,6 @@ fun ProfitDetailsDialog(
                     )
                 }
 
-                if (stats.statsByStudent.size > 1) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    Text(
-                        text = "Доход по ученикам:",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    stats.statsByStudent.values.sortedByDescending { it.totalEarned }.forEach { student ->
-                        ProfitRow(
-                            label = "— ${student.name}",
-                            value = student.totalEarned,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
 
                 ProfitRow(
                     label = "Ожидаемый доход",
