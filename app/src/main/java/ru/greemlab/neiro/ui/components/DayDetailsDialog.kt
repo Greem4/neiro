@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -36,10 +36,23 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
+import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.components.daydetails.ScheduleSlotItem
 import ru.greemlab.neiro.ui.util.RU_LOCALE
@@ -90,6 +103,7 @@ fun DayDetailsDialog(
             initialNames = initialNames,
             userProfile = userProfile,
             onDismiss = onDismiss,
+            onSave = { onSave(it, false, false) }
         )
     }
 }
@@ -100,9 +114,13 @@ private fun DayDetailsContent(
     initialNames: List<String>,
     userProfile: UserProfile,
     onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit,
 ) {
-    val entries = remember(initialNames) {
-        parseEntries(initialNames)
+    val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
+    var isPlanningMode by remember { mutableStateOf(false) }
+
+    val entries = remember(currentNames.toList()) {
+        parseEntries(currentNames)
     }
 
     val stats = remember(entries, userProfile.pricePerSession) {
@@ -126,12 +144,26 @@ private fun DayDetailsContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Заголовок
-            Text(
-                text = dateText,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = dateText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                IconButton(
+                    onClick = { isPlanningMode = !isPlanningMode },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
+                        contentDescription = "Режим редактирования",
+                        tint = if (isPlanningMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -141,7 +173,7 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Список записей
-            if (entries.isEmpty()) {
+            if (entries.isEmpty() && !isPlanningMode) {
                 EmptySchedule()
             } else {
                 LazyColumn(
@@ -151,30 +183,198 @@ private fun DayDetailsContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
-                    items(entries, key = { "${it.name}_${it.time}" }) { entry ->
-                        ScheduleSlotItem(
-                            time = entry.time,
-                            name = if (entry.isExtra) {
-                                "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
-                            } else {
-                                entry.name
-                            },
-                            comment = entry.comment,
-                            status = entry.status,
-                        )
+                    items(entries.size) { index ->
+                        val entry = entries[index]
+                        val rawIndex = currentNames.indexOfFirst {
+                            val parsed = SessionParser.parse(it)
+                            val name = when (parsed) {
+                                is Session.Student -> parsed.name
+                                is Session.Extra -> parsed.name
+                            }
+                            name == entry.name && (if (parsed is Session.Student) parsed.time else "") == entry.time
+                        }
+
+                        if (isPlanningMode) {
+                            EditSessionItem(
+                                entry = entry,
+                                onDelete = {
+                                    if (rawIndex >= 0) currentNames.removeAt(rawIndex)
+                                },
+                                onPriceChange = { newPrice ->
+                                    if (rawIndex >= 0) {
+                                        val currentRaw = currentNames[rawIndex]
+                                        val parsed = SessionParser.parse(currentRaw)
+                                        if (parsed is Session.Extra) {
+                                            val updated = if (parsed is Session.Intensive) {
+                                                SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.attended)
+                                            } else {
+                                                SessionFormat.serializeDiagnostics(newPrice, parsed.name, parsed.attended)
+                                            }
+                                            currentNames[rawIndex] = updated
+                                        }
+                                    }
+                                },
+                                onNameChange = { newName ->
+                                    if (rawIndex >= 0) {
+                                        val currentRaw = currentNames[rawIndex]
+                                        val parsed = SessionParser.parse(currentRaw)
+                                        if (parsed is Session.Extra) {
+                                            val priceStr = parsed.amount.toInt().toString()
+                                            val updated = if (parsed is Session.Intensive) {
+                                                SessionFormat.serializeIntensive(priceStr, newName, parsed.attended)
+                                            } else {
+                                                SessionFormat.serializeDiagnostics(priceStr, newName, parsed.attended)
+                                            }
+                                            currentNames[rawIndex] = updated
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            ScheduleSlotItem(
+                                time = entry.time,
+                                name = if (entry.isExtra) {
+                                    "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
+                                } else {
+                                    entry.name
+                                },
+                                comment = entry.comment,
+                                status = entry.status,
+                            )
+                        }
+                    }
+
+                    if (isPlanningMode) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ExtraButtonsRow(
+                                onAddIntensive = {
+                                    currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
+                                },
+                                onAddDiagnostics = {
+                                    currentNames.add(SessionFormat.serializeDiagnostics("2000", "Диагностика", true))
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопка закрытия
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End),
+            // Кнопки действий
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                Text("Закрыть", fontWeight = FontWeight.Medium)
+                TextButton(onClick = onDismiss) {
+                    Text("Закрыть", fontWeight = FontWeight.Medium)
+                }
+                if (isPlanningMode) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onSave(currentNames.toList()) },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Сохранить")
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun EditSessionItem(
+    entry: ScheduleEntry,
+    onDelete: () -> Unit,
+    onPriceChange: (String) -> Unit,
+    onNameChange: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (entry.isExtra) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TextField(
+                            value = if (entry.extraAmount == 0.0) "" else entry.extraAmount.toInt().toString(),
+                            onValueChange = onPriceChange,
+                            label = { Text(entry.extraType, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.width(100.dp),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextField(
+                            value = entry.name,
+                            onValueChange = onNameChange,
+                            placeholder = { Text("Имя") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                    }
+                } else {
+                    Text(
+                        text = entry.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (entry.time.isNotEmpty()) {
+                        Text(text = entry.time, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Rounded.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExtraButtonsRow(
+    onAddIntensive: () -> Unit,
+    onAddDiagnostics: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TextButton(
+            onClick = onAddIntensive,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Icon(Icons.Rounded.Add, null)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Интенсив")
+        }
+        TextButton(
+            onClick = onAddDiagnostics,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Icon(Icons.Rounded.Add, null)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Диагностика")
         }
     }
 }
@@ -404,10 +604,11 @@ private fun DayDetailsLightPreview() {
                         "Зорин Владимир|1|11:00-11:50|+79151234538|2.8Г",
                         "Медников Владимир|0|12:00-13:00|+79621234536|5,9/ Рома 2,11л",
                         "Савельев Михаил|3|13:00-13:50|+79621234582|5л",
-                        "Якубов Рашит|2|14:00-14:50|+79681234569|6,11л",
+                        "Якуборов Рашит|2|14:00-14:50|+79681234569|6,11л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     onDismiss = {},
+                    onSave = {},
                 )
             }
         }
@@ -428,6 +629,7 @@ private fun DayDetailsDarkPreview() {
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     onDismiss = {},
+                    onSave = {},
                 )
             }
         }
@@ -445,6 +647,7 @@ private fun DayDetailsEmptyPreview() {
                     initialNames = emptyList(),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     onDismiss = {},
+                    onSave = {},
                 )
             }
         }
