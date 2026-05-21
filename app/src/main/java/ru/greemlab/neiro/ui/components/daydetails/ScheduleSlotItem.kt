@@ -57,6 +57,12 @@ fun ScheduleSlotItem(
         AttendanceStatus.EXPECTED -> Icons.Rounded.History
     }
 
+    val indicatorColor = when {
+        status == AttendanceStatus.CANCELLED -> Color(0xFFF44336)
+        isDiagnostics -> Color(0xFF5C6BC0)
+        else -> ScheduleHeaderGreen
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -69,13 +75,13 @@ fun ScheduleSlotItem(
                 .height(56.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Зеленая полоска слева («поле зеленое»)
+            // Полоска слева
             Box(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
-                    .background(if (isDiagnostics) Color(0xFF5C6BC0) else ScheduleHeaderGreen)
+                    .background(indicatorColor)
             )
 
             // Время (стандартный цвет)
@@ -116,7 +122,7 @@ fun ScheduleSlotItem(
                 }
             }
 
-            // Иконка (зеленая на белом)
+            // Иконка
             Surface(
                 modifier = Modifier
                     .padding(end = 8.dp)
@@ -128,7 +134,7 @@ fun ScheduleSlotItem(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isDiagnostics) Color(0xFF5C6BC0) else ScheduleHeaderGreen,
+                        tint = indicatorColor,
                         modifier = Modifier.size(16.dp),
                     )
                 }

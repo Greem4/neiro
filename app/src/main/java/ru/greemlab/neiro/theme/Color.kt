@@ -50,7 +50,7 @@ val ScheduleHeaderGreen = Color(0xFF33AB84)
 val StatusExpectedMint = Color(0xFFB2DFDB)
 
 /** Цвет отмены (минус). */
-val StatusRedBody = Color(0xFFFF8A80)
+val StatusRedBody = Color(0xFFF44336)
 
 /** Фирменный жёлтый YClients — используется для кнопки входа/синхронизации с YClients. */
 val YClientsYellow = Color(0xFFFFCD00)
