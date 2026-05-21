@@ -123,4 +123,44 @@ class SessionParserTest {
         assertEquals("Сидоров", parsed.name)
         assertFalse(parsed.attended)
     }
+
+    @Test
+    fun `parses extended student with arrived status and earnings flag`() {
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Иванов",
+            status = AttendanceStatus.ARRIVED,
+            time = "10:00-11:00",
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals(AttendanceStatus.ARRIVED, parsed.status)
+        assertTrue(parsed.attended)
+    }
+
+    @Test
+    fun `parses extended student with confirmed status without earnings`() {
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Петров",
+            status = AttendanceStatus.CONFIRMED,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals(AttendanceStatus.CONFIRMED, parsed.status)
+        assertFalse(parsed.attended)
+    }
+
+    @Test
+    fun `fromYClients maps api codes to app statuses`() {
+        assertEquals(AttendanceStatus.EXPECTED, AttendanceStatus.fromYClients(0))
+        assertEquals(AttendanceStatus.ARRIVED, AttendanceStatus.fromYClients(1))
+        assertEquals(AttendanceStatus.CONFIRMED, AttendanceStatus.fromYClients(2))
+        assertEquals(AttendanceStatus.CANCELLED, AttendanceStatus.fromYClients(-1))
+    }
+
+    @Test
+    fun `resolveFromRecord prefers stronger visit status`() {
+        val status = AttendanceStatus.resolveFromRecord(
+            attendance = 0,
+            visitAttendance = 1,
+        )
+        assertEquals(AttendanceStatus.ARRIVED, status)
+    }
 }

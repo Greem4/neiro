@@ -34,6 +34,7 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
 private val StatusGreen = Color(0xFF4CAF50)
+private val StatusGreenDark = Color(0xFF2E7D32)
 private val StatusOrange = Color(0xFFFF9800)
 private val StatusRed = Color(0xFFF44336)
 
@@ -56,6 +57,7 @@ fun ScheduleSlotItem(
     val statusColor = when (status) {
         AttendanceStatus.EXPECTED -> StatusGreen
         AttendanceStatus.CONFIRMED -> StatusOrange
+        AttendanceStatus.ARRIVED -> StatusGreenDark
         AttendanceStatus.CANCELLED -> StatusRed
     }
 
@@ -136,13 +138,16 @@ fun ScheduleSlotItem(
                     Icon(
                         imageVector = when (status) {
                             AttendanceStatus.EXPECTED -> Icons.Rounded.Add
-                            AttendanceStatus.CONFIRMED -> Icons.Rounded.Check
+                            AttendanceStatus.CONFIRMED,
+                            AttendanceStatus.ARRIVED,
+                            -> Icons.Rounded.Check
                             AttendanceStatus.CANCELLED -> Icons.Rounded.Remove
                         },
                         contentDescription = when (status) {
                             AttendanceStatus.EXPECTED -> "Ожидает"
-                            AttendanceStatus.CONFIRMED -> "Подтверждён"
-                            AttendanceStatus.CANCELLED -> "Отменён"
+                            AttendanceStatus.CONFIRMED -> "Подтвердил, что придёт"
+                            AttendanceStatus.ARRIVED -> "Пришёл"
+                            AttendanceStatus.CANCELLED -> "Не пришёл"
                         },
                         tint = Color.White,
                         modifier = Modifier.size(18.dp),
@@ -171,6 +176,13 @@ private fun ScheduleSlotItemPreviewExpected() {
                 name = "Зорин Владимир",
                 comment = "2.8Г",
                 status = AttendanceStatus.CONFIRMED,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            ScheduleSlotItem(
+                time = "12:00-12:50",
+                name = "Савельев Михаил",
+                comment = "5л",
+                status = AttendanceStatus.ARRIVED,
             )
             Spacer(modifier = Modifier.height(8.dp))
             ScheduleSlotItem(

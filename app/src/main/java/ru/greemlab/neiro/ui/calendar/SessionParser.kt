@@ -3,26 +3,60 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Immutable
 
 /**
- * Статус записи из YClients.
+ * Статус записи (синхронизация с YClients и локальное хранение).
  *
- *  - [EXPECTED] (0) — ожидает подтверждения, можно зачислить деньги
- *  - [CONFIRMED] (1) — подтверждён, придёт
- *  - [CANCELLED] (2) — не будет, не учитываем в деньгах
+ *  - [EXPECTED] (0) — ожидание, «+», в деньги не входит
+ *  - [CONFIRMED] (1) — подтвердил, что придёт, «галка», в деньги не входит
+ *  - [CANCELLED] (2) — не пришёл / отказ, «−», в деньги не входит
+ *  - [ARRIVED] (3) — пришёл, занятие проведено, в деньги входит
  */
 enum class AttendanceStatus(val code: Int) {
-    EXPECTED(0),   // + зелёный, можно зачислять
-    CONFIRMED(1),  // ✓ оранжевый, подтверждён
-    CANCELLED(2);  // - красный, не будет
+    EXPECTED(0),
+    CONFIRMED(1),
+    CANCELLED(2),
+    ARRIVED(3);
+
+    /** Учитывается в заработке (только «пришёл»). */
+    val countsTowardEarnings: Boolean get() = this == ARRIVED
+
+    /** Приоритет при слиянии нескольких визитов одного клиента за день. */
+    val mergePriority: Int
+        get() = when (this) {
+            ARRIVED -> 4
+            CONFIRMED -> 3
+            EXPECTED -> 2
+            CANCELLED -> 1
+        }
 
     companion object {
         fun fromCode(code: Int): AttendanceStatus = when (code) {
             1 -> CONFIRMED
             2 -> CANCELLED
+            3 -> ARRIVED
             else -> EXPECTED
         }
 
+        /** Коды YClients: -1 не пришёл, 0 ожидание, 1 пришёл, 2 подтвердил. */
+        fun fromYClients(code: Int): AttendanceStatus = when (code) {
+            -1 -> CANCELLED
+            1 -> ARRIVED
+            2 -> CONFIRMED
+            else -> EXPECTED
+        }
+
+        fun resolveFromRecord(attendance: Int, visitAttendance: Int?): AttendanceStatus {
+            val fromVisit = visitAttendance?.let { fromYClients(it) }
+            val fromAttendance = fromYClients(attendance)
+            return if (fromVisit == null) {
+                fromAttendance
+            } else {
+                maxOf(fromVisit, fromAttendance, compareBy { it.mergePriority })
+            }
+        }
+
+        /** Старый формат `name|true` — ручная отметка «пришёл». */
         fun fromBoolean(attended: Boolean): AttendanceStatus =
-            if (attended) CONFIRMED else EXPECTED
+            if (attended) ARRIVED else EXPECTED
     }
 }
 
@@ -122,7 +156,7 @@ object SessionParser {
      *
      * Форматы (обратная совместимость):
      *  - Старый: `name|attended` где attended = true/false
-     *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2
+     *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
      */
     private fun parseStudent(raw: String): Session.Student {
         val parts = raw.split('|')
@@ -147,7 +181,7 @@ object SessionParser {
             val comment = parts.getOrNull(4).orEmpty()
             Session.Student(
                 name = name,
-                attended = status == AttendanceStatus.CONFIRMED,
+                attended = status.countsTowardEarnings,
                 time = time,
                 phone = phone,
                 comment = comment,

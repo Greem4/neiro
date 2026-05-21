@@ -189,7 +189,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .groupBy({ it.first }, { it.second })
                 .mapValues { (_, entries) ->
-                    entries.firstOrNull { SessionParser.isAttended(it) } ?: entries.first()
+                    entries.maxByOrNull { SessionParser.getStatus(it).mergePriority }
+                        ?: entries.first()
                 }
 
             // Свернём дубли визитов одного клиента в один день: оставим
@@ -230,8 +231,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                     leftoverIndexByKey[key] = leftover.size
                     leftover += entry
                 } else if (
-                    SessionParser.isAttended(entry) &&
-                    !SessionParser.isAttended(leftover[existingIdx])
+                    SessionParser.getStatus(entry).mergePriority >
+                    SessionParser.getStatus(leftover[existingIdx]).mergePriority
                 ) {
                     leftover[existingIdx] = entry
                 }
@@ -273,9 +274,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             if (previous == null) {
                 ordered[key] = record
             } else {
-                val previousAttended = previous.attendance == 1 || previous.visitAttendance == 1
-                val currentAttended = record.attendance == 1 || record.visitAttendance == 1
-                if (currentAttended && !previousAttended) {
+                val previousStatus = mapAttendanceStatus(previous)
+                val currentStatus = mapAttendanceStatus(record)
+                if (currentStatus.mergePriority > previousStatus.mergePriority) {
                     ordered[key] = record
                 }
             }
@@ -392,19 +393,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /**
-     * Преобразует статус attendance из YClients в [AttendanceStatus].
-     */
-    private fun mapAttendanceStatus(record: RecordData): AttendanceStatus {
-        val attendance = record.attendance
-        val visitAttendance = record.visitAttendance ?: 0
-
-        return when {
-            attendance == 2 || visitAttendance == 2 -> AttendanceStatus.CANCELLED
-            attendance == 1 || visitAttendance == 1 -> AttendanceStatus.CONFIRMED
-            else -> AttendanceStatus.EXPECTED
-        }
-    }
+    /** Преобразует статус визита YClients в [AttendanceStatus]. */
+    private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
+        AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance)
 
     /**
      * Форматирует время записи в виде "HH:mm-HH:mm".

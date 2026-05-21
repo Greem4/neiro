@@ -198,7 +198,7 @@ private fun StatsRow(stats: DayStats) {
             modifier = Modifier.weight(1f),
         )
 
-        // Подтверждены
+        // Подтвердили, что придут
         StatBadge(
             icon = Icons.Rounded.Check,
             count = stats.confirmedCount,
@@ -207,12 +207,21 @@ private fun StatsRow(stats: DayStats) {
             modifier = Modifier.weight(1f),
         )
 
-        // Отменены
+        // Пришли (в деньги)
+        StatBadge(
+            icon = Icons.Rounded.Check,
+            count = stats.arrivedCount,
+            color = Color(0xFF2E7D32),
+            label = "пришли",
+            modifier = Modifier.weight(1f),
+        )
+
+        // Не пришли
         StatBadge(
             icon = Icons.Rounded.Remove,
             count = stats.cancelledCount,
             color = StatusRed,
-            label = "отмена",
+            label = "минус",
             modifier = Modifier.weight(1f),
         )
     }
@@ -300,6 +309,7 @@ private fun EmptySchedule() {
 private data class DayStats(
     val expectedCount: Int,
     val confirmedCount: Int,
+    val arrivedCount: Int,
     val cancelledCount: Int,
     val totalMoney: Double,
 )
@@ -320,7 +330,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = "",
                 comment = "",
-                status = if (session.attended) AttendanceStatus.CONFIRMED else AttendanceStatus.EXPECTED,
+                status = if (session.attended) AttendanceStatus.ARRIVED else AttendanceStatus.EXPECTED,
                 isExtra = true,
                 extraType = "Интенсив",
                 extraAmount = session.amount,
@@ -330,7 +340,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = "",
                 comment = "",
-                status = if (session.attended) AttendanceStatus.CONFIRMED else AttendanceStatus.EXPECTED,
+                status = if (session.attended) AttendanceStatus.ARRIVED else AttendanceStatus.EXPECTED,
                 isExtra = true,
                 extraType = "Диагностика",
                 extraAmount = session.amount,
@@ -344,30 +354,27 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 private fun calculateStats(entries: List<ScheduleEntry>, pricePerSession: Double): DayStats {
     var expected = 0
     var confirmed = 0
+    var arrived = 0
     var cancelled = 0
     var money = 0.0
 
     for (entry in entries) {
         when (entry.status) {
-            AttendanceStatus.EXPECTED -> {
-                expected++
+            AttendanceStatus.EXPECTED -> expected++
+            AttendanceStatus.CONFIRMED -> confirmed++
+            AttendanceStatus.ARRIVED -> {
+                arrived++
                 if (!entry.isExtra) money += pricePerSession
                 else money += entry.extraAmount
             }
-            AttendanceStatus.CONFIRMED -> {
-                confirmed++
-                if (!entry.isExtra) money += pricePerSession
-                else money += entry.extraAmount
-            }
-            AttendanceStatus.CANCELLED -> {
-                cancelled++
-            }
+            AttendanceStatus.CANCELLED -> cancelled++
         }
     }
 
     return DayStats(
         expectedCount = expected,
         confirmedCount = confirmed,
+        arrivedCount = arrived,
         cancelledCount = cancelled,
         totalMoney = money,
     )
@@ -385,7 +392,7 @@ private fun DayDetailsLightPreview() {
                         "Шахабутдинов Тимур|0|10:00-10:50|+79684123493|5л",
                         "Зорин Владимир|1|11:00-11:50|+79151234538|2.8Г",
                         "Медников Владимир|0|12:00-13:00|+79621234536|5,9/ Рома 2,11л",
-                        "Савельев Михаил|1|13:00-13:50|+79621234582|5л",
+                        "Савельев Михаил|3|13:00-13:50|+79621234582|5л",
                         "Якубов Рашит|2|14:00-14:50|+79681234569|6,11л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
@@ -406,7 +413,7 @@ private fun DayDetailsDarkPreview() {
                     date = LocalDate.now(),
                     initialNames = listOf(
                         "Сухова Мария|0|15:00-15:50|+79931234500|5 лет",
-                        "Моторнов Егор|1|16:00-16:50|+79631234575|5л",
+                        "Моторнов Егор|3|16:00-16:50|+79631234575|5л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     onDismiss = {},
