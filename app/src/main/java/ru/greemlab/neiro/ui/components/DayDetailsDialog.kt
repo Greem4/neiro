@@ -18,7 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -176,7 +176,7 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Статистика
-            StatsRow(stats = stats)
+            StatsRow(stats = stats, date = date)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -465,97 +465,82 @@ private fun ExtraButtonsRow(
  * Строка со статистикой дня.
  */
 @Composable
-private fun StatsRow(stats: DayStats) {
-    Row(
+private fun StatsRow(stats: DayStats, date: LocalDate) {
+    val today = remember { LocalDate.now() }
+    val isFuture = date.isAfter(today)
+    val noLessonsStarted = stats.arrivedCount == 0
+    val showFutureLayout = isFuture || (date.isEqual(today) && noLessonsStarted)
+
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Ожидают
-        StatBadge(
-            icon = Icons.Rounded.History,
-            count = stats.expectedCount,
-            color = StatusMint,
-            label = "ожидают",
-            modifier = Modifier.weight(1f),
-        )
-
-        // Подтвердили, что придут
-        StatBadge(
-            icon = Icons.Rounded.Check,
-            count = stats.confirmedCount,
-            color = StatusLavender,
-            label = "подтв.",
-            modifier = Modifier.weight(1f),
-        )
-
-        // Пришли (в деньги)
-        StatBadge(
-            icon = Icons.Rounded.Add,
-            count = stats.arrivedCount,
-            color = StatusGreen,
-            label = "пришли",
-            modifier = Modifier.weight(1f),
-        )
-
-        // Не пришли
-        StatBadge(
-            icon = Icons.Rounded.Remove,
-            count = stats.cancelledCount,
-            color = StatusRed,
-            label = "минус",
-            modifier = Modifier.weight(1f),
-        )
-    }
-
-    if (stats.totalMoney > 0) {
-        Spacer(modifier = Modifier.height(8.dp))
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = StatusGreen.copy(alpha = 0.15f),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "Итого: ${formatRubles(stats.totalMoney)}",
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = StatusGreen,
-            )
+            if (showFutureLayout) {
+                StatBadge(
+                    label = "Подтверждено",
+                    value = stats.confirmedCount.toString(),
+                    color = StatusLavender,
+                    modifier = Modifier.weight(1f),
+                )
+                StatBadge(
+                    label = "Ожидают",
+                    value = stats.expectedCount.toString(),
+                    color = StatusMint,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                val totalLessons = stats.expectedCount + stats.confirmedCount + stats.arrivedCount
+                StatBadge(
+                    label = "Занятий",
+                    value = totalLessons.toString(),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                StatBadge(
+                    label = "Итог",
+                    value = formatRubles(stats.totalMoney),
+                    color = StatusGreen,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
 
 /**
- * Бейдж со статистикой.
+ * Бейдж со статистикой без иконок.
  */
 @Composable
 private fun StatBadge(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    count: Int,
-    color: Color,
     label: String,
+    value: String,
+    color: Color,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.15f),
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.12f),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(16.dp),
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = color.copy(alpha = 0.8f),
             )
             Text(
-                text = " $count",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
+                text = ": $value",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
                 color = color,
             )
         }
