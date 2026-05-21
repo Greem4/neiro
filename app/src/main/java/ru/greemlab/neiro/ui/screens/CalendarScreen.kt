@@ -27,7 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
@@ -344,7 +344,7 @@ fun CalendarScreenContent(
                     label = "Прибыль",
                     value = profitValue,
                     icon = Icons.Rounded.Payments,
-                    color = ProfitGreen,
+                    color = ScheduleHeaderGreen,
                     modifier = Modifier.weight(1f),
                     onClick = onProfitClick,
                 )

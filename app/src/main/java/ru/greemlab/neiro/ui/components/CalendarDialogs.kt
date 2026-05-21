@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
@@ -133,7 +133,7 @@ fun ProfitDetailsDialog(
                 ProfitRow(
                     label = "Чистый доход",
                     value = stats.netProfit,
-                    color = ProfitGreen,
+                    color = ScheduleHeaderGreen,
                     isBold = true,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
