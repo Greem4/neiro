@@ -77,21 +77,6 @@ fun LessonsDetailsDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
 
-                if (stats.statsByStudent.size > 1) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    Text(
-                        text = "Детализация по ученикам:",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    stats.statsByStudent.values.sortedByDescending { it.completedCount }.forEach { student ->
-                        LessonStatRow(
-                            label = "— ${student.name}",
-                            value = student.completedCount,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
 
                 LessonStatRow(
                     label = "Осталось / Не подтверждено",
