@@ -34,6 +34,9 @@ interface CalendarRepository {
 
     suspend fun saveDayData(data: Map<LocalDate, List<String>>)
 
+    /** Полная очистка всех данных (для отладки). */
+    suspend fun clearAllData()
+
     suspend fun saveTheme(theme: String)
 
     /** JSON со всеми данными для экспорта. */

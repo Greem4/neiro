@@ -18,6 +18,8 @@ val localProps = Properties().apply {
 }
 val yclientsPartnerToken: String = localProps.getProperty("YCLIENTS_PARTNER_TOKEN", "")
 val yclientsCompanyId: String = localProps.getProperty("YCLIENTS_COMPANY_ID", "0")
+val devLogin: String = localProps.getProperty("DEV_LOGIN", "")
+val devPassword: String = localProps.getProperty("DEV_PASSWORD", "")
 
 android {
     namespace = "ru.greemlab.neiro"
@@ -38,6 +40,8 @@ android {
         // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
         buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
         buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
+        buildConfigField("String", "DEV_LOGIN", "\"$devLogin\"")
+        buildConfigField("String", "DEV_PASSWORD", "\"$devPassword\"")
     }
 
     // Уменьшаем APK: только нужные локали (актуальный API в AGP 9.x).

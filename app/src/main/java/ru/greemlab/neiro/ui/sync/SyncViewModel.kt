@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
@@ -61,6 +62,74 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     fun logoutYClients() {
         yclientsRepository.logout()
         _uiState.value = SyncUiState()
+    }
+
+    /**
+     * Шорткат для быстрой авторизации в режиме разработки.
+     * Использует данные из local.properties (DEV_LOGIN/DEV_PASSWORD).
+     */
+    fun devLogin(autoSync: Boolean = false) {
+        val login = BuildConfig.DEV_LOGIN
+        val pass = BuildConfig.DEV_PASSWORD
+        if (login.isBlank() || pass.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "DEV_LOGIN/PASS не заданы в local.properties")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            when (val result = yclientsRepository.login(login, pass)) {
+                is ApiResult.Success -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false, showSuccess = true)
+                    if (autoSync) {
+                        devSyncAll()
+                    }
+                }
+                is ApiResult.Error -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = result.message)
+                }
+            }
+        }
+    }
+
+    /**
+     * Полная настройка для разработчика: сброс, логин, синхронизация и установка цен.
+     */
+    fun devFullSetup() {
+        viewModelScope.launch {
+            // 1. Сброс
+            calendarRepository.clearAllData()
+            yclientsRepository.logout()
+
+            // 2. Установка дефолтных цен разработчика
+            calendarRepository.updateProfile { profile ->
+                profile.copy(
+                    pricePerSession = 1400.0,
+                    pricePerDiagnostics = 2050.0,
+                    monthlyTaxAmount = 6500.0
+                )
+            }
+
+            // 3. Логин и синхронизация
+            devLogin(autoSync = true)
+        }
+    }
+
+    /**
+     * Шорткат для полного сброса всех данных приложения.
+     */
+    fun devResetData() {
+        viewModelScope.launch {
+            calendarRepository.clearAllData()
+            logoutYClients()
+        }
+    }
+
+    /**
+     * Шорткат для сбора данных (синхронизации).
+     */
+    fun devSyncAll() {
+        syncCurrentMonth()
     }
 
     /**

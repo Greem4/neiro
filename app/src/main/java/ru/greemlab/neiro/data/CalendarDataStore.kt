@@ -177,6 +177,20 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
+    override suspend fun clearAllData() {
+        writeMutex.withLock {
+            appContext.dataStore.edit { prefs ->
+                prefs.clear()
+            }
+            cachedState.value = StoreSnapshot.Empty
+            writeSyncCache(
+                dayJson = EMPTY_OBJECT,
+                profileJson = EMPTY_OBJECT,
+                themeValue = THEME_SYSTEM
+            )
+        }
+    }
+
     override suspend fun saveTheme(theme: String) {
         writeMutex.withLock {
             appContext.dataStore.edit { prefs -> prefs[themeKey] = theme }

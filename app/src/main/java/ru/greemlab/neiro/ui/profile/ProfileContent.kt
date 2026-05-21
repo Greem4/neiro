@@ -19,6 +19,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
@@ -66,6 +67,10 @@ fun ProfileContent(
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
         onSyncNow = syncViewModel::syncCurrentMonth,
+        onDevLogin = syncViewModel::devLogin,
+        onDevSync = syncViewModel::devSyncAll,
+        onDevReset = syncViewModel::devResetData,
+        onDevFullSetup = syncViewModel::devFullSetup,
         modifier = modifier,
     )
 }
@@ -80,6 +85,10 @@ private fun ProfileContentImpl(
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
     onSyncNow: () -> Unit = {},
+    onDevLogin: () -> Unit = {},
+    onDevSync: () -> Unit = {},
+    onDevReset: () -> Unit = {},
+    onDevFullSetup: () -> Unit = {},
     modifier: Modifier = Modifier,
     nameStyle: TextStyle = MaterialTheme.typography.headlineSmall,
     professionStyle: TextStyle = MaterialTheme.typography.bodyMedium,
@@ -182,6 +191,61 @@ private fun ProfileContentImpl(
             Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text("Настройки приложения", style = MaterialTheme.typography.bodyMedium)
+        }
+
+        if (BuildConfig.DEBUG) {
+            Spacer(modifier = Modifier.height(24.dp))
+            DevDrawerSection(
+                onLogin = onDevLogin,
+                onSync = onDevSync,
+                onReset = onDevReset,
+                onFullSetup = onDevFullSetup
+            )
+        }
+    }
+}
+
+@Composable
+private fun DevDrawerSection(
+    onLogin: () -> Unit,
+    onSync: () -> Unit,
+    onReset: () -> Unit,
+    onFullSetup: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Developer Tools",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AssistChip(
+                onClick = onLogin,
+                label = { Text("Login") },
+                modifier = Modifier.weight(1f)
+            )
+            AssistChip(
+                onClick = onSync,
+                label = { Text("Sync") },
+                modifier = Modifier.weight(1f)
+            )
+            AssistChip(
+                onClick = onReset,
+                label = { Text("Reset") },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Button(
+            onClick = onFullSetup,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Full Dev Setup", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
