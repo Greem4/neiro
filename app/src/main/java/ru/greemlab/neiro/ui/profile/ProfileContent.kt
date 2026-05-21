@@ -21,7 +21,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.YClientsYellow
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.ProfileTotals
 import ru.greemlab.neiro.ui.calendar.computeProfileTotals
@@ -149,26 +151,14 @@ private fun ProfileContentImpl(
             }
         }
 
-        Button(
-            onClick = onOpenYClients,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(12.dp),
-        ) {
-            Icon(Icons.Rounded.CloudSync, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("YClients")
-        }
-
-        SyncNowCard(
-            syncState = syncState,
+        YClientsActionBlock(
             isLoggedIn = isLoggedInToYClients,
+            syncState = syncState,
+            onOpenYClients = onOpenYClients,
             onSyncNow = onSyncNow,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(bottom = 16.dp),
         )
 
         OutlinedButton(
@@ -197,18 +187,22 @@ private fun ProfileContentImpl(
 }
 
 /**
- * Карточка «Синхронизировать сейчас».
+ * Жёлтая кнопка YClients с двойной ролью.
  *
- * Видна всегда, но активна только когда пользователь вошёл в YClients —
- * иначе нажатие ничего бы не дало. Подсвечивает статус последнего синка:
- *  - индикатор загрузки во время запроса;
- *  - зелёная подпись с количеством новых записей при успехе;
- *  - красная подпись с текстом ошибки.
+ * Поведение зависит от состояния авторизации (флаг хранится в [TokenStorage]
+ * и переживает перезапуск приложения):
+ *  - если пользователь ещё не вошёл — открывает экран авторизации;
+ *  - если уже вошёл — запускает синхронизацию текущего месяца.
+ *
+ * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
+ * синхронизация …», прогресс или ошибка. Когда пользователь авторизован,
+ * рядом появляется небольшой `TextButton` для управления аккаунтом (выйти).
  */
 @Composable
-private fun SyncNowCard(
-    syncState: SyncUiState,
+private fun YClientsActionBlock(
     isLoggedIn: Boolean,
+    syncState: SyncUiState,
+    onOpenYClients: () -> Unit,
     onSyncNow: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -216,69 +210,62 @@ private fun SyncNowCard(
     val hasError = syncState.error != null && !isLoading
     val hasSuccess = syncState.showSuccess && !isLoading && syncState.error == null
 
-    val containerColor = when {
-        hasError -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-        hasSuccess -> ProfitGreen.copy(alpha = 0.12f)
-        else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-    }
-
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Rounded.Sync,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Синхронизация YClients",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = syncSubtitle(syncState, isLoggedIn),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = onSyncNow,
-                enabled = isLoggedIn && !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-            ) {
-                if (isLoading) {
+    Column(modifier = modifier) {
+        Button(
+            onClick = { if (isLoggedIn) onSyncNow() else onOpenYClients() },
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(vertical = 14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = YClientsYellow,
+                contentColor = OnYClientsYellow,
+                disabledContainerColor = YClientsYellow.copy(alpha = 0.55f),
+                disabledContentColor = OnYClientsYellow.copy(alpha = 0.7f),
+            ),
+        ) {
+            when {
+                isLoading -> {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = OnYClientsYellow,
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("Синхронизирую…")
-                } else {
+                    Text("Синхронизирую…", fontWeight = FontWeight.SemiBold)
+                }
+                isLoggedIn -> {
                     Icon(Icons.Rounded.Sync, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Синхронизировать сейчас")
+                    Text("Синхронизировать YClients", fontWeight = FontWeight.SemiBold)
+                }
+                else -> {
+                    Icon(Icons.Rounded.CloudSync, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Войти в YClients", fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
 
-            if (hasSuccess || hasError) {
-                Spacer(modifier = Modifier.height(10.dp))
-                SyncStatusLine(
-                    syncState = syncState,
-                    hasError = hasError,
-                    hasSuccess = hasSuccess,
+        Spacer(modifier = Modifier.height(8.dp))
+
+        YClientsStatusLine(
+            isLoggedIn = isLoggedIn,
+            isLoading = isLoading,
+            hasError = hasError,
+            hasSuccess = hasSuccess,
+            syncState = syncState,
+        )
+
+        if (isLoggedIn) {
+            TextButton(
+                onClick = onOpenYClients,
+                modifier = Modifier.align(Alignment.End),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "Управление аккаунтом",
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
         }
@@ -286,10 +273,12 @@ private fun SyncNowCard(
 }
 
 @Composable
-private fun SyncStatusLine(
-    syncState: SyncUiState,
+private fun YClientsStatusLine(
+    isLoggedIn: Boolean,
+    isLoading: Boolean,
     hasError: Boolean,
     hasSuccess: Boolean,
+    syncState: SyncUiState,
 ) {
     val (icon, tint, text) = when {
         hasError -> Triple(
@@ -299,22 +288,43 @@ private fun SyncStatusLine(
         )
         hasSuccess -> {
             val count = syncState.syncedCount
-            val countLabel = if (count > 0) {
+            val label = if (count > 0) {
                 "Готово · добавлено $count ${plural(count, "запись", "записи", "записей")}"
             } else {
                 "Готово · новых записей нет"
             }
-            Triple(Icons.Rounded.CheckCircle, ProfitGreen, countLabel)
+            Triple(Icons.Rounded.CheckCircle, ProfitGreen, label)
         }
-        else -> Triple(Icons.Rounded.Sync, MaterialTheme.colorScheme.onSurfaceVariant, "")
+        isLoading -> Triple(
+            Icons.Rounded.Sync,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            "Загружаю записи за текущий месяц",
+        )
+        isLoggedIn -> {
+            val last = syncState.lastSyncDate
+            val label = if (last != null) {
+                "Подключено · последняя синхронизация " + last.format(LAST_SYNC_FORMATTER)
+            } else {
+                "Подключено · нажмите, чтобы загрузить записи"
+            }
+            Triple(Icons.Rounded.CheckCircle, ProfitGreen, label)
+        }
+        else -> Triple(
+            Icons.Rounded.CloudSync,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            "Войдите, чтобы автоматически подтягивать записи",
+        )
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 4.dp),
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(14.dp),
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
@@ -322,17 +332,6 @@ private fun SyncStatusLine(
             style = MaterialTheme.typography.bodySmall,
             color = tint,
         )
-    }
-}
-
-private fun syncSubtitle(state: SyncUiState, isLoggedIn: Boolean): String {
-    if (!isLoggedIn) return "Войдите в YClients, чтобы загружать записи"
-    if (state.isLoading) return "Загружаю записи за текущий месяц"
-    val last = state.lastSyncDate
-    return if (last != null) {
-        "Последний раз: " + last.format(LAST_SYNC_FORMATTER)
-    } else {
-        "Загрузит весь текущий месяц"
     }
 }
 

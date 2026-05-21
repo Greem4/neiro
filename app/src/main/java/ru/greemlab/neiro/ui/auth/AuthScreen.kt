@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,17 @@ fun AuthScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    // Отслеживаем переход «не авторизован → авторизован», чтобы автоматически
+    // закрыть экран и запустить синхронизацию. Это и есть «возврат в приложение
+    // после авторизации»: пользователь видит результат сразу в календаре.
+    var wasLoggedIn by remember { mutableStateOf(state.isLoggedIn) }
+    LaunchedEffect(state.isLoggedIn) {
+        if (state.isLoggedIn && !wasLoggedIn) {
+            onLoginSuccess()
+        }
+        wasLoggedIn = state.isLoggedIn
+    }
 
     Scaffold(
         topBar = {

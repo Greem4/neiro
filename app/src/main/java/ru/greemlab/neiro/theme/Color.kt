@@ -42,3 +42,9 @@ val ProfitGreen = Color(0xFF4CAF50)
 
 /** Цвет «ожидается» — оранжево-янтарный, отличается от прибыли по тональности. */
 val ExpectedAmber = Color(0xFFFF9800)
+
+/** Фирменный жёлтый YClients — используется для кнопки входа/синхронизации с YClients. */
+val YClientsYellow = Color(0xFFFFCD00)
+
+/** Контрастный тёмный цвет поверх [YClientsYellow] (текст, иконки). */
+val OnYClientsYellow = Color(0xFF1A1A1A)

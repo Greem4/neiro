@@ -109,7 +109,7 @@ fun CalendarScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val drawerSyncViewModel: SyncViewModel = viewModel()
+        val syncViewModel: SyncViewModel = viewModel()
 
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -119,7 +119,7 @@ fun CalendarScreen(
                     ProfileContent(
                         profileViewModel = profileViewModel,
                         calendarViewModel = viewModel,
-                        syncViewModel = drawerSyncViewModel,
+                        syncViewModel = syncViewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
                             overlay = CalendarOverlay.Settings
@@ -189,11 +189,11 @@ fun CalendarScreen(
         }
 
         if (overlay is CalendarOverlay.YClients) {
-            val syncViewModel: SyncViewModel = viewModel()
             AuthScreen(
                 onBack = { overlay = CalendarOverlay.None },
                 onLoginSuccess = {
                     syncViewModel.syncCurrentMonth()
+                    overlay = CalendarOverlay.None
                 },
             )
         }
