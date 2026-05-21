@@ -47,6 +47,7 @@ fun SettingsScreen(
         onNameChange = viewModel::updateName,
         onActivityChange = viewModel::updateActivityType,
         onPriceChange = viewModel::updatePrice,
+        onDiagnosticsPriceChange = viewModel::updateDiagnosticsPrice,
         onTaxChange = viewModel::updateTaxAmount,
         onToggleDay = viewModel::toggleWorkingDay,
         onOpenYClientsAuth = onOpenYClientsAuth,
@@ -69,6 +70,7 @@ private fun SettingsScreenImpl(
     onNameChange: (String) -> Unit,
     onActivityChange: (String) -> Unit,
     onPriceChange: (Double) -> Unit,
+    onDiagnosticsPriceChange: (Double) -> Unit,
     onTaxChange: (Double) -> Unit,
     onToggleDay: (DayOfWeek) -> Unit,
     onOpenYClientsAuth: () -> Unit,
@@ -84,6 +86,9 @@ private fun SettingsScreenImpl(
     var activityText by remember(profile.activityType) { mutableStateOf(profile.activityType) }
     var priceText by remember(profile.pricePerSession) {
         mutableStateOf(formatMoneyForInput(profile.pricePerSession))
+    }
+    var diagnosticsPriceText by remember(profile.pricePerDiagnostics) {
+        mutableStateOf(formatMoneyForInput(profile.pricePerDiagnostics))
     }
     var taxText by remember(profile.monthlyTaxAmount) {
         mutableStateOf(formatMoneyForInput(profile.monthlyTaxAmount))
@@ -149,6 +154,23 @@ private fun SettingsScreenImpl(
                     onPriceChange(sanitized.toDoubleOrNull() ?: 0.0)
                 },
                 label = { Text("Цена за занятие (₽)") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = diagnosticsPriceText,
+                onValueChange = { value ->
+                    val sanitized = sanitizeMoneyInput(value)
+                    diagnosticsPriceText = sanitized
+                    onDiagnosticsPriceChange(sanitized.toDoubleOrNull() ?: 0.0)
+                },
+                label = { Text("Цена за диагностику (₽)") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -375,6 +397,7 @@ private fun SettingsScreenLightPreview() {
             onNameChange = {},
             onActivityChange = {},
             onPriceChange = {},
+            onDiagnosticsPriceChange = {},
             onTaxChange = {},
             onToggleDay = {},
             onOpenYClientsAuth = {},

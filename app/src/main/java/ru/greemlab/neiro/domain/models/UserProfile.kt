@@ -9,6 +9,7 @@ import java.time.DayOfWeek
  * @param activityType Вид деятельности (например, "Репетитор", "Тренер").
  * @param workingDays Набор рабочих дней недели.
  * @param pricePerSession Цена за одно занятие (запись в списке).
+ * @param pricePerDiagnostics Цена за диагностику.
  * @param monthlyTaxAmount Налог в рублях за месяц.
  * @param isRegistered Флаг завершения первичной настройки.
  */
@@ -18,6 +19,7 @@ data class UserProfile(
     val activityType: String = "",
     val workingDays: Set<DayOfWeek> = emptySet(),
     val pricePerSession: Double = 0.0,
+    val pricePerDiagnostics: Double = 0.0,
     val monthlyTaxAmount: Double = 0.0,
     val isRegistered: Boolean = false,
 )

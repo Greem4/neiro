@@ -252,7 +252,8 @@ private fun DayDetailsContent(
                                     currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
                                 },
                                 onAddDiagnostics = {
-                                    currentNames.add(SessionFormat.serializeDiagnostics("2000", "Диагностика", true))
+                                    val price = userProfile.pricePerDiagnostics.toInt().toString()
+                                    currentNames.add(SessionFormat.serializeDiagnostics(price, "Диагностика", true))
                                 }
                             )
                         }
