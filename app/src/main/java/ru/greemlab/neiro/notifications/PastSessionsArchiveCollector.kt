@@ -25,15 +25,20 @@ object PastSessionsArchiveCollector {
             .sorted()
     }
 
-    /** Вчерашний день, если пора напомнить об архиве (день после занятий). */
-    fun yesterdayNeedingArchive(
+    /**
+     * Сегодняшний день с занятиями, ещё не перенесённый в архив
+     * (напоминание вечером в настроенное время).
+     */
+    fun todayNeedingArchive(
         dayData: Map<LocalDate, List<String>>,
         archivedDates: Set<LocalDate>,
         profile: UserProfile,
         today: LocalDate = LocalDate.now(),
     ): LocalDate? {
-        val yesterday = today.minusDays(1)
-        return yesterday.takeIf { daysNeedingArchive(dayData, archivedDates, profile, today).contains(it) }
+        if (!profile.isRegistered) return null
+        if (today in archivedDates) return null
+        if (sessionCount(dayData[today].orEmpty()) <= 0) return null
+        return today
     }
 
     fun sessionCount(entries: List<String>): Int =

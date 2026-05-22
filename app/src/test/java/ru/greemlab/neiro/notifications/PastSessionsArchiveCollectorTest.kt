@@ -51,9 +51,8 @@ class PastSessionsArchiveCollectorTest {
     }
 
     @Test
-    fun `yesterdayNeedingArchive returns yesterday when not archived`() {
+    fun `todayNeedingArchive returns today when sessions exist and not archived`() {
         val today = LocalDate.of(2026, 5, 23)
-        val yesterday = today.minusDays(1)
         val raw = SessionFormat.serializeStudentExtended(
             name = "Пётр",
             status = AttendanceStatus.ARRIVED,
@@ -62,20 +61,19 @@ class PastSessionsArchiveCollectorTest {
             comment = "",
         )
 
-        val result = PastSessionsArchiveCollector.yesterdayNeedingArchive(
-            dayData = mapOf(yesterday to listOf(raw)),
+        val result = PastSessionsArchiveCollector.todayNeedingArchive(
+            dayData = mapOf(today to listOf(raw)),
             archivedDates = emptySet(),
             profile = UserProfile(name = "Тест", isRegistered = true),
             today = today,
         )
 
-        assertEquals(yesterday, result)
+        assertEquals(today, result)
     }
 
     @Test
-    fun `yesterdayNeedingArchive returns null when already archived`() {
+    fun `todayNeedingArchive returns null when already archived`() {
         val today = LocalDate.of(2026, 5, 23)
-        val yesterday = today.minusDays(1)
         val raw = SessionFormat.serializeStudentExtended(
             name = "Пётр",
             status = AttendanceStatus.ARRIVED,
@@ -84,9 +82,23 @@ class PastSessionsArchiveCollectorTest {
             comment = "",
         )
 
-        val result = PastSessionsArchiveCollector.yesterdayNeedingArchive(
-            dayData = mapOf(yesterday to listOf(raw)),
-            archivedDates = setOf(yesterday),
+        val result = PastSessionsArchiveCollector.todayNeedingArchive(
+            dayData = mapOf(today to listOf(raw)),
+            archivedDates = setOf(today),
+            profile = UserProfile(name = "Тест", isRegistered = true),
+            today = today,
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `todayNeedingArchive returns null when no sessions today`() {
+        val today = LocalDate.of(2026, 5, 23)
+
+        val result = PastSessionsArchiveCollector.todayNeedingArchive(
+            dayData = emptyMap(),
+            archivedDates = emptySet(),
             profile = UserProfile(name = "Тест", isRegistered = true),
             today = today,
         )

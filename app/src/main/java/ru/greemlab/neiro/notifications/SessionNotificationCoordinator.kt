@@ -329,22 +329,16 @@ object SessionNotificationCoordinator {
         prefs: SessionNotificationPreferences,
     ) {
         val today = LocalDate.now()
-        val yesterday = today.minusDays(1)
-        val needing = PastSessionsArchiveCollector.daysNeedingArchive(
+        val date = PastSessionsArchiveCollector.todayNeedingArchive(
             dayData = dayData,
             archivedDates = savedDayData.keys,
             profile = profile,
             today = today,
-        )
-        if (needing.isEmpty()) return
+        ) ?: return
+        if (prefs.wasArchiveReminderShown(date.toEpochDay())) return
 
-        val toNotify = needing.filter { date ->
-            date == yesterday && !prefs.wasArchiveReminderShown(date.toEpochDay())
-        }
-        if (toNotify.isEmpty()) return
-
-        SessionNotificationDisplay.showArchiveReminder(context, toNotify, dayData)
-        toNotify.forEach { prefs.markArchiveReminderShown(it.toEpochDay()) }
+        SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
+        prefs.markArchiveReminderShown(date.toEpochDay())
     }
 
     private fun cancelAll(context: Context) {

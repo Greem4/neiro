@@ -33,6 +33,7 @@ object SessionNotificationDisplay {
         ).apply {
             description = context.getString(R.string.notification_channel_sessions_desc)
             enableVibration(true)
+            lightColor = NeiroNotificationBranding.channelLightColor(context)
         }
         manager.createNotificationChannel(channel)
     }
@@ -125,7 +126,7 @@ object SessionNotificationDisplay {
         val content = context.resources.getQuantityString(
             R.plurals.notification_archive_body,
             count,
-            date.format(dateFormatter),
+            formatArchiveDateLabel(context, date),
             count,
         )
 
@@ -150,7 +151,7 @@ object SessionNotificationDisplay {
                 context.resources.getQuantityString(
                     R.plurals.notification_archive_line,
                     count,
-                    date.format(dateFormatter),
+                    formatArchiveDateLabel(context, date),
                     count,
                 ),
             )
@@ -306,15 +307,24 @@ object SessionNotificationDisplay {
     }
 
     private fun baseBuilder(context: Context, title: String, content: String): NotificationCompat.Builder =
-        NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_schedule)
-            .setColor(context.getColor(R.color.notification_accent))
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
+        NeiroNotificationBranding.apply(
+            NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(content)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_EVENT)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(true),
+            context,
+        )
+
+    private fun formatArchiveDateLabel(context: Context, date: LocalDate): String =
+        if (date == LocalDate.now()) {
+            context.getString(R.string.notification_archive_date_today)
+        } else {
+            date.format(dateFormatter)
+        }
 
     private fun formatUpcomingLine(session: UpcomingSession): String {
         val timeRange = "${session.startTime.format(timeFormatter)}–${session.endTime.format(timeFormatter)}"

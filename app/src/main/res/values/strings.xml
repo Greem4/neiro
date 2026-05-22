@@ -27,7 +27,8 @@
         <item quantity="other">Завтра %d занятий</item>
     </plurals>
 
-    <string name="notification_archive_title">Перенесите день в архив</string>
+    <string name="notification_archive_title">Перенесите сегодня в архив</string>
+    <string name="notification_archive_date_today">Сегодня</string>
     <string name="notification_archive_group_title">%1$d дня без архива</string>
     <string name="notification_archive_group_summary">Откройте календарь и сохраните прошедшие дни</string>
 
@@ -80,7 +81,7 @@
     <string name="notification_settings_tomorrow_digest">Сводка на завтра</string>
     <string name="notification_settings_tomorrow_digest_hint">Накануне в %1$s — предстоящие занятия</string>
     <string name="notification_settings_archive_reminder">Напоминание об архиве</string>
-    <string name="notification_settings_archive_reminder_hint">На следующий день в %1$s — перенести занятия в архив</string>
+    <string name="notification_settings_archive_reminder_hint">В %1$s — перенести сегодняшние занятия в архив</string>
     <string name="notification_settings_delivery_time">Время: %1$s</string>
     <string name="notification_settings_delivery_time_dialog">Время уведомления</string>
     <string name="notification_settings_time_confirm">Готово</string>

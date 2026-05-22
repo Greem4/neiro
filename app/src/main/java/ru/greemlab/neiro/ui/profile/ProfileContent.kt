@@ -1,5 +1,10 @@
 package ru.greemlab.neiro.ui.profile
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,10 +15,13 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -24,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -229,40 +238,188 @@ private fun DevDrawerSection(
     onReset: () -> Unit,
     onFullSetup: () -> Unit,
 ) {
+    val context = LocalContext.current.applicationContext
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            "Developer Tools",
+            "Инструменты разработчика",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 8.dp),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AssistChip(
                 onClick = onLogin,
-                label = { Text("Login") },
-                modifier = Modifier.weight(1f)
+                label = { Text("Вход") },
+                modifier = Modifier.weight(1f),
             )
             AssistChip(
                 onClick = onSync,
-                label = { Text("Sync") },
-                modifier = Modifier.weight(1f)
+                label = { Text("Синхр.") },
+                modifier = Modifier.weight(1f),
             )
             AssistChip(
                 onClick = onReset,
-                label = { Text("Reset") },
-                modifier = Modifier.weight(1f)
+                label = { Text("Сброс") },
+                modifier = Modifier.weight(1f),
             )
         }
         Button(
             onClick = onFullSetup,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
-            shape = RoundedCornerShape(8.dp)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ),
+            shape = RoundedCornerShape(8.dp),
         ) {
-            Text("Full Dev Setup", style = MaterialTheme.typography.labelLarge)
+            Text("Полная настройка", style = MaterialTheme.typography.labelLarge)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { menuExpanded = !menuExpanded },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Text(
+                if (menuExpanded) "Скрыть меню" else "Быстрые действия",
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = menuExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                DevMenuSectionTitle("Загрузка данных")
+                DevMenuItem(
+                    title = "Войти в YClients",
+                    subtitle = "Тестовый логин из local.properties",
+                    onClick = onLogin,
+                )
+                DevMenuItem(
+                    title = "Синхронизировать календарь",
+                    subtitle = "Загрузить текущий месяц из API",
+                    onClick = onSync,
+                )
+                DevMenuItem(
+                    title = "Сбросить данные",
+                    subtitle = "Очистить календарь и выйти из YClients",
+                    onClick = onReset,
+                )
+                DevMenuItem(
+                    title = "Полная настройка",
+                    subtitle = "Сброс → профиль → вход → синхронизация",
+                    onClick = onFullSetup,
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                DevMenuSectionTitle("Тест уведомлений")
+                DevMenuItem(
+                    title = "Новая запись",
+                    subtitle = "Изменение в расписании",
+                    onClick = { SessionNotificationDevPreview.showNewBooking(context) },
+                )
+                DevMenuItem(
+                    title = "Отмена",
+                    subtitle = "Занятие отменено",
+                    onClick = { SessionNotificationDevPreview.showCancelled(context) },
+                )
+                DevMenuItem(
+                    title = "Перенос",
+                    subtitle = "Другое время у того же клиента",
+                    onClick = { SessionNotificationDevPreview.showRescheduled(context) },
+                )
+                DevMenuItem(
+                    title = "Удаление",
+                    subtitle = "Запись исчезла из календаря",
+                    onClick = { SessionNotificationDevPreview.showDeleted(context) },
+                )
+                DevMenuItem(
+                    title = "Смена статуса",
+                    subtitle = "Подтверждение / приход",
+                    onClick = { SessionNotificationDevPreview.showStatusChanged(context) },
+                )
+                DevMenuItem(
+                    title = "Несколько событий",
+                    subtitle = "Групповое уведомление",
+                    onClick = { SessionNotificationDevPreview.showGroupedEvents(context) },
+                )
+                DevMenuItem(
+                    title = "Напоминание",
+                    subtitle = "За 15 минут до начала",
+                    onClick = { SessionNotificationDevPreview.showReminder(context) },
+                )
+                DevMenuItem(
+                    title = "Сводка на сегодня",
+                    subtitle = "Список занятий на день",
+                    onClick = { SessionNotificationDevPreview.showTodayDigest(context) },
+                )
+                DevMenuItem(
+                    title = "Сводка на завтра",
+                    subtitle = "Вечерняя сводка",
+                    onClick = { SessionNotificationDevPreview.showTomorrowDigest(context) },
+                )
+                DevMenuItem(
+                    title = "Архив сегодня",
+                    subtitle = "Перенести сегодняшние занятия в архив",
+                    onClick = { SessionNotificationDevPreview.showArchiveReminder(context) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DevMenuSectionTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun DevMenuItem(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
