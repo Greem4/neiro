@@ -194,7 +194,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             if (calendarMode.value == CalendarMode.PERSONAL) {
-                // В личном режиме сохраняем только в архив
+                // В режиме архива сохраняем только локально
                 repository.saveDayToArchive(date, names)
                 return@launch
             }

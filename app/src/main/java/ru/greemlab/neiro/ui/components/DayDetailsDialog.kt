@@ -298,7 +298,7 @@ private fun DayDetailsContent(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isArchived) "В личном" else "В личный")
+                    Text(if (isArchived) "В архиве" else "В архив")
                 }
 
                 Spacer(modifier = Modifier.weight(1f))

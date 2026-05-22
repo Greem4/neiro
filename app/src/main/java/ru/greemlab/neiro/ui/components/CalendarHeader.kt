@@ -106,7 +106,7 @@ fun CalendarHeader(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Личный",
+                    text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Архив",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
