@@ -1,6 +1,11 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +39,12 @@ import ru.greemlab.neiro.theme.StatusExpectedMint
 import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
+private val CancelledIndicatorRed = Color(0xFFF44336)
+
 /**
  * Элемент расписания: фон стандартный, цвет меняется только у имени.
+ *
+ * @param indicatorColors несколько полосок слева (например зелёная + красная у замены).
  */
 @Composable
 fun ScheduleSlotItem(
@@ -41,6 +54,9 @@ fun ScheduleSlotItem(
     status: AttendanceStatus,
     modifier: Modifier = Modifier,
     isDiagnostics: Boolean = false,
+    showTime: Boolean = true,
+    compactForTimeline: Boolean = false,
+    indicatorColors: List<Color>? = null,
 ) {
     // Цвет для текста имени в зависимости от статуса
     val nameColor = when (status) {
@@ -58,13 +74,18 @@ fun ScheduleSlotItem(
     }
 
     val indicatorColor = when {
-        status == AttendanceStatus.CANCELLED -> Color(0xFFF44336)
+        status == AttendanceStatus.CANCELLED -> CancelledIndicatorRed
         isDiagnostics -> Color(0xFF5C6BC0)
         else -> ScheduleHeaderGreen
     }
+    val indicatorBars = indicatorColors?.takeIf { it.isNotEmpty() } ?: listOf(indicatorColor)
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (compactForTimeline) Modifier else Modifier.defaultMinSize(minHeight = 56.dp),
+            ),
         shape = RoundedCornerShape(12.dp),
         // Фон карточки - стандартный surfaceVariant
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -72,20 +93,12 @@ fun ScheduleSlotItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .fillMaxHeight(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Полоска слева
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
-                    .background(indicatorColor)
-            )
+            SlotIndicatorBars(colors = indicatorBars)
 
-            // Время (стандартный цвет)
-            if (time.isNotEmpty()) {
+            if (showTime && time.isNotEmpty()) {
                 Text(
                     text = time.substringBefore("-"),
                     style = MaterialTheme.typography.labelMedium,
@@ -93,19 +106,25 @@ fun ScheduleSlotItem(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 8.dp),
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else if (!compactForTimeline) {
+                Spacer(modifier = Modifier.width(8.dp))
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
 
             // Имя (ЦВЕТ МЕНЯЕТСЯ) и комментарий
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 6.dp),
+                    .padding(start = if (compactForTimeline) 6.dp else 0.dp)
+                    .padding(vertical = if (compactForTimeline) 2.dp else 6.dp),
             ) {
                 Text(
                     text = name.ifEmpty { "Без имени" },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = if (compactForTimeline) {
+                        MaterialTheme.typography.bodySmall
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    },
                     fontWeight = FontWeight.Bold,
                     color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
                     maxLines = 1,
@@ -140,6 +159,144 @@ fun ScheduleSlotItem(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SlotIndicatorBars(
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+) {
+    val barShape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+    Row(modifier = modifier.fillMaxHeight()) {
+        colors.forEachIndexed { index, color ->
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .then(
+                        if (index == 0) {
+                            Modifier.clip(barShape)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .background(color),
+            )
+        }
+    }
+}
+
+/** Красная и зелёная полоски слева — маркер слота с заменой (сняли → встал). */
+val ReplacementCollapsedIndicators: List<Color> =
+    listOf(CancelledIndicatorRed, ScheduleHeaderGreen)
+
+/**
+ * Слот замены: свёрнуто — одна плашка с полосками красная→зелёная;
+ * по нажатию слева отменённый, справа кто встал на место.
+ */
+@Composable
+fun ExpandableReplacementSlot(
+    replacement: ScheduleSlotContent,
+    removed: ScheduleSlotContent,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    compactForTimeline: Boolean = false,
+) {
+    val gap = if (compactForTimeline) 4.dp else 6.dp
+    val slotModifier = Modifier.fillMaxHeight()
+
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle,
+            )
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            ),
+        horizontalArrangement = Arrangement.spacedBy(if (expanded) gap else 0.dp),
+    ) {
+        if (expanded) {
+            ScheduleSlotItem(
+                time = removed.time,
+                name = removed.name,
+                comment = removed.comment,
+                status = removed.status,
+                isDiagnostics = removed.isDiagnostics,
+                showTime = removed.showTime,
+                compactForTimeline = compactForTimeline,
+                modifier = slotModifier.weight(1f),
+            )
+            ScheduleSlotItem(
+                time = replacement.time,
+                name = replacement.name,
+                comment = replacement.comment,
+                status = replacement.status,
+                isDiagnostics = replacement.isDiagnostics,
+                showTime = replacement.showTime,
+                compactForTimeline = compactForTimeline,
+                modifier = slotModifier.weight(1f),
+            )
+        } else {
+            ScheduleSlotItem(
+                time = replacement.time,
+                name = replacement.name,
+                comment = replacement.comment,
+                status = replacement.status,
+                isDiagnostics = replacement.isDiagnostics,
+                showTime = replacement.showTime,
+                compactForTimeline = compactForTimeline,
+                indicatorColors = ReplacementCollapsedIndicators,
+                modifier = slotModifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+data class ScheduleSlotContent(
+    val time: String,
+    val name: String,
+    val comment: String,
+    val status: AttendanceStatus,
+    val isDiagnostics: Boolean = false,
+    val showTime: Boolean = true,
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun ExpandableReplacementSlotPreview() {
+    NeiroTheme {
+        var expanded by remember { mutableStateOf(false) }
+        ExpandableReplacementSlot(
+            replacement = ScheduleSlotContent(
+                time = "16:00-16:50",
+                name = "Ерженинов Владислав",
+                comment = "7.6(Юля)",
+                status = AttendanceStatus.ARRIVED,
+                showTime = false,
+            ),
+            removed = ScheduleSlotContent(
+                time = "16:00-16:50",
+                name = "Пирогов Лев",
+                comment = "Нейрокоррекция",
+                status = AttendanceStatus.CANCELLED,
+                showTime = false,
+            ),
+            expanded = expanded,
+            onToggle = { expanded = !expanded },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .padding(16.dp),
+            compactForTimeline = true,
+        )
     }
 }
 

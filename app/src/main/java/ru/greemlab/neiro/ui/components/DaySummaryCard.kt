@@ -1,15 +1,8 @@
 package ru.greemlab.neiro.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,8 +43,8 @@ private val StatusRed = Color(0xFFF44336)
 private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
-/** Фиксированная высота слота — календарь не прыгает при анимации смены даты. */
-val DaySummarySlotHeight: Dp = 178.dp
+/** Фиксированная высота слота — календарь не прыгает при смене даты. */
+val DaySummarySlotHeight: Dp = 148.dp
 
 @Composable
 fun DaySummarySlot(
@@ -59,25 +52,13 @@ fun DaySummarySlot(
     stats: DaySummaryStats,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    DaySummaryCard(
+        date = date,
+        stats = stats,
         modifier = modifier
             .fillMaxWidth()
             .height(DaySummarySlotHeight),
-    ) {
-        AnimatedContent(
-            targetState = date to stats,
-            transitionSpec = {
-                fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(150))
-            },
-            label = "DaySummaryDate",
-        ) { (targetDate, targetStats) ->
-            DaySummaryCard(
-                date = targetDate,
-                stats = targetStats,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
+    )
 }
 
 @Composable
@@ -105,8 +86,8 @@ private fun DaySummaryCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = dateLabel,

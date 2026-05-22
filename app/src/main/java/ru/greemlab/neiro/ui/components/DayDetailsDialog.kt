@@ -56,7 +56,9 @@ import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
-import ru.greemlab.neiro.ui.components.daydetails.ScheduleSlotItem
+import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
+import ru.greemlab.neiro.ui.components.daydetails.TimelineEntry
+import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
@@ -184,6 +186,24 @@ private fun DayDetailsContent(
             // Список записей
             if (entries.isEmpty() && !isPlanningMode) {
                 EmptySchedule()
+            } else if (!isPlanningMode) {
+                DayScheduleTimeline(
+                    entries = entries.map { entry ->
+                        TimelineEntry(
+                            name = entry.name,
+                            time = entry.time,
+                            comment = entry.comment,
+                            status = entry.status,
+                            isExtra = entry.isExtra,
+                            extraType = entry.extraType,
+                            extraAmount = entry.extraAmount,
+                        )
+                    },
+                    date = date,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth(),
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -201,78 +221,68 @@ private fun DayDetailsContent(
                                 is Session.Extra -> parsed.name
                             }
                             val time = when (parsed) {
-                                is Session.Student -> parsed.time
-                                is Session.Diagnostics -> parsed.time
+                                is Session.Student -> normalizeSessionTime(parsed.time)
+                                is Session.Diagnostics -> normalizeSessionTime(parsed.time)
                                 else -> ""
                             }
                             name == entry.name && time == entry.time
                         }
 
-                        if (isPlanningMode) {
-                            EditSessionItem(
-                                entry = entry,
-                                onDelete = {
-                                    if (rawIndex >= 0) currentNames.removeAt(rawIndex)
-                                },
-                                onPriceChange = { newPrice ->
-                                    if (rawIndex >= 0) {
-                                        val currentRaw = currentNames[rawIndex]
-                                        val parsed = SessionParser.parse(currentRaw)
-                                        if (parsed is Session.Extra) {
-                                            val updated = if (parsed is Session.Intensive) {
-                                                SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.attended)
-                                            } else {
-                                                SessionFormat.serializeDiagnostics(newPrice, parsed.name, parsed.attended)
-                                            }
-                                            currentNames[rawIndex] = updated
+                        EditSessionItem(
+                            entry = entry,
+                            onDelete = {
+                                if (rawIndex >= 0) currentNames.removeAt(rawIndex)
+                            },
+                            onPriceChange = { newPrice ->
+                                if (rawIndex >= 0) {
+                                    val currentRaw = currentNames[rawIndex]
+                                    val parsed = SessionParser.parse(currentRaw)
+                                    if (parsed is Session.Extra) {
+                                        val updated = if (parsed is Session.Intensive) {
+                                            SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.status)
+                                        } else {
+                                            val diag = parsed as Session.Diagnostics
+                                            SessionFormat.serializeDiagnostics(
+                                                newPrice, diag.name, diag.status, diag.time,
+                                            )
                                         }
-                                    }
-                                },
-                                onNameChange = { newName ->
-                                    if (rawIndex >= 0) {
-                                        val currentRaw = currentNames[rawIndex]
-                                        val parsed = SessionParser.parse(currentRaw)
-                                        if (parsed is Session.Extra) {
-                                            val priceStr = parsed.amount.toInt().toString()
-                                            val updated = if (parsed is Session.Intensive) {
-                                                SessionFormat.serializeIntensive(priceStr, newName, parsed.attended)
-                                            } else {
-                                                SessionFormat.serializeDiagnostics(priceStr, newName, parsed.attended)
-                                            }
-                                            currentNames[rawIndex] = updated
-                                        }
+                                        currentNames[rawIndex] = updated
                                     }
                                 }
-                            )
-                        } else {
-                            ScheduleSlotItem(
-                                time = entry.time,
-                                name = if (entry.isExtra && entry.extraType != "Диагностика") {
-                                    "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
-                                } else {
-                                    entry.name
-                                },
-                                comment = entry.comment,
-                                status = entry.status,
-                                isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
-                            )
-                        }
+                            },
+                            onNameChange = { newName ->
+                                if (rawIndex >= 0) {
+                                    val currentRaw = currentNames[rawIndex]
+                                    val parsed = SessionParser.parse(currentRaw)
+                                    if (parsed is Session.Extra) {
+                                        val priceStr = parsed.amount.toInt().toString()
+                                        val updated = if (parsed is Session.Intensive) {
+                                            SessionFormat.serializeIntensive(priceStr, newName, parsed.status)
+                                        } else {
+                                            val diag = parsed as Session.Diagnostics
+                                            SessionFormat.serializeDiagnostics(
+                                                priceStr, newName, diag.status, diag.time,
+                                            )
+                                        }
+                                        currentNames[rawIndex] = updated
+                                    }
+                                }
+                            },
+                        )
                     }
 
-                    if (isPlanningMode) {
-                        item {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextButton(
-                                onClick = {
-                                    currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Icon(Icons.Rounded.Add, null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Интенсив")
-                            }
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Icon(Icons.Rounded.Add, null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Интенсив")
                         }
                     }
                 }
@@ -517,7 +527,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
         when (session) {
             is Session.Student -> ScheduleEntry(
                 name = session.name,
-                time = session.time,
+                time = normalizeSessionTime(session.time),
                 comment = session.comment,
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
             )
@@ -526,11 +536,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = "",
                 comment = "",
-                status = when {
-                    isDeleted -> AttendanceStatus.CANCELLED
-                    session.attended -> AttendanceStatus.ARRIVED
-                    else -> AttendanceStatus.EXPECTED
-                },
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
                 isExtra = true,
                 extraType = "Интенсив",
                 extraAmount = session.amount,
@@ -538,13 +544,9 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 
             is Session.Diagnostics -> ScheduleEntry(
                 name = session.name,
-                time = session.time,
+                time = normalizeSessionTime(session.time),
                 comment = "",
-                status = when {
-                    isDeleted -> AttendanceStatus.CANCELLED
-                    session.attended -> AttendanceStatus.ARRIVED
-                    else -> AttendanceStatus.EXPECTED
-                },
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
                 isExtra = true,
                 extraType = "Диагностика",
                 extraAmount = session.amount,

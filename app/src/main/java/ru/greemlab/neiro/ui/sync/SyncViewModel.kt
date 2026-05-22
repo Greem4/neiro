@@ -533,7 +533,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             return SessionFormat.serializeDiagnostics(
                 price = price,
                 name = clientName,
-                attended = status == AttendanceStatus.ARRIVED,
+                status = status,
                 time = time,
             )
         }
@@ -575,7 +575,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             return SessionFormat.serializeDiagnostics(
                 price = price,
                 name = clientName,
-                attended = status == AttendanceStatus.ARRIVED,
+                status = status,
                 time = time,
             )
         }
@@ -620,7 +620,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 LocalTime.parse(timePart)
             }
 
-            val durationMinutes = record.seanceLength ?: record.length ?: 50
+            val durationMinutes = 50
             val endTime = startTime.plusMinutes(durationMinutes.toLong())
 
             "${startTime.format(TIME_FORMAT)}-${endTime.format(TIME_FORMAT)}"
