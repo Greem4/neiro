@@ -51,7 +51,7 @@ private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
 /** Фиксированная высота слота — календарь не прыгает при анимации смены даты. */
-val DaySummarySlotHeight: Dp = 178.dp
+val DaySummarySlotHeight: Dp = 148.dp
 
 @Composable
 fun DaySummarySlot(
@@ -105,8 +105,8 @@ private fun DaySummaryCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = dateLabel,

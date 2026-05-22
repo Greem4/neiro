@@ -366,57 +366,19 @@ fun CalendarScreenContent(
                 calendarMode = calendarMode,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
-                onTodayClick = onTodayClick,
                 onMenuClick = onMenuClick,
-                onSyncClick = onSyncClick,
-                isSyncing = isSyncing,
                 onModeChange = onModeChange,
-                isRegistered = isRegistered,
-                onRegistrationRequired = onRegistrationRequired,
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                StatCard(
-                    label = "Занятий",
-                    value = stats.completedCount.toString(),
-                    icon = Icons.Rounded.School,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                    onClick = onLessonsClick,
-                )
-                val profitValue = remember(stats.totalEarned) { formatRubles(stats.totalEarned) }
-                StatCard(
-                    label = "Прибыль",
-                    value = profitValue,
-                    icon = Icons.Rounded.Payments,
-                    color = ScheduleHeaderGreen,
-                    modifier = Modifier.weight(1f),
-                    onClick = onProfitClick,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            MonthlyProgressCard(
-                completed = stats.completedCount,
-                total = stats.totalScheduled,
-                expectedIncome = stats.expectedIncome,
+            MonthOverviewCard(
+                stats = stats,
+                onLessonsClick = onLessonsClick,
+                onProfitClick = onProfitClick,
             )
 
             Spacer(modifier = Modifier.height(10.dp))
-
-            if (isRegistered && selectedDate != null && daySummaryStats != null) {
-                DaySummarySlot(
-                    date = selectedDate,
-                    stats = daySummaryStats,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -426,7 +388,26 @@ fun CalendarScreenContent(
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
-                Column(modifier = Modifier.padding(10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    CalendarToolbar(
+                        currentMonth = currentMonth,
+                        calendarMode = calendarMode,
+                        isRegistered = isRegistered,
+                        isSyncing = isSyncing,
+                        onTodayClick = onTodayClick,
+                        onSyncClick = onSyncClick,
+                        onRegistrationRequired = onRegistrationRequired,
+                    )
+
+                    if (isRegistered && selectedDate != null && daySummaryStats != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        DaySummarySlot(
+                            date = selectedDate,
+                            stats = daySummaryStats,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
                     WeekDaysRow()
 
                     AnimatedContent(
@@ -449,61 +430,129 @@ fun CalendarScreenContent(
 }
 
 @Composable
-private fun MonthlyProgressCard(
-    completed: Int,
-    total: Int,
-    expectedIncome: Double,
+private fun MonthOverviewCard(
+    stats: CalendarMonthStats,
+    onLessonsClick: () -> Unit,
+    onProfitClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val progress = if (total > 0) {
-        (completed.toFloat() / total).coerceIn(0f, 1f)
+    val progress = if (stats.totalScheduled > 0) {
+        (stats.completedCount.toFloat() / stats.totalScheduled).coerceIn(0f, 1f)
     } else 0f
+    val profitValue = remember(stats.totalEarned) { formatRubles(stats.totalEarned) }
+    val incomeText = remember(stats.expectedIncome) {
+        "ожид. ${formatRubles(stats.expectedIncome)}"
+    }
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
         ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "План на месяц",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                CompactStatTile(
+                    label = "Занятий",
+                    value = stats.completedCount.toString(),
+                    icon = Icons.Rounded.School,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                    onClick = onLessonsClick,
+                )
+                CompactStatTile(
+                    label = "Прибыль",
+                    value = profitValue,
+                    icon = Icons.Rounded.Payments,
+                    color = ScheduleHeaderGreen,
+                    modifier = Modifier.weight(1f),
+                    onClick = onProfitClick,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp),
+                    strokeCap = StrokeCap.Round,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                 )
                 Text(
-                    text = "$completed из $total занятий",
+                    text = "${stats.completedCount}/${stats.totalScheduled}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                strokeCap = StrokeCap.Round,
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            val incomeText = remember(expectedIncome) {
-                "Ожидаемый доход: ${formatRubles(expectedIncome)}"
+
+            if (stats.expectedIncome > 0.0) {
+                Text(
+                    text = incomeText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 4.dp),
+                )
             }
-            Text(
-                text = incomeText,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.End),
+        }
+    }
+}
+
+@Composable
+private fun CompactStatTile(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f),
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = color,
             )
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
