@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
@@ -437,9 +438,12 @@ private fun MonthOverviewCard(
     val progress = if (stats.totalScheduled > 0) {
         (stats.completedCount.toFloat() / stats.totalScheduled).coerceIn(0f, 1f)
     } else 0f
-    val profitValue = remember(stats.totalEarned) { formatRubles(stats.totalEarned) }
-    val incomeText = remember(stats.expectedIncome) {
-        "ожид. ${formatRubles(stats.expectedIncome)}"
+    val profitValue = remember(stats.netProfit) { formatRubles(stats.netProfit) }
+    val progressLabel = remember(stats.completedCount, stats.totalScheduled) {
+        "${stats.completedCount} из ${stats.totalScheduled}"
+    }
+    val expectedIncomeText = remember(stats.expectedIncome) {
+        formatRubles(stats.expectedIncome)
     }
 
     Card(
@@ -475,37 +479,45 @@ private fun MonthOverviewCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Прогресс",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = progressLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp),
+                        .fillMaxWidth()
+                        .height(5.dp),
                     strokeCap = StrokeCap.Round,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                 )
-                Text(
-                    text = "${stats.completedCount}/${stats.totalScheduled}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            if (stats.expectedIncome > 0.0) {
-                Text(
-                    text = incomeText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .padding(top = 4.dp),
-                )
+                if (stats.expectedIncome > 0.0) {
+                    Text(
+                        text = "Ожидается $expectedIncomeText",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -523,32 +535,47 @@ private fun CompactStatTile(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
         modifier = modifier,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = color,
-            )
-            Column {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = color.copy(alpha = 0.14f),
+                modifier = Modifier.size(32.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp),
+                        tint = color,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
