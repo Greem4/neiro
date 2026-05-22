@@ -509,15 +509,20 @@ private fun MonthOverviewCard(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                     trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                 )
-                if (stats.expectedIncome > 0.0) {
-                    Text(
-                        text = "Ожидается $expectedIncomeText",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                val hasExpectedIncome = stats.expectedIncome > 0.0
+                Text(
+                    text = if (hasExpectedIncome) {
+                        "Ожидается $expectedIncomeText"
+                    } else {
+                        "\u00A0"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = if (hasExpectedIncome) 0.85f else 0f,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
