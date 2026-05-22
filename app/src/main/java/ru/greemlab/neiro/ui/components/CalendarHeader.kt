@@ -19,14 +19,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,31 +52,32 @@ fun CalendarHeader(
     isRegistered: Boolean = true,
     onRegistrationRequired: () -> Unit = {},
 ) {
-    val title = remember(currentMonth) { "${getMonthName(currentMonth)} ${currentMonth.year}" }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NeiroLogo(size = 30.dp, onClick = onMenuClick)
+        NeiroLogo(size = 32.dp, onClick = onMenuClick)
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = title,
+                text = "${getMonthName(currentMonth)} ${currentMonth.year}",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
 
+            // Вторая строка: Статус
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
+                    .padding(top = 2.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .clickable {
                         onModeChange(
@@ -98,49 +98,47 @@ fun CalendarHeader(
                     text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Личный",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
 
-        Text(
-            text = "Сегодня",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable {
-                    if (isRegistered) onTodayClick() else onRegistrationRequired()
-                }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        )
-
         Spacer(modifier = Modifier.width(4.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = onPreviousMonth,
-                modifier = Modifier.size(40.dp),
-            ) {
+        // Кнопки управления
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = "Сегодня",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        if (isRegistered) onTodayClick() else onRegistrationRequired()
+                    }
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+            )
+
+            IconButton(onClick = onPreviousMonth, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = "Предыдущий месяц",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-
-            IconButton(
-                onClick = onNextMonth,
-                modifier = Modifier.size(40.dp),
-            ) {
+            IconButton(onClick = onNextMonth, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "Следующий месяц",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
