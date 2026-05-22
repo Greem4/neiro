@@ -59,17 +59,23 @@ fun CalendarGrid(
                 for (j in 0 until 7) {
                     val date = days[i + j]
                     val sessions = dayData[date]
-                    // Считаем учеников и диагностику (точками), исключая интенсивы и удалённые.
+
                     val studentsCount = sessions?.count { raw ->
                         (!SessionParser.isExtra(raw) || SessionParser.isDiagnostics(raw)) &&
                                 !SessionParser.isEffectivelyDeleted(raw)
                     } ?: 0
+
+                    val hasIntensive = sessions?.any { raw ->
+                        SessionParser.isIntensive(raw) && !SessionParser.isEffectivelyDeleted(raw)
+                    } ?: false
+
                     DayCard(
                         date = date,
                         today = today,
                         isCurrentMonth = date.month == currentMonth.month && date.year == currentMonth.year,
                         isSelected = date == selectedDate,
                         namesCount = studentsCount,
+                        hasIntensive = hasIntensive,
                         isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
                         onDateClick = onDateClick,
                         modifier = Modifier.weight(1f),

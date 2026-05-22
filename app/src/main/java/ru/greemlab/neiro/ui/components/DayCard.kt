@@ -45,6 +45,7 @@ fun DayCard(
     isCurrentMonth: Boolean,
     isSelected: Boolean,
     namesCount: Int = 0,
+    hasIntensive: Boolean = false,
     isWorkingDay: Boolean = true,
     onDateClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
@@ -92,12 +93,13 @@ fun DayCard(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            if (namesCount > 0) {
+            if (namesCount > 0 || hasIntensive) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 2.dp),
                 ) {
-                    if (namesCount <= 3) {
+                    if (namesCount in 1..3) {
                         val dotColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -110,7 +112,7 @@ fun DayCard(
                                     .background(color = dotColor, shape = CircleShape),
                             )
                         }
-                    } else {
+                    } else if (namesCount > 3) {
                         Text(
                             text = namesCount.toString(),
                             style = MaterialTheme.typography.labelSmall.copy(
@@ -118,7 +120,14 @@ fun DayCard(
                                 fontWeight = FontWeight.Bold,
                             ),
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 2.dp),
+                        )
+                    }
+
+                    if (hasIntensive) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .background(color = Color.Red, shape = CircleShape),
                         )
                     }
                 }
@@ -127,16 +136,17 @@ fun DayCard(
     }
 }
 
-@Preview(widthDp = 50, heightDp = 50)
+@Preview(widthDp = 50, heightDp = 50, name = "With Intensive")
 @Composable
-private fun DayCardPreview() {
+private fun DayCardIntensivePreview() {
     NeiroTheme {
         DayCard(
             date = LocalDate.now(),
             today = LocalDate.now(),
             isCurrentMonth = true,
             isSelected = false,
-            namesCount = 3,
+            namesCount = 1,
+            hasIntensive = true,
             onDateClick = {},
         )
     }
