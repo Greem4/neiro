@@ -380,7 +380,7 @@ private fun DevDrawerSection(
                 )
                 DevMenuItem(
                     title = "Архив сегодня",
-                    subtitle = "Перенести сегодняшние занятия в архив",
+                    subtitle = "Перенести занятия за сегодня в архив",
                     onClick = { SessionNotificationDevPreview.showArchiveReminder(context) },
                 )
             }

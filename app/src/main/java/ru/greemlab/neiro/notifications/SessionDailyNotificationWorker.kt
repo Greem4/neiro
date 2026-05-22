@@ -20,15 +20,11 @@ class SessionDailyNotificationWorker(
     }
 
     companion object {
-        const val TIME_WINDOW_MINUTES = 30L
-
-        fun isInScheduledWindow(now: LocalTime, scheduled: LocalTime): Boolean {
-            val start = scheduled.minusMinutes(TIME_WINDOW_MINUTES)
-            val end = scheduled.plusMinutes(TIME_WINDOW_MINUTES)
-            return !now.isBefore(start) && !now.isAfter(end)
-        }
-
-        fun shouldCheckAt(now: LocalTime, scheduled: ScheduledNotificationTime): Boolean =
-            isInScheduledWindow(now, scheduled.toLocalTime())
+        /**
+         * Пора показать сегодня: наступило настроенное время (до полуночи).
+         * Не узкое «окно» — иначе периодический воркер (раз в 15 мин) часто промахивается.
+         */
+        fun isDueToday(now: LocalTime, scheduled: ScheduledNotificationTime): Boolean =
+            !now.isBefore(scheduled.toLocalTime())
     }
 }

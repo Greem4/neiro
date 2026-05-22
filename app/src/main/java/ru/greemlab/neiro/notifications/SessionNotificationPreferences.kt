@@ -38,7 +38,7 @@ class SessionNotificationPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_STATUS, value).apply()
 
     var notifyReminder: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, false)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_REMINDER, value).apply()
 
     var notifyTodayDigest: Boolean
@@ -125,11 +125,19 @@ class SessionNotificationPreferences(context: Context) {
         prefs.edit().putLong(KEY_TODAY_DIGEST_DAY, epochDay).apply()
     }
 
+    fun clearTodayDigestShown() {
+        prefs.edit().remove(KEY_TODAY_DIGEST_DAY).apply()
+    }
+
     /** День, на который уже показали сводку «завтра» (epoch day целевой даты). */
     fun lastTomorrowDigestTargetEpochDay(): Long = prefs.getLong(KEY_TOMORROW_DIGEST_TARGET_DAY, 0L)
 
     fun markTomorrowDigestShown(targetDayEpochDay: Long) {
         prefs.edit().putLong(KEY_TOMORROW_DIGEST_TARGET_DAY, targetDayEpochDay).apply()
+    }
+
+    fun clearTomorrowDigestShown() {
+        prefs.edit().remove(KEY_TOMORROW_DIGEST_TARGET_DAY).apply()
     }
 
     fun wasArchiveReminderShown(pastDayEpochDay: Long): Boolean =
@@ -140,6 +148,12 @@ class SessionNotificationPreferences(context: Context) {
         val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
         updated.add(pastDayEpochDay.toString())
         if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
+    }
+
+    fun clearArchiveReminderShown(epochDay: Long = LocalDate.now().toEpochDay()) {
+        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        updated.remove(epochDay.toString())
         prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
     }
 

@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.notifications.ScheduledDigestKind
 import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
@@ -18,7 +19,7 @@ data class SessionNotificationSettingsState(
     val notifyRescheduled: Boolean = true,
     val notifyDeleted: Boolean = true,
     val notifyStatusChanged: Boolean = true,
-    val notifyReminder: Boolean = true,
+    val notifyReminder: Boolean = false,
     val notifyTodayDigest: Boolean = true,
     val notifyTomorrowDigest: Boolean = true,
     val notifyArchiveReminder: Boolean = true,
@@ -83,16 +84,31 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
         prefs.reminderMinutesBefore = minutes
     }
 
-    fun setTodayDigestTime(time: ScheduledNotificationTime) = update({ copy(todayDigestTime = time) }) {
+    fun setTodayDigestTime(time: ScheduledNotificationTime) {
         prefs.todayDigestTime = time
+        prefs.clearTodayDigestShown()
+        state = state.copy(todayDigestTime = time)
+        viewModelScope.launch {
+            SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.TODAY)
+        }
     }
 
-    fun setTomorrowDigestTime(time: ScheduledNotificationTime) = update({ copy(tomorrowDigestTime = time) }) {
+    fun setTomorrowDigestTime(time: ScheduledNotificationTime) {
         prefs.tomorrowDigestTime = time
+        prefs.clearTomorrowDigestShown()
+        state = state.copy(tomorrowDigestTime = time)
+        viewModelScope.launch {
+            SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.TOMORROW)
+        }
     }
 
-    fun setArchiveReminderTime(time: ScheduledNotificationTime) = update({ copy(archiveReminderTime = time) }) {
+    fun setArchiveReminderTime(time: ScheduledNotificationTime) {
         prefs.archiveReminderTime = time
+        prefs.clearArchiveReminderShown()
+        state = state.copy(archiveReminderTime = time)
+        viewModelScope.launch {
+            SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.ARCHIVE)
+        }
     }
 
     private inline fun update(

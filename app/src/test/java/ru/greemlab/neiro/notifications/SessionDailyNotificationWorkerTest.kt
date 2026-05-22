@@ -8,24 +8,17 @@ import java.time.LocalTime
 class SessionDailyNotificationWorkerTest {
 
     @Test
-    fun `shouldCheckAt matches scheduled time within window`() {
+    fun `isDueToday true at and after scheduled time`() {
         val scheduled = ScheduledNotificationTime(21, 0)
-        assertTrue(
-            SessionDailyNotificationWorker.shouldCheckAt(LocalTime.of(21, 15), scheduled),
-        )
-        assertTrue(
-            SessionDailyNotificationWorker.shouldCheckAt(LocalTime.of(20, 45), scheduled),
-        )
+        assertTrue(SessionDailyNotificationWorker.isDueToday(LocalTime.of(21, 0), scheduled))
+        assertTrue(SessionDailyNotificationWorker.isDueToday(LocalTime.of(21, 45), scheduled))
+        assertTrue(SessionDailyNotificationWorker.isDueToday(LocalTime.of(23, 59), scheduled))
     }
 
     @Test
-    fun `shouldCheckAt rejects time outside window`() {
-        val scheduled = ScheduledNotificationTime(8, 0)
-        assertFalse(
-            SessionDailyNotificationWorker.shouldCheckAt(LocalTime.of(9, 5), scheduled),
-        )
-        assertFalse(
-            SessionDailyNotificationWorker.shouldCheckAt(LocalTime.of(7, 0), scheduled),
-        )
+    fun `isDueToday false before scheduled time`() {
+        val scheduled = ScheduledNotificationTime(21, 0)
+        assertFalse(SessionDailyNotificationWorker.isDueToday(LocalTime.of(20, 59), scheduled))
+        assertFalse(SessionDailyNotificationWorker.isDueToday(LocalTime.of(8, 0), scheduled))
     }
 }

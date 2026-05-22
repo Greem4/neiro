@@ -13,8 +13,8 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.Duration
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
 /**
@@ -26,6 +26,9 @@ object SessionNotificationCoordinator {
 
     private const val PERIODIC_WORK_NAME = "session_reminder_check"
     private const val PERIODIC_DAILY_WORK_NAME = "session_daily_notifications"
+    private const val WORK_TODAY_DIGEST = "session_today_digest"
+    private const val WORK_TOMORROW_DIGEST = "session_tomorrow_digest"
+    private const val WORK_ARCHIVE_DIGEST = "session_archive_digest"
     private const val WORK_TAG_REMINDER = "session_reminder"
     private const val WORK_PREFIX = "session_reminder_"
     private const val MAX_SCHEDULE_DAYS = 7L
@@ -33,15 +36,13 @@ object SessionNotificationCoordinator {
     fun initialize(context: Context) {
         val appContext = context.applicationContext
         SessionNotificationDisplay.ensureChannel(appContext)
-        schedulePeriodicCheck(appContext)
-        scheduleDailyNotifications(appContext)
+        rescheduleAllWork(appContext)
     }
 
     suspend fun onNotificationsToggled(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
         if (enabled) {
-            schedulePeriodicCheck(appContext)
-            scheduleDailyNotifications(appContext)
+            rescheduleAllWork(appContext)
             refreshFromCalendar(appContext)
         } else {
             cancelAll(appContext)
@@ -55,9 +56,26 @@ object SessionNotificationCoordinator {
             cancelAll(appContext)
             return
         }
-        schedulePeriodicCheck(appContext)
-        scheduleDailyNotifications(appContext)
+        rescheduleAllWork(appContext)
         refreshFromCalendar(appContext)
+    }
+
+    /** Смена времени доставки: перепланирование и немедленная проверка, если новое время «сейчас». */
+    suspend fun onDigestTimeChanged(context: Context, kind: ScheduledDigestKind) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled) return
+
+        rescheduleDigest(appContext, kind)
+
+        val scheduled = when (kind) {
+            ScheduledDigestKind.TODAY -> prefs.todayDigestTime
+            ScheduledDigestKind.TOMORROW -> prefs.tomorrowDigestTime
+            ScheduledDigestKind.ARCHIVE -> prefs.archiveReminderTime
+        }
+        if (SessionDailyNotificationWorker.isDueToday(java.time.LocalTime.now(), scheduled)) {
+            deliverScheduledDigest(appContext, kind)
+        }
     }
 
     /**
@@ -99,11 +117,7 @@ object SessionNotificationCoordinator {
         val savedDayData = calendarRepository.savedDayDataFlow.first()
         val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
 
-        if (prefs.notifyReminder) {
-            rescheduleReminders(appContext, upcoming, prefs.reminderMinutesBefore)
-        } else {
-            WorkManager.getInstance(appContext).cancelAllWorkByTag(WORK_TAG_REMINDER)
-        }
+        applyReminderSchedule(appContext, upcoming, prefs)
 
         runDailyScheduledChecks(
             appContext,
@@ -155,9 +169,9 @@ object SessionNotificationCoordinator {
         val savedDayData = calendarRepository.savedDayDataFlow.first()
         val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
 
-        if (prefs.notifyReminder) {
-            rescheduleReminders(context, upcoming, prefs.reminderMinutesBefore)
-        }
+        applyReminderSchedule(context, upcoming, prefs)
+        scheduleDailyNotifications(context)
+        rescheduleAllDailyDigests(context)
 
         runDailyScheduledChecks(
             context,
@@ -167,6 +181,65 @@ object SessionNotificationCoordinator {
             profile = profile,
             upcoming = upcoming,
         )
+    }
+
+    suspend fun deliverScheduledDigest(context: Context, kind: ScheduledDigestKind) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled) return
+
+        val calendarRepository = CalendarDataStoreProvider.get(appContext)
+        val profile = calendarRepository.userProfileFlow.first()
+        if (!profile.isRegistered) return
+
+        val dayData = calendarRepository.dayDataFlow.first()
+        val savedDayData = calendarRepository.savedDayDataFlow.first()
+        val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
+
+        when (kind) {
+            ScheduledDigestKind.TODAY -> if (prefs.notifyTodayDigest) {
+                maybeShowTodayDigest(appContext, upcoming, prefs)
+            }
+            ScheduledDigestKind.TOMORROW -> if (prefs.notifyTomorrowDigest) {
+                maybeShowTomorrowDigest(appContext, upcoming, prefs)
+            }
+            ScheduledDigestKind.ARCHIVE -> if (prefs.notifyArchiveReminder) {
+                maybeShowArchiveReminder(appContext, dayData, savedDayData, profile, prefs)
+            }
+        }
+    }
+
+    fun rescheduleDigest(context: Context, kind: ScheduledDigestKind) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled) {
+            cancelDigestWork(appContext, kind)
+            return
+        }
+
+        when (kind) {
+            ScheduledDigestKind.TODAY -> {
+                if (!prefs.notifyTodayDigest) {
+                    cancelDigestWork(appContext, kind)
+                    return
+                }
+                enqueueDigestWork(appContext, WORK_TODAY_DIGEST, prefs.todayDigestTime, kind)
+            }
+            ScheduledDigestKind.TOMORROW -> {
+                if (!prefs.notifyTomorrowDigest) {
+                    cancelDigestWork(appContext, kind)
+                    return
+                }
+                enqueueDigestWork(appContext, WORK_TOMORROW_DIGEST, prefs.tomorrowDigestTime, kind)
+            }
+            ScheduledDigestKind.ARCHIVE -> {
+                if (!prefs.notifyArchiveReminder) {
+                    cancelDigestWork(appContext, kind)
+                    return
+                }
+                enqueueDigestWork(appContext, WORK_ARCHIVE_DIGEST, prefs.archiveReminderTime, kind)
+            }
+        }
     }
 
     suspend fun runDailyScheduledChecks(context: Context) {
@@ -200,28 +273,107 @@ object SessionNotificationCoordinator {
         profile: UserProfile,
         upcoming: List<UpcomingSession>,
     ) {
-        val now = LocalTime.now()
+        val now = java.time.LocalTime.now()
 
         if (prefs.notifyTodayDigest &&
-            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.todayDigestTime)
+            SessionDailyNotificationWorker.isDueToday(now, prefs.todayDigestTime)
         ) {
             maybeShowTodayDigest(context, upcoming, prefs)
         }
 
         if (prefs.notifyTomorrowDigest &&
-            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.tomorrowDigestTime)
+            SessionDailyNotificationWorker.isDueToday(now, prefs.tomorrowDigestTime)
         ) {
             maybeShowTomorrowDigest(context, upcoming, prefs)
         }
 
         if (prefs.notifyArchiveReminder &&
-            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.archiveReminderTime)
+            SessionDailyNotificationWorker.isDueToday(now, prefs.archiveReminderTime)
         ) {
             maybeShowArchiveReminder(context, dayData, savedDayData, profile, prefs)
         }
     }
 
-    private fun schedulePeriodicCheck(context: Context) {
+    private fun rescheduleAllDailyDigests(context: Context) {
+        val prefs = SessionNotificationPreferences.get(context)
+        if (!prefs.isEnabled ||
+            (!prefs.notifyTodayDigest && !prefs.notifyTomorrowDigest && !prefs.notifyArchiveReminder)
+        ) {
+            cancelAllDailyDigests(context)
+            return
+        }
+
+        rescheduleDigest(context, ScheduledDigestKind.TODAY)
+        rescheduleDigest(context, ScheduledDigestKind.TOMORROW)
+        rescheduleDigest(context, ScheduledDigestKind.ARCHIVE)
+    }
+
+    private fun enqueueDigestWork(
+        context: Context,
+        uniqueName: String,
+        scheduled: ScheduledNotificationTime,
+        kind: ScheduledDigestKind,
+    ) {
+        val delayMs = DigestSchedule
+            .delayUntilNext(scheduled, ZoneId.systemDefault(), ZonedDateTime.now(ZoneId.systemDefault()))
+            .toMillis()
+            .coerceAtLeast(0L)
+
+        val request = OneTimeWorkRequestBuilder<SessionScheduledDigestWorker>()
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .setInputData(workDataOf(SessionScheduledDigestWorker.KEY_KIND to kind.name))
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            uniqueName,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
+
+    private fun cancelDigestWork(context: Context, kind: ScheduledDigestKind) {
+        val uniqueName = when (kind) {
+            ScheduledDigestKind.TODAY -> WORK_TODAY_DIGEST
+            ScheduledDigestKind.TOMORROW -> WORK_TOMORROW_DIGEST
+            ScheduledDigestKind.ARCHIVE -> WORK_ARCHIVE_DIGEST
+        }
+        WorkManager.getInstance(context).cancelUniqueWork(uniqueName)
+    }
+
+    private fun cancelAllDailyDigests(context: Context) {
+        WorkManager.getInstance(context).apply {
+            cancelUniqueWork(WORK_TODAY_DIGEST)
+            cancelUniqueWork(WORK_TOMORROW_DIGEST)
+            cancelUniqueWork(WORK_ARCHIVE_DIGEST)
+        }
+    }
+
+    /** Перепланировать все фоновые задачи по текущим настройкам (независимо друг от друга). */
+    private fun rescheduleAllWork(context: Context) {
+        val prefs = SessionNotificationPreferences.get(context)
+        if (!prefs.isEnabled) {
+            cancelAll(context)
+            return
+        }
+        scheduleSessionReminders(context)
+        scheduleDailyNotifications(context)
+        rescheduleAllDailyDigests(context)
+    }
+
+    private fun applyReminderSchedule(
+        context: Context,
+        upcoming: List<UpcomingSession>,
+        prefs: SessionNotificationPreferences,
+    ) {
+        if (prefs.notifyReminder) {
+            rescheduleReminders(context, upcoming, prefs.reminderMinutesBefore)
+        } else {
+            WorkManager.getInstance(context).cancelAllWorkByTag(WORK_TAG_REMINDER)
+        }
+    }
+
+    /** Только «за N минут до занятия»; не влияет на сводки и архив. */
+    private fun scheduleSessionReminders(context: Context) {
         val prefs = SessionNotificationPreferences.get(context)
         if (!prefs.isEnabled || !prefs.notifyReminder) {
             WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME)
@@ -233,11 +385,12 @@ object SessionNotificationCoordinator {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             PERIODIC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
     }
 
+    /** Сводки и архив: отдельный периодический воркер, работает без notifyReminder. */
     private fun scheduleDailyNotifications(context: Context) {
         val prefs = SessionNotificationPreferences.get(context)
         val workManager = WorkManager.getInstance(context)
@@ -253,9 +406,14 @@ object SessionNotificationCoordinator {
 
         workManager.enqueueUniquePeriodicWork(
             PERIODIC_DAILY_WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
+    }
+
+    /** Проверка сводок и архива при открытии приложения (если время уже наступило). */
+    suspend fun checkDueDigestsOnAppOpen(context: Context) {
+        runDailyScheduledChecks(context)
     }
 
     private fun rescheduleReminders(
@@ -345,6 +503,7 @@ object SessionNotificationCoordinator {
         WorkManager.getInstance(context).apply {
             cancelUniqueWork(PERIODIC_WORK_NAME)
             cancelUniqueWork(PERIODIC_DAILY_WORK_NAME)
+            cancelAllDailyDigests(context)
             cancelAllWorkByTag(WORK_TAG_REMINDER)
         }
     }

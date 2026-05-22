@@ -126,7 +126,6 @@ object SessionNotificationDisplay {
         val content = context.resources.getQuantityString(
             R.plurals.notification_archive_body,
             count,
-            formatArchiveDateLabel(context, date),
             count,
         )
 
