@@ -363,11 +363,12 @@ fun CalendarScreenContent(
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
-                calendarMode = calendarMode,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
                 onMenuClick = onMenuClick,
-                onModeChange = onModeChange,
+                onTodayClick = onTodayClick,
+                isRegistered = isRegistered,
+                onRegistrationRequired = onRegistrationRequired,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -390,13 +391,10 @@ fun CalendarScreenContent(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                     CalendarToolbar(
-                        currentMonth = currentMonth,
                         calendarMode = calendarMode,
-                        isRegistered = isRegistered,
                         isSyncing = isSyncing,
-                        onTodayClick = onTodayClick,
+                        onModeChange = onModeChange,
                         onSyncClick = onSyncClick,
-                        onRegistrationRequired = onRegistrationRequired,
                     )
 
                     if (isRegistered && selectedDate != null && daySummaryStats != null) {
