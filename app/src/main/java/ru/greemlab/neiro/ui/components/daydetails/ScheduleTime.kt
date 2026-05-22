@@ -39,6 +39,38 @@ data class PositionedAppointment(
     val laneCount: Int,
 )
 
+/** Замена в слоте: новый клиент поверх, отменённый — под ним до раскрытия. */
+@Immutable
+data class ReplacementPair(
+    val replacement: TimedAppointment,
+    val removed: TimedAppointment,
+)
+
+@Immutable
+sealed class PositionedTimelineItem {
+    abstract val lane: Int
+    abstract val laneCount: Int
+    abstract val layoutAppointment: TimedAppointment
+
+    @Immutable
+    data class Single(
+        val appointment: TimedAppointment,
+        override val lane: Int,
+        override val laneCount: Int,
+    ) : PositionedTimelineItem() {
+        override val layoutAppointment: TimedAppointment = appointment
+    }
+
+    @Immutable
+    data class Replacement(
+        val pair: ReplacementPair,
+        override val lane: Int,
+        override val laneCount: Int,
+    ) : PositionedTimelineItem() {
+        override val layoutAppointment: TimedAppointment = pair.replacement
+    }
+}
+
 @Immutable
 data class DayTimelineLayout(
     /** Начало шкалы — час первого занятия. */
@@ -46,7 +78,7 @@ data class DayTimelineLayout(
     /** Конец шкалы — после последнего занятия, включая отменённые. */
     val axisEnd: LocalTime,
     val totalMinutes: Int,
-    val positioned: List<PositionedAppointment>,
+    val positioned: List<PositionedTimelineItem>,
     val hourLabels: List<LocalTime>,
 )
 
@@ -86,9 +118,60 @@ fun buildDayTimelineLayout(entries: List<TimelineEntry>): DayTimelineLayout? {
         axisStart = axisStart,
         axisEnd = axisEnd,
         totalMinutes = totalMinutes,
-        positioned = computePositionedAppointments(appointments),
+        positioned = computePositionedTimelineItems(appointments),
         hourLabels = hourLabels,
     )
+}
+
+/** Пара «замена + отмена» в одном временном слоте. */
+fun findReplacementPair(appointments: List<TimedAppointment>): ReplacementPair? {
+    val replacement = appointments.firstOrNull { it.entry.status.isReplacementTop() }
+    val removed = appointments.firstOrNull { it.entry.status == AttendanceStatus.CANCELLED }
+    return if (replacement != null && removed != null && replacement != removed) {
+        ReplacementPair(replacement = replacement, removed = removed)
+    } else {
+        null
+    }
+}
+
+private fun AttendanceStatus.isReplacementTop(): Boolean =
+    this == AttendanceStatus.ARRIVED || this == AttendanceStatus.CONFIRMED
+
+fun computePositionedTimelineItems(appointments: List<TimedAppointment>): List<PositionedTimelineItem> {
+    val sorted = appointments.sortedWith(compareBy({ it.start }, { it.entry.name }))
+    val used = mutableSetOf<TimedAppointment>()
+    val groups = mutableListOf<Pair<TimedAppointment, ReplacementPair?>>()
+
+    for (appt in sorted) {
+        if (appt in used) continue
+        val sameSlot = sorted.filter { other ->
+            other !in used && other.start == appt.start && other.end == appt.end
+        }
+        val pair = findReplacementPair(sameSlot)
+        if (pair != null) {
+            groups.add(pair.replacement to pair)
+            used.add(pair.replacement)
+            used.add(pair.removed)
+        } else {
+            groups.add(appt to null)
+            used.add(appt)
+        }
+    }
+
+    val positioned = computePositionedAppointments(groups.map { it.first })
+
+    return groups.zip(positioned) { (layoutAppt, pair), pos ->
+        require(pos.appointment == layoutAppt)
+        if (pair != null) {
+            PositionedTimelineItem.Replacement(pair = pair, lane = pos.lane, laneCount = pos.laneCount)
+        } else {
+            PositionedTimelineItem.Single(
+                appointment = pos.appointment,
+                lane = pos.lane,
+                laneCount = pos.laneCount,
+            )
+        }
+    }
 }
 
 private fun intervalsOverlap(a: TimedAppointment, b: TimedAppointment): Boolean =

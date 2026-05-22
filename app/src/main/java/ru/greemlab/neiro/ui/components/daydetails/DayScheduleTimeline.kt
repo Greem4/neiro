@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -99,8 +100,10 @@ fun DayScheduleTimeline(
                             .weight(1f)
                             .height(timelineHeight),
                     ) {
+                        val expandedReplacements = remember { mutableStateMapOf<String, Boolean>() }
+
                         layout.positioned.forEach { positioned ->
-                            val appt = positioned.appointment
+                            val appt = positioned.layoutAppointment
                             val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
                             val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
                             val visualDurationMinutes = when {
@@ -118,14 +121,35 @@ fun DayScheduleTimeline(
                             val laneCount = positioned.laneCount.coerceAtLeast(1)
                             val laneWidth = (this@BoxWithConstraints.maxWidth - SlotLaneGap * (laneCount - 1)) / laneCount
                             val laneX = laneWidth * positioned.lane + SlotLaneGap * positioned.lane
+                            val slotModifier = Modifier
+                                .offset(x = laneX, y = topOffset)
+                                .width(laneWidth)
+                                .height(slotHeightDp)
 
-                            TimelineScheduleSlot(
-                                entry = appt.entry,
-                                modifier = Modifier
-                                    .offset(x = laneX, y = topOffset)
-                                    .width(laneWidth)
-                                    .height(slotHeightDp),
-                            )
+                            when (positioned) {
+                                is PositionedTimelineItem.Single -> {
+                                    TimelineScheduleSlot(
+                                        entry = positioned.appointment.entry,
+                                        modifier = slotModifier,
+                                    )
+                                }
+                                is PositionedTimelineItem.Replacement -> {
+                                    val pair = positioned.pair
+                                    val slotKey = "${appt.start}-${appt.end}-${pair.replacement.entry.name}-${pair.removed.entry.name}"
+                                    val expanded = expandedReplacements[slotKey] == true
+
+                                    ExpandableReplacementSlot(
+                                        replacement = pair.replacement.entry.toSlotContent(),
+                                        removed = pair.removed.entry.toSlotContent(),
+                                        expanded = expanded,
+                                        onToggle = {
+                                            expandedReplacements[slotKey] = !expanded
+                                        },
+                                        compactForTimeline = true,
+                                        modifier = slotModifier,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -246,14 +270,9 @@ private fun TimelineScheduleSlot(
     entry: TimelineEntry,
     modifier: Modifier = Modifier,
 ) {
-    val displayName = if (entry.isExtra && entry.extraType != "Диагностика") {
-        "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
-    } else {
-        entry.name
-    }
     ScheduleSlotItem(
         time = entry.time,
-        name = displayName,
+        name = entry.displayName(),
         comment = entry.comment,
         status = entry.status,
         isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
@@ -262,6 +281,23 @@ private fun TimelineScheduleSlot(
         modifier = modifier,
     )
 }
+
+private fun TimelineEntry.displayName(): String =
+    if (isExtra && extraType != "Диагностика") {
+        "$extraType: ${formatRubles(extraAmount)}"
+    } else {
+        name
+    }
+
+private fun TimelineEntry.toSlotContent(): ScheduleSlotContent =
+    ScheduleSlotContent(
+        time = time,
+        name = displayName(),
+        comment = comment,
+        status = status,
+        isDiagnostics = isExtra && extraType == "Диагностика",
+        showTime = false,
+    )
 
 @Composable
 private fun rememberCurrentTime(): State<LocalTime> =
@@ -282,6 +318,8 @@ private fun DayScheduleTimelinePreview() {
         DayScheduleTimeline(
             date = LocalDate.now(),
             entries = listOf(
+                TimelineEntry("Ерженинов Владислав", "16:00-16:50", "7.6(Юля)", AttendanceStatus.ARRIVED),
+                TimelineEntry("Пирогов Лев", "16:00-16:50", "Нейрокоррекция", AttendanceStatus.CANCELLED),
                 TimelineEntry("Шабанова Василиса", "11:00-11:50", "Нейрокоррекция", AttendanceStatus.ARRIVED),
                 TimelineEntry("Дубль", "11:00-11:50", "", AttendanceStatus.CANCELLED),
                 TimelineEntry("Егорченкова Эмилия", "15:00-15:50", "2,1г", AttendanceStatus.EXPECTED),
