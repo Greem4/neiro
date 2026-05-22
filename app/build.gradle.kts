@@ -155,6 +155,10 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.process)
+
+    // Фоновая автосинхронизация YClients
+    implementation(libs.androidx.work.runtime.ktx)
 
     // ViewModel для Compose
     implementation(libs.androidx.lifecycle.viewmodel.compose)

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Цветной логотип Neiro (круг + «N») — large icon уведомления. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <path android:pathData="M32,32m-19,0a19,19 0,1 1,38 0a19,19 0,1 1,-38 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="13"
+                android:endX="32"
+                android:endY="51"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF24A1DE" />
+                <item android:offset="0.55" android:color="#FF1E96C8" />
+                <item android:offset="1.0" android:color="#FF1789B6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path android:pathData="M32,20m-11,0a11,6 0,1 1,22 0a11,6 0,1 1,-22 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="14"
+                android:endX="32"
+                android:endY="24"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#42FFFFFF" />
+                <item android:offset="1.0" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M27.3,24.3 L27.3,38.5 M27.3,24.3 L36.7,38.5 L36.7,24.3"
+        android:strokeColor="#1A000000"
+        android:strokeWidth="4.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M27.3,24.3 L27.3,38.5 M27.3,24.3 L36.7,38.5 L36.7,24.3"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

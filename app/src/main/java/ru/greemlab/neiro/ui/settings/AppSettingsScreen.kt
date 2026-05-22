@@ -12,6 +12,8 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.SettingsSuggest
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,8 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.R
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.data.ImportResult
 import ru.greemlab.neiro.data.THEME_DARK
@@ -31,10 +35,13 @@ import ru.greemlab.neiro.data.THEME_SYSTEM
 @Composable
 fun AppSettingsScreen(
     onBack: () -> Unit,
+    onOpenNotificationSettings: () -> Unit = {},
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
     val theme by viewModel.theme.collectAsState()
     val context = LocalContext.current
+    var autoSyncEnabled by remember { mutableStateOf(viewModel.isAutoSyncEnabled()) }
+    var notificationsEnabled by remember { mutableStateOf(viewModel.isSessionNotificationsEnabled()) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -100,6 +107,65 @@ fun AppSettingsScreen(
                     onClick = { viewModel.setTheme(THEME_DARK) },
                     icon = Icons.Rounded.DarkMode,
                 )
+            }
+
+            SettingsSection(title = "Занятия") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Notifications, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_notifications_title))
+                        Text(
+                            text = stringResource(R.string.settings_notifications_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = notificationsEnabled,
+                        onCheckedChange = { enabled ->
+                            notificationsEnabled = enabled
+                            viewModel.setSessionNotificationsEnabled(enabled)
+                        },
+                    )
+                }
+                TextButton(
+                    onClick = onOpenNotificationSettings,
+                    enabled = notificationsEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.notification_settings_configure))
+                }
+            }
+
+            SettingsSection(title = "YClients") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Sync, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Автосинхронизация")
+                        Text(
+                            text = "При открытии приложения и каждые 4 часа в фоне",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = autoSyncEnabled,
+                        onCheckedChange = { enabled ->
+                            autoSyncEnabled = enabled
+                            viewModel.setAutoSyncEnabled(enabled)
+                        },
+                    )
+                }
             }
 
             SettingsSection(title = "Данные") {

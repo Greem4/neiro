@@ -1,0 +1,121 @@
+package ru.greemlab.neiro.sync
+
+import android.content.Context
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import ru.greemlab.neiro.data.network.YClientsRepository
+import java.util.concurrent.TimeUnit
+
+/**
+ * Независимый от [AutoSyncCoordinator] опрос YClients API:
+ * - сразу после входа и при возврате в приложение;
+ * - на переднем плане: [LiveApiPollSchedule.DAY_INTERVAL_MINUTES] днём,
+ *   [LiveApiPollSchedule.NIGHT_INTERVAL_MINUTES] с 22:00 до 08:00;
+ * - в фоне — те же интервалы через цепочку [LiveApiRefreshWorker].
+ */
+object LiveApiCoordinator {
+
+    private const val BACKGROUND_WORK_NAME = "yclients_live_api_refresh"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var initialized = false
+    private var foregroundPollJob: Job? = null
+
+    fun initialize(context: Context) {
+        if (initialized) return
+        initialized = true
+
+        val appContext = context.applicationContext
+        val yclientsRepository = YClientsRepository.getInstance(appContext)
+
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) {
+                    scope.launch {
+                        if (!yclientsRepository.isLoggedIn.first()) return@launch
+                        refreshNow(appContext)
+                        startForegroundPolling(appContext)
+                    }
+                }
+
+                override fun onStop(owner: LifecycleOwner) {
+                    stopForegroundPolling()
+                }
+            },
+        )
+
+        scope.launch {
+            yclientsRepository.isLoggedIn.collect { loggedIn ->
+                if (loggedIn) {
+                    scheduleBackgroundRefresh(appContext, delayMs = 0L)
+                    refreshNow(appContext)
+                } else {
+                    stopForegroundPolling()
+                    cancelBackgroundRefresh(appContext)
+                }
+            }
+        }
+    }
+
+    private fun startForegroundPolling(context: Context) {
+        stopForegroundPolling()
+        foregroundPollJob = scope.launch {
+            while (isActive) {
+                delay(LiveApiPollSchedule.intervalMillis())
+                refreshNow(context)
+            }
+        }
+    }
+
+    private fun stopForegroundPolling() {
+        foregroundPollJob?.cancel()
+        foregroundPollJob = null
+    }
+
+    private suspend fun refreshNow(context: Context) {
+        val yclientsRepository = YClientsRepository.getInstance(context)
+        if (!yclientsRepository.isLoggedIn.first()) return
+        YClientsCalendarSync.get(context).refreshLiveRange()
+    }
+
+    /** Следующий фоновый запуск; вызывается из [LiveApiRefreshWorker] после каждого опроса. */
+    fun scheduleNextBackgroundRefresh(context: Context) {
+        scheduleBackgroundRefresh(context, delayMs = LiveApiPollSchedule.intervalMillis())
+    }
+
+    private fun scheduleBackgroundRefresh(context: Context, delayMs: Long) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<LiveApiRefreshWorker>()
+            .setInitialDelay(delayMs.coerceAtLeast(0L), TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            BACKGROUND_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
+
+    private fun cancelBackgroundRefresh(context: Context) {
+        WorkManager.getInstance(context.applicationContext)
+            .cancelUniqueWork(BACKGROUND_WORK_NAME)
+    }
+}

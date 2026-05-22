@@ -14,6 +14,10 @@ import kotlinx.coroutines.withContext
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.ImportResult
+import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
+import ru.greemlab.neiro.notifications.SessionNotificationPreferences
+import ru.greemlab.neiro.sync.AutoSyncCoordinator
+import ru.greemlab.neiro.sync.SyncPreferences
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -21,6 +25,8 @@ import java.io.OutputStreamWriter
 
 class AppSettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
+    private val syncPreferences = SyncPreferences.get(application)
+    private val notificationPreferences = SessionNotificationPreferences.get(application)
 
     val theme: StateFlow<String> = repository.themeFlow
         .stateIn(
@@ -31,6 +37,22 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     fun setTheme(theme: String) {
         viewModelScope.launch { repository.saveTheme(theme) }
+    }
+
+    fun isAutoSyncEnabled(): Boolean = syncPreferences.isAutoSyncEnabled
+
+    fun setAutoSyncEnabled(enabled: Boolean) {
+        syncPreferences.isAutoSyncEnabled = enabled
+        AutoSyncCoordinator.onAutoSyncToggled(getApplication(), enabled)
+    }
+
+    fun isSessionNotificationsEnabled(): Boolean = notificationPreferences.isEnabled
+
+    fun setSessionNotificationsEnabled(enabled: Boolean) {
+        notificationPreferences.isEnabled = enabled
+        viewModelScope.launch {
+            SessionNotificationCoordinator.onNotificationsToggled(getApplication(), enabled)
+        }
     }
 
     /**
