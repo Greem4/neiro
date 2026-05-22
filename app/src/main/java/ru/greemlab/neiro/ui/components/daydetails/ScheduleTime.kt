@@ -1,8 +1,21 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import androidx.compose.runtime.Immutable
+import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import java.time.Duration
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+
+@Immutable
+data class TimelineEntry(
+    val name: String,
+    val time: String,
+    val comment: String,
+    val status: AttendanceStatus,
+    val isExtra: Boolean = false,
+    val extraType: String = "",
+    val extraAmount: Double = 0.0,
+)
 
 /** Длительность обычного занятия в минутах. */
 const val SESSION_DURATION_MINUTES = 50
@@ -12,17 +25,111 @@ val SCHEDULE_DAY_END: LocalTime = LocalTime.of(22, 0)
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-val SCHEDULE_TOTAL_MINUTES: Int =
-    Duration.between(SCHEDULE_DAY_START, SCHEDULE_DAY_END).toMinutes().toInt()
+@Immutable
+data class TimedAppointment(
+    val entry: TimelineEntry,
+    val start: LocalTime,
+    val end: LocalTime,
+)
 
-/**
- * Нормализует интервал записи до [SESSION_DURATION_MINUTES] минут от времени начала.
- * Пример: `11:00-11:45` → `11:00-11:50`.
- */
+@Immutable
+data class PositionedAppointment(
+    val appointment: TimedAppointment,
+    val lane: Int,
+    val laneCount: Int,
+)
+
+@Immutable
+data class DayTimelineLayout(
+    /** Начало шкалы — час первого занятия. */
+    val axisStart: LocalTime,
+    /** Конец шкалы — после последнего занятия, включая отменённые. */
+    val axisEnd: LocalTime,
+    val totalMinutes: Int,
+    val positioned: List<PositionedAppointment>,
+    val hourLabels: List<LocalTime>,
+)
+
+fun buildDayTimelineLayout(entries: List<TimelineEntry>): DayTimelineLayout? {
+    val appointments = entries
+        .filter { it.time.isNotEmpty() }
+        .mapNotNull { entry ->
+            val start = parseTimeRangeStart(entry.time) ?: return@mapNotNull null
+            val end = parseTimeRangeEnd(entry.time) ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+            if (start.isBefore(SCHEDULE_DAY_START) || !start.isBefore(SCHEDULE_DAY_END)) return@mapNotNull null
+            TimedAppointment(entry = entry, start = start, end = end)
+        }
+        .sortedWith(compareBy<TimedAppointment> { it.start }.thenBy { it.entry.name })
+
+    if (appointments.isEmpty()) return null
+
+    val earliestStart = appointments.minOf { it.start }
+    val latestEnd = appointments.maxOf { it.end }
+
+    val axisStart = LocalTime.of(earliestStart.hour, 0)
+    val axisEnd = roundUpToHour(latestEnd).coerceAtLeast(axisStart.plusHours(1))
+
+    val hourLabels = buildList {
+        var hour = axisStart
+        while (hour.isBefore(axisEnd)) {
+            add(hour)
+            hour = hour.plusHours(1)
+        }
+    }
+
+    val totalMinutes = Duration.between(axisStart, axisEnd)
+        .toMinutes()
+        .toInt()
+        .coerceAtLeast(SESSION_DURATION_MINUTES)
+
+    return DayTimelineLayout(
+        axisStart = axisStart,
+        axisEnd = axisEnd,
+        totalMinutes = totalMinutes,
+        positioned = computePositionedAppointments(appointments),
+        hourLabels = hourLabels,
+    )
+}
+
+private fun intervalsOverlap(a: TimedAppointment, b: TimedAppointment): Boolean =
+    a.start.isBefore(b.end) && b.start.isBefore(a.end)
+
+/** Раскладывает пересекающиеся по времени занятия в колонки, чтобы не накладывались. */
+fun computePositionedAppointments(appointments: List<TimedAppointment>): List<PositionedAppointment> {
+    if (appointments.isEmpty()) return emptyList()
+
+    val sorted = appointments.sortedWith(compareBy({ it.start }, { it.entry.name }))
+    val laneEnds = mutableListOf<LocalTime>()
+    val assigned = mutableListOf<Pair<TimedAppointment, Int>>()
+
+    for (appt in sorted) {
+        var lane = laneEnds.indexOfFirst { end -> !end.isAfter(appt.start) }
+        if (lane < 0) {
+            lane = laneEnds.size
+            laneEnds.add(appt.end)
+        } else {
+            laneEnds[lane] = appt.end
+        }
+        assigned.add(appt to lane)
+    }
+
+    return assigned.map { (appt, lane) ->
+        val cluster = assigned.filter { (other, _) -> intervalsOverlap(other, appt) }
+        val laneCount = cluster.maxOf { it.second } + 1
+        PositionedAppointment(appointment = appt, lane = lane, laneCount = laneCount)
+    }
+}
+
+private fun roundUpToHour(time: LocalTime): LocalTime =
+    if (time.minute == 0 && time.second == 0) time else LocalTime.of(time.hour, 0).plusHours(1)
+
+fun minutesFromAxisStart(axisStart: LocalTime, time: LocalTime): Int =
+    Duration.between(axisStart, time).toMinutes().toInt()
+
 fun normalizeSessionTime(time: String): String {
     if (time.isBlank()) return time
     val start = parseTimeRangeStart(time) ?: return time
-    val end = start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+    val end = parseTimeRangeEnd(time) ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
     return "${start.format(TIME_FORMAT)}-${end.format(TIME_FORMAT)}"
 }
 
@@ -36,13 +143,17 @@ fun parseTimeRangeStart(time: String): LocalTime? {
     }
 }
 
-/** Смещение от начала шкалы (9:00) в минутах, null если вне диапазона. */
-fun minutesFromScheduleStart(time: LocalTime): Int? {
-    if (time.isBefore(SCHEDULE_DAY_START) || !time.isBefore(SCHEDULE_DAY_END)) return null
-    return Duration.between(SCHEDULE_DAY_START, time).toMinutes().toInt()
+fun parseTimeRangeEnd(time: String): LocalTime? {
+    val endToken = time.substringAfter("-", "").trim()
+    if (endToken.isEmpty()) return null
+    return try {
+        LocalTime.parse(endToken)
+    } catch (_: Exception) {
+        null
+    }
 }
 
-fun formatTimeRangeLabel(time: String): String {
-    val normalized = normalizeSessionTime(time)
-    return normalized.replace("-", " – ")
-}
+fun formatHourLabel(time: LocalTime): String = time.format(TIME_FORMAT)
+
+/** Текущее время на красной линии — с минутами. */
+fun formatNowLabel(time: LocalTime): String = time.format(TIME_FORMAT)

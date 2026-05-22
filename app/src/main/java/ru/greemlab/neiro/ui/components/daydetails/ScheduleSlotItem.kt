@@ -41,6 +41,8 @@ fun ScheduleSlotItem(
     status: AttendanceStatus,
     modifier: Modifier = Modifier,
     isDiagnostics: Boolean = false,
+    showTime: Boolean = true,
+    compactForTimeline: Boolean = false,
 ) {
     // Цвет для текста имени в зависимости от статуса
     val nameColor = when (status) {
@@ -66,7 +68,9 @@ fun ScheduleSlotItem(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 56.dp),
+            .then(
+                if (compactForTimeline) Modifier else Modifier.defaultMinSize(minHeight = 56.dp),
+            ),
         shape = RoundedCornerShape(12.dp),
         // Фон карточки - стандартный surfaceVariant
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -86,8 +90,7 @@ fun ScheduleSlotItem(
                     .background(indicatorColor)
             )
 
-            // Время (стандартный цвет)
-            if (time.isNotEmpty()) {
+            if (showTime && time.isNotEmpty()) {
                 Text(
                     text = time.substringBefore("-"),
                     style = MaterialTheme.typography.labelMedium,
@@ -95,19 +98,24 @@ fun ScheduleSlotItem(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 8.dp),
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                Spacer(modifier = Modifier.width(8.dp))
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
 
             // Имя (ЦВЕТ МЕНЯЕТСЯ) и комментарий
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = if (compactForTimeline) 4.dp else 6.dp),
             ) {
                 Text(
                     text = name.ifEmpty { "Без имени" },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = if (compactForTimeline) {
+                        MaterialTheme.typography.bodySmall
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    },
                     fontWeight = FontWeight.Bold,
                     color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
                     maxLines = 1,

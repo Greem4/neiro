@@ -10,13 +10,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -30,26 +29,17 @@ import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 private val NowLineRed = Color(0xFFE53935)
 private val HourLabelColor = Color(0xFF9E9E9E)
-private val HourLineColor = Color(0xFFE0E0E0)
 
-private val HourFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val TimelineHourHeight: Dp = 56.dp
-private val TimeAxisWidth: Dp = 44.dp
-
-@Immutable
-data class TimelineEntry(
-    val name: String,
-    val time: String,
-    val comment: String,
-    val status: AttendanceStatus,
-    val isExtra: Boolean = false,
-    val extraType: String = "",
-    val extraAmount: Double = 0.0,
-)
+/** Высота одного часа на шкале. */
+private val TimelineHourHeight: Dp = 60.dp
+private val TimelineMinuteHeight: Dp = TimelineHourHeight / 60
+private val TimeAxisWidth: Dp = 48.dp
+private val SlotLaneGap: Dp = 4.dp
+/** Небольшой зазор снизу карточки, чтобы соседние не слипались. */
+private val SlotBottomGap: Dp = 6.dp
 
 @Composable
 fun DayScheduleTimeline(
@@ -59,80 +49,92 @@ fun DayScheduleTimeline(
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
     val untimedEntries = entries.filter { it.time.isEmpty() }
+    val layout = remember(timedEntries) { buildDayTimelineLayout(timedEntries) }
     val scrollState = rememberScrollState()
     val currentTime by rememberCurrentTime()
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
 
-    val timelineHeight = TimelineHourHeight * (SCHEDULE_DAY_END.hour - SCHEDULE_DAY_START.hour)
-    val pxPerMinute = with(density) { TimelineHourHeight.toPx() / 60f }
-
-    val nowOffsetMinutes = if (isToday) minutesFromScheduleStart(currentTime) else null
-    val nowLineY = nowOffsetMinutes?.let { offset ->
-        with(density) { (offset * pxPerMinute).toDp() }
-    }
-
     Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 420.dp)
-                .verticalScroll(scrollState),
-        ) {
-            Row(
+        if (layout != null) {
+            val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
+            val timelineHeight = with(density) {
+                (layout.totalMinutes * pxPerMinute).toDp()
+            }
+            val nowOffsetMinutes = if (isToday &&
+                !currentTime.isBefore(layout.axisStart) &&
+                currentTime.isBefore(layout.axisEnd)
+            ) {
+                minutesFromAxisStart(layout.axisStart, currentTime)
+            } else {
+                null
+            }
+            val nowLineY = nowOffsetMinutes?.let { offset ->
+                with(density) { (offset * pxPerMinute).toDp() }
+            }
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(timelineHeight),
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(scrollState),
             ) {
-                ScheduleTimeAxis(
-                    modifier = Modifier.width(TimeAxisWidth),
-                    timelineHeight = timelineHeight,
-                )
-
-                Box(
+                Row(
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .height(timelineHeight),
                 ) {
-                    ScheduleHourGrid(
-                        modifier = Modifier.matchParentSize(),
+                    TimelineTimeAxis(
+                        layout = layout,
+                        pxPerMinute = pxPerMinute,
+                        modifier = Modifier.width(TimeAxisWidth),
                         timelineHeight = timelineHeight,
                     )
 
-                    timedEntries.forEach { entry ->
-                        val start = parseTimeRangeStart(entry.time) ?: return@forEach
-                        val offsetMinutes = minutesFromScheduleStart(start) ?: return@forEach
-                        val slotHeightDp = with(density) {
-                            (SESSION_DURATION_MINUTES * pxPerMinute).toDp()
-                        }
-                        val topOffset = with(density) {
-                            (offsetMinutes * pxPerMinute).toDp()
-                        }
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(timelineHeight),
+                    ) {
+                        layout.positioned.forEach { positioned ->
+                            val appt = positioned.appointment
+                            val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
+                            val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
+                            val slotHeightDp = with(density) {
+                                (durationMinutes * pxPerMinute).toDp() - SlotBottomGap
+                            }.coerceAtLeast(40.dp)
+                            val topOffset = with(density) {
+                                (offsetMinutes * pxPerMinute).toDp()
+                            }
 
-                        TimelineScheduleSlot(
-                            entry = entry,
-                            modifier = Modifier
-                                .padding(start = 4.dp, end = 2.dp)
-                                .offset(y = topOffset)
-                                .fillMaxWidth()
-                                .height(slotHeightDp.coerceAtLeast(56.dp)),
-                        )
+                            val laneCount = positioned.laneCount.coerceAtLeast(1)
+                            val laneWidth = (this@BoxWithConstraints.maxWidth - SlotLaneGap * (laneCount - 1)) / laneCount
+                            val laneX = laneWidth * positioned.lane + SlotLaneGap * positioned.lane
+
+                            TimelineScheduleSlot(
+                                entry = appt.entry,
+                                modifier = Modifier
+                                    .offset(x = laneX, y = topOffset)
+                                    .width(laneWidth)
+                                    .height(slotHeightDp),
+                            )
+                        }
                     }
                 }
-            }
 
-            if (nowLineY != null) {
-                CurrentTimeIndicator(
-                    time = currentTime,
-                    modifier = Modifier
-                        .offset(y = nowLineY - 10.dp)
-                        .fillMaxWidth(),
-                )
+                if (nowLineY != null) {
+                    CurrentTimeIndicator(
+                        time = currentTime,
+                        modifier = Modifier
+                            .offset(y = nowLineY - 10.dp)
+                            .fillMaxWidth(),
+                    )
+                }
             }
         }
 
         if (untimedEntries.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            if (layout != null) Spacer(modifier = Modifier.height(8.dp))
             untimedEntries.forEach { entry ->
                 TimelineScheduleSlot(
                     entry = entry,
@@ -146,46 +148,27 @@ fun DayScheduleTimeline(
 }
 
 @Composable
-private fun ScheduleTimeAxis(
+private fun TimelineTimeAxis(
+    layout: DayTimelineLayout,
+    pxPerMinute: Float,
     timelineHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.height(timelineHeight),
-        verticalArrangement = Arrangement.Top,
-    ) {
-        for (hour in SCHEDULE_DAY_START.hour until SCHEDULE_DAY_END.hour) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(TimelineHourHeight),
-                contentAlignment = Alignment.TopEnd,
-            ) {
-                Text(
-                    text = LocalTime.of(hour, 0).format(HourFormat),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = HourLabelColor,
-                    modifier = Modifier.padding(end = 6.dp, top = 2.dp),
-                )
-            }
-        }
-    }
-}
+    val density = LocalDensity.current
 
-@Composable
-private fun ScheduleHourGrid(
-    timelineHeight: Dp,
-    modifier: Modifier = Modifier,
-) {
-    Canvas(modifier = modifier.height(timelineHeight)) {
-        val hourHeightPx = size.height / (SCHEDULE_DAY_END.hour - SCHEDULE_DAY_START.hour)
-        for (h in SCHEDULE_DAY_START.hour until SCHEDULE_DAY_END.hour) {
-            val y = (h - SCHEDULE_DAY_START.hour) * hourHeightPx
-            drawLine(
-                color = HourLineColor,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1f,
+    Box(modifier = modifier.height(timelineHeight)) {
+        layout.hourLabels.forEach { hour ->
+            val topOffset = with(density) {
+                (minutesFromAxisStart(layout.axisStart, hour) * pxPerMinute).toDp()
+            }
+            Text(
+                text = formatHourLabel(hour),
+                style = MaterialTheme.typography.labelSmall,
+                color = HourLabelColor,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = topOffset)
+                    .padding(end = 4.dp, top = 2.dp),
             )
         }
     }
@@ -207,7 +190,7 @@ private fun CurrentTimeIndicator(
             modifier = Modifier.border(1.5.dp, NowLineRed, RoundedCornerShape(10.dp)),
         ) {
             Text(
-                text = time.format(HourFormat),
+                text = formatNowLabel(time),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = NowLineRed,
@@ -222,8 +205,8 @@ private fun CurrentTimeIndicator(
             val y = size.height / 2f
             drawLine(
                 color = NowLineRed,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
+                start = androidx.compose.ui.geometry.Offset(0f, y),
+                end = androidx.compose.ui.geometry.Offset(size.width, y),
                 strokeWidth = 2.5f,
             )
         }
@@ -246,6 +229,8 @@ private fun TimelineScheduleSlot(
         comment = entry.comment,
         status = entry.status,
         isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
+        showTime = false,
+        compactForTimeline = true,
         modifier = modifier,
     )
 }
@@ -270,8 +255,8 @@ private fun DayScheduleTimelinePreview() {
             date = LocalDate.now(),
             entries = listOf(
                 TimelineEntry("Шабанова Василиса", "11:00-11:50", "Нейрокоррекция", AttendanceStatus.ARRIVED),
-                TimelineEntry("Егорченкова Эмилия", "12:00-12:50", "2,1г", AttendanceStatus.EXPECTED),
-                TimelineEntry("Петров Иван", "14:00-14:50", "", AttendanceStatus.CONFIRMED),
+                TimelineEntry("Дубль", "11:00-11:50", "", AttendanceStatus.CANCELLED),
+                TimelineEntry("Егорченкова Эмилия", "15:00-15:50", "2,1г", AttendanceStatus.EXPECTED),
             ),
             modifier = Modifier.padding(8.dp),
         )
