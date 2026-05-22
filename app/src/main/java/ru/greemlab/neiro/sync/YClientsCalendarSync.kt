@@ -12,6 +12,7 @@ import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
+import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import java.time.LocalDate
 import java.time.LocalTime
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter
  * Используется из UI ([ru.greemlab.neiro.ui.sync.SyncViewModel]) и фоновой автосинхронизации.
  */
 class YClientsCalendarSync(
+    private val appContext: Context,
     private val yclientsRepository: YClientsRepository,
     private val calendarRepository: CalendarRepository,
     private val syncPreferences: SyncPreferences,
@@ -48,9 +50,16 @@ class YClientsCalendarSync(
             when (val result = yclientsRepository.getRecords(startDate, endDate)) {
                 is ApiResult.Success -> {
                     val records = result.data
+                    val dayDataBefore = calendarRepository.dayDataFlow.first()
                     autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records)
+                    val dayDataAfter = calendarRepository.dayDataFlow.first()
                     syncPreferences.recordSuccessfulSync()
+                    SessionNotificationCoordinator.onSyncCompleted(
+                        appContext,
+                        dayDataBefore,
+                        dayDataAfter,
+                    )
                     SyncOutcome.Success(syncedCount)
                 }
 
@@ -413,6 +422,7 @@ class YClientsCalendarSync(
             val appContext = context.applicationContext
             return instance ?: synchronized(this) {
                 instance ?: YClientsCalendarSync(
+                    appContext = appContext,
                     yclientsRepository = YClientsRepository.getInstance(appContext),
                     calendarRepository = ru.greemlab.neiro.data.CalendarDataStoreProvider.get(appContext),
                     syncPreferences = SyncPreferences.get(appContext),

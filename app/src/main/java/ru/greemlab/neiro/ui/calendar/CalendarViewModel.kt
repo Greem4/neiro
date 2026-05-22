@@ -108,6 +108,11 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         _selectedDate.value = date
     }
 
+    fun navigateToDate(date: LocalDate) {
+        _currentMonth.value = YearMonth.from(date)
+        _selectedDate.value = date
+    }
+
     fun setCalendarMode(mode: CalendarMode) {
         _calendarMode.value = mode
     }

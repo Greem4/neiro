@@ -1,3 +1,69 @@
 <resources>
     <string name="app_name">Neiro</string>
+
+    <string name="notification_channel_sessions">Расписание занятий</string>
+    <string name="notification_channel_sessions_desc">Напоминания о предстоящих занятиях и обновлениях из YClients</string>
+
+    <string name="notification_reminder_title">Скоро: %1$s</string>
+    <string name="notification_reminder_group_title">Скоро %1$d занятия</string>
+    <string name="notification_reminder_soon">Скоро начнётся</string>
+    <string name="notification_reminder_in_minutes">Через %1$d мин</string>
+    <string name="notification_reminder_at">В %1$s</string>
+
+    <string name="notification_sync_added_generic">Записи добавлены в календарь</string>
+    <string name="notification_sync_added_today">Сегодня: %1$s</string>
+
+    <plurals name="notification_today_title">
+        <item quantity="one">Сегодня %d занятие</item>
+        <item quantity="few">Сегодня %d занятия</item>
+        <item quantity="many">Сегодня %d занятий</item>
+        <item quantity="other">Сегодня %d занятий</item>
+    </plurals>
+
+    <plurals name="notification_sync_added_title">
+        <item quantity="one">Добавлена %d запись</item>
+        <item quantity="few">Добавлено %d записи</item>
+        <item quantity="many">Добавлено %d записей</item>
+        <item quantity="other">Добавлено %d записей</item>
+    </plurals>
+
+    <string name="settings_notifications_title">Уведомления о занятиях</string>
+    <string name="settings_notifications_subtitle">Записи, отмены, переносы, напоминания</string>
+
+    <string name="notification_settings_configure">Настроить типы уведомлений…</string>
+    <string name="notification_settings_title">Уведомления о занятиях</string>
+    <string name="notification_settings_master_hint">Все события только по вашему расписанию после входа в YClients</string>
+    <string name="notification_settings_changes">Изменения в расписании</string>
+    <string name="notification_settings_schedule">Расписание</string>
+
+    <string name="notification_settings_new">Новая запись</string>
+    <string name="notification_settings_new_hint">Клиент записался на занятие</string>
+    <string name="notification_settings_cancelled">Отмена</string>
+    <string name="notification_settings_cancelled_hint">Занятие отменено или клиент не придёт</string>
+    <string name="notification_settings_rescheduled">Перенос</string>
+    <string name="notification_settings_rescheduled_hint">Изменились дата или время</string>
+    <string name="notification_settings_deleted">Удаление</string>
+    <string name="notification_settings_deleted_hint">Запись убрана из календаря</string>
+    <string name="notification_settings_status">Статус визита</string>
+    <string name="notification_settings_status_hint">Подтвердил, пришёл и другие статусы YClients</string>
+    <string name="notification_settings_reminder">Напоминание перед занятием</string>
+    <string name="notification_settings_reminder_hint">За %1$d минут до начала</string>
+    <string name="notification_settings_reminder_lead">За сколько напомнить</string>
+    <string name="notification_settings_reminder_minutes">%1$d минут</string>
+    <string name="notification_settings_digest">Сводка на сегодня</string>
+    <string name="notification_settings_digest_hint">Один раз утром — список занятий на день</string>
+
+    <string name="notification_events_group_title">%1$d изменения в расписании</string>
+    <string name="notification_event_new_title">Новая запись: %1$s</string>
+    <string name="notification_event_cancelled_title">Отмена: %1$s</string>
+    <string name="notification_event_rescheduled_title">Перенос: %1$s</string>
+    <string name="notification_event_deleted_title">Удалено: %1$s</string>
+    <string name="notification_event_status_title">Статус: %1$s</string>
+    <string name="notification_event_rescheduled_body">Было: %1$s\nСтало: %2$s</string>
+    <string name="notification_event_status_body">%1$s\n%2$s → %3$s</string>
+
+    <string name="notification_status_expected">ожидание</string>
+    <string name="notification_status_confirmed">подтвердил</string>
+    <string name="notification_status_cancelled">отмена</string>
+    <string name="notification_status_arrived">пришёл</string>
 </resources>

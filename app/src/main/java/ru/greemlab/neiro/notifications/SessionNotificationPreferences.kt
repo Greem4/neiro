@@ -1,0 +1,180 @@
+package ru.greemlab.neiro.notifications
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.time.LocalDate
+
+/**
+ * Настройки и состояние уведомлений о занятиях.
+ */
+class SessionNotificationPreferences(context: Context) {
+
+    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    var isEnabled: Boolean
+        get() = prefs.getBoolean(KEY_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+
+    var notifyNewBooking: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_NEW, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_NEW, value).apply()
+
+    var notifyCancelled: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_CANCELLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_CANCELLED, value).apply()
+
+    var notifyRescheduled: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_RESCHEDULED, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_RESCHEDULED, value).apply()
+
+    var notifyDeleted: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_DELETED, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DELETED, value).apply()
+
+    var notifyStatusChanged: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_STATUS, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_STATUS, value).apply()
+
+    var notifyReminder: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_REMINDER, value).apply()
+
+    var notifyTodayDigest: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_DIGEST, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DIGEST, value).apply()
+
+    /** За сколько минут до начала напомнить. */
+    var reminderMinutesBefore: Int
+        get() = prefs.getInt(KEY_REMINDER_MINUTES, DEFAULT_REMINDER_MINUTES)
+        set(value) = prefs.edit().putInt(KEY_REMINDER_MINUTES, value.coerceIn(5, 120)).apply()
+
+    var hasBaselineSnapshot: Boolean
+        get() = prefs.getBoolean(KEY_HAS_BASELINE, false)
+        private set(value) = prefs.edit().putBoolean(KEY_HAS_BASELINE, value).apply()
+
+    fun isTypeEnabled(type: SessionEventType): Boolean = when (type) {
+        SessionEventType.NEW_BOOKING -> notifyNewBooking
+        SessionEventType.CANCELLED -> notifyCancelled
+        SessionEventType.RESCHEDULED -> notifyRescheduled
+        SessionEventType.DELETED -> notifyDeleted
+        SessionEventType.STATUS_CHANGED -> notifyStatusChanged
+        SessionEventType.REMINDER -> notifyReminder
+        SessionEventType.TODAY_DIGEST -> notifyTodayDigest
+    }
+
+    fun wasEventNotified(dedupeKey: String): Boolean =
+        prefs.getStringSet(KEY_NOTIFIED_EVENT_KEYS, emptySet()).orEmpty().contains(dedupeKey)
+
+    fun markEventNotified(dedupeKey: String) {
+        val updated = prefs.getStringSet(KEY_NOTIFIED_EVENT_KEYS, emptySet()).orEmpty().toMutableSet()
+        updated.add(dedupeKey)
+        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        prefs.edit().putStringSet(KEY_NOTIFIED_EVENT_KEYS, updated).apply()
+    }
+
+    fun wasReminderNotified(dedupeKey: String): Boolean =
+        prefs.getStringSet(KEY_NOTIFIED_REMINDER_KEYS, emptySet()).orEmpty().contains(dedupeKey)
+
+    fun markReminderNotified(dedupeKey: String) {
+        val updated = prefs.getStringSet(KEY_NOTIFIED_REMINDER_KEYS, emptySet()).orEmpty().toMutableSet()
+        updated.add(dedupeKey)
+        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        prefs.edit().putStringSet(KEY_NOTIFIED_REMINDER_KEYS, updated).apply()
+    }
+
+    fun clearNotifiedKeys() {
+        prefs.edit()
+            .remove(KEY_NOTIFIED_EVENT_KEYS)
+            .remove(KEY_NOTIFIED_REMINDER_KEYS)
+            .apply()
+    }
+
+    fun lastTodayDigestEpochDay(): Long = prefs.getLong(KEY_TODAY_DIGEST_DAY, 0L)
+
+    fun markTodayDigestShown(epochDay: Long) {
+        prefs.edit().putLong(KEY_TODAY_DIGEST_DAY, epochDay).apply()
+    }
+
+    fun saveSnapshot(sessions: List<TrackedSession>) {
+        val json = gson.toJson(sessions.map { it.toSnapshotDto() })
+        prefs.edit()
+            .putString(KEY_SNAPSHOT, json)
+            .apply()
+        hasBaselineSnapshot = true
+    }
+
+    fun loadSnapshot(): List<TrackedSession> {
+        val json = prefs.getString(KEY_SNAPSHOT, null) ?: return emptyList()
+        val type = object : TypeToken<List<SnapshotDto>>() {}.type
+        return runCatching {
+            gson.fromJson<List<SnapshotDto>>(json, type).map { it.toTracked() }
+        }.getOrElse { emptyList() }
+    }
+
+    fun establishBaseline(sessions: List<TrackedSession>) {
+        saveSnapshot(sessions)
+        hasBaselineSnapshot = true
+    }
+
+    private data class SnapshotDto(
+        val date: String,
+        val startTime: String,
+        val endTime: String,
+        val clientName: String,
+        val kind: String,
+        val statusCode: Int,
+        val isMarkedDeleted: Boolean,
+    )
+
+    private fun TrackedSession.toSnapshotDto() = SnapshotDto(
+        date = date.toString(),
+        startTime = startTime.toString(),
+        endTime = endTime.toString(),
+        clientName = clientName,
+        kind = kind.name,
+        statusCode = status.code,
+        isMarkedDeleted = isMarkedDeleted,
+    )
+
+    private fun SnapshotDto.toTracked() = TrackedSession(
+        date = LocalDate.parse(date),
+        startTime = java.time.LocalTime.parse(startTime),
+        endTime = java.time.LocalTime.parse(endTime),
+        clientName = clientName,
+        kind = UpcomingSessionKind.valueOf(kind),
+        status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.fromCode(statusCode),
+        isMarkedDeleted = isMarkedDeleted,
+    )
+
+    companion object {
+        private const val PREFS_NAME = "neiro_session_notifications"
+        private const val KEY_ENABLED = "enabled"
+        private const val KEY_NOTIFY_NEW = "notify_new"
+        private const val KEY_NOTIFY_CANCELLED = "notify_cancelled"
+        private const val KEY_NOTIFY_RESCHEDULED = "notify_rescheduled"
+        private const val KEY_NOTIFY_DELETED = "notify_deleted"
+        private const val KEY_NOTIFY_STATUS = "notify_status"
+        private const val KEY_NOTIFY_REMINDER = "notify_reminder"
+        private const val KEY_NOTIFY_DIGEST = "notify_digest"
+        private const val KEY_REMINDER_MINUTES = "reminder_minutes"
+        private const val KEY_NOTIFIED_EVENT_KEYS = "notified_event_keys"
+        private const val KEY_NOTIFIED_REMINDER_KEYS = "notified_reminder_keys"
+        private const val KEY_TODAY_DIGEST_DAY = "today_digest_epoch_day"
+        private const val KEY_SNAPSHOT = "calendar_snapshot"
+        private const val KEY_HAS_BASELINE = "has_baseline_snapshot"
+        private const val DEFAULT_REMINDER_MINUTES = 30
+        private const val MAX_NOTIFIED_KEYS = 300
+
+        val REMINDER_MINUTE_OPTIONS = listOf(15, 30, 45, 60)
+
+        @Volatile
+        private var instance: SessionNotificationPreferences? = null
+
+        fun get(context: Context): SessionNotificationPreferences =
+            instance ?: synchronized(this) {
+                instance ?: SessionNotificationPreferences(context).also { instance = it }
+            }
+    }
+}

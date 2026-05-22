@@ -44,6 +44,7 @@ import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import ru.greemlab.neiro.ui.settings.SessionNotificationSettingsScreen
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
@@ -59,6 +60,7 @@ private sealed interface CalendarOverlay {
     data object None : CalendarOverlay
     data object Settings : CalendarOverlay
     data object AppSettings : CalendarOverlay
+    data object NotificationSettings : CalendarOverlay
     data object YClients : CalendarOverlay
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
@@ -86,9 +88,17 @@ private sealed interface CalendarOverlay {
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
     profileViewModel: ProfileViewModel = viewModel(),
+    openDateFromNotification: String? = null,
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
+
+    LaunchedEffect(openDateFromNotification) {
+        val raw = openDateFromNotification ?: return@LaunchedEffect
+        runCatching { LocalDate.parse(raw) }.getOrNull()?.let { date ->
+            viewModel.navigateToDate(date)
+        }
+    }
     val dayData by viewModel.effectiveDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
@@ -237,7 +247,14 @@ fun CalendarScreen(
         }
 
         if (overlay is CalendarOverlay.AppSettings) {
-            AppSettingsScreen(onBack = { overlay = CalendarOverlay.None })
+            AppSettingsScreen(
+                onBack = { overlay = CalendarOverlay.None },
+                onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
+            )
+        }
+
+        if (overlay is CalendarOverlay.NotificationSettings) {
+            SessionNotificationSettingsScreen(onBack = { overlay = CalendarOverlay.AppSettings })
         }
 
         if (overlay is CalendarOverlay.YClients) {
@@ -312,6 +329,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.None -> "none"
             CalendarOverlay.Settings -> "settings"
             CalendarOverlay.AppSettings -> "app_settings"
+            CalendarOverlay.NotificationSettings -> "notification_settings"
             CalendarOverlay.YClients -> "yclients"
             CalendarOverlay.RegistrationPrompt -> "registration"
             CalendarOverlay.ProfitDetails -> "profit"
@@ -323,6 +341,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
         when (token) {
             "settings" -> CalendarOverlay.Settings
             "app_settings" -> CalendarOverlay.AppSettings
+            "notification_settings" -> CalendarOverlay.NotificationSettings
             "yclients" -> CalendarOverlay.YClients
             "registration" -> CalendarOverlay.RegistrationPrompt
             "profit" -> CalendarOverlay.ProfitDetails
