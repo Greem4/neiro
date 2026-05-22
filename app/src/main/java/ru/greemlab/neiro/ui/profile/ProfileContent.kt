@@ -343,7 +343,7 @@ private fun DevDrawerSection(
                 )
                 DevMenuItem(
                     title = "Синк: новая запись",
-                    subtitle = "onSyncCompleted → детектор → push",
+                    subtitle = "live API → детектор → push",
                     onClick = {
                         scope.launch { SessionNotificationSyncSimulation.simulateNewBooking(context) }
                     },

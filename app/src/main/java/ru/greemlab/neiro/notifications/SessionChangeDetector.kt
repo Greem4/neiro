@@ -3,7 +3,7 @@ package ru.greemlab.neiro.notifications
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
 /**
- * Сравнивает снимки календаря до и после синхронизации и выявляет события по занятиям.
+ * Сравнивает снимки календаря до и после обновления с API и выявляет события по занятиям.
  */
 object SessionChangeDetector {
 

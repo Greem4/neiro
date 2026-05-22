@@ -79,9 +79,10 @@ object SessionNotificationCoordinator {
     }
 
     /**
-     * После синхронизации YClients: сравнить календарь до/после и уведомить об изменениях.
+     * После обновления календаря с API (live-опрос или ручная синхронизация):
+     * сравнить снимок до/после и уведомить об изменениях.
      */
-    suspend fun onSyncCompleted(
+    suspend fun onCalendarUpdatedFromApi(
         context: Context,
         dayDataBefore: Map<java.time.LocalDate, List<String>>,
         dayDataAfter: Map<java.time.LocalDate, List<String>>,
@@ -102,7 +103,7 @@ object SessionNotificationCoordinator {
     }
 
     /**
-     * Debug: прогон [onSyncCompleted] с заданными картами dayData без запроса к API.
+     * Debug: прогон [onCalendarUpdatedFromApi] с заданными картами dayData без запроса к API.
      * Перед сравнением фиксирует «до» из [dayDataBefore], сбрасывает dedupe событий.
      */
     suspend fun simulateSyncForDev(

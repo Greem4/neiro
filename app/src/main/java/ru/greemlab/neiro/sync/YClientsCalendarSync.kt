@@ -42,10 +42,22 @@ class YClientsCalendarSync(
      */
     suspend fun syncDefaultAutoRange(): SyncOutcome {
         val (start, end) = defaultAutoSyncRange()
-        return syncDateRange(start, end)
+        return syncDateRange(start, end, recordSuccessfulSync = true)
     }
 
-    suspend fun syncDateRange(startDate: LocalDate, endDate: LocalDate): SyncOutcome =
+    /**
+     * Лёгкое обновление с API для live-опроса: узкий диапазон дат, без записи «последней синхронизации».
+     */
+    suspend fun refreshLiveRange(): SyncOutcome {
+        val (start, end) = defaultLiveRefreshRange()
+        return syncDateRange(start, end, recordSuccessfulSync = false)
+    }
+
+    suspend fun syncDateRange(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        recordSuccessfulSync: Boolean = true,
+    ): SyncOutcome =
         syncMutex.withLock {
             when (val result = yclientsRepository.getRecords(startDate, endDate)) {
                 is ApiResult.Success -> {
@@ -54,8 +66,10 @@ class YClientsCalendarSync(
                     autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records)
                     val dayDataAfter = calendarRepository.dayDataFlow.first()
-                    syncPreferences.recordSuccessfulSync()
-                    SessionNotificationCoordinator.onSyncCompleted(
+                    if (recordSuccessfulSync) {
+                        syncPreferences.recordSuccessfulSync()
+                    }
+                    SessionNotificationCoordinator.onCalendarUpdatedFromApi(
                         appContext,
                         dayDataBefore,
                         dayDataAfter,
@@ -413,6 +427,12 @@ class YClientsCalendarSync(
         fun defaultAutoSyncRange(): Pair<LocalDate, LocalDate> {
             val center = YearMonth.now()
             return center.minusMonths(1).atDay(1) to center.plusMonths(1).atEndOfMonth()
+        }
+
+        /** Диапазон live-опроса: только текущий месяц. */
+        fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> {
+            val month = YearMonth.now()
+            return month.atDay(1) to month.atEndOfMonth()
         }
 
         @Volatile
