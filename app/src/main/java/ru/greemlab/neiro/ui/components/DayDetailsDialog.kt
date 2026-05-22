@@ -94,10 +94,9 @@ fun DayDetailsDialog(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
-    recentStudents: List<String> = emptyList(),
     isArchived: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
 ) {
     Dialog(
@@ -108,7 +107,6 @@ fun DayDetailsDialog(
             date = date,
             initialNames = initialNames,
             userProfile = userProfile,
-            recentStudents = recentStudents,
             isArchived = isArchived,
             onDismiss = onDismiss,
             onSave = onSave,
@@ -122,16 +120,13 @@ private fun DayDetailsContent(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
-    recentStudents: List<String>,
     isArchived: Boolean,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
-    var repeatUntilMonthEnd by remember { mutableStateOf(false) }
-    var repeatNextMonth by remember { mutableStateOf(false) }
 
     val entries = remember(currentNames.toList()) {
         parseEntries(currentNames)
@@ -265,47 +260,19 @@ private fun DayDetailsContent(
                     }
 
                     if (isPlanningMode) {
-                        if (recentStudents.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "Быстрое добавление:",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    recentStudents.take(3).forEach { name ->
-                                        TextButton(
-                                            onClick = {
-                                                currentNames.add(SessionFormat.serializeStudentExtended(name, AttendanceStatus.EXPECTED))
-                                            },
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            colors = ButtonDefaults.textButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                            )
-                                        ) {
-                                            Text(name, style = MaterialTheme.typography.labelSmall)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
-                            ExtraButtonsRow(
-                                onAddIntensive = {
+                            TextButton(
+                                onClick = {
                                     currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
                                 },
-                                onAddDiagnostics = {
-                                    val price = userProfile.pricePerDiagnostics.toInt().toString()
-                                    currentNames.add(SessionFormat.serializeDiagnostics(price, "Диагностика", true))
-                                }
-                            )
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Icon(Icons.Rounded.Add, null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Интенсив")
+                            }
                         }
                     }
                 }
@@ -314,43 +281,6 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Кнопки действий
-            if (isPlanningMode && entries.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = repeatUntilMonthEnd,
-                            onCheckedChange = { repeatUntilMonthEnd = it }
-                        )
-                        Text(
-                            "Повторять до конца месяца",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = repeatNextMonth,
-                            onCheckedChange = { repeatNextMonth = it }
-                        )
-                        Text(
-                            "Дублировать в следующем месяце",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -378,7 +308,7 @@ private fun DayDetailsContent(
                     if (isPlanningMode) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
-                            onClick = { onSave(currentNames.toList(), repeatUntilMonthEnd, repeatNextMonth) },
+                            onClick = { onSave(currentNames.toList()) },
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
@@ -451,36 +381,6 @@ private fun EditSessionItem(
             IconButton(onClick = onDelete) {
                 Icon(Icons.Rounded.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
             }
-        }
-    }
-}
-
-@Composable
-private fun ExtraButtonsRow(
-    onAddIntensive: () -> Unit,
-    onAddDiagnostics: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        TextButton(
-            onClick = onAddIntensive,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Icon(Icons.Rounded.Add, null)
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Интенсив")
-        }
-        TextButton(
-            onClick = onAddDiagnostics,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Icon(Icons.Rounded.Add, null)
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Диагностика")
         }
     }
 }
@@ -707,10 +607,9 @@ private fun DayDetailsLightPreview() {
                         "Якуборов Рашит|2|14:00-14:50|+79681234569|6,11л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
-                    recentStudents = listOf("Тимур", "Владимир"),
                     isArchived = false,
                     onDismiss = {},
-                    onSave = { _, _, _ -> },
+                    onSave = { _ -> },
                     onArchive = {},
                 )
             }
@@ -731,10 +630,9 @@ private fun DayDetailsDarkPreview() {
                         "Моторнов Егор|3|16:00-16:50|+79631234575|5л",
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
-                    recentStudents = emptyList(),
                     isArchived = true,
                     onDismiss = {},
-                    onSave = { _, _, _ -> },
+                    onSave = { _ -> },
                     onArchive = {},
                 )
             }
@@ -752,10 +650,9 @@ private fun DayDetailsEmptyPreview() {
                     date = LocalDate.now(),
                     initialNames = emptyList(),
                     userProfile = UserProfile(pricePerSession = 1400.0),
-                    recentStudents = emptyList(),
                     isArchived = true,
                     onDismiss = {},
-                    onSave = { _, _, _ -> },
+                    onSave = { _ -> },
                     onArchive = {},
                 )
             }
