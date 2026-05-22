@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
+import ru.greemlab.neiro.notifications.SessionNotificationSyncSimulation
+import kotlinx.coroutines.launch
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -239,6 +241,7 @@ private fun DevDrawerSection(
     onFullSetup: () -> Unit,
 ) {
     val context = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -328,6 +331,57 @@ private fun DevDrawerSection(
                     title = "Полная настройка",
                     subtitle = "Сброс → профиль → вход → синхронизация",
                     onClick = onFullSetup,
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                DevMenuSectionTitle("Симуляция синка (API)")
+                DevMenuItem(
+                    title = "Сброс снимка синка",
+                    subtitle = "Baseline и dedupe — перед повторным прогоном",
+                    onClick = { SessionNotificationSyncSimulation.resetState(context) },
+                )
+                DevMenuItem(
+                    title = "Синк: новая запись",
+                    subtitle = "onSyncCompleted → детектор → push",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateNewBooking(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: отмена",
+                    subtitle = "Статус → отменён",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateCancelled(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: перенос",
+                    subtitle = "Тот же клиент, другое время",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateRescheduled(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: удаление",
+                    subtitle = "Запись исчезла из dayData",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateDeleted(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: смена статуса",
+                    subtitle = "Ожидание → подтверждение",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateStatusChanged(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: несколько событий",
+                    subtitle = "Новая запись + отмена",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateMultipleEvents(context) }
+                    },
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

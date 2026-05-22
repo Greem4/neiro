@@ -101,6 +101,42 @@ object SessionNotificationCoordinator {
         processSnapshotTransition(appContext, profile, before, after, prefs)
     }
 
+    /**
+     * Debug: прогон [onSyncCompleted] с заданными картами dayData без запроса к API.
+     * Перед сравнением фиксирует «до» из [dayDataBefore], сбрасывает dedupe событий.
+     */
+    suspend fun simulateSyncForDev(
+        context: Context,
+        dayDataBefore: Map<LocalDate, List<String>>,
+        dayDataAfter: Map<LocalDate, List<String>>,
+    ) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled) return
+
+        val calendarRepository = CalendarDataStoreProvider.get(appContext)
+        val profile = calendarRepository.userProfileFlow.first()
+        if (!profile.isRegistered) return
+
+        val before = CalendarSessionSnapshot.from(dayDataBefore, profile)
+        val after = CalendarSessionSnapshot.from(dayDataAfter, profile)
+
+        prefs.clearNotifiedKeys()
+        prefs.establishBaseline(before)
+
+        val events = SessionChangeDetector.detect(before, after)
+            .filter { prefs.isTypeEnabled(it.type) }
+            .filter { !prefs.wasEventNotified(it.dedupeKey) }
+
+        if (events.isNotEmpty()) {
+            SessionNotificationDisplay.showEvents(appContext, events)
+            events.forEach { prefs.markEventNotified(it.dedupeKey) }
+        }
+
+        prefs.saveSnapshot(after)
+        scheduleAfterBaseline(appContext, profile, after, prefs)
+    }
+
     suspend fun refreshFromCalendar(context: Context) {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)

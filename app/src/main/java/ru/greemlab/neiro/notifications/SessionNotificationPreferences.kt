@@ -119,6 +119,15 @@ class SessionNotificationPreferences(context: Context) {
             .apply()
     }
 
+    /** Сброс снимка календаря и dedupe — для повторной симуляции синка в debug. */
+    fun resetSyncNotificationState() {
+        prefs.edit()
+            .remove(KEY_SNAPSHOT)
+            .remove(KEY_HAS_BASELINE)
+            .apply()
+        clearNotifiedKeys()
+    }
+
     fun lastTodayDigestEpochDay(): Long = prefs.getLong(KEY_TODAY_DIGEST_DAY, 0L)
 
     fun markTodayDigestShown(epochDay: Long) {
