@@ -99,8 +99,6 @@ internal fun computeMonthStats(
         }
     }
 
-    // Чистый доход может быть отрицательным, если налог превышает выручку —
-    // показываем как есть, иначе пользователь не поймёт, что в минусе.
     val netProfit = grossEarned - monthlyTaxAmount
 
     return CalendarMonthStats(

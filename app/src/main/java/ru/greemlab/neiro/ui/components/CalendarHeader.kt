@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.CollectionsBookmark
+import androidx.compose.ui.text.style.TextOverflow
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.getMonthName
@@ -58,67 +59,65 @@ fun CalendarHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f),
-        ) {
-            NeiroLogo(size = 30.dp, onClick = onMenuClick)
+        NeiroLogo(size = 30.dp, onClick = onMenuClick)
 
-            Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable {
-                            onModeChange(
-                                if (calendarMode == CalendarMode.SYNCED) CalendarMode.PERSONAL
-                                else CalendarMode.SYNCED
-                            )
-                        }
-                ) {
-                    Icon(
-                        imageVector = if (calendarMode == CalendarMode.SYNCED)
-                            Icons.Rounded.CloudSync else Icons.Rounded.CollectionsBookmark,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Личный",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Сегодня",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        if (isRegistered) onTodayClick() else onRegistrationRequired()
-                    }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        onModeChange(
+                            if (calendarMode == CalendarMode.SYNCED) CalendarMode.PERSONAL
+                            else CalendarMode.SYNCED
+                        )
+                    }
+            ) {
+                Icon(
+                    imageVector = if (calendarMode == CalendarMode.SYNCED)
+                        Icons.Rounded.CloudSync else Icons.Rounded.CollectionsBookmark,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Личный",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
+
+        Text(
+            text = "Сегодня",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable {
+                    if (isRegistered) onTodayClick() else onRegistrationRequired()
+                }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(

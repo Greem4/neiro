@@ -356,7 +356,7 @@ fun CalendarScreenContent(
                     modifier = Modifier.weight(1f),
                     onClick = onLessonsClick,
                 )
-                val profitValue = remember(stats.netProfit) { formatRubles(stats.netProfit) }
+                val profitValue = remember(stats.totalEarned) { formatRubles(stats.totalEarned) }
                 StatCard(
                     label = "Прибыль",
                     value = profitValue,
