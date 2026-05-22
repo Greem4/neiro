@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -34,12 +35,12 @@ private val NowLineRed = Color(0xFFE53935)
 private val HourLabelColor = Color(0xFF9E9E9E)
 
 /** Высота одного часа на шкале. */
-private val TimelineHourHeight: Dp = 60.dp
+private val TimelineHourHeight: Dp = 72.dp
 private val TimelineMinuteHeight: Dp = TimelineHourHeight / 60
-private val TimeAxisWidth: Dp = 48.dp
+private val TimeAxisWidth: Dp = 54.dp
 private val SlotLaneGap: Dp = 4.dp
-/** Небольшой зазор снизу карточки, чтобы соседние не слипались. */
-private val SlotBottomGap: Dp = 6.dp
+/** Минимальный зазор между карточками — почти стык, но без слияния. */
+private val SlotBottomGap: Dp = 2.dp
 
 @Composable
 fun DayScheduleTimeline(
@@ -89,6 +90,8 @@ fun DayScheduleTimeline(
                         pxPerMinute = pxPerMinute,
                         modifier = Modifier.width(TimeAxisWidth),
                         timelineHeight = timelineHeight,
+                        nowTime = if (nowLineY != null) currentTime else null,
+                        nowOffsetMinutes = nowOffsetMinutes,
                     )
 
                     BoxWithConstraints(
@@ -100,9 +103,14 @@ fun DayScheduleTimeline(
                             val appt = positioned.appointment
                             val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
                             val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
+                            val visualDurationMinutes = when {
+                                durationMinutes in (SESSION_DURATION_MINUTES - 2)..(SESSION_DURATION_MINUTES + 2) ->
+                                    durationMinutes + 8
+                                else -> durationMinutes
+                            }
                             val slotHeightDp = with(density) {
-                                (durationMinutes * pxPerMinute).toDp() - SlotBottomGap
-                            }.coerceAtLeast(40.dp)
+                                (visualDurationMinutes * pxPerMinute).toDp() - SlotBottomGap
+                            }.coerceAtLeast(52.dp)
                             val topOffset = with(density) {
                                 (offsetMinutes * pxPerMinute).toDp()
                             }
@@ -123,11 +131,11 @@ fun DayScheduleTimeline(
                 }
 
                 if (nowLineY != null) {
-                    CurrentTimeIndicator(
-                        time = currentTime,
+                    CurrentTimeLine(
                         modifier = Modifier
-                            .offset(y = nowLineY - 10.dp)
-                            .fillMaxWidth(),
+                            .offset(y = nowLineY)
+                            .fillMaxWidth()
+                            .height(2.dp),
                     )
                 }
             }
@@ -153,6 +161,8 @@ private fun TimelineTimeAxis(
     pxPerMinute: Float,
     timelineHeight: Dp,
     modifier: Modifier = Modifier,
+    nowTime: LocalTime? = null,
+    nowOffsetMinutes: Int? = null,
 ) {
     val density = LocalDensity.current
 
@@ -166,47 +176,65 @@ private fun TimelineTimeAxis(
                 style = MaterialTheme.typography.labelSmall,
                 color = HourLabelColor,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.TopStart)
                     .offset(y = topOffset)
-                    .padding(end = 4.dp, top = 2.dp),
+                    .padding(top = 2.dp),
+            )
+        }
+
+        if (nowTime != null && nowOffsetMinutes != null) {
+            val nowTop = with(density) {
+                (nowOffsetMinutes * pxPerMinute).toDp()
+            }
+            CurrentTimeBadge(
+                time = nowTime,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(y = nowTop - 12.dp),
             )
         }
     }
 }
 
 @Composable
-private fun CurrentTimeIndicator(
+private fun CurrentTimeBadge(
     time: LocalTime,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.height(20.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val badgeShape = RoundedCornerShape(12.dp)
+    Surface(
+        shape = badgeShape,
+        color = Color.Transparent,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+        modifier = modifier
+            .wrapContentWidth(unbounded = true)
+            .border(2.dp, NowLineRed, badgeShape),
     ) {
-        Spacer(modifier = Modifier.width(TimeAxisWidth - 4.dp))
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = Color.White,
-            modifier = Modifier.border(1.5.dp, NowLineRed, RoundedCornerShape(10.dp)),
-        ) {
-            Text(
-                text = formatNowLabel(time),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = NowLineRed,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        Canvas(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        ) {
-            val y = size.height / 2f
+        Text(
+            text = formatNowLabel(time),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = NowLineRed,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun CurrentTimeLine(
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier) {
+        Spacer(modifier = Modifier.width(TimeAxisWidth))
+        Canvas(modifier = Modifier.fillMaxSize()) {
             drawLine(
                 color = NowLineRed,
-                start = androidx.compose.ui.geometry.Offset(0f, y),
-                end = androidx.compose.ui.geometry.Offset(size.width, y),
+                start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
+                end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
                 strokeWidth = 2.5f,
             )
         }

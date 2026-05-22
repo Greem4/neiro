@@ -99,7 +99,7 @@ fun ScheduleSlotItem(
                     modifier = Modifier.padding(start = 8.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-            } else {
+            } else if (!compactForTimeline) {
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
@@ -107,7 +107,8 @@ fun ScheduleSlotItem(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = if (compactForTimeline) 4.dp else 6.dp),
+                    .padding(start = if (compactForTimeline) 6.dp else 0.dp)
+                    .padding(vertical = if (compactForTimeline) 2.dp else 6.dp),
             ) {
                 Text(
                     text = name.ifEmpty { "Без имени" },
