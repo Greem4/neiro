@@ -24,5 +24,7 @@ object CalendarDataStoreProvider {
 
     fun peekDayData(context: Context): Map<LocalDate, List<String>> = peekSnapshot(context).dayData
 
+    fun peekSavedDayData(context: Context): Map<LocalDate, List<String>> = peekSnapshot(context).savedDayData
+
     fun peekTheme(context: Context): String = peekSnapshot(context).theme
 }

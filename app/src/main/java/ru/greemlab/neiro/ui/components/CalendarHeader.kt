@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.CollectionsBookmark
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
@@ -38,10 +43,12 @@ import java.time.YearMonth
 @Composable
 fun CalendarHeader(
     currentMonth: YearMonth,
+    calendarMode: CalendarMode = CalendarMode.SYNCED,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
+    onModeChange: (CalendarMode) -> Unit = {},
     isRegistered: Boolean = true,
     onRegistrationRequired: () -> Unit = {},
 ) {
@@ -62,12 +69,41 @@ fun CalendarHeader(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            onModeChange(
+                                if (calendarMode == CalendarMode.SYNCED) CalendarMode.PERSONAL
+                                else CalendarMode.SYNCED
+                            )
+                        }
+                ) {
+                    Icon(
+                        imageVector = if (calendarMode == CalendarMode.SYNCED)
+                            Icons.Rounded.CloudSync else Icons.Rounded.CollectionsBookmark,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (calendarMode == CalendarMode.SYNCED) "Синхронизация" else "Личный",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -141,6 +177,7 @@ private fun CalendarHeaderDarkPreview() {
         ) {
             CalendarHeader(
                 currentMonth = YearMonth.of(2024, 10),
+                calendarMode = CalendarMode.PERSONAL,
                 onPreviousMonth = {},
                 onNextMonth = {},
                 onTodayClick = {},

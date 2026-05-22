@@ -95,8 +95,10 @@ fun DayDetailsDialog(
     initialNames: List<String>,
     userProfile: UserProfile,
     recentStudents: List<String> = emptyList(),
+    isArchived: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onArchive: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -107,8 +109,10 @@ fun DayDetailsDialog(
             initialNames = initialNames,
             userProfile = userProfile,
             recentStudents = recentStudents,
+            isArchived = isArchived,
             onDismiss = onDismiss,
-            onSave = onSave
+            onSave = onSave,
+            onArchive = onArchive,
         )
     }
 }
@@ -119,8 +123,10 @@ private fun DayDetailsContent(
     initialNames: List<String>,
     userProfile: UserProfile,
     recentStudents: List<String>,
+    isArchived: Boolean,
     onDismiss: () -> Unit,
     onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onArchive: () -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
@@ -347,20 +353,38 @@ private fun DayDetailsContent(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text("Закрыть", fontWeight = FontWeight.Medium)
-                }
-                if (isPlanningMode) {
+                TextButton(
+                    onClick = onArchive,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (isArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isArchived) Icons.Rounded.Check else Icons.Rounded.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = { onSave(currentNames.toList(), repeatUntilMonthEnd, repeatNextMonth) },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
+                    Text(if (isArchived) "В личном" else "В личный")
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Закрыть", fontWeight = FontWeight.Medium)
+                    }
+                    if (isPlanningMode) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Сохранить")
+                        Button(
+                            onClick = { onSave(currentNames.toList(), repeatUntilMonthEnd, repeatNextMonth) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Сохранить")
+                        }
                     }
                 }
             }
@@ -684,8 +708,10 @@ private fun DayDetailsLightPreview() {
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     recentStudents = listOf("Тимур", "Владимир"),
+                    isArchived = false,
                     onDismiss = {},
                     onSave = { _, _, _ -> },
+                    onArchive = {},
                 )
             }
         }
@@ -706,8 +732,10 @@ private fun DayDetailsDarkPreview() {
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     recentStudents = emptyList(),
+                    isArchived = true,
                     onDismiss = {},
                     onSave = { _, _, _ -> },
+                    onArchive = {},
                 )
             }
         }
@@ -725,8 +753,10 @@ private fun DayDetailsEmptyPreview() {
                     initialNames = emptyList(),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     recentStudents = emptyList(),
+                    isArchived = true,
                     onDismiss = {},
                     onSave = { _, _, _ -> },
+                    onArchive = {},
                 )
             }
         }

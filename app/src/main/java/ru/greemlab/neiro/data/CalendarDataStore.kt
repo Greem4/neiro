@@ -27,6 +27,7 @@ import java.time.LocalDate
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "calendar_data")
 
 private const val DAY_DATA_KEY = "day_data_json"
+private const val SAVED_DAY_DATA_KEY = "saved_day_data_json"
 private const val PROFILE_KEY = "user_profile_json"
 private const val THEME_KEY = "app_theme"
 private const val EMPTY_OBJECT = "{}"
@@ -43,10 +44,11 @@ const val THEME_DARK = "dark"
 data class StoreSnapshot(
     val profile: UserProfile,
     val dayData: Map<LocalDate, List<String>>,
+    val savedDayData: Map<LocalDate, List<String>>,
     val theme: String,
 ) {
     companion object {
-        val Empty = StoreSnapshot(UserProfile(), emptyMap(), THEME_SYSTEM)
+        val Empty = StoreSnapshot(UserProfile(), emptyMap(), emptyMap(), THEME_SYSTEM)
     }
 }
 
@@ -67,6 +69,7 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private val gson: Gson = UserProfileJson.gson
 
     private val dataKey = stringPreferencesKey(DAY_DATA_KEY)
+    private val savedDataKey = stringPreferencesKey(SAVED_DAY_DATA_KEY)
     private val profileKey = stringPreferencesKey(PROFILE_KEY)
     private val themeKey = stringPreferencesKey(THEME_KEY)
 
@@ -117,6 +120,10 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         .map { it.dayData }
         .distinctUntilChanged()
 
+    override val savedDayDataFlow: Flow<Map<LocalDate, List<String>>> = snapshotsFlow
+        .map { it.savedDayData }
+        .distinctUntilChanged()
+
     override val userProfileFlow: Flow<UserProfile> = snapshotsFlow
         .map { it.profile }
         .distinctUntilChanged()
@@ -124,6 +131,7 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private fun parseSnapshot(prefs: Preferences): StoreSnapshot = StoreSnapshot(
         profile = UserProfileJson.fromJson(prefs[profileKey]),
         dayData = parseDayData(prefs[dataKey]),
+        savedDayData = parseDayData(prefs[savedDataKey]),
         theme = prefs[themeKey] ?: THEME_SYSTEM,
     )
 
@@ -177,6 +185,28 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
+    override suspend fun saveDayToArchive(date: LocalDate, data: List<String>) {
+        writeMutex.withLock {
+            val current = cachedState.value.savedDayData.toMutableMap()
+            current[date] = data
+            val serialized = serializeDayData(current)
+            appContext.dataStore.edit { prefs -> prefs[savedDataKey] = serialized }
+            cachedState.value = cachedState.value.copy(savedDayData = current)
+            // Мы не пишем в syncCache архивные данные, так как они локальные и "вечные"
+        }
+    }
+
+    override suspend fun deleteDayFromArchive(date: LocalDate) {
+        writeMutex.withLock {
+            val current = cachedState.value.savedDayData.toMutableMap()
+            if (current.remove(date) != null) {
+                val serialized = serializeDayData(current)
+                appContext.dataStore.edit { prefs -> prefs[savedDataKey] = serialized }
+                cachedState.value = cachedState.value.copy(savedDayData = current)
+            }
+        }
+    }
+
     override suspend fun clearAllData() {
         writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
@@ -203,6 +233,7 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         val prefs = appContext.dataStore.data.first()
         val data = mapOf(
             "day_data" to (prefs[dataKey] ?: EMPTY_OBJECT),
+            "saved_day_data" to (prefs[savedDataKey] ?: EMPTY_OBJECT),
             "user_profile" to (prefs[profileKey] ?: EMPTY_OBJECT),
             "app_theme" to (prefs[themeKey] ?: THEME_SYSTEM),
         )
@@ -223,22 +254,26 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         if (parsed == null) return ImportResult.Failure("Файл пуст")
 
         val dayJson = parsed["day_data"]
+        val savedDayJson = parsed["saved_day_data"]
         val profileJson = parsed["user_profile"]
         val themeValue = parsed["app_theme"]
 
         // Валидируем перед записью — лучше отказать, чем затереть рабочие данные мусором.
         val parsedDayData = parseDayData(dayJson)
+        val parsedSavedDayData = parseDayData(savedDayJson)
         val parsedProfile = UserProfileJson.fromJson(profileJson)
 
         return writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
                 if (dayJson != null) prefs[dataKey] = dayJson
+                if (savedDayJson != null) prefs[savedDataKey] = savedDayJson
                 if (profileJson != null) prefs[profileKey] = profileJson
                 if (themeValue != null) prefs[themeKey] = themeValue
             }
             cachedState.value = StoreSnapshot(
                 profile = parsedProfile,
                 dayData = parsedDayData,
+                savedDayData = parsedSavedDayData,
                 theme = themeValue ?: cachedState.value.theme,
             )
             writeSyncCache(
@@ -260,10 +295,12 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private fun loadFromSyncCache(): StoreSnapshot {
         val profileJson = syncCache.getString(PROFILE_KEY, null)
         val dayJson = syncCache.getString(DAY_DATA_KEY, null)
+        val savedDayJson = syncCache.getString(SAVED_DAY_DATA_KEY, null)
         val theme = syncCache.getString(THEME_KEY, null) ?: THEME_SYSTEM
         return StoreSnapshot(
             profile = UserProfileJson.fromJson(profileJson),
             dayData = parseDayData(dayJson),
+            savedDayData = parseDayData(savedDayJson),
             theme = theme,
         )
     }

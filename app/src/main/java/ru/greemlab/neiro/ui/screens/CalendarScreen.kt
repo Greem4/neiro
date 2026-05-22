@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
@@ -82,7 +83,8 @@ fun CalendarScreen(
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val dayData by viewModel.dayData.collectAsState()
+    val dayData by viewModel.effectiveDayData.collectAsState()
+    val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -141,6 +143,8 @@ fun CalendarScreen(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
+                calendarMode = calendarMode,
+                onModeChange = viewModel::setCalendarMode,
                 stats = stats,
                 workingDays = profile.workingDays,
                 isRegistered = profile.isRegistered,
@@ -224,17 +228,28 @@ fun CalendarScreen(
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
             val recentStudents by viewModel.recentStudents.collectAsState()
+            val savedDayData by viewModel.savedDayData.collectAsState()
+
             if (date != null) {
+                val isArchived = savedDayData.containsKey(date)
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     recentStudents = recentStudents,
+                    isArchived = isArchived,
                     onDismiss = { overlay = CalendarOverlay.None },
                     onSave = { updatedNames, repeatMonth, repeatNext ->
                         viewModel.saveNamesForDate(date, updatedNames, repeatMonth, repeatNext)
                         overlay = CalendarOverlay.None
                     },
+                    onArchive = {
+                        if (isArchived) {
+                            viewModel.unarchiveDay(date)
+                        } else {
+                            viewModel.archiveDay(date, dayData[date].orEmpty())
+                        }
+                    }
                 )
             } else {
                 overlay = CalendarOverlay.None
@@ -286,6 +301,8 @@ fun CalendarScreenContent(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
+    calendarMode: CalendarMode = CalendarMode.SYNCED,
+    onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
@@ -317,10 +334,12 @@ fun CalendarScreenContent(
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
+                calendarMode = calendarMode,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
                 onTodayClick = onTodayClick,
                 onMenuClick = onMenuClick,
+                onModeChange = onModeChange,
                 isRegistered = isRegistered,
                 onRegistrationRequired = onRegistrationRequired,
             )
@@ -470,6 +489,7 @@ private fun CalendarPreviewDark() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
+            calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},
@@ -489,6 +509,7 @@ private fun CalendarPreviewLight() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
+            calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},
