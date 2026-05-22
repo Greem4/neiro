@@ -1,7 +1,7 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -39,6 +40,9 @@ private val HourLabelColor = Color(0xFF9E9E9E)
 private val TimelineHourHeight: Dp = 72.dp
 private val TimelineMinuteHeight: Dp = TimelineHourHeight / 60
 private val TimeAxisWidth: Dp = 54.dp
+/** Высота строки «сейчас»: бейдж + линия по центру Y. */
+private val NowIndicatorHeight: Dp = 22.dp
+private val NowLineStroke: Dp = 1.dp
 private val SlotLaneGap: Dp = 4.dp
 /** Минимальный зазор между карточками — почти стык, но без слияния. */
 private val SlotBottomGap: Dp = 2.dp
@@ -91,8 +95,6 @@ fun DayScheduleTimeline(
                         pxPerMinute = pxPerMinute,
                         modifier = Modifier.width(TimeAxisWidth),
                         timelineHeight = timelineHeight,
-                        nowTime = if (nowLineY != null) currentTime else null,
-                        nowOffsetMinutes = nowOffsetMinutes,
                     )
 
                     BoxWithConstraints(
@@ -155,11 +157,12 @@ fun DayScheduleTimeline(
                 }
 
                 if (nowLineY != null) {
-                    CurrentTimeLine(
+                    CurrentTimeIndicator(
+                        time = currentTime,
                         modifier = Modifier
-                            .offset(y = nowLineY)
                             .fillMaxWidth()
-                            .height(2.dp),
+                            .offset(y = nowLineY - NowIndicatorHeight / 2)
+                            .height(NowIndicatorHeight),
                     )
                 }
             }
@@ -185,8 +188,6 @@ private fun TimelineTimeAxis(
     pxPerMinute: Float,
     timelineHeight: Dp,
     modifier: Modifier = Modifier,
-    nowTime: LocalTime? = null,
-    nowOffsetMinutes: Int? = null,
 ) {
     val density = LocalDensity.current
 
@@ -205,61 +206,53 @@ private fun TimelineTimeAxis(
                     .padding(top = 2.dp),
             )
         }
-
-        if (nowTime != null && nowOffsetMinutes != null) {
-            val nowTop = with(density) {
-                (nowOffsetMinutes * pxPerMinute).toDp()
-            }
-            CurrentTimeBadge(
-                time = nowTime,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(y = nowTop - 12.dp),
-            )
-        }
     }
 }
 
+/** Капсула с текущим временем и красная линия — как в YClients, в цветах темы Neiro. */
 @Composable
-private fun CurrentTimeBadge(
+private fun CurrentTimeIndicator(
     time: LocalTime,
     modifier: Modifier = Modifier,
 ) {
-    val badgeShape = RoundedCornerShape(12.dp)
-    Surface(
-        shape = badgeShape,
-        color = Color.Transparent,
-        shadowElevation = 0.dp,
-        tonalElevation = 0.dp,
-        modifier = modifier
-            .wrapContentWidth(unbounded = true)
-            .border(2.dp, NowLineRed, badgeShape),
-    ) {
-        Text(
-            text = formatNowLabel(time),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = NowLineRed,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        )
-    }
-}
+    val density = LocalDensity.current
+    val pillShape = RoundedCornerShape(percent = 50)
 
-@Composable
-private fun CurrentTimeLine(
-    modifier: Modifier = Modifier,
-) {
-    Row(modifier = modifier) {
-        Spacer(modifier = Modifier.width(TimeAxisWidth))
-        Canvas(modifier = Modifier.fillMaxSize()) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = pillShape,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(NowLineStroke, NowLineRed),
+            shadowElevation = 0.dp,
+            tonalElevation = 0.dp,
+        ) {
+            Text(
+                text = formatNowLabel(time),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = NowLineRed,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+            )
+        }
+        Canvas(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        ) {
+            val strokePx = with(density) { NowLineStroke.toPx() }
+            val centerY = size.height / 2f
             drawLine(
                 color = NowLineRed,
-                start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
-                end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
-                strokeWidth = 2.5f,
+                start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+                strokeWidth = strokePx,
             )
         }
     }
