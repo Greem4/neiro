@@ -64,7 +64,9 @@ fun ScheduleSlotItem(
     }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 56.dp),
         shape = RoundedCornerShape(12.dp),
         // Фон карточки - стандартный surfaceVariant
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -72,7 +74,7 @@ fun ScheduleSlotItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .fillMaxHeight(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Полоска слева
