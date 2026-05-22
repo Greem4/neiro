@@ -283,38 +283,40 @@ private fun DayDetailsContent(
             // Кнопки действий
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
                     onClick = onArchive,
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = if (isArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
                     Icon(
                         imageVector = if (isArchived) Icons.Rounded.Check else Icons.Rounded.Save,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(if (isArchived) "В личном" else "В личный")
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Закрыть", fontWeight = FontWeight.Medium)
-                    }
-                    if (isPlanningMode) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = { onSave(currentNames.toList()) },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.Save, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Сохранить")
-                        }
+                Spacer(modifier = Modifier.weight(1f))
+
+                TextButton(
+                    onClick = onDismiss,
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text("Закрыть")
+                }
+
+                if (isPlanningMode) {
+                    Button(
+                        onClick = { onSave(currentNames.toList()) },
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text("Сохранить", fontWeight = FontWeight.Bold)
                     }
                 }
             }
