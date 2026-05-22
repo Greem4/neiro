@@ -20,6 +20,31 @@
         <item quantity="other">Сегодня %d занятий</item>
     </plurals>
 
+    <plurals name="notification_tomorrow_title">
+        <item quantity="one">Завтра %d занятие</item>
+        <item quantity="few">Завтра %d занятия</item>
+        <item quantity="many">Завтра %d занятий</item>
+        <item quantity="other">Завтра %d занятий</item>
+    </plurals>
+
+    <string name="notification_archive_title">Перенесите день в архив</string>
+    <string name="notification_archive_group_title">%1$d дня без архива</string>
+    <string name="notification_archive_group_summary">Откройте календарь и сохраните прошедшие дни</string>
+
+    <plurals name="notification_archive_body">
+        <item quantity="one">%1$s — %2$d занятие</item>
+        <item quantity="few">%1$s — %2$d занятия</item>
+        <item quantity="many">%1$s — %2$d занятий</item>
+        <item quantity="other">%1$s — %2$d занятий</item>
+    </plurals>
+
+    <plurals name="notification_archive_line">
+        <item quantity="one">%1$s — %2$d занятие</item>
+        <item quantity="few">%1$s — %2$d занятия</item>
+        <item quantity="many">%1$s — %2$d занятий</item>
+        <item quantity="other">%1$s — %2$d занятий</item>
+    </plurals>
+
     <plurals name="notification_sync_added_title">
         <item quantity="one">Добавлена %d запись</item>
         <item quantity="few">Добавлено %d записи</item>
@@ -51,7 +76,15 @@
     <string name="notification_settings_reminder_lead">За сколько напомнить</string>
     <string name="notification_settings_reminder_minutes">%1$d минут</string>
     <string name="notification_settings_digest">Сводка на сегодня</string>
-    <string name="notification_settings_digest_hint">Один раз утром — список занятий на день</string>
+    <string name="notification_settings_digest_hint">Список занятий на день в %1$s</string>
+    <string name="notification_settings_tomorrow_digest">Сводка на завтра</string>
+    <string name="notification_settings_tomorrow_digest_hint">Накануне в %1$s — предстоящие занятия</string>
+    <string name="notification_settings_archive_reminder">Напоминание об архиве</string>
+    <string name="notification_settings_archive_reminder_hint">На следующий день в %1$s — перенести занятия в архив</string>
+    <string name="notification_settings_delivery_time">Время: %1$s</string>
+    <string name="notification_settings_delivery_time_dialog">Время уведомления</string>
+    <string name="notification_settings_time_confirm">Готово</string>
+    <string name="notification_settings_time_cancel">Отмена</string>
 
     <string name="notification_events_group_title">%1$d изменения в расписании</string>
     <string name="notification_event_new_title">Новая запись: %1$s</string>

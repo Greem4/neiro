@@ -97,6 +97,11 @@ object UpcomingSessionsCollector {
         today: LocalDate = LocalDate.now(),
     ): List<UpcomingSession> = sessions.filter { it.date == today }
 
+    fun tomorrowSessions(
+        sessions: List<UpcomingSession>,
+        today: LocalDate = LocalDate.now(),
+    ): List<UpcomingSession> = sessions.filter { it.date == today.plusDays(1) }
+
     private fun Session.toUpcoming(date: LocalDate): UpcomingSession? {
         return when (this) {
             is Session.Student -> {

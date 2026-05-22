@@ -70,4 +70,28 @@ class UpcomingSessionsCollectorTest {
         assertEquals("Анна", result.first().clientName)
         assertEquals(UpcomingSessionKind.LESSON, result.first().kind)
     }
+
+    @Test
+    fun `tomorrowSessions filters by next day`() {
+        val today = LocalDate.of(2026, 5, 22)
+        val tomorrow = today.plusDays(1)
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Олег",
+            status = AttendanceStatus.EXPECTED,
+            time = "11:00-11:50",
+            phone = "",
+            comment = "",
+        )
+
+        val upcoming = UpcomingSessionsCollector.collect(
+            dayData = mapOf(tomorrow to listOf(raw)),
+            profile = UserProfile(name = "Тест", isRegistered = true),
+            today = today,
+            now = LocalTime.of(12, 0),
+        )
+
+        val tomorrowList = UpcomingSessionsCollector.tomorrowSessions(upcoming, today)
+        assertEquals(1, tomorrowList.size)
+        assertEquals(tomorrow, tomorrowList.first().date)
+    }
 }

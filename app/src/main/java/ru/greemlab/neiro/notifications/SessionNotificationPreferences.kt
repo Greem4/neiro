@@ -45,10 +45,36 @@ class SessionNotificationPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIFY_DIGEST, true)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DIGEST, value).apply()
 
+    var notifyTomorrowDigest: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_TOMORROW_DIGEST, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_TOMORROW_DIGEST, value).apply()
+
+    var notifyArchiveReminder: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_ARCHIVE_REMINDER, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_ARCHIVE_REMINDER, value).apply()
+
     /** За сколько минут до начала напомнить. */
     var reminderMinutesBefore: Int
         get() = prefs.getInt(KEY_REMINDER_MINUTES, DEFAULT_REMINDER_MINUTES)
         set(value) = prefs.edit().putInt(KEY_REMINDER_MINUTES, value.coerceIn(5, 120)).apply()
+
+    var todayDigestTime: ScheduledNotificationTime
+        get() = ScheduledNotificationTime.fromMinutesFromMidnight(
+            prefs.getInt(KEY_TODAY_DIGEST_TIME, DEFAULT_TODAY_DIGEST_TIME_MINUTES),
+        )
+        set(value) = prefs.edit().putInt(KEY_TODAY_DIGEST_TIME, value.toMinutesFromMidnight()).apply()
+
+    var tomorrowDigestTime: ScheduledNotificationTime
+        get() = ScheduledNotificationTime.fromMinutesFromMidnight(
+            prefs.getInt(KEY_TOMORROW_DIGEST_TIME, DEFAULT_TOMORROW_DIGEST_TIME_MINUTES),
+        )
+        set(value) = prefs.edit().putInt(KEY_TOMORROW_DIGEST_TIME, value.toMinutesFromMidnight()).apply()
+
+    var archiveReminderTime: ScheduledNotificationTime
+        get() = ScheduledNotificationTime.fromMinutesFromMidnight(
+            prefs.getInt(KEY_ARCHIVE_REMINDER_TIME, DEFAULT_ARCHIVE_REMINDER_TIME_MINUTES),
+        )
+        set(value) = prefs.edit().putInt(KEY_ARCHIVE_REMINDER_TIME, value.toMinutesFromMidnight()).apply()
 
     var hasBaselineSnapshot: Boolean
         get() = prefs.getBoolean(KEY_HAS_BASELINE, false)
@@ -62,6 +88,8 @@ class SessionNotificationPreferences(context: Context) {
         SessionEventType.STATUS_CHANGED -> notifyStatusChanged
         SessionEventType.REMINDER -> notifyReminder
         SessionEventType.TODAY_DIGEST -> notifyTodayDigest
+        SessionEventType.TOMORROW_DIGEST -> notifyTomorrowDigest
+        SessionEventType.ARCHIVE_REMINDER -> notifyArchiveReminder
     }
 
     fun wasEventNotified(dedupeKey: String): Boolean =
@@ -95,6 +123,24 @@ class SessionNotificationPreferences(context: Context) {
 
     fun markTodayDigestShown(epochDay: Long) {
         prefs.edit().putLong(KEY_TODAY_DIGEST_DAY, epochDay).apply()
+    }
+
+    /** День, на который уже показали сводку «завтра» (epoch day целевой даты). */
+    fun lastTomorrowDigestTargetEpochDay(): Long = prefs.getLong(KEY_TOMORROW_DIGEST_TARGET_DAY, 0L)
+
+    fun markTomorrowDigestShown(targetDayEpochDay: Long) {
+        prefs.edit().putLong(KEY_TOMORROW_DIGEST_TARGET_DAY, targetDayEpochDay).apply()
+    }
+
+    fun wasArchiveReminderShown(pastDayEpochDay: Long): Boolean =
+        prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty()
+            .contains(pastDayEpochDay.toString())
+
+    fun markArchiveReminderShown(pastDayEpochDay: Long) {
+        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        updated.add(pastDayEpochDay.toString())
+        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
     }
 
     fun saveSnapshot(sessions: List<TrackedSession>) {
@@ -158,13 +204,23 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_NOTIFY_STATUS = "notify_status"
         private const val KEY_NOTIFY_REMINDER = "notify_reminder"
         private const val KEY_NOTIFY_DIGEST = "notify_digest"
+        private const val KEY_NOTIFY_TOMORROW_DIGEST = "notify_tomorrow_digest"
+        private const val KEY_NOTIFY_ARCHIVE_REMINDER = "notify_archive_reminder"
         private const val KEY_REMINDER_MINUTES = "reminder_minutes"
+        private const val KEY_TODAY_DIGEST_TIME = "today_digest_time_minutes"
+        private const val KEY_TOMORROW_DIGEST_TIME = "tomorrow_digest_time_minutes"
+        private const val KEY_ARCHIVE_REMINDER_TIME = "archive_reminder_time_minutes"
         private const val KEY_NOTIFIED_EVENT_KEYS = "notified_event_keys"
         private const val KEY_NOTIFIED_REMINDER_KEYS = "notified_reminder_keys"
         private const val KEY_TODAY_DIGEST_DAY = "today_digest_epoch_day"
+        private const val KEY_TOMORROW_DIGEST_TARGET_DAY = "tomorrow_digest_target_epoch_day"
+        private const val KEY_ARCHIVE_REMINDER_DAYS = "archive_reminder_epoch_days"
         private const val KEY_SNAPSHOT = "calendar_snapshot"
         private const val KEY_HAS_BASELINE = "has_baseline_snapshot"
         private const val DEFAULT_REMINDER_MINUTES = 30
+        private const val DEFAULT_TODAY_DIGEST_TIME_MINUTES = 8 * 60
+        private const val DEFAULT_TOMORROW_DIGEST_TIME_MINUTES = 20 * 60
+        private const val DEFAULT_ARCHIVE_REMINDER_TIME_MINUTES = 21 * 60
         private const val MAX_NOTIFIED_KEYS = 300
 
         val REMINDER_MINUTE_OPTIONS = listOf(15, 30, 45, 60)

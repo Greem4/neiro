@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
 
@@ -19,7 +20,12 @@ data class SessionNotificationSettingsState(
     val notifyStatusChanged: Boolean = true,
     val notifyReminder: Boolean = true,
     val notifyTodayDigest: Boolean = true,
+    val notifyTomorrowDigest: Boolean = true,
+    val notifyArchiveReminder: Boolean = true,
     val reminderMinutesBefore: Int = 30,
+    val todayDigestTime: ScheduledNotificationTime = ScheduledNotificationTime(8, 0),
+    val tomorrowDigestTime: ScheduledNotificationTime = ScheduledNotificationTime(20, 0),
+    val archiveReminderTime: ScheduledNotificationTime = ScheduledNotificationTime(21, 0),
 )
 
 class SessionNotificationSettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -65,8 +71,28 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
         prefs.notifyTodayDigest = value
     }
 
+    fun setNotifyTomorrowDigest(value: Boolean) = update({ copy(notifyTomorrowDigest = value) }) {
+        prefs.notifyTomorrowDigest = value
+    }
+
+    fun setNotifyArchiveReminder(value: Boolean) = update({ copy(notifyArchiveReminder = value) }) {
+        prefs.notifyArchiveReminder = value
+    }
+
     fun setReminderMinutes(minutes: Int) = update({ copy(reminderMinutesBefore = minutes) }) {
         prefs.reminderMinutesBefore = minutes
+    }
+
+    fun setTodayDigestTime(time: ScheduledNotificationTime) = update({ copy(todayDigestTime = time) }) {
+        prefs.todayDigestTime = time
+    }
+
+    fun setTomorrowDigestTime(time: ScheduledNotificationTime) = update({ copy(tomorrowDigestTime = time) }) {
+        prefs.tomorrowDigestTime = time
+    }
+
+    fun setArchiveReminderTime(time: ScheduledNotificationTime) = update({ copy(archiveReminderTime = time) }) {
+        prefs.archiveReminderTime = time
     }
 
     private inline fun update(
@@ -89,6 +115,11 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
         notifyStatusChanged = prefs.notifyStatusChanged,
         notifyReminder = prefs.notifyReminder,
         notifyTodayDigest = prefs.notifyTodayDigest,
+        notifyTomorrowDigest = prefs.notifyTomorrowDigest,
+        notifyArchiveReminder = prefs.notifyArchiveReminder,
         reminderMinutesBefore = prefs.reminderMinutesBefore,
+        todayDigestTime = prefs.todayDigestTime,
+        tomorrowDigestTime = prefs.tomorrowDigestTime,
+        archiveReminderTime = prefs.archiveReminderTime,
     )
 }

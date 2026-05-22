@@ -81,6 +81,92 @@ object SessionNotificationDisplay {
         notify(context, NOTIFICATION_ID_TODAY_DIGEST, notification)
     }
 
+    fun showTomorrowDigest(context: Context, sessions: List<UpcomingSession>) {
+        if (sessions.isEmpty()) return
+        ensureChannel(context)
+
+        val sorted = sessions.sortedBy { it.startTime }
+        val title = context.resources.getQuantityString(
+            R.plurals.notification_tomorrow_title,
+            sorted.size,
+            sorted.size,
+        )
+        val lines = sorted.map { formatUpcomingLine(it) }
+        val bigText = lines.joinToString("\n")
+        val tomorrow = sorted.first().date
+
+        val notification = baseBuilder(context, title, lines.first())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setGroup(GROUP_KEY)
+            .setGroupSummary(true)
+            .setContentIntent(openCalendarIntent(context, tomorrow))
+            .build()
+
+        notify(context, NOTIFICATION_ID_TOMORROW_DIGEST, notification)
+    }
+
+    fun showArchiveReminder(context: Context, dates: List<LocalDate>, dayData: Map<LocalDate, List<String>>) {
+        if (dates.isEmpty()) return
+        ensureChannel(context)
+
+        when (dates.size) {
+            1 -> showSingleArchiveReminder(context, dates.first(), dayData)
+            else -> showGroupedArchiveReminder(context, dates, dayData)
+        }
+    }
+
+    private fun showSingleArchiveReminder(
+        context: Context,
+        date: LocalDate,
+        dayData: Map<LocalDate, List<String>>,
+    ) {
+        val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
+        val title = context.getString(R.string.notification_archive_title)
+        val content = context.resources.getQuantityString(
+            R.plurals.notification_archive_body,
+            count,
+            date.format(dateFormatter),
+            count,
+        )
+
+        val notification = baseBuilder(context, title, content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setContentIntent(openCalendarIntent(context, date))
+            .build()
+
+        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER + date.hashCode(), notification)
+    }
+
+    private fun showGroupedArchiveReminder(
+        context: Context,
+        dates: List<LocalDate>,
+        dayData: Map<LocalDate, List<String>>,
+    ) {
+        val title = context.getString(R.string.notification_archive_group_title, dates.size)
+        val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
+        dates.forEach { date ->
+            val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
+            inbox.addLine(
+                context.resources.getQuantityString(
+                    R.plurals.notification_archive_line,
+                    count,
+                    date.format(dateFormatter),
+                    count,
+                ),
+            )
+        }
+
+        val firstDate = dates.first()
+        val summary = baseBuilder(context, title, context.getString(R.string.notification_archive_group_summary))
+            .setStyle(inbox)
+            .setGroup(GROUP_KEY)
+            .setGroupSummary(true)
+            .setContentIntent(openCalendarIntent(context, firstDate))
+            .build()
+
+        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER, summary)
+    }
+
     private fun showSingleEvent(context: Context, event: SessionEvent) {
         val title = eventTitle(context, event)
         val content = eventContent(context, event)
@@ -268,4 +354,6 @@ object SessionNotificationDisplay {
     private const val NOTIFICATION_ID_TODAY_DIGEST = 10_001
     private const val NOTIFICATION_ID_EVENTS_GROUP = 10_002
     private const val NOTIFICATION_ID_REMINDER_GROUP = 10_003
+    private const val NOTIFICATION_ID_TOMORROW_DIGEST = 10_004
+    private const val NOTIFICATION_ID_ARCHIVE_REMINDER = 10_005
 }

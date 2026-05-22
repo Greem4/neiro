@@ -13,6 +13,7 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
@@ -24,6 +25,7 @@ object SessionNotificationCoordinator {
     const val KEY_DEDUPE = "dedupe_key"
 
     private const val PERIODIC_WORK_NAME = "session_reminder_check"
+    private const val PERIODIC_DAILY_WORK_NAME = "session_daily_notifications"
     private const val WORK_TAG_REMINDER = "session_reminder"
     private const val WORK_PREFIX = "session_reminder_"
     private const val MAX_SCHEDULE_DAYS = 7L
@@ -32,12 +34,14 @@ object SessionNotificationCoordinator {
         val appContext = context.applicationContext
         SessionNotificationDisplay.ensureChannel(appContext)
         schedulePeriodicCheck(appContext)
+        scheduleDailyNotifications(appContext)
     }
 
     suspend fun onNotificationsToggled(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
         if (enabled) {
             schedulePeriodicCheck(appContext)
+            scheduleDailyNotifications(appContext)
             refreshFromCalendar(appContext)
         } else {
             cancelAll(appContext)
@@ -52,6 +56,7 @@ object SessionNotificationCoordinator {
             return
         }
         schedulePeriodicCheck(appContext)
+        scheduleDailyNotifications(appContext)
         refreshFromCalendar(appContext)
     }
 
@@ -91,7 +96,7 @@ object SessionNotificationCoordinator {
         }
 
         val dayData = calendarRepository.dayDataFlow.first()
-        val current = CalendarSessionSnapshot.from(dayData, profile)
+        val savedDayData = calendarRepository.savedDayDataFlow.first()
         val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
 
         if (prefs.notifyReminder) {
@@ -100,9 +105,14 @@ object SessionNotificationCoordinator {
             WorkManager.getInstance(appContext).cancelAllWorkByTag(WORK_TAG_REMINDER)
         }
 
-        if (prefs.notifyTodayDigest) {
-            maybeShowTodayDigest(appContext, upcoming, prefs)
-        }
+        runDailyScheduledChecks(
+            appContext,
+            prefs = prefs,
+            dayData = dayData,
+            savedDayData = savedDayData,
+            profile = profile,
+            upcoming = upcoming,
+        )
     }
 
     private suspend fun processSnapshotTransition(
@@ -140,15 +150,74 @@ object SessionNotificationCoordinator {
         after: List<TrackedSession>,
         prefs: SessionNotificationPreferences,
     ) {
-        val dayData = CalendarDataStoreProvider.get(context).dayDataFlow.first()
+        val calendarRepository = CalendarDataStoreProvider.get(context)
+        val dayData = calendarRepository.dayDataFlow.first()
+        val savedDayData = calendarRepository.savedDayDataFlow.first()
         val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
 
         if (prefs.notifyReminder) {
             rescheduleReminders(context, upcoming, prefs.reminderMinutesBefore)
         }
 
-        if (prefs.notifyTodayDigest) {
+        runDailyScheduledChecks(
+            context,
+            prefs = prefs,
+            dayData = dayData,
+            savedDayData = savedDayData,
+            profile = profile,
+            upcoming = upcoming,
+        )
+    }
+
+    suspend fun runDailyScheduledChecks(context: Context) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled) return
+
+        val calendarRepository = CalendarDataStoreProvider.get(appContext)
+        val profile = calendarRepository.userProfileFlow.first()
+        if (!profile.isRegistered) return
+
+        val dayData = calendarRepository.dayDataFlow.first()
+        val savedDayData = calendarRepository.savedDayDataFlow.first()
+        val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
+
+        runDailyScheduledChecks(
+            appContext,
+            prefs = prefs,
+            dayData = dayData,
+            savedDayData = savedDayData,
+            profile = profile,
+            upcoming = upcoming,
+        )
+    }
+
+    private fun runDailyScheduledChecks(
+        context: Context,
+        prefs: SessionNotificationPreferences,
+        dayData: Map<LocalDate, List<String>>,
+        savedDayData: Map<LocalDate, List<String>>,
+        profile: UserProfile,
+        upcoming: List<UpcomingSession>,
+    ) {
+        val now = LocalTime.now()
+
+        if (prefs.notifyTodayDigest &&
+            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.todayDigestTime)
+        ) {
             maybeShowTodayDigest(context, upcoming, prefs)
+        }
+
+        if (prefs.notifyTomorrowDigest &&
+            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.tomorrowDigestTime)
+        ) {
+            maybeShowTomorrowDigest(context, upcoming, prefs)
+        }
+
+        if (prefs.notifyArchiveReminder &&
+            SessionDailyNotificationWorker.shouldCheckAt(now, prefs.archiveReminderTime)
+        ) {
+            maybeShowArchiveReminder(context, dayData, savedDayData, profile, prefs)
         }
     }
 
@@ -164,6 +233,26 @@ object SessionNotificationCoordinator {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             PERIODIC_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request,
+        )
+    }
+
+    private fun scheduleDailyNotifications(context: Context) {
+        val prefs = SessionNotificationPreferences.get(context)
+        val workManager = WorkManager.getInstance(context)
+        if (!prefs.isEnabled ||
+            (!prefs.notifyTodayDigest && !prefs.notifyTomorrowDigest && !prefs.notifyArchiveReminder)
+        ) {
+            workManager.cancelUniqueWork(PERIODIC_DAILY_WORK_NAME)
+            return
+        }
+
+        val request = PeriodicWorkRequestBuilder<SessionDailyNotificationWorker>(15, TimeUnit.MINUTES)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            PERIODIC_DAILY_WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             request,
         )
@@ -215,9 +304,53 @@ object SessionNotificationCoordinator {
         prefs.markTodayDigestShown(epochDay)
     }
 
+    private fun maybeShowTomorrowDigest(
+        context: Context,
+        upcoming: List<UpcomingSession>,
+        prefs: SessionNotificationPreferences,
+    ) {
+        val today = LocalDate.now()
+        val tomorrow = today.plusDays(1)
+        val tomorrowList = UpcomingSessionsCollector.tomorrowSessions(upcoming, today)
+        if (tomorrowList.isEmpty()) return
+
+        val targetEpochDay = tomorrow.toEpochDay()
+        if (prefs.lastTomorrowDigestTargetEpochDay() == targetEpochDay) return
+
+        SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)
+        prefs.markTomorrowDigestShown(targetEpochDay)
+    }
+
+    private fun maybeShowArchiveReminder(
+        context: Context,
+        dayData: Map<LocalDate, List<String>>,
+        savedDayData: Map<LocalDate, List<String>>,
+        profile: UserProfile,
+        prefs: SessionNotificationPreferences,
+    ) {
+        val today = LocalDate.now()
+        val yesterday = today.minusDays(1)
+        val needing = PastSessionsArchiveCollector.daysNeedingArchive(
+            dayData = dayData,
+            archivedDates = savedDayData.keys,
+            profile = profile,
+            today = today,
+        )
+        if (needing.isEmpty()) return
+
+        val toNotify = needing.filter { date ->
+            date == yesterday && !prefs.wasArchiveReminderShown(date.toEpochDay())
+        }
+        if (toNotify.isEmpty()) return
+
+        SessionNotificationDisplay.showArchiveReminder(context, toNotify, dayData)
+        toNotify.forEach { prefs.markArchiveReminderShown(it.toEpochDay()) }
+    }
+
     private fun cancelAll(context: Context) {
         WorkManager.getInstance(context).apply {
             cancelUniqueWork(PERIODIC_WORK_NAME)
+            cancelUniqueWork(PERIODIC_DAILY_WORK_NAME)
             cancelAllWorkByTag(WORK_TAG_REMINDER)
         }
     }

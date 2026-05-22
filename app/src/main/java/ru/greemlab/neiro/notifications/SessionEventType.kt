@@ -18,4 +18,8 @@ enum class SessionEventType {
     REMINDER,
     /** Сводка занятий на сегодня (один раз в день). */
     TODAY_DIGEST,
+    /** Сводка занятий на завтра (накануне, вечером). */
+    TOMORROW_DIGEST,
+    /** Напоминание перенести прошедший день в архив. */
+    ARCHIVE_REMINDER,
 }

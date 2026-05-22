@@ -10,8 +10,10 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
+import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,11 +125,54 @@ fun SessionNotificationSettingsScreen(
 
                     EventToggle(
                         title = stringResource(R.string.notification_settings_digest),
-                        subtitle = stringResource(R.string.notification_settings_digest_hint),
+                        subtitle = stringResource(
+                            R.string.notification_settings_digest_hint,
+                            settings.todayDigestTime.formatForDisplay(),
+                        ),
                         icon = Icons.Rounded.Today,
                         checked = settings.notifyTodayDigest,
                         onCheckedChange = viewModel::setNotifyTodayDigest,
                     )
+                    if (settings.notifyTodayDigest) {
+                        NotificationTimeSelector(
+                            time = settings.todayDigestTime,
+                            onTimeChange = viewModel::setTodayDigestTime,
+                        )
+                    }
+
+                    EventToggle(
+                        title = stringResource(R.string.notification_settings_tomorrow_digest),
+                        subtitle = stringResource(
+                            R.string.notification_settings_tomorrow_digest_hint,
+                            settings.tomorrowDigestTime.formatForDisplay(),
+                        ),
+                        icon = Icons.Rounded.WbTwilight,
+                        checked = settings.notifyTomorrowDigest,
+                        onCheckedChange = viewModel::setNotifyTomorrowDigest,
+                    )
+                    if (settings.notifyTomorrowDigest) {
+                        NotificationTimeSelector(
+                            time = settings.tomorrowDigestTime,
+                            onTimeChange = viewModel::setTomorrowDigestTime,
+                        )
+                    }
+
+                    EventToggle(
+                        title = stringResource(R.string.notification_settings_archive_reminder),
+                        subtitle = stringResource(
+                            R.string.notification_settings_archive_reminder_hint,
+                            settings.archiveReminderTime.formatForDisplay(),
+                        ),
+                        icon = Icons.Rounded.Archive,
+                        checked = settings.notifyArchiveReminder,
+                        onCheckedChange = viewModel::setNotifyArchiveReminder,
+                    )
+                    if (settings.notifyArchiveReminder) {
+                        NotificationTimeSelector(
+                            time = settings.archiveReminderTime,
+                            onTimeChange = viewModel::setArchiveReminderTime,
+                        )
+                    }
                 }
             }
         }
@@ -198,6 +244,61 @@ private fun EventToggle(
             )
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationTimeSelector(
+    time: ScheduledNotificationTime,
+    onTimeChange: (ScheduledNotificationTime) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+
+    OutlinedButton(
+        onClick = { showPicker = true },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 36.dp),
+    ) {
+        Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(
+                R.string.notification_settings_delivery_time,
+                time.formatForDisplay(),
+            ),
+        )
+    }
+
+    if (showPicker) {
+        val pickerState = rememberTimePickerState(
+            initialHour = time.hour,
+            initialMinute = time.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            title = { Text(stringResource(R.string.notification_settings_delivery_time_dialog)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTimeChange(
+                            ScheduledNotificationTime(pickerState.hour, pickerState.minute),
+                        )
+                        showPicker = false
+                    },
+                ) {
+                    Text(stringResource(R.string.notification_settings_time_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text(stringResource(R.string.notification_settings_time_cancel))
+                }
+            },
+            text = { TimePicker(state = pickerState) },
+        )
     }
 }
 
