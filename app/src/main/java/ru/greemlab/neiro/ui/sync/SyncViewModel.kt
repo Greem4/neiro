@@ -533,7 +533,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             return SessionFormat.serializeDiagnostics(
                 price = price,
                 name = clientName,
-                attended = status == AttendanceStatus.ARRIVED,
+                status = status,
                 time = time,
             )
         }
@@ -575,7 +575,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             return SessionFormat.serializeDiagnostics(
                 price = price,
                 name = clientName,
-                attended = status == AttendanceStatus.ARRIVED,
+                status = status,
                 time = time,
             )
         }

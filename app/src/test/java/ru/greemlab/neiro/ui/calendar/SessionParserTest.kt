@@ -163,4 +163,26 @@ class SessionParserTest {
         )
         assertEquals(AttendanceStatus.ARRIVED, status)
     }
+
+    @Test
+    fun `resolveFromRecord prefers cancelled over waiting`() {
+        val status = AttendanceStatus.resolveFromRecord(
+            attendance = 0,
+            visitAttendance = -1,
+        )
+        assertEquals(AttendanceStatus.CANCELLED, status)
+    }
+
+    @Test
+    fun `parses diagnostics with cancelled status code`() {
+        val raw = SessionFormat.serializeDiagnostics(
+            price = "4500",
+            name = "Белов Марк",
+            status = AttendanceStatus.CANCELLED,
+            time = "11:00-11:50",
+        )
+        val parsed = SessionParser.parse(raw) as Session.Diagnostics
+        assertEquals(AttendanceStatus.CANCELLED, parsed.status)
+        assertFalse(parsed.attended)
+    }
 }

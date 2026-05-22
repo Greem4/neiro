@@ -24,8 +24,8 @@ enum class AttendanceStatus(val code: Int) {
         get() = when (this) {
             ARRIVED -> 4
             CONFIRMED -> 3
-            EXPECTED -> 2
-            CANCELLED -> 1
+            CANCELLED -> 2
+            EXPECTED -> 1
         }
 
     companion object {
@@ -108,6 +108,7 @@ sealed interface Session {
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
+        override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Extra
 
     @Immutable
@@ -116,6 +117,7 @@ sealed interface Session {
         override val name: String,
         override val attended: Boolean,
         val time: String = "",
+        override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Extra
 }
 
@@ -226,6 +228,7 @@ object SessionParser {
         }
         var name = ""
         var attended = true // Старые записи без флага считаем посещёнными.
+        var status = AttendanceStatus.ARRIVED
         var time = ""
         if (firstSep >= 0) {
             val secondSep = raw.indexOf('|', startIndex = firstSep + 1)
@@ -235,17 +238,29 @@ object SessionParser {
                 name = raw.substring(firstSep + 1, secondSep)
                 val thirdSep = raw.indexOf('|', startIndex = secondSep + 1)
                 if (thirdSep < 0) {
-                    attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                    parseExtraStatusField(raw.substring(secondSep + 1))?.let { (a, s) ->
+                        attended = a
+                        status = s
+                    } ?: run {
+                        attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                        status = AttendanceStatus.fromBoolean(attended)
+                    }
                 } else {
-                    attended = raw.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
+                    parseExtraStatusField(raw.substring(secondSep + 1, thirdSep))?.let { (a, s) ->
+                        attended = a
+                        status = s
+                    } ?: run {
+                        attended = raw.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
+                        status = AttendanceStatus.fromBoolean(attended)
+                    }
                     time = raw.substring(thirdSep + 1)
                 }
             }
         }
         return if (intensive) {
-            Session.Intensive(amount, name, attended)
+            Session.Intensive(amount, name, attended, status)
         } else {
-            Session.Diagnostics(amount, name, attended, time)
+            Session.Diagnostics(amount, name, attended, time, status)
         }
     }
 
@@ -253,6 +268,13 @@ object SessionParser {
         "true" -> true
         "false" -> false
         else -> null
+    }
+
+    /** Третье поле экстра-записи: `true`/`false` или код статуса 0–3. */
+    private fun parseExtraStatusField(field: String): Pair<Boolean, AttendanceStatus>? {
+        val code = field.toIntOrNull() ?: return null
+        val status = AttendanceStatus.fromCode(code)
+        return status.countsTowardEarnings to status
     }
 }
 
@@ -280,8 +302,18 @@ object SessionFormat {
     ): String = "$name|${status.code}|$time|$phone|$comment"
 
     fun serializeIntensive(price: String, name: String, attended: Boolean): String =
-        "$INTENSIVE_PREFIX$price|$name|$attended"
+        serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended))
+
+    fun serializeIntensive(price: String, name: String, status: AttendanceStatus): String =
+        "$INTENSIVE_PREFIX$price|$name|${status.code}"
 
     fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
-        "$DIAGNOSTICS_PREFIX$price|$name|$attended|$time"
+        serializeDiagnostics(price, name, AttendanceStatus.fromBoolean(attended), time)
+
+    fun serializeDiagnostics(
+        price: String,
+        name: String,
+        status: AttendanceStatus,
+        time: String = "",
+    ): String = "$DIAGNOSTICS_PREFIX$price|$name|${status.code}|$time"
 }

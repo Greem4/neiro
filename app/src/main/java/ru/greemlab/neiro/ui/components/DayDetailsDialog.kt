@@ -239,9 +239,12 @@ private fun DayDetailsContent(
                                     val parsed = SessionParser.parse(currentRaw)
                                     if (parsed is Session.Extra) {
                                         val updated = if (parsed is Session.Intensive) {
-                                            SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.attended)
+                                            SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.status)
                                         } else {
-                                            SessionFormat.serializeDiagnostics(newPrice, parsed.name, parsed.attended)
+                                            val diag = parsed as Session.Diagnostics
+                                            SessionFormat.serializeDiagnostics(
+                                                newPrice, diag.name, diag.status, diag.time,
+                                            )
                                         }
                                         currentNames[rawIndex] = updated
                                     }
@@ -254,9 +257,12 @@ private fun DayDetailsContent(
                                     if (parsed is Session.Extra) {
                                         val priceStr = parsed.amount.toInt().toString()
                                         val updated = if (parsed is Session.Intensive) {
-                                            SessionFormat.serializeIntensive(priceStr, newName, parsed.attended)
+                                            SessionFormat.serializeIntensive(priceStr, newName, parsed.status)
                                         } else {
-                                            SessionFormat.serializeDiagnostics(priceStr, newName, parsed.attended)
+                                            val diag = parsed as Session.Diagnostics
+                                            SessionFormat.serializeDiagnostics(
+                                                priceStr, newName, diag.status, diag.time,
+                                            )
                                         }
                                         currentNames[rawIndex] = updated
                                     }
@@ -530,11 +536,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = "",
                 comment = "",
-                status = when {
-                    isDeleted -> AttendanceStatus.CANCELLED
-                    session.attended -> AttendanceStatus.ARRIVED
-                    else -> AttendanceStatus.EXPECTED
-                },
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
                 isExtra = true,
                 extraType = "Интенсив",
                 extraAmount = session.amount,
@@ -544,11 +546,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 name = session.name,
                 time = normalizeSessionTime(session.time),
                 comment = "",
-                status = when {
-                    isDeleted -> AttendanceStatus.CANCELLED
-                    session.attended -> AttendanceStatus.ARRIVED
-                    else -> AttendanceStatus.EXPECTED
-                },
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
                 isExtra = true,
                 extraType = "Диагностика",
                 extraAmount = session.amount,
