@@ -18,6 +18,7 @@ interface CalendarRepository {
 
     val themeFlow: Flow<String>
     val dayDataFlow: Flow<Map<LocalDate, List<String>>>
+    val savedDayDataFlow: Flow<Map<LocalDate, List<String>>>
     val userProfileFlow: Flow<UserProfile>
 
     /** Гидратация из DataStore в фоне. */
@@ -33,6 +34,15 @@ interface CalendarRepository {
     suspend fun updateProfile(transform: (UserProfile) -> UserProfile)
 
     suspend fun saveDayData(data: Map<LocalDate, List<String>>)
+
+    /** Сохраняет данные конкретного дня в "архивный" (второй) календарь. */
+    suspend fun saveDayToArchive(date: LocalDate, data: List<String>)
+
+    /** Удаляет данные конкретного дня из "архивного" календаря. */
+    suspend fun deleteDayFromArchive(date: LocalDate)
+
+    /** Полная очистка всех данных (для отладки). */
+    suspend fun clearAllData()
 
     suspend fun saveTheme(theme: String)
 

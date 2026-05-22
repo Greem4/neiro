@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -20,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -27,15 +29,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
 import ru.greemlab.neiro.ui.components.*
+import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -50,6 +55,7 @@ private sealed interface CalendarOverlay {
     data object None : CalendarOverlay
     data object Settings : CalendarOverlay
     data object AppSettings : CalendarOverlay
+    data object YClients : CalendarOverlay
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
@@ -79,7 +85,8 @@ fun CalendarScreen(
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val dayData by viewModel.dayData.collectAsState()
+    val dayData by viewModel.effectiveDayData.collectAsState()
+    val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -92,6 +99,7 @@ fun CalendarScreen(
         currentMonth = currentMonth,
         dayData = dayData,
         pricePerSession = profile.pricePerSession,
+        pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
     )
 
@@ -106,6 +114,27 @@ fun CalendarScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val syncViewModel: SyncViewModel = viewModel()
+        val syncState by syncViewModel.uiState.collectAsState()
+        val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+        val context = LocalContext.current
+
+        LaunchedEffect(syncState.showSuccess, syncState.error) {
+            if (syncState.showSuccess) {
+                val message = if (syncState.syncedCount > 0) {
+                    "Обновлено записей: ${syncState.syncedCount}"
+                } else {
+                    "Данные актуальны"
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                syncViewModel.clearSuccess()
+            }
+            syncState.error?.let {
+                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                syncViewModel.clearError()
+            }
+        }
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = drawerGesturesEnabled,
@@ -114,6 +143,7 @@ fun CalendarScreen(
                     ProfileContent(
                         profileViewModel = profileViewModel,
                         calendarViewModel = viewModel,
+                        syncViewModel = syncViewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
                             overlay = CalendarOverlay.Settings
@@ -121,6 +151,10 @@ fun CalendarScreen(
                         onOpenAppSettings = {
                             scope.launch { drawerState.close() }
                             overlay = CalendarOverlay.AppSettings
+                        },
+                        onOpenYClients = {
+                            scope.launch { drawerState.close() }
+                            overlay = CalendarOverlay.YClients
                         },
                     )
                 }
@@ -130,6 +164,8 @@ fun CalendarScreen(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
+                calendarMode = calendarMode,
+                onModeChange = viewModel::setCalendarMode,
                 stats = stats,
                 workingDays = profile.workingDays,
                 isRegistered = profile.isRegistered,
@@ -137,7 +173,16 @@ fun CalendarScreen(
                 onNextMonth = viewModel::nextMonth,
                 onTodayClick = viewModel::goToToday,
                 onMenuClick = { scope.launch { drawerState.open() } },
+                onSyncClick = {
+                    if (isYClientsLoggedIn) {
+                        syncViewModel.syncMonth(currentMonth)
+                    } else {
+                        overlay = CalendarOverlay.YClients
+                    }
+                },
+                isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
+                pricePerDiagnostics = profile.pricePerDiagnostics,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
                         overlay = CalendarOverlay.RegistrationPrompt
@@ -170,12 +215,24 @@ fun CalendarScreen(
         if (overlay is CalendarOverlay.Settings) {
             SettingsScreen(
                 viewModel = profileViewModel,
+                syncViewModel = syncViewModel,
                 onBack = { overlay = CalendarOverlay.None },
+                onOpenYClientsAuth = { overlay = CalendarOverlay.YClients },
             )
         }
 
         if (overlay is CalendarOverlay.AppSettings) {
             AppSettingsScreen(onBack = { overlay = CalendarOverlay.None })
+        }
+
+        if (overlay is CalendarOverlay.YClients) {
+            AuthScreen(
+                onBack = { overlay = CalendarOverlay.None },
+                onLoginSuccess = {
+                    syncViewModel.syncCurrentMonth()
+                    overlay = CalendarOverlay.None
+                },
+            )
         }
     }
 
@@ -199,16 +256,27 @@ fun CalendarScreen(
 
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
+            val savedDayData by viewModel.savedDayData.collectAsState()
+
             if (date != null) {
+                val isArchived = savedDayData.containsKey(date)
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
+                    isArchived = isArchived,
                     onDismiss = { overlay = CalendarOverlay.None },
-                    onSave = { names, repeat, repeatNext ->
-                        viewModel.saveNamesForDate(date, names, repeat, repeatNext)
+                    onSave = { updatedNames ->
+                        viewModel.saveNamesForDate(date, updatedNames)
                         overlay = CalendarOverlay.None
                     },
+                    onArchive = {
+                        if (isArchived) {
+                            viewModel.unarchiveDay(date)
+                        } else {
+                            viewModel.archiveDay(date, dayData[date].orEmpty())
+                        }
+                    }
                 )
             } else {
                 overlay = CalendarOverlay.None
@@ -229,6 +297,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.None -> "none"
             CalendarOverlay.Settings -> "settings"
             CalendarOverlay.AppSettings -> "app_settings"
+            CalendarOverlay.YClients -> "yclients"
             CalendarOverlay.RegistrationPrompt -> "registration"
             CalendarOverlay.ProfitDetails -> "profit"
             CalendarOverlay.LessonsDetails -> "lessons"
@@ -239,6 +308,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
         when (token) {
             "settings" -> CalendarOverlay.Settings
             "app_settings" -> CalendarOverlay.AppSettings
+            "yclients" -> CalendarOverlay.YClients
             "registration" -> CalendarOverlay.RegistrationPrompt
             "profit" -> CalendarOverlay.ProfitDetails
             "lessons" -> CalendarOverlay.LessonsDetails
@@ -258,22 +328,27 @@ fun CalendarScreenContent(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
+    calendarMode: CalendarMode = CalendarMode.SYNCED,
+    onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
+    pricePerDiagnostics: Double = 0.0,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
+    onSyncClick: () -> Unit = {},
+    isSyncing: Boolean = false,
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {},
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession) {
+    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics) {
         val date = selectedDate ?: return@remember null
-        computeDayStats(dayData[date].orEmpty(), pricePerSession)
+        computeDayStats(dayData[date].orEmpty(), pricePerSession, pricePerDiagnostics)
     }
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -288,10 +363,14 @@ fun CalendarScreenContent(
         ) {
             CalendarHeader(
                 currentMonth = currentMonth,
+                calendarMode = calendarMode,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
                 onTodayClick = onTodayClick,
                 onMenuClick = onMenuClick,
+                onSyncClick = onSyncClick,
+                isSyncing = isSyncing,
+                onModeChange = onModeChange,
                 isRegistered = isRegistered,
                 onRegistrationRequired = onRegistrationRequired,
             )
@@ -310,12 +389,12 @@ fun CalendarScreenContent(
                     modifier = Modifier.weight(1f),
                     onClick = onLessonsClick,
                 )
-                val profitValue = remember(stats.netProfit) { formatRubles(stats.netProfit) }
+                val profitValue = remember(stats.totalEarned) { formatRubles(stats.totalEarned) }
                 StatCard(
                     label = "Прибыль",
                     value = profitValue,
                     icon = Icons.Rounded.Payments,
-                    color = ProfitGreen,
+                    color = ScheduleHeaderGreen,
                     modifier = Modifier.weight(1f),
                     onClick = onProfitClick,
                 )
@@ -441,6 +520,7 @@ private fun CalendarPreviewDark() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
+            calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},
@@ -460,6 +540,7 @@ private fun CalendarPreviewLight() {
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
             dayData = emptyMap(),
+            calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,
             onPreviousMonth = {},

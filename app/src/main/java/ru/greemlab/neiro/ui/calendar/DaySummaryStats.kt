@@ -9,25 +9,47 @@ data class DaySummaryStats(
     val attendedLessons: Int = 0,
     val earned: Double = 0.0,
     val expected: Double = 0.0,
+    val lost: Double = 0.0,
 )
 
 internal fun computeDayStats(
     sessions: List<String>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
     var earned = 0.0
     var expected = 0.0
+    var lost = 0.0
 
     for (raw in sessions) {
-        when (val session = SessionParser.parse(raw)) {
+        val session = SessionParser.parse(raw)
+        
+        if (session.isEffectivelyDeleted()) {
+            val price = when (session) {
+                is Session.Intensive -> session.amount
+                is Session.Diagnostics -> if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
+                is Session.Student -> pricePerSession
+            }
+            lost += price
+            continue
+        }
+
+        when (session) {
             is Session.Intensive -> {
                 if (session.attended) earned += session.amount else expected += session.amount
             }
 
             is Session.Diagnostics -> {
-                if (session.attended) earned += session.amount else expected += session.amount
+                totalLessons++
+                val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
+                if (session.attended) {
+                    attendedLessons++
+                    earned += price
+                } else {
+                    expected += price
+                }
             }
 
             is Session.Student -> {
@@ -47,5 +69,6 @@ internal fun computeDayStats(
         attendedLessons = attendedLessons,
         earned = earned,
         expected = expected,
+        lost = lost,
     )
 }

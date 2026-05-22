@@ -18,23 +18,29 @@ fun rememberCalendarMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-): CalendarMonthStats = remember(currentMonth, dayData, pricePerSession, monthlyTaxAmount) {
-    computeMonthStats(currentMonth, dayData, pricePerSession, monthlyTaxAmount)
+): CalendarMonthStats = remember(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount) {
+    computeMonthStats(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount)
 }
 
 internal fun computeMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
     pricePerSession: Double,
+    pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
 ): CalendarMonthStats {
     var completed = 0
+    var completedSessions = 0
+    var completedDiagnostics = 0
     var scheduled = 0
     var grossEarned = 0.0
     var intensiveEarnings = 0.0
     var diagnosticsEarnings = 0.0
     var expectedIncome = 0.0
+
+    val studentStatsMap = mutableMapOf<String, ru.greemlab.neiro.domain.models.StudentMonthStats>()
 
     val month: Month = currentMonth.month
     val year = currentMonth.year
@@ -42,7 +48,11 @@ internal fun computeMonthStats(
     for ((date, sessions) in dayData) {
         if (date.month != month || date.year != year) continue
         for (raw in sessions) {
-            when (val session = SessionParser.parse(raw)) {
+            val session = SessionParser.parse(raw)
+
+            if (session.isEffectivelyDeleted()) continue
+
+            when (session) {
                 is Session.Intensive -> {
                     if (session.attended) {
                         intensiveEarnings += session.amount
@@ -53,33 +63,48 @@ internal fun computeMonthStats(
                 }
 
                 is Session.Diagnostics -> {
+                    scheduled++
+                    val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
                     if (session.attended) {
-                        diagnosticsEarnings += session.amount
-                        grossEarned += session.amount
+                        completed++
+                        completedDiagnostics++
+                        diagnosticsEarnings += price
+                        grossEarned += price
                     } else {
-                        expectedIncome += session.amount
+                        expectedIncome += price
                     }
                 }
 
                 is Session.Student -> {
                     scheduled++
-                    if (session.attended) {
+                    val isAttended = session.attended
+                    if (isAttended) {
                         completed++
+                        completedSessions++
                         grossEarned += pricePerSession
                     } else {
                         expectedIncome += pricePerSession
                     }
+
+                    // Собираем стастику по ученикам
+                    val name = session.name.ifBlank { "Без имени" }
+                    val current = studentStatsMap[name] ?: ru.greemlab.neiro.domain.models.StudentMonthStats(name, 0, 0, 0.0)
+                    studentStatsMap[name] = current.copy(
+                        completedCount = current.completedCount + (if (isAttended) 1 else 0),
+                        totalScheduled = current.totalScheduled + 1,
+                        totalEarned = current.totalEarned + (if (isAttended) pricePerSession else 0.0)
+                    )
                 }
             }
         }
     }
 
-    // Чистый доход может быть отрицательным, если налог превышает выручку —
-    // показываем как есть, иначе пользователь не поймёт, что в минусе.
     val netProfit = grossEarned - monthlyTaxAmount
 
     return CalendarMonthStats(
         completedCount = completed,
+        completedSessionsCount = completedSessions,
+        completedDiagnosticsCount = completedDiagnostics,
         totalScheduled = scheduled,
         remainingCount = scheduled - completed,
         totalEarned = grossEarned,
@@ -88,6 +113,7 @@ internal fun computeMonthStats(
         diagnosticsEarnings = diagnosticsEarnings,
         expectedIncome = expectedIncome,
         taxAmount = monthlyTaxAmount,
+        statsByStudent = studentStatsMap,
     )
 }
 

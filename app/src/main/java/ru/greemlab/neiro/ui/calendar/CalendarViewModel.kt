@@ -7,12 +7,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
 import java.time.LocalDate
 import java.time.YearMonth
+
+enum class CalendarMode {
+    SYNCED, PERSONAL
+}
 
 /**
  * ViewModel для управления состоянием календаря.
@@ -30,12 +36,58 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
+    private val _calendarMode = MutableStateFlow(CalendarMode.SYNCED)
+    val calendarMode: StateFlow<CalendarMode> = _calendarMode.asStateFlow()
+
     /** Данные о людях для каждой даты (дата → список записей). */
     val dayData: StateFlow<Map<LocalDate, List<String>>> = repository.dayDataFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = CalendarDataStoreProvider.peekDayData(application),
+        )
+
+    /** Данные сохраненного (второго) календаря. */
+    val savedDayData: StateFlow<Map<LocalDate, List<String>>> = repository.savedDayDataFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = CalendarDataStoreProvider.peekSavedDayData(application),
+        )
+
+    /** Эффективные данные календаря в зависимости от текущего режима. */
+    val effectiveDayData: StateFlow<Map<LocalDate, List<String>>> = combine(
+        dayData,
+        savedDayData,
+        calendarMode
+    ) { synced, saved, mode ->
+        if (mode == CalendarMode.SYNCED) synced else saved
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = if (CalendarDataStoreProvider.peekDayData(application).isEmpty()) emptyMap() else CalendarDataStoreProvider.peekDayData(application)
+    )
+
+    /** Список уникальных имен учеников для быстрого выбора. */
+    val recentStudents: StateFlow<List<String>> = repository.dayDataFlow
+        .map { data: Map<LocalDate, List<String>> ->
+            data.values.flatten()
+                .mapNotNull { raw ->
+                    val session = SessionParser.parse(raw)
+                    if (session is Session.Student) session.name else null
+                }
+                .filter { it.isNotBlank() }
+                .groupBy { it }
+                .mapValues { it.value.size }
+                .toList()
+                .sortedByDescending { it.second }
+                .map { it.first }
+                .take(10)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList(),
         )
 
     fun nextMonth() {
@@ -56,14 +108,33 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         _selectedDate.value = date
     }
 
+    fun setCalendarMode(mode: CalendarMode) {
+        _calendarMode.value = mode
+    }
+
+    /** Сохраняет данные дня в архивный календарь. */
+    fun archiveDay(date: LocalDate, data: List<String>) {
+        viewModelScope.launch {
+            repository.saveDayToArchive(date, data)
+        }
+    }
+
+    /** Удаляет данные дня из архивного календаря. */
+    fun unarchiveDay(date: LocalDate) {
+        viewModelScope.launch {
+            repository.deleteDayFromArchive(date)
+        }
+    }
+
     /**
      * Переключает статус посещения для записи на указанной дате.
      * Игнорирует «экстра» записи (интенсив/диагностика) — у них статус меняется по-другому.
      */
     fun toggleAttendance(date: LocalDate, index: Int) {
         viewModelScope.launch {
-            val current = dayData.value
-            val list = current[date] ?: return@launch
+            val mode = calendarMode.value
+            val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
+            val list = currentMap[date] ?: return@launch
             val item = list.getOrNull(index) ?: return@launch
             if (SessionParser.isExtra(item)) return@launch
 
@@ -74,22 +145,36 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 this[index] = "$name|${!currentAttended}"
             }
 
-            repository.saveDayData(current + (date to updated))
+            if (mode == CalendarMode.SYNCED) {
+                repository.saveDayData(currentMap + (date to updated))
+            } else {
+                repository.saveDayToArchive(date, updated)
+            }
         }
     }
 
     /** Удаляет запись (ученика или доп. доход) из списка на дату. */
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
-            val current = dayData.value
-            val list = current[date] ?: return@launch
+            val mode = calendarMode.value
+            val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
+            val list = currentMap[date] ?: return@launch
             if (index !in list.indices) return@launch
 
             val updated = list.toMutableList().apply { removeAt(index) }
-            val newData = current.toMutableMap().apply {
-                if (updated.isEmpty()) remove(date) else put(date, updated)
+            
+            if (mode == CalendarMode.SYNCED) {
+                val newData = currentMap.toMutableMap().apply {
+                    if (updated.isEmpty()) remove(date) else put(date, updated)
+                }
+                repository.saveDayData(newData)
+            } else {
+                if (updated.isEmpty()) {
+                    repository.deleteDayFromArchive(date)
+                } else {
+                    repository.saveDayToArchive(date, updated)
+                }
             }
-            repository.saveDayData(newData)
         }
     }
 
@@ -108,7 +193,14 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         repeatNextMonth: Boolean = false,
     ) {
         viewModelScope.launch {
+            if (calendarMode.value == CalendarMode.PERSONAL) {
+                // В режиме архива сохраняем только локально
+                repository.saveDayToArchive(date, names)
+                return@launch
+            }
+
             val newData = dayData.value.toMutableMap()
+            // ... (rest of the logic for SYNCED mode)
 
             if (repeatUntilMonthEnd) {
                 val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()

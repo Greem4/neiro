@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,13 +37,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.theme.ExpectedAmber
-import ru.greemlab.neiro.theme.ProfitGreen
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+
+private val StatusGreen = Color(0xFF4CAF50)
+private val StatusRed = Color(0xFFF44336)
 
 private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
@@ -127,7 +130,7 @@ private fun DaySummaryCard(
                 )
                 DaySummaryMetric(
                     icon = Icons.Rounded.CheckCircle,
-                    tint = MaterialTheme.colorScheme.tertiary,
+                    tint = StatusGreen,
                     value = if (stats.totalLessons > 0) {
                         "${stats.attendedLessons}/${stats.totalLessons}"
                     } else "0",
@@ -143,8 +146,8 @@ private fun DaySummaryCard(
                 DayMoneyCard(
                     label = "Заработано",
                     amountText = earnedText,
-                    amountColor = ProfitGreen,
-                    background = ProfitGreen.copy(alpha = 0.14f),
+                    amountColor = StatusGreen,
+                    background = StatusGreen.copy(alpha = 0.14f),
                     modifier = Modifier.weight(1f),
                 )
                 DayMoneyCard(

@@ -3,19 +3,99 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Immutable
 
 /**
+ * Статус записи (синхронизация с YClients и локальное хранение).
+ *
+ *  - [EXPECTED] (0) — ожидание, «+», в деньги не входит
+ *  - [CONFIRMED] (1) — подтвердил, что придёт, «галка», в деньги не входит
+ *  - [CANCELLED] (2) — не пришёл / отказ, «−», в деньги не входит
+ *  - [ARRIVED] (3) — пришёл, занятие проведено, в деньги входит
+ */
+enum class AttendanceStatus(val code: Int) {
+    EXPECTED(0),
+    CONFIRMED(1),
+    CANCELLED(2),
+    ARRIVED(3);
+
+    /** Учитывается в заработке (только «пришёл»). */
+    val countsTowardEarnings: Boolean get() = this == ARRIVED
+
+    /** Приоритет при слиянии нескольких визитов одного клиента за день. */
+    val mergePriority: Int
+        get() = when (this) {
+            ARRIVED -> 4
+            CONFIRMED -> 3
+            EXPECTED -> 2
+            CANCELLED -> 1
+        }
+
+    companion object {
+        fun fromCode(code: Int): AttendanceStatus = when (code) {
+            1 -> CONFIRMED
+            2 -> CANCELLED
+            3 -> ARRIVED
+            else -> EXPECTED
+        }
+
+        /** Коды YClients: -1 не пришёл, 0 ожидание, 1 пришёл, 2 подтвердил. */
+        fun fromYClients(code: Int): AttendanceStatus = when (code) {
+            -1 -> CANCELLED
+            1 -> ARRIVED
+            2 -> CONFIRMED
+            else -> EXPECTED
+        }
+
+        fun resolveFromRecord(attendance: Int, visitAttendance: Int?): AttendanceStatus {
+            val fromVisit = visitAttendance?.let { fromYClients(it) }
+            val fromAttendance = fromYClients(attendance)
+            return if (fromVisit == null) {
+                fromAttendance
+            } else {
+                maxOf(fromVisit, fromAttendance, compareBy { it.mergePriority })
+            }
+        }
+
+        /** Старый формат `name|true` — ручная отметка «пришёл». */
+        fun fromBoolean(attended: Boolean): AttendanceStatus =
+            if (attended) ARRIVED else EXPECTED
+    }
+}
+
+/**
  * Разобранное представление одной записи дневника.
  *
- * Сериализованный формат остался обратно-совместимым со старыми данными:
- *  - Обычное занятие: `name|attended`
+ * Сериализованный формат (обратно-совместимый со старыми данными):
+ *  - Обычное занятие: `name|attended` или расширенный `name|status|time|phone|comment`
  *  - Интенсив:        `__INTENSIVE__:amount|name|attended`
  *  - Диагностика:     `__DIAGNOSTICS__:amount|name|attended`
  */
 @Immutable
 sealed interface Session {
     val attended: Boolean
+    val status: AttendanceStatus get() = AttendanceStatus.fromBoolean(attended)
+
+    /**
+     * Проверяет, является ли запись «удалённой» (отменённой).
+     * Такие записи не учитываются в статистике и счётчиках, но видны в списке дня.
+     */
+    fun isEffectivelyDeleted(): Boolean {
+        val name = when (this) {
+            is Student -> name
+            is Extra -> name
+        }
+        return status == AttendanceStatus.CANCELLED ||
+                name.startsWith("-") || name.startsWith("—") ||
+                name.startsWith("–") || name.startsWith("−")
+    }
 
     @Immutable
-    data class Student(val name: String, override val attended: Boolean) : Session
+    data class Student(
+        val name: String,
+        override val attended: Boolean,
+        val time: String = "",        // Например "10:00-10:50"
+        val phone: String = "",       // Телефон клиента
+        val comment: String = "",     // Комментарий к записи
+        override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
+    ) : Session
 
     @Immutable
     sealed interface Extra : Session {
@@ -35,6 +115,7 @@ sealed interface Session {
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
+        val time: String = "",
     ) : Extra
 }
 
@@ -82,14 +163,56 @@ object SessionParser {
         is Session.Student -> s.attended
     }
 
+    /** Возвращает статус attendance из сырой строки. */
+    fun getStatus(raw: String): AttendanceStatus = parse(raw).status
+
+    /** Проверяет, является ли запись «удалённой» (отменённой). */
+    fun isEffectivelyDeleted(raw: String): Boolean = parse(raw).isEffectivelyDeleted()
+
+    /**
+     * Парсит запись ученика.
+     *
+     * Форматы (обратная совместимость):
+     *  - Старый: `name|attended` где attended = true/false
+     *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
+     */
     private fun parseStudent(raw: String): Session.Student {
-        val sep = raw.indexOf('|')
-        return if (sep < 0) {
-            Session.Student(raw, attended = false)
+        val parts = raw.split('|')
+        if (parts.isEmpty()) return Session.Student("", attended = false)
+
+        val name = parts[0]
+
+        // Только имя
+        if (parts.size == 1) {
+            return Session.Student(name, attended = false)
+        }
+
+        // Проверяем второй элемент: это boolean (старый формат) или число (новый формат)?
+        val second = parts[1]
+        val statusCode = second.toIntOrNull()
+
+        return if (statusCode != null) {
+            // Новый формат: name|statusCode|time|phone|comment
+            val status = AttendanceStatus.fromCode(statusCode)
+            val time = parts.getOrNull(2).orEmpty()
+            val phone = parts.getOrNull(3).orEmpty()
+            val comment = parts.getOrNull(4).orEmpty()
+            Session.Student(
+                name = name,
+                attended = status.countsTowardEarnings,
+                time = time,
+                phone = phone,
+                comment = comment,
+                status = status,
+            )
         } else {
-            val name = raw.substring(0, sep)
-            val attended = raw.substring(sep + 1).toBooleanStrictOrNullCompat() ?: false
-            Session.Student(name, attended)
+            // Старый формат: name|attended (true/false)
+            val attended = second.toBooleanStrictOrNullCompat() ?: false
+            Session.Student(
+                name = name,
+                attended = attended,
+                status = AttendanceStatus.fromBoolean(attended),
+            )
         }
     }
 
@@ -103,19 +226,26 @@ object SessionParser {
         }
         var name = ""
         var attended = true // Старые записи без флага считаем посещёнными.
+        var time = ""
         if (firstSep >= 0) {
             val secondSep = raw.indexOf('|', startIndex = firstSep + 1)
             if (secondSep < 0) {
                 name = raw.substring(firstSep + 1)
             } else {
                 name = raw.substring(firstSep + 1, secondSep)
-                attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                val thirdSep = raw.indexOf('|', startIndex = secondSep + 1)
+                if (thirdSep < 0) {
+                    attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                } else {
+                    attended = raw.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
+                    time = raw.substring(thirdSep + 1)
+                }
             }
         }
         return if (intensive) {
             Session.Intensive(amount, name, attended)
         } else {
-            Session.Diagnostics(amount, name, attended)
+            Session.Diagnostics(amount, name, attended, time)
         }
     }
 
@@ -134,11 +264,24 @@ object SessionFormat {
     const val INTENSIVE_PREFIX = "__INTENSIVE__:"
     const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
 
+    /** Старый формат (для обратной совместимости). */
     fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
+
+    /**
+     * Новый расширенный формат записи ученика.
+     * Формат: `name|statusCode|time|phone|comment`
+     */
+    fun serializeStudentExtended(
+        name: String,
+        status: AttendanceStatus,
+        time: String = "",
+        phone: String = "",
+        comment: String = "",
+    ): String = "$name|${status.code}|$time|$phone|$comment"
 
     fun serializeIntensive(price: String, name: String, attended: Boolean): String =
         "$INTENSIVE_PREFIX$price|$name|$attended"
 
-    fun serializeDiagnostics(price: String, name: String, attended: Boolean): String =
-        "$DIAGNOSTICS_PREFIX$price|$name|$attended"
+    fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
+        "$DIAGNOSTICS_PREFIX$price|$name|$attended|$time"
 }

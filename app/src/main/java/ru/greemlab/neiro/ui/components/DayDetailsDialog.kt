@@ -1,63 +1,103 @@
 package ru.greemlab.neiro.ui.components
 
-import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.zIndex
-import kotlinx.coroutines.delay
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
-import ru.greemlab.neiro.ui.components.daydetails.DayDetailsFooter
-import ru.greemlab.neiro.ui.components.daydetails.DayDetailsHeader
-import ru.greemlab.neiro.ui.components.daydetails.StudentItem
-import ru.greemlab.neiro.ui.components.daydetails.StudentItemRow
-import ru.greemlab.neiro.ui.components.daydetails.StudentItemType
+import ru.greemlab.neiro.ui.components.daydetails.ScheduleSlotItem
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.UUID
+import java.time.format.DateTimeFormatter
 
-private const val MAX_STUDENTS = 12
-private const val AUTO_SCROLL_DELAY_MS = 16L
+private val DATE_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
+
+private val StatusLavender = Color(0xFFA7B2FF)
+private val StatusRed = Color(0xFFF44336)
+private val StatusGreen = Color(0xFF4CAF50)
+private val StatusMint = Color(0xFFB2DFDB)
 
 /**
- * Диалог редактирования списка людей (фамилий) на выбранную дату.
+ * Данные для отображения записи в расписании.
+ */
+private data class ScheduleEntry(
+    val name: String,
+    val time: String,
+    val comment: String,
+    val status: AttendanceStatus,
+    val isExtra: Boolean = false,
+    val extraType: String = "",
+    val extraAmount: Double = 0.0,
+)
+
+/**
+ * Диалог просмотра расписания на выбранную дату.
  *
- * Поддерживает три вида записей: ученика, интенсив, диагностику.
- * Записи можно перетаскивать в режиме редактирования (`isPlanningMode`).
+ * Отображает список записей в компактном виде без возможности редактирования.
+ * Все изменения производятся через синхронизацию с YClients.
  */
 @Composable
 fun DayDetailsDialog(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
+    isArchived: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onSave: (List<String>) -> Unit,
+    onArchive: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -67,8 +107,10 @@ fun DayDetailsDialog(
             date = date,
             initialNames = initialNames,
             userProfile = userProfile,
+            isArchived = isArchived,
             onDismiss = onDismiss,
             onSave = onSave,
+            onArchive = onArchive,
         )
     }
 }
@@ -78,168 +120,27 @@ private fun DayDetailsContent(
     date: LocalDate,
     initialNames: List<String>,
     userProfile: UserProfile,
+    isArchived: Boolean,
     onDismiss: () -> Unit,
-    onSave: (List<String>, Boolean, Boolean) -> Unit,
+    onSave: (List<String>) -> Unit,
+    onArchive: () -> Unit,
 ) {
-    val items: SnapshotStateList<StudentItem> = remember(initialNames) {
-        mutableStateListOf<StudentItem>().apply {
-            addAll(parseInitialItems(initialNames))
-        }
-    }
-
-    val focusRequester = remember { FocusRequester() }
-    var focusItemId by remember { mutableStateOf<String?>(null) }
-    var repeatUntilEndOfMonth by remember { mutableStateOf(false) }
-    var repeatNextMonth by remember { mutableStateOf(false) }
+    val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
 
-    val listState = rememberLazyListState()
-    var draggedItemId by remember { mutableStateOf<String?>(null) }
-    var draggingOffset by remember { mutableFloatStateOf(0f) }
-
-    val studentCount by remember {
-        derivedStateOf {
-            items.count { it.type == StudentItemType.STUDENT && it.name.isNotBlank() }
-        }
-    }
-    val attendedStudents by remember {
-        derivedStateOf {
-            items.count { it.type == StudentItemType.STUDENT && it.name.isNotBlank() && it.attended }
-        }
-    }
-    val intensiveMoney by remember {
-        derivedStateOf {
-            items.sumOf {
-                if (it.type == StudentItemType.INTENSIVE && it.attended) {
-                    it.price.toDoubleOrNull() ?: 0.0
-                } else 0.0
-            }
-        }
-    }
-    val diagnosticsMoney by remember {
-        derivedStateOf {
-            items.sumOf {
-                if (it.type == StudentItemType.DIAGNOSTICS && it.attended) {
-                    it.price.toDoubleOrNull() ?: 0.0
-                } else 0.0
-            }
-        }
-    }
-    val totalMoney by remember(userProfile.pricePerSession) {
-        derivedStateOf {
-            (attendedStudents * userProfile.pricePerSession) + intensiveMoney + diagnosticsMoney
-        }
-    }
-    val showMoney by remember(userProfile.pricePerSession) {
-        derivedStateOf { userProfile.pricePerSession > 0 || intensiveMoney > 0 || diagnosticsMoney > 0 }
+    val entries = remember(currentNames.toList()) {
+        parseEntries(currentNames)
     }
 
-    // Жёстко удерживаем визуальное положение перетаскиваемой карточки внутри
-    // viewport. Без этого при быстром драге `draggingOffset` уезжал далеко за
-    // край, а `tryReorder` начинал свопить со «слепыми» оценочными размерами —
-    // карточка мгновенно пролетала через всех невидимых соседей. С клампом
-    // карточка просто прижимается к верхней/нижней границе, а дальше темп
-    // задаёт авто-скролл.
-    fun clampDragOffset() {
-        val draggedId = draggedItemId ?: return
-        val layoutInfo = listState.layoutInfo
-        val draggedItem = layoutInfo.visibleItemsInfo.find { it.key == draggedId } ?: return
-        val maxOffsetDown =
-            (layoutInfo.viewportEndOffset - draggedItem.offset - draggedItem.size).toFloat()
-        val maxOffsetUp = (layoutInfo.viewportStartOffset - draggedItem.offset).toFloat()
-        val low = minOf(maxOffsetUp, maxOffsetDown)
-        val high = maxOf(maxOffsetUp, maxOffsetDown)
-        draggingOffset = draggingOffset.coerceIn(low, high)
+    val stats = remember(entries, userProfile.pricePerSession, userProfile.pricePerDiagnostics) {
+        calculateStats(entries, userProfile.pricePerSession, userProfile.pricePerDiagnostics)
     }
 
-    // Пытается переставить перетаскиваемый элемент через соседа, если смещение
-    // перешло половину высоты соседа. За один вызов — максимум один шаг.
-    //
-    // Раньше порог считался по разнице offset'ов соседа и перетаскиваемого, но
-    // у соседа во время перестановки работает animateItem, и его offset
-    // временно «дрожит». Из-за этого приходилось ставить cooldown, который
-    // отставал от авто-скролла — карточка теряла индекс и «слетала» в начало
-    // списка при длинных перетаскиваниях.
-    //
-    // Теперь порог считается по статическому размеру соседа + spacing — это
-    // значение не зависит от анимации, поэтому cooldown не нужен и свопы
-    // успевают за скроллом, даже когда в списке больше 9 элементов.
-    fun tryReorder() {
-        val draggedId = draggedItemId ?: return
-        val currentIndex = items.indexOfFirst { it.id == draggedId }
-        if (currentIndex == -1) return
-
-        val layoutInfo = listState.layoutInfo
-        val spacing = layoutInfo.mainAxisItemSpacing.toFloat()
-
-        if (draggingOffset > 0f && currentIndex < items.size - 1) {
-            val nextKey = items[currentIndex + 1].id
-            val nextInfo = layoutInfo.visibleItemsInfo.find { it.key == nextKey } ?: return
-            val displacement = nextInfo.size + spacing
-            if (draggingOffset > displacement * 0.5f) {
-                items.add(currentIndex + 1, items.removeAt(currentIndex))
-                draggingOffset -= displacement
-                return
-            }
-        }
-        if (draggingOffset < 0f && currentIndex > 0) {
-            val prevKey = items[currentIndex - 1].id
-            val prevInfo = layoutInfo.visibleItemsInfo.find { it.key == prevKey } ?: return
-            val displacement = prevInfo.size + spacing
-            if (draggingOffset < -displacement * 0.5f) {
-                items.add(currentIndex - 1, items.removeAt(currentIndex))
-                draggingOffset += displacement
-            }
-        }
-    }
-
-    LaunchedEffect(focusItemId) {
-        if (focusItemId != null) {
-            focusRequester.requestFocus()
-            focusItemId = null
-        }
-    }
-
-    // Авто-скролл при перетаскивании. Корутина живёт только пока есть активный drag.
-    // Помимо самого скролла прокручиваем перестановки — иначе при удержании пальца
-    // у края список двигался бы, а карточка визуально «улетала» от соседей.
-    LaunchedEffect(draggedItemId) {
-        val dragged = draggedItemId ?: return@LaunchedEffect
-        while (true) {
-            val layoutInfo = listState.layoutInfo
-            val draggedItem = layoutInfo.visibleItemsInfo.find { it.key == dragged }
-
-            if (draggedItem != null) {
-                val topEdge = layoutInfo.viewportStartOffset
-                val bottomEdge = layoutInfo.viewportEndOffset
-                val itemTop = draggedItem.offset + draggingOffset
-                val itemBottom = itemTop + draggedItem.size
-
-                val padding = 120f
-                if (itemTop < topEdge + padding && listState.canScrollBackward) {
-                    val scrollAmount =
-                        (((topEdge + padding) - itemTop) / padding * 20f).coerceIn(2f, 25f)
-                    listState.scrollBy(-scrollAmount)
-                    draggingOffset -= scrollAmount
-                } else if (itemBottom > bottomEdge - padding && listState.canScrollForward) {
-                    val scrollAmount =
-                        ((itemBottom - (bottomEdge - padding)) / padding * 20f).coerceIn(2f, 25f)
-                    listState.scrollBy(scrollAmount)
-                    draggingOffset += scrollAmount
-                }
-
-                // Клампаем после компенсации скролла, чтобы не было рассинхрона
-                clampDragOffset()
-                tryReorder()
-            }
-            delay(AUTO_SCROLL_DELAY_MS)
-        }
-    }
+    val dateText = remember(date) { date.format(DATE_FORMAT) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth(0.95f)
-            .fillMaxHeight(0.85f)
             .padding(vertical = 16.dp),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -247,320 +148,449 @@ private fun DayDetailsContent(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 24.dp)
-                .fillMaxSize(),
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            DayDetailsHeader(
-                date = date,
-                totalCount = studentCount,
-                totalMoney = totalMoney,
-                showMoney = showMoney,
-                isPlanningMode = isPlanningMode,
-                onTogglePlanningMode = { isPlanningMode = !isPlanningMode },
-            )
+            // Заголовок
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = dateText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.Center)
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 8.dp),
-            ) {
-                itemsIndexed(items, key = { _, item -> item.id }) { index, student ->
-                    val isDragging = draggedItemId == student.id
-                    val dragAnimSpec: AnimationSpec<Float> =
-                        if (isDragging) snap() else spring(stiffness = Spring.StiffnessMedium)
-                    val scale by animateFloatAsState(
-                        targetValue = if (isDragging) 1.05f else 1f,
-                        animationSpec = dragAnimSpec,
-                        label = "dragScale",
+                IconButton(
+                    onClick = { isPlanningMode = !isPlanningMode },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
+                        contentDescription = "Режим редактирования",
+                        tint = if (isPlanningMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val rotation by animateFloatAsState(
-                        targetValue = if (isDragging) -1.5f else 0f,
-                        animationSpec = if (isDragging) snap()
-                        else spring(stiffness = Spring.StiffnessMedium),
-                        label = "dragRotation",
-                    )
-                    val elevation by animateFloatAsState(
-                        targetValue = if (isDragging) 12f else 0f,
-                        animationSpec = dragAnimSpec,
-                        label = "dragElevation",
-                    )
-
-                    // Соседи быстро сдвигаются на освобождённое место. Сам перетаскиваемый
-                    // элемент анимировать нельзя — мы управляем его позицией через
-                    // translationY, и анимация компоновки вступила бы в конфликт.
-                    val placementModifier =
-                        if (isDragging) Modifier else Modifier.animateItem(
-                            placementSpec = spring(stiffness = Spring.StiffnessHigh),
-                        )
-
-                    StudentItemRow(
-                        modifier = Modifier
-                            .zIndex(if (isDragging) 1f else 0f)
-                            .then(placementModifier),
-                        student = student,
-                        index = index,
-                        isDragging = isDragging,
-                        draggingOffset = draggingOffset,
-                        scale = scale,
-                        rotation = rotation,
-                        elevation = elevation,
-                        focusRequester = focusRequester,
-                        isFocused = student.id == focusItemId,
-                        isPlanningMode = isPlanningMode,
-                        onAttendedChange = { attended ->
-                            items[index] = student.copy(attended = attended)
-                        },
-                        onNameChange = { name -> items[index] = student.copy(name = name) },
-                        onPriceChange = { price -> items[index] = student.copy(price = price) },
-                        onDelete = { items.removeAt(index) },
-                        onDragStart = { draggedItemId = student.id },
-                        onDragEnd = {
-                            draggedItemId = null
-                            draggingOffset = 0f
-                        },
-                        onDrag = { dy ->
-                            draggingOffset += dy
-                            clampDragOffset()
-                        },
-                    )
-                }
-
-                if (isPlanningMode) {
-                    item {
-                        PlanningControls(
-                            items = items,
-                            date = date,
-                            onAddStudent = {
-                                val newId = UUID.randomUUID().toString()
-                                items.add(
-                                    StudentItem(
-                                        id = newId,
-                                        name = "",
-                                        attended = false,
-                                        type = StudentItemType.STUDENT,
-                                    ),
-                                )
-                                focusItemId = newId
-                            },
-                            onAddIntensive = {
-                                val newId = UUID.randomUUID().toString()
-                                items.add(
-                                    StudentItem(
-                                        id = newId,
-                                        name = "",
-                                        attended = true,
-                                        type = StudentItemType.INTENSIVE,
-                                        price = "",
-                                    ),
-                                )
-                                focusItemId = newId
-                            },
-                            onAddDiagnostics = {
-                                val newId = UUID.randomUUID().toString()
-                                items.add(
-                                    StudentItem(
-                                        id = newId,
-                                        name = "",
-                                        attended = true,
-                                        type = StudentItemType.DIAGNOSTICS,
-                                        price = "",
-                                    ),
-                                )
-                                focusItemId = newId
-                            },
-                            repeatUntilEndOfMonth = repeatUntilEndOfMonth,
-                            onRepeatUntilEndChange = { repeatUntilEndOfMonth = it },
-                            repeatNextMonth = repeatNextMonth,
-                            onRepeatNextMonthChange = { repeatNextMonth = it },
-                        )
-                    }
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Статистика
+            StatsRow(stats = stats, date = date)
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            DayDetailsFooter(
-                onDismiss = onDismiss,
-                onSave = {
-                    val finalNames = buildList(items.size) {
-                        for (it in items) {
-                            when (it.type) {
-                                StudentItemType.STUDENT -> if (it.name.isNotBlank()) {
-                                    add(SessionFormat.serializeStudent(it.name, it.attended))
-                                }
+            // Список записей
+            if (entries.isEmpty() && !isPlanningMode) {
+                EmptySchedule()
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
+                ) {
+                    items(entries.size) { index ->
+                        val entry = entries[index]
+                        val rawIndex = currentNames.indexOfFirst {
+                            val parsed = SessionParser.parse(it)
+                            val name = when (parsed) {
+                                is Session.Student -> parsed.name
+                                is Session.Extra -> parsed.name
+                            }
+                            val time = when (parsed) {
+                                is Session.Student -> parsed.time
+                                is Session.Diagnostics -> parsed.time
+                                else -> ""
+                            }
+                            name == entry.name && time == entry.time
+                        }
 
-                                StudentItemType.INTENSIVE -> if (it.price.isNotBlank()) {
-                                    add(SessionFormat.serializeIntensive(it.price, it.name, it.attended))
+                        if (isPlanningMode) {
+                            EditSessionItem(
+                                entry = entry,
+                                onDelete = {
+                                    if (rawIndex >= 0) currentNames.removeAt(rawIndex)
+                                },
+                                onPriceChange = { newPrice ->
+                                    if (rawIndex >= 0) {
+                                        val currentRaw = currentNames[rawIndex]
+                                        val parsed = SessionParser.parse(currentRaw)
+                                        if (parsed is Session.Extra) {
+                                            val updated = if (parsed is Session.Intensive) {
+                                                SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.attended)
+                                            } else {
+                                                SessionFormat.serializeDiagnostics(newPrice, parsed.name, parsed.attended)
+                                            }
+                                            currentNames[rawIndex] = updated
+                                        }
+                                    }
+                                },
+                                onNameChange = { newName ->
+                                    if (rawIndex >= 0) {
+                                        val currentRaw = currentNames[rawIndex]
+                                        val parsed = SessionParser.parse(currentRaw)
+                                        if (parsed is Session.Extra) {
+                                            val priceStr = parsed.amount.toInt().toString()
+                                            val updated = if (parsed is Session.Intensive) {
+                                                SessionFormat.serializeIntensive(priceStr, newName, parsed.attended)
+                                            } else {
+                                                SessionFormat.serializeDiagnostics(priceStr, newName, parsed.attended)
+                                            }
+                                            currentNames[rawIndex] = updated
+                                        }
+                                    }
                                 }
+                            )
+                        } else {
+                            ScheduleSlotItem(
+                                time = entry.time,
+                                name = if (entry.isExtra && entry.extraType != "Диагностика") {
+                                    "${entry.extraType}: ${formatRubles(entry.extraAmount)}"
+                                } else {
+                                    entry.name
+                                },
+                                comment = entry.comment,
+                                status = entry.status,
+                                isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
+                            )
+                        }
+                    }
 
-                                StudentItemType.DIAGNOSTICS -> if (it.price.isNotBlank()) {
-                                    add(SessionFormat.serializeDiagnostics(it.price, it.name, it.attended))
-                                }
+                    if (isPlanningMode) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(
+                                onClick = {
+                                    currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Icon(Icons.Rounded.Add, null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Интенсив")
                             }
                         }
                     }
-                    onSave(finalNames, repeatUntilEndOfMonth, repeatNextMonth)
-                },
-            )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Кнопки действий
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onArchive,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (isArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isArchived) Icons.Rounded.Check else Icons.Rounded.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isArchived) "В архиве" else "В архив")
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                TextButton(
+                    onClick = onDismiss,
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text("Закрыть")
+                }
+
+                if (isPlanningMode) {
+                    Button(
+                        onClick = { onSave(currentNames.toList()) },
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text("Сохранить", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun PlanningControls(
-    items: SnapshotStateList<StudentItem>,
-    date: LocalDate,
-    onAddStudent: () -> Unit,
-    onAddIntensive: () -> Unit,
-    onAddDiagnostics: () -> Unit,
-    repeatUntilEndOfMonth: Boolean,
-    onRepeatUntilEndChange: (Boolean) -> Unit,
-    repeatNextMonth: Boolean,
-    onRepeatNextMonthChange: (Boolean) -> Unit,
+private fun EditSessionItem(
+    entry: ScheduleEntry,
+    onDelete: () -> Unit,
+    onPriceChange: (String) -> Unit,
+    onNameChange: (String) -> Unit
 ) {
-    Column(
-        modifier = Modifier.padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
-        val canAddStudent by remember {
-            derivedStateOf {
-                items.count { it.type == StudentItemType.STUDENT } < MAX_STUDENTS
+        Row(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (entry.isExtra) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TextField(
+                            value = if (entry.extraAmount == 0.0) "" else entry.extraAmount.toInt().toString(),
+                            onValueChange = onPriceChange,
+                            label = { Text(entry.extraType, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.width(100.dp),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextField(
+                            value = entry.name,
+                            onValueChange = onNameChange,
+                            placeholder = { Text("Имя") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                    }
+                } else {
+                    Text(
+                        text = entry.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (entry.time.isNotEmpty()) {
+                        Text(text = entry.time, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Rounded.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
             }
         }
-        if (canAddStudent) {
-            OutlinedButton(
-                onClick = onAddStudent,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Добавить ребёнка", fontWeight = FontWeight.Medium)
-            }
-        }
+    }
+}
 
+/**
+ * Строка со статистикой дня.
+ */
+@Composable
+private fun StatsRow(stats: DayStats, date: LocalDate) {
+    val today = remember { LocalDate.now() }
+    val isFuture = date.isAfter(today)
+    val noLessonsStarted = stats.arrivedCount == 0
+    val showFutureLayout = isFuture || (date.isEqual(today) && noLessonsStarted)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(
-                onClick = onAddIntensive,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.tertiary,
-                ),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Интенсив", style = MaterialTheme.typography.labelMedium, maxLines = 1)
-            }
-
-            OutlinedButton(
-                onClick = onAddDiagnostics,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.secondary,
-                ),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Диагностика", style = MaterialTheme.typography.labelMedium, maxLines = 1)
-            }
-        }
-
-        val dayOfWeekLower = remember(date) {
-            date.dayOfWeek.getDisplayName(TextStyle.FULL, RU_LOCALE).lowercase(RU_LOCALE)
-        }
-
-        RepeatRow(
-            text = "Дублировать на все $dayOfWeekLower до конца месяца",
-            checked = repeatUntilEndOfMonth,
-            onCheckedChange = onRepeatUntilEndChange,
-            paddingTop = 16,
-        )
-
-        RepeatRow(
-            text = "Дублировать на все $dayOfWeekLower следующего месяца",
-            checked = repeatNextMonth,
-            onCheckedChange = onRepeatNextMonthChange,
-            paddingTop = 8,
-        )
-    }
-}
-
-@Composable
-private fun RepeatRow(
-    text: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    paddingTop: Int,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = paddingTop.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-        onClick = { onCheckedChange(!checked) },
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-            Spacer(modifier = Modifier.width(8.dp))
+            if (showFutureLayout) {
+                StatBadge(
+                    label = "Подтверждено",
+                    value = stats.confirmedCount.toString(),
+                    color = StatusLavender,
+                    modifier = Modifier.weight(1f),
+                )
+                StatBadge(
+                    label = "Ожидают",
+                    value = stats.expectedCount.toString(),
+                    color = StatusMint,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                val totalLessons = stats.expectedCount + stats.confirmedCount + stats.arrivedCount
+                StatBadge(
+                    label = "Занятий",
+                    value = totalLessons.toString(),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                StatBadge(
+                    label = "Итог",
+                    value = formatRubles(stats.totalMoney),
+                    color = StatusGreen,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Бейдж со статистикой без иконок.
+ */
+@Composable
+private fun StatBadge(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.12f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
             Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = color.copy(alpha = 0.8f),
+            )
+            Text(
+                text = " $value",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
+                color = color,
             )
         }
     }
 }
 
-private fun parseInitialItems(initialNames: List<String>): List<StudentItem> {
-    val parsed = ArrayList<StudentItem>(initialNames.size)
-    for (raw in initialNames) {
-        if (raw.isBlank()) continue
-        val item = when (val session = SessionParser.parse(raw)) {
-            is Session.Intensive -> StudentItem(
-                id = UUID.randomUUID().toString(),
+/**
+ * Пустое расписание.
+ */
+@Composable
+private fun EmptySchedule() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.EventBusy,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(48.dp),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Нет записей",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        )
+    }
+}
+
+private data class DayStats(
+    val expectedCount: Int,
+    val confirmedCount: Int,
+    val arrivedCount: Int,
+    val cancelledCount: Int,
+    val totalMoney: Double,
+)
+
+private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
+    return rawNames.mapNotNull { raw ->
+        if (raw.isBlank()) return@mapNotNull null
+
+        val session = SessionParser.parse(raw)
+        val isDeleted = session.isEffectivelyDeleted()
+
+        when (session) {
+            is Session.Student -> ScheduleEntry(
                 name = session.name,
-                attended = session.attended,
-                type = StudentItemType.INTENSIVE,
-                price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+                time = session.time,
+                comment = session.comment,
+                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
             )
 
-            is Session.Diagnostics -> StudentItem(
-                id = UUID.randomUUID().toString(),
+            is Session.Intensive -> ScheduleEntry(
                 name = session.name,
-                attended = session.attended,
-                type = StudentItemType.DIAGNOSTICS,
-                price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+                time = "",
+                comment = "",
+                status = when {
+                    isDeleted -> AttendanceStatus.CANCELLED
+                    session.attended -> AttendanceStatus.ARRIVED
+                    else -> AttendanceStatus.EXPECTED
+                },
+                isExtra = true,
+                extraType = "Интенсив",
+                extraAmount = session.amount,
             )
 
-            is Session.Student -> StudentItem(
-                id = UUID.randomUUID().toString(),
+            is Session.Diagnostics -> ScheduleEntry(
                 name = session.name,
-                attended = session.attended,
-                type = StudentItemType.STUDENT,
+                time = session.time,
+                comment = "",
+                status = when {
+                    isDeleted -> AttendanceStatus.CANCELLED
+                    session.attended -> AttendanceStatus.ARRIVED
+                    else -> AttendanceStatus.EXPECTED
+                },
+                isExtra = true,
+                extraType = "Диагностика",
+                extraAmount = session.amount,
             )
         }
-        parsed += item
+    }.sortedBy { entry ->
+        if (entry.time.isEmpty()) "99:99" else entry.time
     }
-    return if (parsed.isEmpty()) {
-        listOf(StudentItem(id = UUID.randomUUID().toString(), name = "", attended = false))
-    } else parsed
+}
+
+private fun calculateStats(
+    entries: List<ScheduleEntry>,
+    pricePerSession: Double,
+    pricePerDiagnostics: Double,
+): DayStats {
+    var expected = 0
+    var confirmed = 0
+    var arrived = 0
+    var cancelled = 0
+    var money = 0.0
+
+    for (entry in entries) {
+        when (entry.status) {
+            AttendanceStatus.EXPECTED -> expected++
+            AttendanceStatus.CONFIRMED -> confirmed++
+            AttendanceStatus.ARRIVED -> {
+                arrived++
+                if (!entry.isExtra) {
+                    money += pricePerSession
+                } else if (entry.extraType == "Диагностика") {
+                    money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
+                } else {
+                    money += entry.extraAmount
+                }
+            }
+            AttendanceStatus.CANCELLED -> cancelled++
+        }
+    }
+
+    return DayStats(
+        expectedCount = expected,
+        confirmedCount = confirmed,
+        arrivedCount = arrived,
+        cancelledCount = cancelled,
+        totalMoney = money,
+    )
 }
 
 @Preview(showBackground = true, name = "Day Details Light")
@@ -571,10 +601,61 @@ private fun DayDetailsLightPreview() {
             Box(contentAlignment = Alignment.Center) {
                 DayDetailsContent(
                     date = LocalDate.now(),
-                    initialNames = listOf("Света|true", "Иван|false"),
-                    userProfile = UserProfile(pricePerSession = 1200.0),
+                    initialNames = listOf(
+                        "Шахабутдинов Тимур|0|10:00-10:50|+79684123493|5л",
+                        "Зорин Владимир|1|11:00-11:50|+79151234538|2.8Г",
+                        "Медников Владимир|0|12:00-13:00|+79621234536|5,9/ Рома 2,11л",
+                        "Савельев Михаил|3|13:00-13:50|+79621234582|5л",
+                        "Якуборов Рашит|2|14:00-14:50|+79681234569|6,11л",
+                    ),
+                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    isArchived = false,
                     onDismiss = {},
-                    onSave = { _, _, _ -> },
+                    onSave = { _ -> },
+                    onArchive = {},
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Day Details Dark")
+@Composable
+private fun DayDetailsDarkPreview() {
+    NeiroTheme(darkTheme = true) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Box(contentAlignment = Alignment.Center) {
+                DayDetailsContent(
+                    date = LocalDate.now(),
+                    initialNames = listOf(
+                        "Сухова Мария|0|15:00-15:50|+79931234500|5 лет",
+                        "Моторнов Егор|3|16:00-16:50|+79631234575|5л",
+                    ),
+                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    isArchived = true,
+                    onDismiss = {},
+                    onSave = { _ -> },
+                    onArchive = {},
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Day Details Empty")
+@Composable
+private fun DayDetailsEmptyPreview() {
+    NeiroTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = Color.LightGray) {
+            Box(contentAlignment = Alignment.Center) {
+                DayDetailsContent(
+                    date = LocalDate.now(),
+                    initialNames = emptyList(),
+                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    isArchived = true,
+                    onDismiss = {},
+                    onSave = { _ -> },
+                    onArchive = {},
                 )
             }
         }

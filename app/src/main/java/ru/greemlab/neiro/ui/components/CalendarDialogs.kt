@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.theme.ProfitGreen
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
@@ -53,12 +53,31 @@ fun LessonsDetailsDialog(
                     color = MaterialTheme.colorScheme.primary,
                     isBold = true,
                 )
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LessonStatRow(
+                        label = "— Занятий",
+                        value = stats.completedSessionsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LessonStatRow(
+                        label = "— Диагностик",
+                        value = stats.completedDiagnosticsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 LessonStatRow(
                     label = "Всего запланировано",
                     value = stats.totalScheduled,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+
+
                 LessonStatRow(
                     label = "Осталось / Не подтверждено",
                     value = stats.remainingCount,
@@ -99,7 +118,7 @@ fun ProfitDetailsDialog(
                 ProfitRow(
                     label = "Чистый доход",
                     value = stats.netProfit,
-                    color = ProfitGreen,
+                    color = ScheduleHeaderGreen,
                     isBold = true,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -134,6 +153,7 @@ fun ProfitDetailsDialog(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
+
 
                 ProfitRow(
                     label = "Ожидаемый доход",
