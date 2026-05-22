@@ -58,12 +58,21 @@ object SessionNotificationSyncSimulation {
         )
     }
 
-    suspend fun simulateStatusChanged(context: Context) {
+    suspend fun simulateClientConfirmed(context: Context) {
         val today = LocalDate.now()
         run(
             context,
             before = day(today, entry(CLIENT_STATUS, "11:00-12:00", AttendanceStatus.EXPECTED)),
             after = day(today, entry(CLIENT_STATUS, "11:00-12:00", AttendanceStatus.CONFIRMED)),
+        )
+    }
+
+    suspend fun simulateClientArrived(context: Context) {
+        val today = LocalDate.now()
+        run(
+            context,
+            before = day(today, entry(CLIENT_STATUS, "11:00-12:00", AttendanceStatus.EXPECTED)),
+            after = day(today, entry(CLIENT_STATUS, "11:00-12:00", AttendanceStatus.ARRIVED)),
         )
     }
 

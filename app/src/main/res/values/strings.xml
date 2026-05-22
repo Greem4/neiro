@@ -70,8 +70,10 @@
     <string name="notification_settings_rescheduled_hint">Изменились дата или время</string>
     <string name="notification_settings_deleted">Удаление</string>
     <string name="notification_settings_deleted_hint">Запись убрана из календаря</string>
-    <string name="notification_settings_status">Статус визита</string>
-    <string name="notification_settings_status_hint">Подтвердил, пришёл и другие статусы YClients</string>
+    <string name="notification_settings_confirmed">Подтвердил визит</string>
+    <string name="notification_settings_confirmed_hint">Галочка в YClients — клиент подтвердил, что придёт</string>
+    <string name="notification_settings_arrived">Пришёл</string>
+    <string name="notification_settings_arrived_hint">Отметка «пришёл» в YClients</string>
     <string name="notification_settings_reminder">Напоминание перед занятием</string>
     <string name="notification_settings_reminder_hint">За %1$d минут до начала</string>
     <string name="notification_settings_reminder_lead">За сколько напомнить</string>
@@ -92,12 +94,9 @@
     <string name="notification_event_cancelled_title">Отмена: %1$s</string>
     <string name="notification_event_rescheduled_title">Перенос: %1$s</string>
     <string name="notification_event_deleted_title">Удалено: %1$s</string>
-    <string name="notification_event_status_title">Статус: %1$s</string>
+    <string name="notification_event_confirmed_title">Подтвердил: %1$s</string>
+    <string name="notification_event_arrived_title">Пришёл: %1$s</string>
     <string name="notification_event_rescheduled_body">Было: %1$s\nСтало: %2$s</string>
-    <string name="notification_event_status_body">%1$s\n%2$s → %3$s</string>
-
-    <string name="notification_status_expected">ожидание</string>
-    <string name="notification_status_confirmed">подтвердил</string>
-    <string name="notification_status_cancelled">отмена</string>
-    <string name="notification_status_arrived">пришёл</string>
+    <string name="notification_event_confirmed_body">%1$s</string>
+    <string name="notification_event_arrived_body">%1$s</string>
 </resources>

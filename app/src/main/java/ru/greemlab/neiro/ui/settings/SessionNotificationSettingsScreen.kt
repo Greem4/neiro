@@ -12,7 +12,8 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Today
-import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.AddCircle
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -91,11 +92,18 @@ fun SessionNotificationSettingsScreen(
                         onCheckedChange = viewModel::setNotifyDeleted,
                     )
                     EventToggle(
-                        title = stringResource(R.string.notification_settings_status),
-                        subtitle = stringResource(R.string.notification_settings_status_hint),
-                        icon = Icons.Rounded.TrendingUp,
-                        checked = settings.notifyStatusChanged,
-                        onCheckedChange = viewModel::setNotifyStatusChanged,
+                        title = stringResource(R.string.notification_settings_confirmed),
+                        subtitle = stringResource(R.string.notification_settings_confirmed_hint),
+                        icon = Icons.Rounded.CheckCircle,
+                        checked = settings.notifyClientConfirmed,
+                        onCheckedChange = viewModel::setNotifyClientConfirmed,
+                    )
+                    EventToggle(
+                        title = stringResource(R.string.notification_settings_arrived),
+                        subtitle = stringResource(R.string.notification_settings_arrived_hint),
+                        icon = Icons.Rounded.AddCircle,
+                        checked = settings.notifyClientArrived,
+                        onCheckedChange = viewModel::setNotifyClientArrived,
                     )
                 }
 

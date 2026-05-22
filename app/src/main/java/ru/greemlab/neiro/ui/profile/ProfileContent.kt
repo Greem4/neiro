@@ -370,10 +370,17 @@ private fun DevDrawerSection(
                     },
                 )
                 DevMenuItem(
-                    title = "Синк: смена статуса",
-                    subtitle = "Ожидание → подтверждение",
+                    title = "Синк: подтвердил",
+                    subtitle = "Ожидание → галочка",
                     onClick = {
-                        scope.launch { SessionNotificationSyncSimulation.simulateStatusChanged(context) }
+                        scope.launch { SessionNotificationSyncSimulation.simulateClientConfirmed(context) }
+                    },
+                )
+                DevMenuItem(
+                    title = "Синк: пришёл",
+                    subtitle = "Ожидание → пришёл",
+                    onClick = {
+                        scope.launch { SessionNotificationSyncSimulation.simulateClientArrived(context) }
                     },
                 )
                 DevMenuItem(
@@ -408,9 +415,14 @@ private fun DevDrawerSection(
                     onClick = { SessionNotificationDevPreview.showDeleted(context) },
                 )
                 DevMenuItem(
-                    title = "Смена статуса",
-                    subtitle = "Подтверждение / приход",
-                    onClick = { SessionNotificationDevPreview.showStatusChanged(context) },
+                    title = "Подтвердил визит",
+                    subtitle = "Галочка в YClients",
+                    onClick = { SessionNotificationDevPreview.showClientConfirmed(context) },
+                )
+                DevMenuItem(
+                    title = "Пришёл",
+                    subtitle = "Отметка «пришёл»",
+                    onClick = { SessionNotificationDevPreview.showClientArrived(context) },
                 )
                 DevMenuItem(
                     title = "Несколько событий",

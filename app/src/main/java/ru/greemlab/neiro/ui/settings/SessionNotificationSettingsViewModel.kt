@@ -18,7 +18,8 @@ data class SessionNotificationSettingsState(
     val notifyCancelled: Boolean = true,
     val notifyRescheduled: Boolean = true,
     val notifyDeleted: Boolean = true,
-    val notifyStatusChanged: Boolean = true,
+    val notifyClientConfirmed: Boolean = true,
+    val notifyClientArrived: Boolean = true,
     val notifyReminder: Boolean = false,
     val notifyTodayDigest: Boolean = true,
     val notifyTomorrowDigest: Boolean = true,
@@ -60,8 +61,12 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
         prefs.notifyDeleted = value
     }
 
-    fun setNotifyStatusChanged(value: Boolean) = update({ copy(notifyStatusChanged = value) }) {
-        prefs.notifyStatusChanged = value
+    fun setNotifyClientConfirmed(value: Boolean) = update({ copy(notifyClientConfirmed = value) }) {
+        prefs.notifyClientConfirmed = value
+    }
+
+    fun setNotifyClientArrived(value: Boolean) = update({ copy(notifyClientArrived = value) }) {
+        prefs.notifyClientArrived = value
     }
 
     fun setNotifyReminder(value: Boolean) = update({ copy(notifyReminder = value) }) {
@@ -128,7 +133,8 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
         notifyCancelled = prefs.notifyCancelled,
         notifyRescheduled = prefs.notifyRescheduled,
         notifyDeleted = prefs.notifyDeleted,
-        notifyStatusChanged = prefs.notifyStatusChanged,
+        notifyClientConfirmed = prefs.notifyClientConfirmed,
+        notifyClientArrived = prefs.notifyClientArrived,
         notifyReminder = prefs.notifyReminder,
         notifyTodayDigest = prefs.notifyTodayDigest,
         notifyTomorrowDigest = prefs.notifyTomorrowDigest,

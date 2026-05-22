@@ -44,6 +44,24 @@ class SessionChangeDetectorTest {
         assertTrue(events.any { it.type == SessionEventType.DELETED })
     }
 
+    @Test
+    fun `detects client confirmed`() {
+        val before = listOf(session("Анна", "10:00", AttendanceStatus.EXPECTED))
+        val after = listOf(session("Анна", "10:00", AttendanceStatus.CONFIRMED))
+        val events = SessionChangeDetector.detect(before, after)
+        assertEquals(1, events.size)
+        assertEquals(SessionEventType.CLIENT_CONFIRMED, events.first().type)
+    }
+
+    @Test
+    fun `detects client arrived`() {
+        val before = listOf(session("Анна", "10:00", AttendanceStatus.CONFIRMED))
+        val after = listOf(session("Анна", "10:00", AttendanceStatus.ARRIVED))
+        val events = SessionChangeDetector.detect(before, after)
+        assertEquals(1, events.size)
+        assertEquals(SessionEventType.CLIENT_ARRIVED, events.first().type)
+    }
+
     private fun session(
         name: String,
         start: String,

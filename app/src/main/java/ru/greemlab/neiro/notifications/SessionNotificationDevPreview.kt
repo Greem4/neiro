@@ -40,18 +40,24 @@ object SessionNotificationDevPreview {
         showEvent(context, SessionEventType.DELETED, isMarkedDeleted = true)
     }
 
-    fun showStatusChanged(context: Context) {
+    fun showClientConfirmed(context: Context) {
+        showStatusTransition(context, SessionEventType.CLIENT_CONFIRMED, AttendanceStatus.CONFIRMED)
+    }
+
+    fun showClientArrived(context: Context) {
+        showStatusTransition(context, SessionEventType.CLIENT_ARRIVED, AttendanceStatus.ARRIVED)
+    }
+
+    private fun showStatusTransition(
+        context: Context,
+        type: SessionEventType,
+        newStatus: AttendanceStatus,
+    ) {
         val previous = sampleTracked(status = AttendanceStatus.EXPECTED)
-        val session = sampleTracked(status = AttendanceStatus.CONFIRMED)
+        val session = sampleTracked(status = newStatus)
         SessionNotificationDisplay.showEvents(
             context,
-            listOf(
-                SessionEvent(
-                    type = SessionEventType.STATUS_CHANGED,
-                    session = session,
-                    previous = previous,
-                ),
-            ),
+            listOf(SessionEvent(type = type, session = session, previous = previous)),
         )
     }
 

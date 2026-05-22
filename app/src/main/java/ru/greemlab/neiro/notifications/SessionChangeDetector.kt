@@ -65,16 +65,19 @@ object SessionChangeDetector {
                 continue
             }
             when {
-                afterSession.status == AttendanceStatus.CANCELLED &&
-                    beforeSession.status != AttendanceStatus.CANCELLED ->
+                afterSession.status == AttendanceStatus.CANCELLED ->
                     events += SessionEvent(SessionEventType.CANCELLED, afterSession, beforeSession)
 
-                beforeSession.status == AttendanceStatus.CANCELLED &&
-                    afterSession.status != AttendanceStatus.CANCELLED ->
+                beforeSession.status == AttendanceStatus.CANCELLED ->
                     events += SessionEvent(SessionEventType.NEW_BOOKING, afterSession, beforeSession)
 
-                else ->
-                    events += SessionEvent(SessionEventType.STATUS_CHANGED, afterSession, beforeSession)
+                afterSession.status == AttendanceStatus.CONFIRMED ->
+                    events += SessionEvent(SessionEventType.CLIENT_CONFIRMED, afterSession, beforeSession)
+
+                afterSession.status == AttendanceStatus.ARRIVED ->
+                    events += SessionEvent(SessionEventType.CLIENT_ARRIVED, afterSession, beforeSession)
+
+                else -> Unit
             }
         }
 

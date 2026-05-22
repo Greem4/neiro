@@ -62,8 +62,10 @@ data class SessionEvent(
     val dedupeKey: String = when (type) {
         SessionEventType.RESCHEDULED ->
             "reschedule|${session.slotKey}|${previous?.slotKey.orEmpty()}"
-        SessionEventType.STATUS_CHANGED ->
-            "status|${session.slotKey}|${session.status.name}"
+        SessionEventType.CLIENT_CONFIRMED ->
+            "confirmed|${session.slotKey}|${session.status.name}"
+        SessionEventType.CLIENT_ARRIVED ->
+            "arrived|${session.slotKey}|${session.status.name}"
         else -> "${type.name}|${session.slotKey}"
     }
 }

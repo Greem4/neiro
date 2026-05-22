@@ -33,9 +33,19 @@ class SessionNotificationPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIFY_DELETED, true)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DELETED, value).apply()
 
-    var notifyStatusChanged: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_STATUS, true)
-        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_STATUS, value).apply()
+    var notifyClientConfirmed: Boolean
+        get() = readLegacyAware(KEY_NOTIFY_CONFIRMED, KEY_NOTIFY_STATUS)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_CONFIRMED, value).apply()
+
+    var notifyClientArrived: Boolean
+        get() = readLegacyAware(KEY_NOTIFY_ARRIVED, KEY_NOTIFY_STATUS)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_ARRIVED, value).apply()
+
+    private fun readLegacyAware(key: String, legacyKey: String): Boolean {
+        if (prefs.contains(key)) return prefs.getBoolean(key, true)
+        if (prefs.contains(legacyKey)) return prefs.getBoolean(legacyKey, true)
+        return true
+    }
 
     var notifyReminder: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, false)
@@ -85,7 +95,8 @@ class SessionNotificationPreferences(context: Context) {
         SessionEventType.CANCELLED -> notifyCancelled
         SessionEventType.RESCHEDULED -> notifyRescheduled
         SessionEventType.DELETED -> notifyDeleted
-        SessionEventType.STATUS_CHANGED -> notifyStatusChanged
+        SessionEventType.CLIENT_CONFIRMED -> notifyClientConfirmed
+        SessionEventType.CLIENT_ARRIVED -> notifyClientArrived
         SessionEventType.REMINDER -> notifyReminder
         SessionEventType.TODAY_DIGEST -> notifyTodayDigest
         SessionEventType.TOMORROW_DIGEST -> notifyTomorrowDigest
@@ -225,6 +236,8 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_NOTIFY_RESCHEDULED = "notify_rescheduled"
         private const val KEY_NOTIFY_DELETED = "notify_deleted"
         private const val KEY_NOTIFY_STATUS = "notify_status"
+        private const val KEY_NOTIFY_CONFIRMED = "notify_confirmed"
+        private const val KEY_NOTIFY_ARRIVED = "notify_arrived"
         private const val KEY_NOTIFY_REMINDER = "notify_reminder"
         private const val KEY_NOTIFY_DIGEST = "notify_digest"
         private const val KEY_NOTIFY_TOMORROW_DIGEST = "notify_tomorrow_digest"

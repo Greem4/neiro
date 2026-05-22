@@ -8,7 +8,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import ru.greemlab.neiro.MainActivity
 import ru.greemlab.neiro.R
-import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -212,8 +211,10 @@ object SessionNotificationDisplay {
             context.getString(R.string.notification_event_rescheduled_title, event.session.clientName)
         SessionEventType.DELETED ->
             context.getString(R.string.notification_event_deleted_title, event.session.clientName)
-        SessionEventType.STATUS_CHANGED ->
-            context.getString(R.string.notification_event_status_title, event.session.clientName)
+        SessionEventType.CLIENT_CONFIRMED ->
+            context.getString(R.string.notification_event_confirmed_title, event.session.clientName)
+        SessionEventType.CLIENT_ARRIVED ->
+            context.getString(R.string.notification_event_arrived_title, event.session.clientName)
         else -> event.session.clientName
     }
 
@@ -229,27 +230,20 @@ object SessionNotificationDisplay {
                 event.session.formatLine(),
             )
         }
-        SessionEventType.STATUS_CHANGED -> {
-            val prevStatus = statusLabel(context, event.previous?.status ?: AttendanceStatus.EXPECTED)
-            val newStatus = statusLabel(context, event.session.status)
+        SessionEventType.CLIENT_CONFIRMED ->
             context.getString(
-                R.string.notification_event_status_body,
+                R.string.notification_event_confirmed_body,
                 event.session.formatLine(),
-                prevStatus,
-                newStatus,
             )
-        }
+        SessionEventType.CLIENT_ARRIVED ->
+            context.getString(
+                R.string.notification_event_arrived_body,
+                event.session.formatLine(),
+            )
         else -> event.session.formatLine()
     }
 
     private fun eventBigText(context: Context, event: SessionEvent): String = eventContent(context, event)
-
-    private fun statusLabel(context: Context, status: AttendanceStatus): String = when (status) {
-        AttendanceStatus.EXPECTED -> context.getString(R.string.notification_status_expected)
-        AttendanceStatus.CONFIRMED -> context.getString(R.string.notification_status_confirmed)
-        AttendanceStatus.CANCELLED -> context.getString(R.string.notification_status_cancelled)
-        AttendanceStatus.ARRIVED -> context.getString(R.string.notification_status_arrived)
-    }
 
     private fun showSingleReminder(context: Context, session: UpcomingSession) {
         val minutesUntil = java.time.Duration.between(
