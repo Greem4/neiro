@@ -14,6 +14,9 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +60,17 @@ fun ProfileContent(
     val dayData by calendarViewModel.dayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var autoSyncEnabled by remember { mutableStateOf(syncViewModel.isAutoSyncEnabled) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                autoSyncEnabled = syncViewModel.isAutoSyncEnabled
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     ProfileContentImpl(
         profile = profile,
@@ -66,6 +80,7 @@ fun ProfileContent(
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
+        autoSyncEnabled = autoSyncEnabled,
         onSyncNow = syncViewModel::syncCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
@@ -81,6 +96,7 @@ private fun ProfileContentImpl(
     dayData: Map<LocalDate, List<String>>,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
+    autoSyncEnabled: Boolean = true,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
@@ -162,6 +178,7 @@ private fun ProfileContentImpl(
 
         YClientsActionBlock(
             isLoggedIn = isLoggedInToYClients,
+            autoSyncEnabled = autoSyncEnabled,
             syncState = syncState,
             onOpenYClients = onOpenYClients,
             onSyncNow = onSyncNow,
@@ -265,6 +282,7 @@ private fun DevDrawerSection(
 @Composable
 private fun YClientsActionBlock(
     isLoggedIn: Boolean,
+    autoSyncEnabled: Boolean,
     syncState: SyncUiState,
     onOpenYClients: () -> Unit,
     onSyncNow: () -> Unit,
@@ -315,6 +333,7 @@ private fun YClientsActionBlock(
 
         YClientsStatusLine(
             isLoggedIn = isLoggedIn,
+            autoSyncEnabled = autoSyncEnabled,
             isLoading = isLoading,
             hasError = hasError,
             hasSuccess = hasSuccess,
@@ -326,6 +345,7 @@ private fun YClientsActionBlock(
 @Composable
 private fun YClientsStatusLine(
     isLoggedIn: Boolean,
+    autoSyncEnabled: Boolean,
     isLoading: Boolean,
     hasError: Boolean,
     hasSuccess: Boolean,
@@ -349,14 +369,20 @@ private fun YClientsStatusLine(
         isLoading -> Triple(
             Icons.Rounded.Sync,
             MaterialTheme.colorScheme.onSurfaceVariant,
-            "Загружаю записи за текущий месяц",
+            "Загружаю записи…",
         )
         isLoggedIn -> {
             val last = syncState.lastSyncDate
-            val label = if (last != null) {
-                "Подключено · последняя синхронизация " + last.format(LAST_SYNC_FORMATTER)
-            } else {
-                "Подключено · нажмите, чтобы загрузить записи"
+            val label = when {
+                !autoSyncEnabled && last != null ->
+                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER)
+                !autoSyncEnabled ->
+                    "Подключено · только ручная синхронизация"
+                last != null ->
+                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER) +
+                        " · авто каждые 4 ч"
+                else ->
+                    "Подключено · авто при открытии приложения"
             }
             Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
         }

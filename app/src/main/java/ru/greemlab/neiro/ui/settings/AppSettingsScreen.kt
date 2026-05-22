@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.SettingsSuggest
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +36,7 @@ fun AppSettingsScreen(
 ) {
     val theme by viewModel.theme.collectAsState()
     val context = LocalContext.current
+    var autoSyncEnabled by remember { mutableStateOf(viewModel.isAutoSyncEnabled()) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -100,6 +102,31 @@ fun AppSettingsScreen(
                     onClick = { viewModel.setTheme(THEME_DARK) },
                     icon = Icons.Rounded.DarkMode,
                 )
+            }
+
+            SettingsSection(title = "YClients") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Sync, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Автосинхронизация")
+                        Text(
+                            text = "При открытии приложения и каждые 4 часа в фоне",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = autoSyncEnabled,
+                        onCheckedChange = { enabled ->
+                            autoSyncEnabled = enabled
+                            viewModel.setAutoSyncEnabled(enabled)
+                        },
+                    )
+                }
             }
 
             SettingsSection(title = "Данные") {

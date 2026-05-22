@@ -18,6 +18,9 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,6 +122,17 @@ fun CalendarScreen(
         val syncState by syncViewModel.uiState.collectAsState()
         val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
         val context = LocalContext.current
+
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, syncViewModel) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    syncViewModel.refreshLastSyncFromPrefs()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
 
         LaunchedEffect(syncState.showSuccess, syncState.error) {
             if (syncState.showSuccess) {
