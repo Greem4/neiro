@@ -8,36 +8,33 @@ import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.graphics.drawable.IconCompat
 import ru.greemlab.neiro.R
 
 /**
- * Фирменное оформление push-уведомлений: буква «N», синий акцент, логотип Neiro.
+ * Фирменное оформление push-уведомлений: цветной логотип Neiro в шапке (API 24+).
  */
 object NeiroNotificationBranding {
 
-    private const val LARGE_ICON_DP = 64
+    private const val HEADER_ICON_DP = 28
 
     @Volatile
-    private var largeIconCache: Bitmap? = null
+    private var logoBitmapCache: Bitmap? = null
 
     fun apply(builder: NotificationCompat.Builder, context: Context): NotificationCompat.Builder {
         val appContext = context.applicationContext
-        return builder
-            .setSmallIcon(R.drawable.ic_notification_neiro)
-            .setLargeIcon(largeIcon(appContext))
-            .setColor(ContextCompat.getColor(appContext, R.color.notification_accent))
-            .setSubText(appContext.getString(R.string.app_name))
+        return builder.setSmallIcon(IconCompat.createWithBitmap(logoBitmap(appContext)))
     }
 
     fun channelLightColor(context: Context): Int =
         ContextCompat.getColor(context.applicationContext, R.color.notification_accent)
 
-    private fun largeIcon(context: Context): Bitmap {
-        largeIconCache?.let { return it }
+    private fun logoBitmap(context: Context): Bitmap {
+        logoBitmapCache?.let { return it }
         val density = context.resources.displayMetrics.density
-        val sizePx = (LARGE_ICON_DP * density).toInt().coerceAtLeast(1)
+        val sizePx = (HEADER_ICON_DP * density).toInt().coerceAtLeast(1)
         return vectorToBitmap(context, R.drawable.ic_notification_logo, sizePx).also {
-            largeIconCache = it
+            logoBitmapCache = it
         }
     }
 

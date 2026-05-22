@@ -243,11 +243,7 @@ object SessionNotificationDisplay {
         else -> event.session.formatLine()
     }
 
-    private fun eventBigText(context: Context, event: SessionEvent): String =
-        when (event.type) {
-            SessionEventType.RESCHEDULED, SessionEventType.STATUS_CHANGED -> eventContent(context, event)
-            else -> "${eventTitle(context, event)}\n${eventContent(context, event)}"
-        }
+    private fun eventBigText(context: Context, event: SessionEvent): String = eventContent(context, event)
 
     private fun statusLabel(context: Context, status: AttendanceStatus): String = when (status) {
         AttendanceStatus.EXPECTED -> context.getString(R.string.notification_status_expected)
