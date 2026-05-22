@@ -1,5 +1,11 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,15 +25,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.CollectionsBookmark
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.ui.text.style.TextOverflow
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -48,6 +57,8 @@ fun CalendarHeader(
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
+    onSyncClick: () -> Unit = {},
+    isSyncing: Boolean = false,
     onModeChange: (CalendarMode) -> Unit = {},
     isRegistered: Boolean = true,
     onRegistrationRequired: () -> Unit = {},
@@ -112,6 +123,35 @@ fun CalendarHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
+            if (calendarMode == CalendarMode.SYNCED) {
+                val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "rotation"
+                )
+
+                IconButton(
+                    onClick = onSyncClick,
+                    modifier = Modifier.size(32.dp),
+                    enabled = !isSyncing
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Sync,
+                        contentDescription = "Синхронизировать месяц",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .then(if (isSyncing) Modifier.graphicsLayer(rotationZ = rotation) else Modifier),
+                        tint = if (isSyncing) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
             Text(
                 text = "Сегодня",
                 style = MaterialTheme.typography.labelLarge,

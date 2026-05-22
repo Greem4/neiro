@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -20,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -113,6 +115,25 @@ fun CalendarScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         val syncViewModel: SyncViewModel = viewModel()
+        val syncState by syncViewModel.uiState.collectAsState()
+        val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+        val context = LocalContext.current
+
+        LaunchedEffect(syncState.showSuccess, syncState.error) {
+            if (syncState.showSuccess) {
+                val message = if (syncState.syncedCount > 0) {
+                    "Обновлено записей: ${syncState.syncedCount}"
+                } else {
+                    "Данные актуальны"
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                syncViewModel.clearSuccess()
+            }
+            syncState.error?.let {
+                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                syncViewModel.clearError()
+            }
+        }
 
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -152,6 +173,14 @@ fun CalendarScreen(
                 onNextMonth = viewModel::nextMonth,
                 onTodayClick = viewModel::goToToday,
                 onMenuClick = { scope.launch { drawerState.open() } },
+                onSyncClick = {
+                    if (isYClientsLoggedIn) {
+                        syncViewModel.syncMonth(currentMonth)
+                    } else {
+                        overlay = CalendarOverlay.YClients
+                    }
+                },
+                isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
                 onDateClick = { date ->
@@ -310,6 +339,8 @@ fun CalendarScreenContent(
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
     onMenuClick: () -> Unit,
+    onSyncClick: () -> Unit = {},
+    isSyncing: Boolean = false,
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
@@ -337,6 +368,8 @@ fun CalendarScreenContent(
                 onNextMonth = onNextMonth,
                 onTodayClick = onTodayClick,
                 onMenuClick = onMenuClick,
+                onSyncClick = onSyncClick,
+                isSyncing = isSyncing,
                 onModeChange = onModeChange,
                 isRegistered = isRegistered,
                 onRegistrationRequired = onRegistrationRequired,
