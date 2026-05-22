@@ -23,9 +23,7 @@ class CalendarStatsCalculatorTest {
         assertEquals(0, stats.completedCount)
         assertEquals(0, stats.totalScheduled)
         assertEquals(0.0, stats.totalEarned, 0.0)
-        // Налог не применяется к нулевому доходу — оставляем отрицательное значение,
-        // чтобы UI мог явно его показать.
-        assertEquals(-200.0, stats.netProfit, 0.0)
+        assertEquals(0.0, stats.netProfit, 0.0)
     }
 
     @Test
@@ -72,7 +70,7 @@ class CalendarStatsCalculatorTest {
     }
 
     @Test
-    fun `net profit can be negative when tax exceeds income`() {
+    fun `net profit is zero when tax exceeds income`() {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = mapOf(
@@ -82,7 +80,7 @@ class CalendarStatsCalculatorTest {
             pricePerDiagnostics = 0.0,
             monthlyTaxAmount = 1000.0,
         )
-        // 500 - 1000 = -500, должно сохраняться (а не обрезаться до 0).
-        assertEquals(-500.0, stats.netProfit, 0.0)
+        assertEquals(500.0, stats.totalEarned, 0.0)
+        assertEquals(0.0, stats.netProfit, 0.0)
     }
 }

@@ -99,7 +99,7 @@ internal fun computeMonthStats(
         }
     }
 
-    val netProfit = grossEarned - monthlyTaxAmount
+    val netProfit = (grossEarned - monthlyTaxAmount).coerceAtLeast(0.0)
 
     return CalendarMonthStats(
         completedCount = completed,
