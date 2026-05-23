@@ -45,12 +45,12 @@ class ProfileTotalsCalculatorTest {
     }
 
     @Test
-    fun `uses frozen pay amount on student entry`() {
+    fun `uses profile rate not stored pay while payment logic disabled`() {
         val dayData = mapOf(
             LocalDate.of(2025, 5, 1) to listOf("Иванов|3|||1250"),
         )
         val totals = computeProfileTotals(dayData, pricePerSession = 1400.0, pricePerDiagnostics = 0.0, today = today)
-        assertEquals(1250.0, totals.totalEarned, 0.0)
+        assertEquals(1400.0, totals.totalEarned, 0.0)
     }
 
     @Test

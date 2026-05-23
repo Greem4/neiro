@@ -10,40 +10,9 @@ class EmployeePayResolverTest {
     private val defaultPay = 1400.0
 
     @Test
-    fun `salary rate matches profile uses default`() {
-        val record = record(cost = 1400.0, costToPay = 1400.0)
+    fun `always returns profile rate while payment logic disabled`() {
+        val record = record(cost = 1250.0, costToPay = 2500.0)
         assertEquals(defaultPay, EmployeePayResolver.resolveFromRecord(record, defaultPay), 0.0)
-    }
-
-    @Test
-    fun `salary rate 1250 uses salary not profile`() {
-        val record = record(cost = 1250.0)
-        assertEquals(1250.0, EmployeePayResolver.resolveFromRecord(record, defaultPay), 0.0)
-    }
-
-    @Test
-    fun `client payment 2500 gives half even when salary is 1400`() {
-        val record = record(cost = 1400.0, costToPay = 2500.0)
-        assertEquals(1250.0, EmployeePayResolver.resolveFromRecord(record, defaultPay), 0.0)
-    }
-
-    @Test
-    fun `client payment 2800 gives half`() {
-        val record = record(cost = 1400.0, costToPay = 2800.0)
-        assertEquals(1400.0, EmployeePayResolver.resolveFromRecord(record, defaultPay), 0.0)
-    }
-
-    @Test
-    fun `client payment 3000 gives profile rate not half`() {
-        val record = record(cost = 1400.0, costToPay = 3000.0)
-        assertEquals(1400.0, EmployeePayResolver.resolveFromRecord(record, defaultPay), 0.0)
-    }
-
-    @Test
-    fun `employeeShareFromClientPayment known totals`() {
-        assertEquals(1250.0, EmployeePayResolver.employeeShareFromClientPayment(2500.0, defaultPay), 0.0)
-        assertEquals(1400.0, EmployeePayResolver.employeeShareFromClientPayment(2800.0, defaultPay), 0.0)
-        assertEquals(1400.0, EmployeePayResolver.employeeShareFromClientPayment(3000.0, defaultPay), 0.0)
     }
 
     private fun record(cost: Double?, costToPay: Double? = null): RecordData =

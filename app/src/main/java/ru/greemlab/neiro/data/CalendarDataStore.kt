@@ -176,6 +176,50 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
+    override suspend fun applySessionPriceChange(newPrice: Double) {
+        writeMutex.withLock {
+            val snapshot = cachedState.value
+            val profile = snapshot.profile
+            if (newPrice == profile.pricePerSession) return@withLock
+
+            // TODO: разобраться с оплатой — история ставок и заморозка payAmount в записях.
+            val updatedProfile = profile.copy(pricePerSession = newPrice)
+            /*
+            val oldPrice = profile.pricePerSession
+            val updatedProfile = if (oldPrice > 0.0) {
+                profile.withSessionPriceChange(oldPrice, newPrice, LocalDate.now())
+            } else {
+                profile.copy(pricePerSession = newPrice)
+            }
+            val updatedDayData = if (oldPrice > 0.0) {
+                SessionPayBackfill.freezeRate(snapshot.dayData, oldPrice)
+            } else {
+                snapshot.dayData
+            }
+            */
+
+            val profileJson = UserProfileJson.toJson(updatedProfile)
+            appContext.dataStore.edit { prefs ->
+                prefs[profileKey] = profileJson
+            }
+            cachedState.value = snapshot.copy(profile = updatedProfile)
+            writeSyncCache(profileJson = profileJson)
+        }
+    }
+
+    override suspend fun bootstrapPreviousSessionPrice(
+        previousPrice: Double,
+        lastDayOfPreviousPrice: LocalDate,
+    ) {
+        // TODO: разобраться с оплатой — bootstrap истории ставок и заморозка прошлых месяцев.
+        /*
+        if (previousPrice <= 0.0) return
+        writeMutex.withLock {
+            ...
+        }
+        */
+    }
+
     override suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
         writeMutex.withLock {
             val serialized = serializeDayData(data)

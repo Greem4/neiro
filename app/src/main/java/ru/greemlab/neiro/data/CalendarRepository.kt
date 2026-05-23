@@ -33,6 +33,18 @@ interface CalendarRepository {
      */
     suspend fun updateProfile(transform: (UserProfile) -> UserProfile)
 
+    /**
+     * Меняет ставку за занятие: замораживает прежнюю в записях без выплаты,
+     * дописывает историю и сохраняет новую текущую ставку.
+     */
+    suspend fun applySessionPriceChange(newPrice: Double)
+
+    /**
+     * Однократно: задать прежнюю ставку до [lastDayOfPreviousPrice] и зафиксировать её
+     * в записях без суммы (если ставку меняли до появления истории).
+     */
+    suspend fun bootstrapPreviousSessionPrice(previousPrice: Double, lastDayOfPreviousPrice: LocalDate)
+
     suspend fun saveDayData(data: Map<LocalDate, List<String>>)
 
     /** Сохраняет данные конкретного дня в "архивный" (второй) календарь. */

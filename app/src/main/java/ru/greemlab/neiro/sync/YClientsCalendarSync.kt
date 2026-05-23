@@ -9,7 +9,6 @@ import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.UserProfile
-import ru.greemlab.neiro.domain.pay.EmployeePayResolver
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -424,7 +423,19 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
+        // TODO: разобраться с оплатой — EmployeePayResolver, карта клиента, сохранённый payAmount.
         val payAmount = resolveEmployeePay(record, userProfile)
+        /*
+        val resolved = resolveEmployeePay(record, userProfile)
+        val payAmount = if (
+            EmployeePayResolver.hasClientCardPayment(record) ||
+            EmployeePayResolver.hasPayrollSalary(record)
+        ) {
+            resolved
+        } else {
+            session.payAmount?.takeIf { it > 0.0 } ?: resolved
+        }
+        */
 
         return SessionFormat.serializeStudentExtended(
             name = session.name,
@@ -436,8 +447,20 @@ class YClientsCalendarSync(
         )
     }
 
-    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double =
-        EmployeePayResolver.resolveFromRecord(record, userProfile.pricePerSession)
+    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double {
+        // Временно: только текущая ставка из профиля.
+        return userProfile.pricePerSession
+        /*
+        val recordDate = recordDate(record)
+        val defaultPay = userProfile.pricePerSessionOn(recordDate)
+        return EmployeePayResolver.resolveFromRecord(record, defaultPay)
+        */
+    }
+
+    private fun recordDate(record: RecordData): LocalDate {
+        val raw = record.datetime ?: record.date ?: return LocalDate.now()
+        return parseRecordDate(raw) ?: LocalDate.now()
+    }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
         AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance)

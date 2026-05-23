@@ -121,4 +121,11 @@
     <string name="notification_event_rescheduled_body">Было: %1$s\nСтало: %2$s</string>
     <string name="notification_event_confirmed_body">%1$s</string>
     <string name="notification_event_arrived_body">%1$s</string>
+
+    <string name="in_app_notifications_bell">Уведомления</string>
+    <string name="in_app_notifications_title">Уведомления</string>
+    <string name="in_app_notifications_subtitle">Хранятся около 10 дней</string>
+    <string name="in_app_notifications_empty">Пока нет уведомлений</string>
+    <string name="in_app_notifications_close">Закрыть</string>
+    <string name="in_app_notifications_clear">Очистить всё</string>
 </resources>

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -48,6 +49,7 @@ import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettingsScreen
 import ru.greemlab.neiro.ui.settings.SessionNotificationSettingsScreen
+import ru.greemlab.neiro.notifications.InAppNotificationStore
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
@@ -70,6 +72,7 @@ private sealed interface CalendarOverlay {
     data object ProfitSettings : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
     data object DayDetails : CalendarOverlay
+    data object Notifications : CalendarOverlay
 }
 
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
@@ -129,9 +132,16 @@ fun CalendarScreen(
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
+        sessionPriceHistory = profile.sessionPriceHistory,
     )
 
     val context = LocalContext.current
+    val notificationStore = remember(context) { InAppNotificationStore.get(context) }
+    val inAppNotifications by notificationStore.items.collectAsState()
+    val unreadNotificationCount = remember(inAppNotifications) {
+        inAppNotifications.count { !it.read }
+    }
+
     var profitDisplay by remember(context) {
         mutableStateOf(ProfitDisplayPreferences.get(context).read())
     }
@@ -231,6 +241,7 @@ fun CalendarScreen(
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
+                sessionPriceHistory = profile.sessionPriceHistory,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -258,6 +269,8 @@ fun CalendarScreen(
                     }
                 },
                 onRegistrationRequired = { overlay = CalendarOverlay.RegistrationPrompt },
+                onNotificationsClick = { overlay = CalendarOverlay.Notifications },
+                unreadNotificationCount = unreadNotificationCount,
             )
         }
 
@@ -324,6 +337,21 @@ fun CalendarScreen(
             onDismiss = { overlay = CalendarOverlay.None },
         )
 
+        is CalendarOverlay.Notifications -> {
+            LaunchedEffect(Unit) {
+                notificationStore.markAllRead()
+            }
+            NotificationsDialog(
+                notifications = inAppNotifications,
+                onDismiss = { overlay = CalendarOverlay.None },
+                onNotificationClick = { item ->
+                    item.relatedDate?.let { viewModel.navigateToDate(it) }
+                    overlay = CalendarOverlay.None
+                },
+                onClearAll = { notificationStore.clearAll() },
+            )
+        }
+
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
             val savedDayData by viewModel.savedDayData.collectAsState()
@@ -374,6 +402,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.ProfitSettings -> "profit_settings"
             CalendarOverlay.LessonsDetails -> "lessons"
             CalendarOverlay.DayDetails -> "day"
+            CalendarOverlay.Notifications -> "notifications"
         }
     },
     restore = { token ->
@@ -388,6 +417,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             "profit_settings" -> CalendarOverlay.ProfitSettings
             "lessons" -> CalendarOverlay.LessonsDetails
             "day" -> CalendarOverlay.DayDetails
+            "notifications" -> CalendarOverlay.Notifications
             else -> CalendarOverlay.None
         }
     },
@@ -410,6 +440,7 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
+    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -421,10 +452,18 @@ fun CalendarScreenContent(
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
     onRegistrationRequired: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
+    unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics) {
+    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics, sessionPriceHistory) {
         val date = selectedDate ?: return@remember null
-        computeDayStats(dayData[date].orEmpty(), pricePerSession, pricePerDiagnostics)
+        computeDayStats(
+            dayData[date].orEmpty(),
+            pricePerSession,
+            pricePerDiagnostics,
+            sessionDate = date,
+            sessionPriceHistory = sessionPriceHistory,
+        )
     }
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -443,6 +482,8 @@ fun CalendarScreenContent(
                 onNextMonth = onNextMonth,
                 onMenuClick = onMenuClick,
                 onTodayClick = onTodayClick,
+                onNotificationsClick = onNotificationsClick,
+                unreadNotificationCount = unreadNotificationCount,
                 isRegistered = isRegistered,
                 onRegistrationRequired = onRegistrationRequired,
             )

@@ -123,8 +123,22 @@ private fun ProfileContentImpl(
     val scrollState = rememberScrollState()
     val today = remember { LocalDate.now() }
 
-    val totals: ProfileTotals = remember(dayData, profile.pricePerSession, profile.pricePerDiagnostics, profile.monthlyTaxAmount, today) {
-        computeProfileTotals(dayData, profile.pricePerSession, profile.pricePerDiagnostics, today, profile.monthlyTaxAmount)
+    val totals: ProfileTotals = remember(
+        dayData,
+        profile.pricePerSession,
+        profile.pricePerDiagnostics,
+        profile.monthlyTaxAmount,
+        profile.sessionPriceHistory,
+        today,
+    ) {
+        computeProfileTotals(
+            dayData,
+            profile.pricePerSession,
+            profile.pricePerDiagnostics,
+            today,
+            profile.monthlyTaxAmount,
+            profile.sessionPriceHistory,
+        )
     }
 
     val netEarnedText = remember(totals.netEarned) { formatRubles(totals.netEarned) }

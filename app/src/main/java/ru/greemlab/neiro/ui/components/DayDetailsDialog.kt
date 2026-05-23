@@ -135,8 +135,8 @@ private fun DayDetailsContent(
         parseEntries(currentNames)
     }
 
-    val stats = remember(entries, userProfile.pricePerSession, userProfile.pricePerDiagnostics) {
-        calculateStats(entries, userProfile.pricePerSession, userProfile.pricePerDiagnostics)
+    val stats = remember(entries, userProfile, date) {
+        calculateStats(entries, userProfile, date)
     }
 
     val dateText = remember(date) { date.format(DATE_FORMAT) }
@@ -561,9 +561,12 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 
 private fun calculateStats(
     entries: List<ScheduleEntry>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
+    userProfile: UserProfile,
+    date: LocalDate,
 ): DayStats {
+    // TODO: разобраться с оплатой — сейчас только ставка из профиля, без payAmount и истории.
+    val pricePerSession = userProfile.pricePerSession
+    val pricePerDiagnostics = userProfile.pricePerDiagnostics
     var expected = 0
     var confirmed = 0
     var arrived = 0
@@ -577,8 +580,8 @@ private fun calculateStats(
             AttendanceStatus.ARRIVED -> {
                 arrived++
                 if (!entry.isExtra) {
-                    val pay = if (entry.employeePay > 0.0) entry.employeePay else pricePerSession
-                    money += pay
+                    money += pricePerSession
+                    // val pay = if (entry.employeePay > 0.0) entry.employeePay else pricePerSession
                 } else if (entry.extraType == "Диагностика") {
                     money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
                 } else {
