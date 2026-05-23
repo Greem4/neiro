@@ -44,6 +44,9 @@ import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
+import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettingsScreen
 import ru.greemlab.neiro.ui.settings.SessionNotificationSettingsScreen
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -54,7 +57,7 @@ import java.time.YearMonth
 /**
  * Все типы overlay, отображающихся поверх календаря.
  * Хранение в одном sealed класс гарантирует, что одновременно открыт
- * не более одного overlay — и BackHandler закрывает именно его.
+ * не более одного overlay; «Назад» идёт на уровень выше (вложенные настройки → родитель).
  */
 private sealed interface CalendarOverlay {
     data object None : CalendarOverlay
@@ -64,8 +67,17 @@ private sealed interface CalendarOverlay {
     data object YClients : CalendarOverlay
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
+    data object ProfitSettings : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
     data object DayDetails : CalendarOverlay
+}
+
+/** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
+private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): CalendarOverlay = when (this) {
+    CalendarOverlay.NotificationSettings,
+    CalendarOverlay.ProfitSettings -> CalendarOverlay.AppSettings
+    CalendarOverlay.YClients -> yClientsReturnTo
+    else -> CalendarOverlay.None
 }
 
 /**
@@ -108,7 +120,9 @@ fun CalendarScreen(
     var overlay by rememberSaveable(stateSaver = OverlaySaver) {
         mutableStateOf<CalendarOverlay>(CalendarOverlay.None)
     }
-
+    var yClientsReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
+        mutableStateOf(CalendarOverlay.None)
+    }
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
         dayData = dayData,
@@ -117,12 +131,20 @@ fun CalendarScreen(
         monthlyTaxAmount = profile.monthlyTaxAmount,
     )
 
+    val context = LocalContext.current
+    var profitDisplay by remember(context) {
+        mutableStateOf(ProfitDisplayPreferences.get(context).read())
+    }
+    LaunchedEffect(overlay, context) {
+        profitDisplay = ProfitDisplayPreferences.get(context).read()
+    }
+
     val drawerGesturesEnabled = overlay is CalendarOverlay.None
 
     val isAnyOverlayOpen = drawerState.isOpen || overlay !is CalendarOverlay.None
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
-            overlay !is CalendarOverlay.None -> overlay = CalendarOverlay.None
+            overlay !is CalendarOverlay.None -> overlay = overlay.onSystemBack(yClientsReturnOverlay)
             drawerState.isOpen -> scope.launch { drawerState.close() }
         }
     }
@@ -131,7 +153,6 @@ fun CalendarScreen(
         val syncViewModel: SyncViewModel = viewModel()
         val syncState by syncViewModel.uiState.collectAsState()
         val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
-        val context = LocalContext.current
 
         val lifecycleOwner = LocalLifecycleOwner.current
         DisposableEffect(lifecycleOwner, syncViewModel) {
@@ -179,6 +200,7 @@ fun CalendarScreen(
                         },
                         onOpenYClients = {
                             scope.launch { drawerState.close() }
+                            yClientsReturnOverlay = CalendarOverlay.None
                             overlay = CalendarOverlay.YClients
                         },
                     )
@@ -202,12 +224,14 @@ fun CalendarScreen(
                     if (isYClientsLoggedIn) {
                         syncViewModel.syncMonth(currentMonth)
                     } else {
+                        yClientsReturnOverlay = CalendarOverlay.None
                         overlay = CalendarOverlay.YClients
                     }
                 },
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
+                profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
                         overlay = CalendarOverlay.RegistrationPrompt
@@ -242,7 +266,10 @@ fun CalendarScreen(
                 viewModel = profileViewModel,
                 syncViewModel = syncViewModel,
                 onBack = { overlay = CalendarOverlay.None },
-                onOpenYClientsAuth = { overlay = CalendarOverlay.YClients },
+                onOpenYClientsAuth = {
+                    yClientsReturnOverlay = CalendarOverlay.Settings
+                    overlay = CalendarOverlay.YClients
+                },
             )
         }
 
@@ -250,19 +277,28 @@ fun CalendarScreen(
             AppSettingsScreen(
                 onBack = { overlay = CalendarOverlay.None },
                 onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
+                onOpenProfitSettings = { overlay = CalendarOverlay.ProfitSettings },
             )
         }
 
         if (overlay is CalendarOverlay.NotificationSettings) {
-            SessionNotificationSettingsScreen(onBack = { overlay = CalendarOverlay.AppSettings })
+            SessionNotificationSettingsScreen(
+                onBack = { overlay = CalendarOverlay.AppSettings },
+            )
+        }
+
+        if (overlay is CalendarOverlay.ProfitSettings) {
+            ProfitDisplaySettingsScreen(
+                onBack = { overlay = CalendarOverlay.AppSettings },
+            )
         }
 
         if (overlay is CalendarOverlay.YClients) {
             AuthScreen(
-                onBack = { overlay = CalendarOverlay.None },
+                onBack = { overlay = yClientsReturnOverlay },
                 onLoginSuccess = {
                     syncViewModel.syncCurrentMonth()
-                    overlay = CalendarOverlay.None
+                    overlay = yClientsReturnOverlay
                 },
             )
         }
@@ -283,6 +319,8 @@ fun CalendarScreen(
         is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
+            pricePerSession = profile.pricePerSession,
+            display = profitDisplay,
             onDismiss = { overlay = CalendarOverlay.None },
         )
 
@@ -332,7 +370,8 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.NotificationSettings -> "notification_settings"
             CalendarOverlay.YClients -> "yclients"
             CalendarOverlay.RegistrationPrompt -> "registration"
-            CalendarOverlay.ProfitDetails -> "profit"
+            CalendarOverlay.ProfitDetails -> "profit_details"
+            CalendarOverlay.ProfitSettings -> "profit_settings"
             CalendarOverlay.LessonsDetails -> "lessons"
             CalendarOverlay.DayDetails -> "day"
         }
@@ -345,6 +384,8 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             "yclients" -> CalendarOverlay.YClients
             "registration" -> CalendarOverlay.RegistrationPrompt
             "profit" -> CalendarOverlay.ProfitDetails
+            "profit_details" -> CalendarOverlay.ProfitDetails
+            "profit_settings" -> CalendarOverlay.ProfitSettings
             "lessons" -> CalendarOverlay.LessonsDetails
             "day" -> CalendarOverlay.DayDetails
             else -> CalendarOverlay.None
@@ -369,6 +410,7 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
+    profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onTodayClick: () -> Unit,
@@ -409,6 +451,8 @@ fun CalendarScreenContent(
 
             MonthOverviewCard(
                 stats = stats,
+                pricePerSession = pricePerSession,
+                display = profitDisplay,
                 onLessonsClick = onLessonsClick,
                 onProfitClick = onProfitClick,
             )
@@ -464,6 +508,8 @@ fun CalendarScreenContent(
 @Composable
 private fun MonthOverviewCard(
     stats: CalendarMonthStats,
+    pricePerSession: Double,
+    display: ProfitDisplaySettings,
     onLessonsClick: () -> Unit,
     onProfitClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -471,12 +517,33 @@ private fun MonthOverviewCard(
     val progress = if (stats.totalScheduled > 0) {
         (stats.completedCount.toFloat() / stats.totalScheduled).coerceIn(0f, 1f)
     } else 0f
-    val profitValue = remember(stats.netProfit) { formatRubles(stats.netProfit) }
+    val profitAmount = when {
+        display.showNetProfit -> stats.netProfit
+        display.showGrossEarned -> stats.totalEarned
+        else -> 0.0
+    }
+    val profitValue = remember(profitAmount, display) { formatRubles(profitAmount) }
     val progressLabel = remember(stats.completedCount, stats.totalScheduled) {
         "${stats.completedCount} из ${stats.totalScheduled}"
     }
     val expectedIncomeText = remember(stats.expectedIncome) {
         formatRubles(stats.expectedIncome)
+    }
+    val sessionPriceText = remember(pricePerSession) { formatRubles(pricePerSession) }
+    val overviewSubtitle = remember(
+        stats.expectedIncome,
+        pricePerSession,
+        display,
+        expectedIncomeText,
+        sessionPriceText,
+    ) {
+        buildOverviewProfitSubtitle(
+            display = display,
+            expectedIncome = stats.expectedIncome,
+            expectedIncomeText = expectedIncomeText,
+            pricePerSession = pricePerSession,
+            sessionPriceText = sessionPriceText,
+        )
     }
 
     Card(
@@ -542,23 +609,36 @@ private fun MonthOverviewCard(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                     trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                 )
-                val hasExpectedIncome = stats.expectedIncome > 0.0
+                val hasSubtitle = overviewSubtitle.isNotBlank()
                 Text(
-                    text = if (hasExpectedIncome) {
-                        "Ожидается $expectedIncomeText"
-                    } else {
-                        "\u00A0"
-                    },
+                    text = overviewSubtitle.ifBlank { "\u00A0" },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = if (hasExpectedIncome) 0.85f else 0f,
+                        alpha = if (hasSubtitle) 0.85f else 0f,
                     ),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
     }
+}
+
+internal fun buildOverviewProfitSubtitle(
+    display: ProfitDisplaySettings,
+    expectedIncome: Double,
+    expectedIncomeText: String,
+    pricePerSession: Double,
+    sessionPriceText: String,
+): String {
+    val parts = mutableListOf<String>()
+    if (display.showExpectedInOverview && expectedIncome > 0.0) {
+        parts += "Ожидается $expectedIncomeText"
+    }
+    if (display.showPricePerSession && pricePerSession > 0.0) {
+        parts += "занятие $sessionPriceText"
+    }
+    return parts.joinToString(" · ")
 }
 
 @Composable

@@ -8,7 +8,7 @@ import java.time.DayOfWeek
  *
  * @param activityType Вид деятельности (например, "Репетитор", "Тренер").
  * @param workingDays Набор рабочих дней недели.
- * @param pricePerSession Цена за одно занятие (запись в списке).
+ * @param pricePerSession Ставка сотрудника за одно занятие (базовая «заморозка» для расчёта).
  * @param pricePerDiagnostics Цена за диагностику.
  * @param monthlyTaxAmount Налог в рублях за месяц.
  * @param isRegistered Флаг завершения первичной настройки.

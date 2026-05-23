@@ -55,11 +55,12 @@ internal fun computeProfileTotals(
             when (val session = SessionParser.parse(raw)) {
                 is Session.Student -> {
                     if (isFuture) futureSessions++ else pastSessions++
+                    val pay = session.employeePay(pricePerSession)
                     if (session.attended) {
                         attended++
-                        earned += pricePerSession
+                        earned += pay
                     } else if (isFuture) {
-                        expectedFuture += pricePerSession
+                        expectedFuture += pay
                     }
                 }
 

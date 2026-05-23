@@ -4,28 +4,45 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.SettingsSuggest
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.SettingsSuggest
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Upload
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.R
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.data.ImportResult
 import ru.greemlab.neiro.data.THEME_DARK
 import ru.greemlab.neiro.data.THEME_LIGHT
@@ -36,15 +53,17 @@ import ru.greemlab.neiro.data.THEME_SYSTEM
 fun AppSettingsScreen(
     onBack: () -> Unit,
     onOpenNotificationSettings: () -> Unit = {},
+    onOpenProfitSettings: () -> Unit = {},
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
     val theme by viewModel.theme.collectAsState()
     val context = LocalContext.current
     var autoSyncEnabled by remember { mutableStateOf(viewModel.isAutoSyncEnabled()) }
     var notificationsEnabled by remember { mutableStateOf(viewModel.isSessionNotificationsEnabled()) }
+    val scrollState = rememberScrollState()
 
     val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
+        contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         viewModel.exportData(context, uri) { result ->
@@ -57,7 +76,7 @@ fun AppSettingsScreen(
     }
 
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         viewModel.importData(context, uri) { result ->
@@ -77,88 +96,81 @@ fun AppSettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Назад")
                     }
-                }
+                },
             )
-        }
+        },
     ) { padding ->
         Column(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             SettingsSection(title = "Внешний вид") {
-                ThemeOption(
-                    title = "Системная",
-                    selected = theme == THEME_SYSTEM,
-                    onClick = { viewModel.setTheme(THEME_SYSTEM) },
-                    icon = Icons.Rounded.SettingsSuggest,
-                )
-                ThemeOption(
-                    title = "Светлая",
-                    selected = theme == THEME_LIGHT,
-                    onClick = { viewModel.setTheme(THEME_LIGHT) },
-                    icon = Icons.Rounded.LightMode,
-                )
-                ThemeOption(
-                    title = "Тёмная",
-                    selected = theme == THEME_DARK,
-                    onClick = { viewModel.setTheme(THEME_DARK) },
-                    icon = Icons.Rounded.DarkMode,
-                )
+                SettingsGroupCard {
+                    SettingsRadioRow(
+                        title = "Системная",
+                        selected = theme == THEME_SYSTEM,
+                        onClick = { viewModel.setTheme(THEME_SYSTEM) },
+                        icon = Icons.Rounded.SettingsSuggest,
+                    )
+                    SettingsRadioRow(
+                        title = "Светлая",
+                        selected = theme == THEME_LIGHT,
+                        onClick = { viewModel.setTheme(THEME_LIGHT) },
+                        icon = Icons.Rounded.LightMode,
+                        showDivider = true,
+                    )
+                    SettingsRadioRow(
+                        title = "Тёмная",
+                        selected = theme == THEME_DARK,
+                        onClick = { viewModel.setTheme(THEME_DARK) },
+                        icon = Icons.Rounded.DarkMode,
+                        showDivider = true,
+                    )
+                }
             }
 
             SettingsSection(title = "Занятия") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Notifications, contentDescription = null, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_notifications_title))
-                        Text(
-                            text = stringResource(R.string.settings_notifications_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
+                SettingsGroupCard {
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.settings_notifications_title),
+                        subtitle = stringResource(R.string.settings_notifications_subtitle),
+                        icon = Icons.Rounded.Notifications,
                         checked = notificationsEnabled,
                         onCheckedChange = { enabled ->
                             notificationsEnabled = enabled
                             viewModel.setSessionNotificationsEnabled(enabled)
                         },
                     )
+                    SettingsNavigationRow(
+                        title = stringResource(R.string.notification_settings_configure),
+                        onClick = onOpenNotificationSettings,
+                        enabled = notificationsEnabled,
+                        showDivider = true,
+                    )
                 }
-                TextButton(
-                    onClick = onOpenNotificationSettings,
-                    enabled = notificationsEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.notification_settings_configure))
+            }
+
+            SettingsSection(title = stringResource(R.string.settings_profit_section)) {
+                SettingsGroupCard {
+                    SettingsNavigationRow(
+                        title = stringResource(R.string.settings_profit_configure),
+                        subtitle = stringResource(R.string.settings_profit_screen_hint),
+                        icon = Icons.Rounded.Payments,
+                        onClick = onOpenProfitSettings,
+                    )
                 }
             }
 
             SettingsSection(title = "YClients") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Sync, contentDescription = null, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Автосинхронизация")
-                        Text(
-                            text = "При открытии приложения и каждые 4 часа в фоне",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
+                SettingsGroupCard {
+                    SettingsSwitchRow(
+                        title = "Автосинхронизация",
+                        subtitle = "При открытии приложения и каждые 4 часа в фоне",
+                        icon = Icons.Rounded.Sync,
                         checked = autoSyncEnabled,
                         onCheckedChange = { enabled ->
                             autoSyncEnabled = enabled
@@ -169,66 +181,26 @@ fun AppSettingsScreen(
             }
 
             SettingsSection(title = "Данные") {
-                OutlinedButton(
-                    onClick = { exportLauncher.launch("neiro_backup.json") },
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp),
-                ) {
-                    Icon(Icons.Rounded.Download, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Экспорт данных")
-                }
-
-                OutlinedButton(
-                    onClick = { importLauncher.launch(arrayOf("application/json")) },
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp),
-                ) {
-                    Icon(Icons.Rounded.Upload, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Импорт данных")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { exportLauncher.launch("neiro_backup.json") },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(12.dp),
+                    ) {
+                        Icon(Icons.Rounded.Download, contentDescription = null)
+                        Text("Экспорт данных", modifier = Modifier.padding(start = 8.dp))
+                    }
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(),
+                    ) {
+                        Icon(Icons.Rounded.Upload, contentDescription = null)
+                        Text("Импорт данных", modifier = Modifier.padding(start = 8.dp))
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        content()
-    }
-}
-
-@Composable
-private fun ThemeOption(
-    title: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    icon: ImageVector,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.RadioButton,
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(16.dp))
-        Text(title, modifier = Modifier.weight(1f))
-        RadioButton(selected = selected, onClick = null)
     }
 }

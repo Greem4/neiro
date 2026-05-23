@@ -92,7 +92,7 @@ fun ProfileContent(
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
         autoSyncEnabled = autoSyncEnabled,
-        onSyncNow = syncViewModel::syncCurrentMonth,
+        onSyncNow = syncViewModel::syncAllThroughCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
         onDevReset = syncViewModel::devResetData,
@@ -496,7 +496,7 @@ private fun DevMenuItem(
  * Поведение зависит от состояния авторизации (флаг хранится в `TokenStorage`
  * и переживает перезапуск приложения):
  *  - если пользователь ещё не вошёл — открывает экран авторизации;
- *  - если уже вошёл — запускает синхронизацию текущего месяца.
+ *  - если уже вошёл — синхронизирует всю историю до конца текущего месяца.
  *
  * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
  * синхронизация …», прогресс или ошибка. Управление аккаунтом (просмотр имени,

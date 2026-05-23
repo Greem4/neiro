@@ -125,6 +125,17 @@ class SessionParserTest {
     }
 
     @Test
+    fun `parses extended student with pay amount`() {
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Иванов",
+            status = AttendanceStatus.ARRIVED,
+            payAmount = 1250.0,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals(1250.0, parsed.payAmount!!, 0.0)
+    }
+
+    @Test
     fun `parses extended student with arrived status and earnings flag`() {
         val raw = SessionFormat.serializeStudentExtended(
             name = "Иванов",

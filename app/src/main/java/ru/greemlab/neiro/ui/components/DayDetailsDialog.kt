@@ -83,6 +83,7 @@ private data class ScheduleEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
+    val employeePay: Double = 0.0,
 )
 
 /**
@@ -530,6 +531,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 time = normalizeSessionTime(session.time),
                 comment = session.comment,
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                employeePay = session.payAmount ?: 0.0,
             )
 
             is Session.Intensive -> ScheduleEntry(
@@ -575,7 +577,8 @@ private fun calculateStats(
             AttendanceStatus.ARRIVED -> {
                 arrived++
                 if (!entry.isExtra) {
-                    money += pricePerSession
+                    val pay = if (entry.employeePay > 0.0) entry.employeePay else pricePerSession
+                    money += pay
                 } else if (entry.extraType == "Диагностика") {
                     money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
                 } else {

@@ -153,7 +153,7 @@ private fun SettingsScreenImpl(
                     priceText = sanitized
                     onPriceChange(sanitized.toDoubleOrNull() ?: 0.0)
                 },
-                label = { Text("Цена за занятие (₽)") },
+                label = { Text("Ставка сотрудника за занятие (₽)") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

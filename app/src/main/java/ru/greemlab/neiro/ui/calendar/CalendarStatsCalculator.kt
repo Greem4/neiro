@@ -77,13 +77,14 @@ internal fun computeMonthStats(
 
                 is Session.Student -> {
                     scheduled++
+                    val pay = session.employeePay(pricePerSession)
                     val isAttended = session.attended
                     if (isAttended) {
                         completed++
                         completedSessions++
-                        grossEarned += pricePerSession
+                        grossEarned += pay
                     } else {
-                        expectedIncome += pricePerSession
+                        expectedIncome += pay
                     }
 
                     // Собираем стастику по ученикам
@@ -92,7 +93,7 @@ internal fun computeMonthStats(
                     studentStatsMap[name] = current.copy(
                         completedCount = current.completedCount + (if (isAttended) 1 else 0),
                         totalScheduled = current.totalScheduled + 1,
-                        totalEarned = current.totalEarned + (if (isAttended) pricePerSession else 0.0)
+                        totalEarned = current.totalEarned + (if (isAttended) pay else 0.0)
                     )
                 }
             }

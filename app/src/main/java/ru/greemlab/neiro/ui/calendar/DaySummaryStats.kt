@@ -30,7 +30,7 @@ internal fun computeDayStats(
             val price = when (session) {
                 is Session.Intensive -> session.amount
                 is Session.Diagnostics -> if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
-                is Session.Student -> pricePerSession
+                is Session.Student -> session.employeePay(pricePerSession)
             }
             lost += price
             continue
@@ -54,11 +54,12 @@ internal fun computeDayStats(
 
             is Session.Student -> {
                 totalLessons++
+                val pay = session.employeePay(pricePerSession)
                 if (session.attended) {
                     attendedLessons++
-                    earned += pricePerSession
+                    earned += pay
                 } else {
-                    expected += pricePerSession
+                    expected += pay
                 }
             }
         }

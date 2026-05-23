@@ -9,6 +9,7 @@ import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.domain.pay.EmployeePayResolver
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -379,12 +380,15 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
+        val payAmount = resolveEmployeePay(record, userProfile)
+
         return SessionFormat.serializeStudentExtended(
             name = clientName,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
+            payAmount = payAmount,
         )
     }
 
@@ -420,14 +424,20 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
+        val payAmount = resolveEmployeePay(record, userProfile)
+
         return SessionFormat.serializeStudentExtended(
             name = session.name,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
+            payAmount = payAmount,
         )
     }
+
+    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double =
+        EmployeePayResolver.resolveFromRecord(record, userProfile.pricePerSession)
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
         AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance)
