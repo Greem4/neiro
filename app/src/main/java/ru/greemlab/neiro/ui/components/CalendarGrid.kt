@@ -1,9 +1,11 @@
 package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -22,16 +24,15 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.YearMonth
 
-private const val GRID_CELLS = 42 // 6 недель × 7 дней
-
 @Immutable
 private data class MonthGrid(
-    val days: List<LocalDate>,
+    /** `null` — пустая ячейка в начале/конце недели (без дней соседних месяцев). */
+    val cells: List<LocalDate?>,
 )
 
 /**
- * Сетка календаря. Показывает дни текущего месяца плюс выравнивание
- * предыдущего/следующего месяцев до прямоугольника 6×7.
+ * Сетка календаря: только дни выбранного месяца, выровненные по дням недели (Пн–Вс).
+ * Число строк — от 4 до 6 в зависимости от месяца.
  *
  * Текущая дата [today] обновляется автоматически при пересечении полуночи —
  * пока экран открыт, выделение «сегодня» переезжает на новый день.
@@ -49,37 +50,43 @@ fun CalendarGrid(
     val hasWorkingDayFilter = workingDays.isNotEmpty()
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        val days = grid.days
+        val cells = grid.cells
         var i = 0
-        while (i < days.size) {
+        while (i < cells.size) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 for (j in 0 until 7) {
-                    val date = days[i + j]
-                    val sessions = dayData[date]
-
-                    val studentsCount = sessions?.count { raw ->
-                        (!SessionParser.isExtra(raw) || SessionParser.isDiagnostics(raw)) &&
+                    val date = cells[i + j]
+                    if (date == null) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f),
+                        )
+                    } else {
+                        val sessions = dayData[date]
+                        val studentsCount = sessions?.count { raw ->
+                            (!SessionParser.isExtra(raw) || SessionParser.isDiagnostics(raw)) &&
                                 !SessionParser.isEffectivelyDeleted(raw)
-                    } ?: 0
+                        } ?: 0
+                        val hasIntensive = sessions?.any { raw ->
+                            SessionParser.isIntensive(raw) && !SessionParser.isEffectivelyDeleted(raw)
+                        } ?: false
 
-                    val hasIntensive = sessions?.any { raw ->
-                        SessionParser.isIntensive(raw) && !SessionParser.isEffectivelyDeleted(raw)
-                    } ?: false
-
-                    DayCard(
-                        date = date,
-                        today = today,
-                        isCurrentMonth = date.month == currentMonth.month && date.year == currentMonth.year,
-                        isSelected = date == selectedDate,
-                        namesCount = studentsCount,
-                        hasIntensive = hasIntensive,
-                        isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
-                        onDateClick = onDateClick,
-                        modifier = Modifier.weight(1f),
-                    )
+                        DayCard(
+                            date = date,
+                            today = today,
+                            isCurrentMonth = true,
+                            isSelected = date == selectedDate,
+                            namesCount = studentsCount,
+                            hasIntensive = hasIntensive,
+                            isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
+                            onDateClick = onDateClick,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -104,25 +111,20 @@ private fun rememberCurrentDate(): androidx.compose.runtime.State<LocalDate> =
         }
     }
 
+internal fun buildMonthGridCells(currentMonth: YearMonth): List<LocalDate?> =
+    buildMonthGrid(currentMonth).cells
+
 private fun buildMonthGrid(currentMonth: YearMonth): MonthGrid {
     val firstDayOfMonth = currentMonth.atDay(1)
     val daysInMonth = currentMonth.lengthOfMonth()
-    val firstDayWeekIndex = firstDayOfMonth.dayOfWeek.value - 1 // Пн = 0 … Вс = 6
+    val leadingEmpty = firstDayOfMonth.dayOfWeek.value - 1 // Пн = 0 … Вс = 6
 
-    val previousMonth = currentMonth.minusMonths(1)
-    val daysInPrevious = previousMonth.lengthOfMonth()
-    val nextMonth = currentMonth.plusMonths(1)
-
-    val days = ArrayList<LocalDate>(GRID_CELLS)
-    for (offset in firstDayWeekIndex downTo 1) {
-        days += previousMonth.atDay(daysInPrevious - offset + 1)
-    }
+    val cells = ArrayList<LocalDate?>(leadingEmpty + daysInMonth)
+    repeat(leadingEmpty) { cells += null }
     for (day in 1..daysInMonth) {
-        days += currentMonth.atDay(day)
+        cells += currentMonth.atDay(day)
     }
-    var nextDay = 1
-    while (days.size < GRID_CELLS) {
-        days += nextMonth.atDay(nextDay++)
-    }
-    return MonthGrid(days = days)
+    val trailingEmpty = (7 - cells.size % 7) % 7
+    repeat(trailingEmpty) { cells += null }
+    return MonthGrid(cells = cells)
 }

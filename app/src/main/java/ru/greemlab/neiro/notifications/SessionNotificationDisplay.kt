@@ -40,6 +40,7 @@ object SessionNotificationDisplay {
     fun showEvents(context: Context, events: List<SessionEvent>) {
         if (events.isEmpty()) return
         ensureChannel(context)
+        InAppNotificationRecorder.recordEvents(context, events)
 
         if (events.size == 1) {
             showSingleEvent(context, events.first())
@@ -51,6 +52,7 @@ object SessionNotificationDisplay {
     fun showReminder(context: Context, sessions: List<UpcomingSession>) {
         if (sessions.isEmpty()) return
         ensureChannel(context)
+        InAppNotificationRecorder.recordReminder(context, sessions)
 
         when (sessions.size) {
             1 -> showSingleReminder(context, sessions.first())
@@ -61,14 +63,11 @@ object SessionNotificationDisplay {
     fun showTodayDigest(context: Context, sessions: List<UpcomingSession>) {
         if (sessions.isEmpty()) return
         ensureChannel(context)
+        InAppNotificationRecorder.recordTodayDigest(context, sessions)
 
         val sorted = sessions.sortedBy { it.startTime }
-        val title = context.resources.getQuantityString(
-            R.plurals.notification_today_title,
-            sorted.size,
-            sorted.size,
-        )
-        val lines = sorted.map { formatUpcomingLine(it) }
+        val title = SessionNotificationTexts.todayDigestTitle(context, sorted.size)
+        val lines = sorted.map { SessionNotificationTexts.formatUpcomingLine(it) }
         val bigText = lines.joinToString("\n")
 
         val notification = baseBuilder(context, title, lines.first())
@@ -84,14 +83,11 @@ object SessionNotificationDisplay {
     fun showTomorrowDigest(context: Context, sessions: List<UpcomingSession>) {
         if (sessions.isEmpty()) return
         ensureChannel(context)
+        InAppNotificationRecorder.recordTomorrowDigest(context, sessions)
 
         val sorted = sessions.sortedBy { it.startTime }
-        val title = context.resources.getQuantityString(
-            R.plurals.notification_tomorrow_title,
-            sorted.size,
-            sorted.size,
-        )
-        val lines = sorted.map { formatUpcomingLine(it) }
+        val title = SessionNotificationTexts.tomorrowDigestTitle(context, sorted.size)
+        val lines = sorted.map { SessionNotificationTexts.formatUpcomingLine(it) }
         val bigText = lines.joinToString("\n")
         val tomorrow = sorted.first().date
 
@@ -108,6 +104,7 @@ object SessionNotificationDisplay {
     fun showArchiveReminder(context: Context, dates: List<LocalDate>, dayData: Map<LocalDate, List<String>>) {
         if (dates.isEmpty()) return
         ensureChannel(context)
+        InAppNotificationRecorder.recordArchiveReminder(context, dates, dayData)
 
         when (dates.size) {
             1 -> showSingleArchiveReminder(context, dates.first(), dayData)
@@ -167,83 +164,44 @@ object SessionNotificationDisplay {
     }
 
     private fun showSingleEvent(context: Context, event: SessionEvent) {
-        val title = eventTitle(context, event)
-        val content = eventContent(context, event)
-        val bigText = eventBigText(context, event)
+        val title = SessionNotificationTexts.eventTitle(context, event)
+        val content = SessionNotificationTexts.eventContent(context, event)
+        val bigText = content
 
         val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setContentIntent(openCalendarIntent(context, event.session.date))
+            .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
             .build()
 
         notify(context, event.dedupeKey.hashCode(), notification)
     }
 
     private fun showGroupedEvents(context: Context, events: List<SessionEvent>) {
-        val title = context.getString(R.string.notification_events_group_title, events.size)
+        val title = SessionNotificationTexts.groupedEventsTitle(context, events.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
-        events.forEach { inbox.addLine(eventContent(context, it)) }
+        events.forEach { inbox.addLine(SessionNotificationTexts.eventContent(context, it)) }
 
-        val summary = baseBuilder(context, title, eventContent(context, events.first()))
+        val summary = baseBuilder(context, title, SessionNotificationTexts.eventContent(context, events.first()))
             .setStyle(inbox)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
-            .setContentIntent(openCalendarIntent(context, events.first().session.date))
+            .setContentIntent(openCalendarIntent(context, events.first().session.date, events.first().session.slotKey))
             .build()
 
         notify(context, NOTIFICATION_ID_EVENTS_GROUP, summary)
 
         events.forEach { event ->
-            val child = baseBuilder(context, eventTitle(context, event), eventContent(context, event))
+            val child = baseBuilder(
+                context,
+                SessionNotificationTexts.eventTitle(context, event),
+                SessionNotificationTexts.eventContent(context, event),
+            )
                 .setGroup(GROUP_KEY)
-                .setContentIntent(openCalendarIntent(context, event.session.date))
+                .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
                 .build()
             notify(context, event.dedupeKey.hashCode(), child)
         }
     }
-
-    private fun eventTitle(context: Context, event: SessionEvent): String = when (event.type) {
-        SessionEventType.NEW_BOOKING ->
-            context.getString(R.string.notification_event_new_title, event.session.clientName)
-        SessionEventType.CANCELLED ->
-            context.getString(R.string.notification_event_cancelled_title, event.session.clientName)
-        SessionEventType.RESCHEDULED ->
-            context.getString(R.string.notification_event_rescheduled_title, event.session.clientName)
-        SessionEventType.DELETED ->
-            context.getString(R.string.notification_event_deleted_title, event.session.clientName)
-        SessionEventType.CLIENT_CONFIRMED ->
-            context.getString(R.string.notification_event_confirmed_title, event.session.clientName)
-        SessionEventType.CLIENT_ARRIVED ->
-            context.getString(R.string.notification_event_arrived_title, event.session.clientName)
-        else -> event.session.clientName
-    }
-
-    private fun eventContent(context: Context, event: SessionEvent): String = when (event.type) {
-        SessionEventType.NEW_BOOKING -> event.session.formatLine()
-        SessionEventType.CANCELLED -> event.session.formatLine()
-        SessionEventType.DELETED -> event.session.formatLine()
-        SessionEventType.RESCHEDULED -> {
-            val prev = event.previous ?: return event.session.formatLine()
-            context.getString(
-                R.string.notification_event_rescheduled_body,
-                prev.formatLine(),
-                event.session.formatLine(),
-            )
-        }
-        SessionEventType.CLIENT_CONFIRMED ->
-            context.getString(
-                R.string.notification_event_confirmed_body,
-                event.session.formatLine(),
-            )
-        SessionEventType.CLIENT_ARRIVED ->
-            context.getString(
-                R.string.notification_event_arrived_body,
-                event.session.formatLine(),
-            )
-        else -> event.session.formatLine()
-    }
-
-    private fun eventBigText(context: Context, event: SessionEvent): String = eventContent(context, event)
 
     private fun showSingleReminder(context: Context, session: UpcomingSession) {
         val minutesUntil = java.time.Duration.between(
@@ -252,7 +210,7 @@ object SessionNotificationDisplay {
         ).toMinutes().coerceAtLeast(0)
 
         val title = context.getString(R.string.notification_reminder_title, session.clientName)
-        val content = formatUpcomingLine(session)
+        val content = SessionNotificationTexts.formatUpcomingLine(session)
         val subText = when {
             minutesUntil <= 1L -> context.getString(R.string.notification_reminder_soon)
             minutesUntil < 60L -> context.getString(R.string.notification_reminder_in_minutes, minutesUntil)
@@ -265,7 +223,13 @@ object SessionNotificationDisplay {
         val notification = baseBuilder(context, title, content)
             .setSubText(subText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
-            .setContentIntent(openCalendarIntent(context, session.date))
+            .setContentIntent(
+                openCalendarIntent(
+                    context,
+                    session.date,
+                    SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                ),
+            )
             .build()
 
         notify(context, session.dedupeKey.hashCode(), notification)
@@ -275,9 +239,9 @@ object SessionNotificationDisplay {
         val sorted = sessions.sortedBy { it.startTime }
         val title = context.getString(R.string.notification_reminder_group_title, sorted.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
-        sorted.forEach { inbox.addLine(formatUpcomingLine(it)) }
+        sorted.forEach { inbox.addLine(SessionNotificationTexts.formatUpcomingLine(it)) }
 
-        val summary = baseBuilder(context, title, formatUpcomingLine(sorted.first()))
+        val summary = baseBuilder(context, title, SessionNotificationTexts.formatUpcomingLine(sorted.first()))
             .setStyle(inbox)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
@@ -287,9 +251,15 @@ object SessionNotificationDisplay {
         notify(context, NOTIFICATION_ID_REMINDER_GROUP, summary)
 
         sorted.forEach { session ->
-            val child = baseBuilder(context, session.clientName, formatUpcomingLine(session))
+            val child = baseBuilder(context, session.clientName, SessionNotificationTexts.formatUpcomingLine(session))
                 .setGroup(GROUP_KEY)
-                .setContentIntent(openCalendarIntent(context, session.date))
+                .setContentIntent(
+                    openCalendarIntent(
+                        context,
+                        session.date,
+                        SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                    ),
+                )
                 .build()
             notify(context, session.dedupeKey.hashCode(), child)
         }
@@ -315,28 +285,20 @@ object SessionNotificationDisplay {
             date.format(dateFormatter)
         }
 
-    private fun formatUpcomingLine(session: UpcomingSession): String {
-        val timeRange = "${session.startTime.format(timeFormatter)}–${session.endTime.format(timeFormatter)}"
-        val kind = when (session.kind) {
-            UpcomingSessionKind.LESSON -> "Занятие"
-            UpcomingSessionKind.DIAGNOSTICS -> "Диагностика"
-        }
-        val datePrefix = if (session.date != LocalDate.now()) {
-            "${session.date.format(dateFormatter)}, "
-        } else {
-            ""
-        }
-        return "$datePrefix$timeRange · ${session.clientName} · $kind"
-    }
-
-    private fun openCalendarIntent(context: Context, date: LocalDate): PendingIntent {
+    private fun openCalendarIntent(
+        context: Context,
+        date: LocalDate,
+        highlightSlotKey: String? = null,
+    ): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_OPEN_DATE, date.toString())
+            highlightSlotKey?.let { putExtra(MainActivity.EXTRA_HIGHLIGHT_SLOT_KEY, it) }
         }
+        val requestCode = date.hashCode() xor (highlightSlotKey?.hashCode() ?: 0)
         return PendingIntent.getActivity(
             context,
-            date.hashCode(),
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

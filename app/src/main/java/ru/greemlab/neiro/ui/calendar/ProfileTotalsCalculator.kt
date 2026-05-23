@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
+import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import java.time.LocalDate
 
 /**
@@ -42,6 +43,7 @@ internal fun computeProfileTotals(
     pricePerDiagnostics: Double,
     today: LocalDate,
     monthlyTaxAmount: Double = 0.0,
+    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): ProfileTotals {
     var pastSessions = 0
     var futureSessions = 0
@@ -55,11 +57,12 @@ internal fun computeProfileTotals(
             when (val session = SessionParser.parse(raw)) {
                 is Session.Student -> {
                     if (isFuture) futureSessions++ else pastSessions++
+                    val pay = session.employeePay(pricePerSession, date, sessionPriceHistory)
                     if (session.attended) {
                         attended++
-                        earned += pricePerSession
+                        earned += pay
                     } else if (isFuture) {
-                        expectedFuture += pricePerSession
+                        expectedFuture += pay
                     }
                 }
 

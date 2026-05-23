@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Neiro</string>
+    <string name="calendar_go_to_today">Сегодня</string>
 
     <string name="notification_channel_sessions">Расписание занятий</string>
     <string name="notification_channel_sessions_desc">Напоминания о предстоящих занятиях и обновлениях из YClients</string>
@@ -56,6 +57,28 @@
     <string name="settings_notifications_title">Уведомления о занятиях</string>
     <string name="settings_notifications_subtitle">Записи, отмены, переносы, напоминания</string>
 
+    <string name="settings_profit_section">Прибыль</string>
+    <string name="settings_profit_screen_title">Настройки прибыли</string>
+    <string name="settings_profit_screen_hint">Какие суммы показывать на главном экране и в статистике за месяц</string>
+    <string name="settings_profit_configure">Отображение прибыли</string>
+    <string name="settings_profit_section_main">Основное</string>
+    <string name="settings_profit_section_forecast">Прогноз</string>
+    <string name="settings_profit_section_extra">Дополнительно</string>
+    <string name="settings_profit_net">Чистый доход</string>
+    <string name="settings_profit_net_hint">В плитке «Прибыль» и в диалоге финансов</string>
+    <string name="settings_profit_gross">Заработано всего</string>
+    <string name="settings_profit_gross_hint">До вычета налога</string>
+    <string name="settings_profit_tax">Налог за месяц</string>
+    <string name="settings_profit_tax_hint">Строка в диалоге «Финансы»</string>
+    <string name="settings_profit_expected">Ожидаемый доход</string>
+    <string name="settings_profit_expected_hint">В диалоге «Финансы»</string>
+    <string name="settings_profit_expected_overview">Ожидается под прогрессом</string>
+    <string name="settings_profit_expected_overview_hint">Под полосой прогресса на главном экране</string>
+    <string name="settings_profit_session_price">Стоимость одного занятия</string>
+    <string name="settings_profit_session_price_hint">Рядом с ожидаемым доходом (для проверки расчётов)</string>
+    <string name="settings_profit_intensive">Заработано интенсив</string>
+    <string name="settings_profit_diagnostics">Заработано диагностика</string>
+
     <string name="notification_settings_configure">Настроить типы уведомлений…</string>
     <string name="notification_settings_title">Уведомления о занятиях</string>
     <string name="notification_settings_master_hint">Все события только по вашему расписанию после входа в YClients</string>
@@ -99,4 +122,12 @@
     <string name="notification_event_rescheduled_body">Было: %1$s\nСтало: %2$s</string>
     <string name="notification_event_confirmed_body">%1$s</string>
     <string name="notification_event_arrived_body">%1$s</string>
+
+    <string name="in_app_notifications_bell">Уведомления</string>
+    <string name="in_app_notifications_title">Уведомления</string>
+    <string name="in_app_notifications_subtitle">Хранятся около 10 дней</string>
+    <string name="in_app_notifications_empty">Пока нет уведомлений</string>
+    <string name="in_app_notifications_close">Закрыть</string>
+    <string name="in_app_notifications_clear">Очистить всё</string>
+    <string name="in_app_notifications_dismiss">Удалить уведомление</string>
 </resources>

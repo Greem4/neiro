@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.Month
@@ -20,8 +21,23 @@ fun rememberCalendarMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-): CalendarMonthStats = remember(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount) {
-    computeMonthStats(currentMonth, dayData, pricePerSession, pricePerDiagnostics, monthlyTaxAmount)
+    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
+): CalendarMonthStats = remember(
+    currentMonth,
+    dayData,
+    pricePerSession,
+    pricePerDiagnostics,
+    monthlyTaxAmount,
+    sessionPriceHistory,
+) {
+    computeMonthStats(
+        currentMonth,
+        dayData,
+        pricePerSession,
+        pricePerDiagnostics,
+        monthlyTaxAmount,
+        sessionPriceHistory,
+    )
 }
 
 internal fun computeMonthStats(
@@ -30,6 +46,7 @@ internal fun computeMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
+    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): CalendarMonthStats {
     var completed = 0
     var completedSessions = 0
@@ -77,13 +94,14 @@ internal fun computeMonthStats(
 
                 is Session.Student -> {
                     scheduled++
+                    val pay = session.employeePay(pricePerSession, date, sessionPriceHistory)
                     val isAttended = session.attended
                     if (isAttended) {
                         completed++
                         completedSessions++
-                        grossEarned += pricePerSession
+                        grossEarned += pay
                     } else {
-                        expectedIncome += pricePerSession
+                        expectedIncome += pay
                     }
 
                     // Собираем стастику по ученикам
@@ -92,7 +110,7 @@ internal fun computeMonthStats(
                     studentStatsMap[name] = current.copy(
                         completedCount = current.completedCount + (if (isAttended) 1 else 0),
                         totalScheduled = current.totalScheduled + 1,
-                        totalEarned = current.totalEarned + (if (isAttended) pricePerSession else 0.0)
+                        totalEarned = current.totalEarned + (if (isAttended) pay else 0.0)
                     )
                 }
             }
@@ -122,3 +140,17 @@ fun getMonthName(month: YearMonth): String =
     month.month
         .getDisplayName(TextStyle.FULL_STANDALONE, RU_LOCALE)
         .replaceFirstChar { it.uppercase(RU_LOCALE) }
+
+/** Короткое название месяца для сетки выбора (например, «Янв»). */
+fun getShortMonthName(month: java.time.Month): String =
+    month.getDisplayName(TextStyle.SHORT_STANDALONE, RU_LOCALE)
+        .replaceFirstChar { it.uppercase(RU_LOCALE) }
+
+/** Сокращения месяцев для графиков: «Янв», «Фев», … без точки. */
+fun getChartMonthAbbreviation(month: java.time.Month): String =
+    CHART_MONTH_ABBREVIATIONS[month.ordinal]
+
+private val CHART_MONTH_ABBREVIATIONS = listOf(
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+    "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+)

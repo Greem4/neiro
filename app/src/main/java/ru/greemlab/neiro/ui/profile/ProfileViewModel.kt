@@ -3,7 +3,9 @@ package ru.greemlab.neiro.ui.profile
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +37,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
      * Очередь трансформаций профиля. Буфер с DROP_OLDEST не подходит —
      * нам нельзя терять обновления; используем SUSPEND и большой буфер.
      */
+    private var priceUpdateJob: Job? = null
+
     private val updateChannel = MutableSharedFlow<(UserProfile) -> UserProfile>(
         replay = 0,
         extraBufferCapacity = 64,
@@ -70,7 +74,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         current.copy(workingDays = newDays)
     }
 
-    fun updatePrice(price: Double) = enqueueUpdate { it.copy(pricePerSession = price) }
+    fun updatePrice(price: Double) {
+        priceUpdateJob?.cancel()
+        priceUpdateJob = viewModelScope.launch {
+            delay(PRICE_UPDATE_DEBOUNCE_MS)
+            val current = userProfile.value.pricePerSession
+            if (price == current) return@launch
+            when {
+                price <= 0.0 -> enqueueUpdate { it.copy(pricePerSession = price) }
+                current <= 0.0 -> enqueueUpdate { it.copy(pricePerSession = price) }
+                else -> repository.applySessionPriceChange(price)
+            }
+        }
+    }
+
+    private companion object {
+        const val PRICE_UPDATE_DEBOUNCE_MS = 600L
+    }
 
     fun updateDiagnosticsPrice(price: Double) = enqueueUpdate { it.copy(pricePerDiagnostics = price) }
 

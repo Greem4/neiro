@@ -64,7 +64,7 @@ class YClientsCalendarSync(
                     val records = result.data
                     val dayDataBefore = calendarRepository.dayDataFlow.first()
                     autoFillProfile(records)
-                    val syncedCount = mergeRecordsToCalendar(records)
+                    val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
                     val dayDataAfter = calendarRepository.dayDataFlow.first()
                     if (recordSuccessfulSync) {
                         syncPreferences.recordSuccessfulSync()
@@ -174,9 +174,11 @@ class YClientsCalendarSync(
         return result.replaceFirstChar { it.uppercase() }
     }
 
-    private suspend fun mergeRecordsToCalendar(records: List<RecordData>): Int {
-        if (records.isEmpty()) return 0
-
+    private suspend fun mergeRecordsToCalendar(
+        records: List<RecordData>,
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Int {
         val userProfile = calendarRepository.userProfileFlow.first()
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var newlyAdded = 0
@@ -227,12 +229,33 @@ class YClientsCalendarSync(
                 }
             }
 
-            val leftover = pool.map { it.first }
-            val merged = syncedEntries + leftover
+            val merged = syncedEntries + retainManualLocalEntries(pool)
             if (merged != existingRaw) {
                 currentDayData[date] = merged
                 changedDays++
             }
+        }
+
+        var date = startDate
+        while (!date.isAfter(endDate)) {
+            if (date !in recordsByDate) {
+                val existingRaw = currentDayData[date] ?: run {
+                    date = date.plusDays(1)
+                    continue
+                }
+                val merged = retainManualLocalEntries(
+                    existingRaw.map { it to SessionParser.parse(it) },
+                )
+                if (merged != existingRaw) {
+                    if (merged.isEmpty()) {
+                        currentDayData.remove(date)
+                    } else {
+                        currentDayData[date] = merged
+                    }
+                    changedDays++
+                }
+            }
+            date = date.plusDays(1)
         }
 
         if (changedDays > 0) {
@@ -241,6 +264,14 @@ class YClientsCalendarSync(
 
         return newlyAdded
     }
+
+    /**
+     * После слияния с API оставляем только ручные интенсивы (их нет в YClients).
+     * Записи учеников/диагностики без пары в API удаляются — иначе «призраки»
+     * остаются в статусе «ожидание», хотя запись в YClients уже снята.
+     */
+    private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
+        pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
 
     private fun collapseDuplicateRecords(
         dayRecords: List<RecordData>,
@@ -274,7 +305,7 @@ class YClientsCalendarSync(
     private fun extractSessionTime(session: Session): String = when (session) {
         is Session.Student -> session.time
         is Session.Diagnostics -> session.time
-        is Session.Intensive -> ""
+        is Session.Intensive -> session.time
     }
 
     private fun String.normalizeForDedup(): String =
@@ -348,12 +379,15 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
+        val payAmount = resolveEmployeePay(record, userProfile)
+
         return SessionFormat.serializeStudentExtended(
             name = clientName,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
+            payAmount = payAmount,
         )
     }
 
@@ -389,13 +423,43 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
+        // TODO: разобраться с оплатой — EmployeePayResolver, карта клиента, сохранённый payAmount.
+        val payAmount = resolveEmployeePay(record, userProfile)
+        /*
+        val resolved = resolveEmployeePay(record, userProfile)
+        val payAmount = if (
+            EmployeePayResolver.hasClientCardPayment(record) ||
+            EmployeePayResolver.hasPayrollSalary(record)
+        ) {
+            resolved
+        } else {
+            session.payAmount?.takeIf { it > 0.0 } ?: resolved
+        }
+        */
+
         return SessionFormat.serializeStudentExtended(
             name = session.name,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
+            payAmount = payAmount,
         )
+    }
+
+    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double {
+        // Временно: только текущая ставка из профиля.
+        return userProfile.pricePerSession
+        /*
+        val recordDate = recordDate(record)
+        val defaultPay = userProfile.pricePerSessionOn(recordDate)
+        return EmployeePayResolver.resolveFromRecord(record, defaultPay)
+        */
+    }
+
+    private fun recordDate(record: RecordData): LocalDate {
+        val raw = record.datetime ?: record.date ?: return LocalDate.now()
+        return parseRecordDate(raw) ?: LocalDate.now()
     }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
@@ -115,11 +116,37 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun devSyncAll() {
-        syncCurrentMonth()
+        syncAllThroughCurrentMonth()
     }
 
+    /** Только текущий месяц (экран календаря). */
     fun syncCurrentMonth() {
         syncMonth(YearMonth.now())
+    }
+
+    /**
+     * Полная синхронизация для профиля: с глубокой истории до конца текущего месяца.
+     */
+    fun syncAllThroughCurrentMonth() {
+        viewModelScope.launch {
+            runSync(showUi = true) {
+                val end = YearMonth.now().atEndOfMonth()
+                val start = resolveFullSyncStartDate()
+                calendarSync.syncDateRange(start, end)
+            }
+        }
+    }
+
+    private suspend fun resolveFullSyncStartDate(): LocalDate {
+        val defaultStart = YearMonth.now()
+            .minusMonths(PROFILE_FULL_SYNC_MONTHS.toLong())
+            .atDay(1)
+        val earliestLocal = calendarRepository.dayDataFlow.first().keys.minOrNull()
+        return if (earliestLocal != null) {
+            minOf(earliestLocal.withDayOfMonth(1), defaultStart)
+        } else {
+            defaultStart
+        }
     }
 
     fun syncMonth(yearMonth: YearMonth) {
@@ -179,5 +206,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             lastSyncDate = syncPreferences.lastSyncLocalDate(),
         )
+    }
+
+    companion object {
+        /** Глубина истории при ручной синхронизации из профиля (месяцев назад). */
+        private const val PROFILE_FULL_SYNC_MONTHS = 36
     }
 }

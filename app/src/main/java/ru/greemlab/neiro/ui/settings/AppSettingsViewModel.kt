@@ -27,6 +27,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
     private val syncPreferences = SyncPreferences.get(application)
     private val notificationPreferences = SessionNotificationPreferences.get(application)
+    private val profitDisplayPreferences = ProfitDisplayPreferences.get(application)
 
     val theme: StateFlow<String> = repository.themeFlow
         .stateIn(
@@ -53,6 +54,12 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             SessionNotificationCoordinator.onNotificationsToggled(getApplication(), enabled)
         }
+    }
+
+    fun profitDisplaySettings(): ProfitDisplaySettings = profitDisplayPreferences.read()
+
+    fun setProfitDisplaySettings(settings: ProfitDisplaySettings) {
+        profitDisplayPreferences.save(settings)
     }
 
     /**

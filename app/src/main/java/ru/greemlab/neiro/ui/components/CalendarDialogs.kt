@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import java.time.YearMonth
 
 /** Диалог с подробной статистикой занятий за месяц. */
@@ -93,6 +94,8 @@ fun LessonsDetailsDialog(
 fun ProfitDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
+    pricePerSession: Double,
+    display: ProfitDisplaySettings,
     onDismiss: () -> Unit,
 ) {
     val title = remember(currentMonth) { "Финансы за ${getMonthName(currentMonth)}" }
@@ -115,21 +118,27 @@ fun ProfitDetailsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                ProfitRow(
-                    label = "Чистый доход",
-                    value = stats.netProfit,
-                    color = ScheduleHeaderGreen,
-                    isBold = true,
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                if (display.showNetProfit) {
+                    ProfitRow(
+                        label = "Чистый доход",
+                        value = stats.netProfit,
+                        color = ScheduleHeaderGreen,
+                        isBold = true,
+                    )
+                }
 
-                ProfitRow(
-                    label = "Заработано всего ",
-                    value = stats.totalEarned,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                if (display.showGrossEarned) {
+                    if (display.showNetProfit) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    }
+                    ProfitRow(
+                        label = "Заработано всего",
+                        value = stats.totalEarned,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
 
-                if (stats.taxAmount > 0.0) {
+                if (display.showTax && stats.taxAmount > 0.0) {
                     ProfitRow(
                         label = "Налог за месяц",
                         value = stats.taxAmount,
@@ -138,7 +147,7 @@ fun ProfitDetailsDialog(
                     )
                 }
 
-                if (stats.intensiveEarnings > 0.0) {
+                if (display.showIntensiveEarnings && stats.intensiveEarnings > 0.0) {
                     ProfitRow(
                         label = "Заработано интенсив",
                         value = stats.intensiveEarnings,
@@ -146,7 +155,7 @@ fun ProfitDetailsDialog(
                     )
                 }
 
-                if (stats.diagnosticsEarnings > 0.0) {
+                if (display.showDiagnosticsEarnings && stats.diagnosticsEarnings > 0.0) {
                     ProfitRow(
                         label = "Заработано диагностика",
                         value = stats.diagnosticsEarnings,
@@ -154,12 +163,21 @@ fun ProfitDetailsDialog(
                     )
                 }
 
+                if (display.showExpectedIncome) {
+                    ProfitRow(
+                        label = "Ожидаемый доход",
+                        value = stats.expectedIncome,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
 
-                ProfitRow(
-                    label = "Ожидаемый доход",
-                    value = stats.expectedIncome,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                if (display.showPricePerSession && pricePerSession > 0.0) {
+                    ProfitRow(
+                        label = "Стоимость одного занятия",
+                        value = pricePerSession,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
     )

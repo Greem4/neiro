@@ -116,12 +116,37 @@ class SessionParserTest {
     }
 
     @Test
+    fun `SessionFormat round-trips intensive with time`() {
+        val raw = SessionFormat.serializeIntensive(
+            price = "3000",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "14:00-14:50",
+        )
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(3000.0, parsed.amount, 0.0)
+        assertEquals("14:00-14:50", parsed.time)
+        assertEquals(AttendanceStatus.ARRIVED, parsed.status)
+    }
+
+    @Test
     fun `SessionFormat round-trips diagnostics`() {
         val raw = SessionFormat.serializeDiagnostics("900", "Сидоров", false)
         val parsed = SessionParser.parse(raw) as Session.Diagnostics
         assertEquals(900.0, parsed.amount, 0.0)
         assertEquals("Сидоров", parsed.name)
         assertFalse(parsed.attended)
+    }
+
+    @Test
+    fun `parses extended student with pay amount`() {
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Иванов",
+            status = AttendanceStatus.ARRIVED,
+            payAmount = 1250.0,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals(1250.0, parsed.payAmount!!, 0.0)
     }
 
     @Test

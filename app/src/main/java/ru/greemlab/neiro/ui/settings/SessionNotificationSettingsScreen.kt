@@ -346,17 +346,3 @@ private fun ReminderMinutesSelector(
     }
 }
 
-@Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        content()
-    }
-}

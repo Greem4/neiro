@@ -240,3 +240,22 @@ fun formatHourLabel(time: LocalTime): String = time.format(TIME_FORMAT)
 
 /** Текущее время на красной линии — с минутами. */
 fun formatNowLabel(time: LocalTime): String = time.format(TIME_FORMAT)
+
+/** Подпись начала слота для кнопки выбора времени (например «18:00»). */
+fun formatTimeSlotLabel(timeRange: String): String =
+    parseTimeRangeStart(timeRange)?.format(TIME_FORMAT) ?: timeRange
+
+/**
+ * Варианты времени для интенсива: слоты занятий дня и стандартная сетка с 9:00 до 18:00.
+ */
+fun buildIntensiveTimeSlotOptions(lessonTimes: List<String>): List<String> {
+    val fromLessons = lessonTimes
+        .map { normalizeSessionTime(it) }
+        .filter { it.isNotEmpty() }
+    val standardGrid = (9..18).map { hour ->
+        normalizeSessionTime(LocalTime.of(hour, 0).format(TIME_FORMAT))
+    }
+    return (fromLessons + standardGrid)
+        .distinct()
+        .sortedBy { parseTimeRangeStart(it) ?: LocalTime.MAX }
+}

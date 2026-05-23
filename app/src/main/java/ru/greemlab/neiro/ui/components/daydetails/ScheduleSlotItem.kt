@@ -18,6 +18,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,7 @@ fun ScheduleSlotItem(
     showTime: Boolean = true,
     compactForTimeline: Boolean = false,
     indicatorColors: List<Color>? = null,
+    highlighted: Boolean = false,
 ) {
     // Цвет для текста имени в зависимости от статуса
     val nameColor = when (status) {
@@ -80,6 +83,14 @@ fun ScheduleSlotItem(
     }
     val indicatorBars = indicatorColors?.takeIf { it.isNotEmpty() } ?: listOf(indicatorColor)
 
+    val baseSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    val highlightSurface = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+    val surfaceColor by animateColorAsState(
+        targetValue = if (highlighted) highlightSurface else baseSurface,
+        animationSpec = tween(durationMillis = 450),
+        label = "slotHighlight",
+    )
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -87,8 +98,7 @@ fun ScheduleSlotItem(
                 if (compactForTimeline) Modifier else Modifier.defaultMinSize(minHeight = 56.dp),
             ),
         shape = RoundedCornerShape(12.dp),
-        // Фон карточки - стандартный surfaceVariant
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        color = surfaceColor,
     ) {
         Row(
             modifier = Modifier
@@ -203,6 +213,7 @@ fun ExpandableReplacementSlot(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
+    highlighted: Boolean = false,
 ) {
     val gap = if (compactForTimeline) 4.dp else 6.dp
     val slotModifier = Modifier.fillMaxHeight()
@@ -232,6 +243,7 @@ fun ExpandableReplacementSlot(
                 isDiagnostics = removed.isDiagnostics,
                 showTime = removed.showTime,
                 compactForTimeline = compactForTimeline,
+                highlighted = highlighted,
                 modifier = slotModifier.weight(1f),
             )
             ScheduleSlotItem(
@@ -242,6 +254,7 @@ fun ExpandableReplacementSlot(
                 isDiagnostics = replacement.isDiagnostics,
                 showTime = replacement.showTime,
                 compactForTimeline = compactForTimeline,
+                highlighted = highlighted,
                 modifier = slotModifier.weight(1f),
             )
         } else {
@@ -254,6 +267,7 @@ fun ExpandableReplacementSlot(
                 showTime = replacement.showTime,
                 compactForTimeline = compactForTimeline,
                 indicatorColors = ReplacementCollapsedIndicators,
+                highlighted = highlighted,
                 modifier = slotModifier.fillMaxWidth(),
             )
         }

@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_DATE = "open_date"
+        const val EXTRA_HIGHLIGHT_SLOT_KEY = "highlight_slot_key"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,9 +42,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val openDate = intent?.getStringExtra(EXTRA_OPEN_DATE)
+        val highlightSlotKey = intent?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
 
         setContent {
-            NeiroApp(openDateFromNotification = openDate)
+            NeiroApp(
+                openDateFromNotification = openDate,
+                highlightSlotKeyFromNotification = highlightSlotKey,
+            )
             RequestNotificationPermissionIfNeeded()
             CheckDueDigestsOnAppOpen()
         }
@@ -91,7 +96,10 @@ private fun CheckDueDigestsOnAppOpen() {
 }
 
 @Composable
-private fun NeiroApp(openDateFromNotification: String? = null) {
+private fun NeiroApp(
+    openDateFromNotification: String? = null,
+    highlightSlotKeyFromNotification: String? = null,
+) {
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val theme by settingsViewModel.theme.collectAsState()
@@ -107,6 +115,7 @@ private fun NeiroApp(openDateFromNotification: String? = null) {
         CalendarScreen(
             profileViewModel = profileViewModel,
             openDateFromNotification = openDateFromNotification,
+            highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
         )
     }
 }

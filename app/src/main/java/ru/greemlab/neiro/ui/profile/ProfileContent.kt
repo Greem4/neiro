@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -40,22 +41,23 @@ import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.YClientsYellow
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
-import ru.greemlab.neiro.ui.calendar.ProfileTotals
-import ru.greemlab.neiro.ui.calendar.computeProfileTotals
+import ru.greemlab.neiro.ui.calendar.ProfileYearStats
+import ru.greemlab.neiro.ui.calendar.availableStatsYears
+import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.NeiroLogo
-import ru.greemlab.neiro.ui.components.StatRow
+import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import java.time.YearMonth
+import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
+import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
 import ru.greemlab.neiro.ui.sync.SyncViewModel
-import ru.greemlab.neiro.ui.util.formatRubles
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
  * Боковая панель профиля в [ModalNavigationDrawer][androidx.compose.material3.ModalNavigationDrawer].
  *
- * Показывает сводную статистику по всему периоду работы и кнопки перехода
- * в настройки профиля и приложения.
+ * Переходы в настройки профиля и приложения, синхронизация YClients.
  */
 @Composable
 fun ProfileContent(
@@ -68,7 +70,7 @@ fun ProfileContent(
     modifier: Modifier = Modifier,
 ) {
     val profile by profileViewModel.userProfile.collectAsState()
-    val dayData by calendarViewModel.dayData.collectAsState()
+    val dayData by calendarViewModel.effectiveDayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -83,16 +85,36 @@ fun ProfileContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val currentYear = YearMonth.now().year
+    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
+    var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
+    LaunchedEffect(availableYears) {
+        if (selectedYear !in availableYears) {
+            selectedYear = availableYears.first()
+        }
+    }
+    val yearStats = rememberProfileYearStats(
+        year = selectedYear,
+        dayData = dayData,
+        pricePerSession = profile.pricePerSession,
+        pricePerDiagnostics = profile.pricePerDiagnostics,
+        monthlyTaxAmount = profile.monthlyTaxAmount,
+        sessionPriceHistory = profile.sessionPriceHistory,
+    )
+
     ProfileContentImpl(
         profile = profile,
-        dayData = dayData,
+        yearStats = yearStats,
+        availableYears = availableYears,
+        selectedYear = selectedYear,
+        onYearSelected = { selectedYear = it },
         syncState = syncState,
         isLoggedInToYClients = isLoggedIn,
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
         autoSyncEnabled = autoSyncEnabled,
-        onSyncNow = syncViewModel::syncCurrentMonth,
+        onSyncNow = syncViewModel::syncAllThroughCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
         onDevReset = syncViewModel::devResetData,
@@ -104,7 +126,10 @@ fun ProfileContent(
 @Composable
 private fun ProfileContentImpl(
     profile: UserProfile,
-    dayData: Map<LocalDate, List<String>>,
+    yearStats: ProfileYearStats,
+    availableYears: List<Int>,
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     autoSyncEnabled: Boolean = true,
@@ -121,25 +146,16 @@ private fun ProfileContentImpl(
     professionStyle: TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     val scrollState = rememberScrollState()
-    val today = remember { LocalDate.now() }
-
-    val totals: ProfileTotals = remember(dayData, profile.pricePerSession, profile.pricePerDiagnostics, profile.monthlyTaxAmount, today) {
-        computeProfileTotals(dayData, profile.pricePerSession, profile.pricePerDiagnostics, today, profile.monthlyTaxAmount)
-    }
-
-    val netEarnedText = remember(totals.netEarned) { formatRubles(totals.netEarned) }
-    val earnedText = remember(totals.totalEarned) { formatRubles(totals.totalEarned) }
-    val expectedText = remember(totals.expectedFromFuture) { formatRubles(totals.expectedFromFuture) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 10.dp, vertical = 16.dp)
             .verticalScroll(scrollState),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 24.dp),
+            modifier = Modifier.padding(bottom = 20.dp),
         ) {
             NeiroLogo(size = 64.dp)
             Spacer(modifier = Modifier.width(16.dp))
@@ -158,83 +174,59 @@ private fun ProfileContentImpl(
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-            ),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Статистика работы",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                StatRow("Занятий проведено", totals.attendedSessions.toString())
-                StatRow("Запланировано впереди", totals.futureSessions.toString())
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-                StatRow("Чистыми (с налогом)", netEarnedText, isHighlight = true)
-                StatRow("Без налога", earnedText)
-                StatRow("Ожидаемый доход", expectedText)
-            }
-        }
-
-        YClientsActionBlock(
-            isLoggedIn = isLoggedInToYClients,
-            autoSyncEnabled = autoSyncEnabled,
-            syncState = syncState,
-            onOpenYClients = onOpenYClients,
-            onSyncNow = onSyncNow,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
+        ProfileYearStatsSection(
+            stats = yearStats,
+            availableYears = availableYears,
+            selectedYear = selectedYear,
+            onYearSelected = onYearSelected,
+            modifier = Modifier.padding(bottom = 24.dp),
         )
 
-        OutlinedButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(12.dp),
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (profile.isRegistered) "Настройки профиля" else "Создать профиль")
+        SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {
+            SettingsNavigationRow(
+                title = if (profile.isRegistered) "Профиль" else "Создать профиль",
+                subtitle = if (profile.isRegistered) {
+                    "Имя, занятость, цены и налог"
+                } else {
+                    "Заполните данные для расчёта дохода"
+                },
+                icon = Icons.Default.Person,
+                onClick = onOpenSettings,
+            )
+            SettingsNavigationRow(
+                title = "Приложение",
+                subtitle = "Тема, уведомления, экспорт данных",
+                icon = Icons.Default.Tune,
+                onClick = onOpenAppSettings,
+                showDivider = true,
+            )
         }
 
-        TextButton(
-            onClick = onOpenAppSettings,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Настройки приложения", style = MaterialTheme.typography.bodyMedium)
+        SettingsSection(title = "Синхронизация") {
+            YClientsActionBlock(
+                isLoggedIn = isLoggedInToYClients,
+                autoSyncEnabled = autoSyncEnabled,
+                syncState = syncState,
+                onOpenYClients = onOpenYClients,
+                onSyncNow = onSyncNow,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         if (BuildConfig.DEBUG) {
-            Spacer(modifier = Modifier.height(24.dp))
-            DevDrawerSection(
+            Spacer(modifier = Modifier.height(32.dp))
+            DevDrawerMenu(
                 onLogin = onDevLogin,
                 onSync = onDevSync,
                 onReset = onDevReset,
-                onFullSetup = onDevFullSetup
+                onFullSetup = onDevFullSetup,
             )
         }
     }
 }
 
 @Composable
-private fun DevDrawerSection(
+private fun DevDrawerMenu(
     onLogin: () -> Unit,
     onSync: () -> Unit,
     onReset: () -> Unit,
@@ -245,58 +237,23 @@ private fun DevDrawerSection(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Инструменты разработчика",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AssistChip(
-                onClick = onLogin,
-                label = { Text("Вход") },
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(
-                onClick = onSync,
-                label = { Text("Синхр.") },
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(
-                onClick = onReset,
-                label = { Text("Сброс") },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Button(
-            onClick = onFullSetup,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            ),
-            shape = RoundedCornerShape(8.dp),
-        ) {
-            Text("Полная настройка", style = MaterialTheme.typography.labelLarge)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
+        TextButton(
             onClick = { menuExpanded = !menuExpanded },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+            ),
         ) {
             Text(
-                if (menuExpanded) "Скрыть меню" else "Быстрые действия",
+                text = if (menuExpanded) "Скрыть" else "Dev",
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                imageVector = if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                 contentDescription = null,
+                modifier = Modifier.size(14.dp),
             )
         }
 
@@ -496,7 +453,7 @@ private fun DevMenuItem(
  * Поведение зависит от состояния авторизации (флаг хранится в `TokenStorage`
  * и переживает перезапуск приложения):
  *  - если пользователь ещё не вошёл — открывает экран авторизации;
- *  - если уже вошёл — запускает синхронизацию текущего месяца.
+ *  - если уже вошёл — синхронизирует всю историю до конца текущего месяца.
  *
  * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
  * синхронизация …», прогресс или ошибка. Управление аккаунтом (просмотр имени,
@@ -660,7 +617,19 @@ private fun ProfileContentLightPreview() {
                     pricePerSession = 1500.0,
                     monthlyTaxAmount = 5000.0,
                 ),
-                dayData = emptyMap(),
+                yearStats = ProfileYearStats(
+                    year = YearMonth.now().year,
+                    completedSessions = 42,
+                    totalNetEarned = 58_000.0,
+                    monthlyNet = listOf(
+                        4_000.0, 5_000.0, 4_500.0, 6_000.0, 5_500.0, 4_800.0,
+                        3_200.0, 5_500.0, 6_500.0, 4_000.0, 4_500.0, 5_000.0,
+                    ),
+                    monthlyCompleted = List(12) { 3 + it % 4 },
+                ),
+                availableYears = listOf(YearMonth.now().year),
+                selectedYear = YearMonth.now().year,
+                onYearSelected = {},
                 syncState = SyncUiState(),
                 isLoggedInToYClients = true,
                 onOpenSettings = {},

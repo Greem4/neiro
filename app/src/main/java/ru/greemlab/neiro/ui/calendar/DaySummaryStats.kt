@@ -1,6 +1,8 @@
 package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
+import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
+import java.time.LocalDate
 
 /** Сводка по одному дню для панели под календарём. */
 @Immutable
@@ -16,6 +18,8 @@ internal fun computeDayStats(
     sessions: List<String>,
     pricePerSession: Double,
     pricePerDiagnostics: Double,
+    sessionDate: LocalDate? = null,
+    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
@@ -30,7 +34,7 @@ internal fun computeDayStats(
             val price = when (session) {
                 is Session.Intensive -> session.amount
                 is Session.Diagnostics -> if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
-                is Session.Student -> pricePerSession
+                is Session.Student -> session.employeePay(pricePerSession, sessionDate, sessionPriceHistory)
             }
             lost += price
             continue
@@ -54,11 +58,12 @@ internal fun computeDayStats(
 
             is Session.Student -> {
                 totalLessons++
+                val pay = session.employeePay(pricePerSession, sessionDate, sessionPriceHistory)
                 if (session.attended) {
                     attendedLessons++
-                    earned += pricePerSession
+                    earned += pay
                 } else {
-                    expected += pricePerSession
+                    expected += pay
                 }
             }
         }

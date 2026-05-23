@@ -94,6 +94,8 @@ sealed interface Session {
         val time: String = "",        // Например "10:00-10:50"
         val phone: String = "",       // Телефон клиента
         val comment: String = "",     // Комментарий к записи
+        /** Выплата сотруднику за занятие; задаётся при синхронизации с YClients. */
+        val payAmount: Double? = null,
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Session
 
@@ -108,6 +110,7 @@ sealed interface Session {
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
+        val time: String = "",
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Extra
 
@@ -177,6 +180,7 @@ object SessionParser {
      * Форматы (обратная совместимость):
      *  - Старый: `name|attended` где attended = true/false
      *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
+     *  - С оплатой: `name|statusCode|time|phone|comment|payAmount`
      */
     private fun parseStudent(raw: String): Session.Student {
         val parts = raw.split('|')
@@ -199,12 +203,14 @@ object SessionParser {
             val time = parts.getOrNull(2).orEmpty()
             val phone = parts.getOrNull(3).orEmpty()
             val comment = parts.getOrNull(4).orEmpty()
+            val payAmount = parts.getOrNull(5)?.toDoubleOrNull()
             Session.Student(
                 name = name,
                 attended = status.countsTowardEarnings,
                 time = time,
                 phone = phone,
                 comment = comment,
+                payAmount = payAmount,
                 status = status,
             )
         } else {
@@ -258,7 +264,7 @@ object SessionParser {
             }
         }
         return if (intensive) {
-            Session.Intensive(amount, name, attended, status)
+            Session.Intensive(amount, name, attended, time, status)
         } else {
             Session.Diagnostics(amount, name, attended, time, status)
         }
@@ -291,7 +297,7 @@ object SessionFormat {
 
     /**
      * Новый расширенный формат записи ученика.
-     * Формат: `name|statusCode|time|phone|comment`
+     * Формат: `name|statusCode|time|phone|comment` или с выплатой — `...|payAmount`
      */
     fun serializeStudentExtended(
         name: String,
@@ -299,13 +305,29 @@ object SessionFormat {
         time: String = "",
         phone: String = "",
         comment: String = "",
-    ): String = "$name|${status.code}|$time|$phone|$comment"
+        payAmount: Double? = null,
+    ): String {
+        val base = "$name|${status.code}|$time|$phone|$comment"
+        return if (payAmount != null && payAmount > 0.0) {
+            val pay = if (payAmount % 1.0 == 0.0) payAmount.toLong().toString() else payAmount.toString()
+            "$base|$pay"
+        } else {
+            base
+        }
+    }
 
-    fun serializeIntensive(price: String, name: String, attended: Boolean): String =
-        serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended))
+    fun serializeIntensive(price: String, name: String, attended: Boolean, time: String = ""): String =
+        serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended), time)
 
-    fun serializeIntensive(price: String, name: String, status: AttendanceStatus): String =
-        "$INTENSIVE_PREFIX$price|$name|${status.code}"
+    fun serializeIntensive(
+        price: String,
+        name: String,
+        status: AttendanceStatus,
+        time: String = "",
+    ): String {
+        val base = "$INTENSIVE_PREFIX$price|$name|${status.code}"
+        return if (time.isNotBlank()) "$base|$time" else base
+    }
 
     fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
         serializeDiagnostics(price, name, AttendanceStatus.fromBoolean(attended), time)

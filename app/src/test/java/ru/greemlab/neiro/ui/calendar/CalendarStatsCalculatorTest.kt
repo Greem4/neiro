@@ -2,6 +2,8 @@ package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.SESSION_PRICE_EPOCH
+import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -67,6 +69,26 @@ class CalendarStatsCalculatorTest {
         val stats = computeMonthStats(month, dayData, 0.0, 3000.0, 0.0)
         assertEquals(1, stats.completedCount)
         assertEquals(3000.0, stats.diagnosticsEarnings, 0.0)
+    }
+
+    @Test
+    fun `month profit uses profile rate regardless of history while payment disabled`() {
+        val history = listOf(
+            SessionPriceHistoryEntry(SESSION_PRICE_EPOCH, 1200.0),
+            SessionPriceHistoryEntry("2025-05-01", 1500.0),
+        )
+        val april = mapOf(
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|true|||1250"),
+        )
+        val aprilStats = computeMonthStats(
+            YearMonth.of(2025, 4),
+            april,
+            pricePerSession = 1400.0,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 0.0,
+            sessionPriceHistory = history,
+        )
+        assertEquals(1400.0, aprilStats.totalEarned, 0.0)
     }
 
     @Test
