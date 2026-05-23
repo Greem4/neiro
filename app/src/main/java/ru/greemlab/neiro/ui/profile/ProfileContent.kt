@@ -39,32 +39,23 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.YClientsYellow
-import ru.greemlab.neiro.ui.calendar.CalendarViewModel
-import ru.greemlab.neiro.ui.calendar.ProfileTotals
-import ru.greemlab.neiro.ui.calendar.computeProfileTotals
-import ru.greemlab.neiro.ui.components.LessonStatRow
 import ru.greemlab.neiro.ui.components.NeiroLogo
-import ru.greemlab.neiro.ui.components.ProfitRow
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
 import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
 import ru.greemlab.neiro.ui.sync.SyncViewModel
-import ru.greemlab.neiro.ui.util.formatRubles
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
  * Боковая панель профиля в [ModalNavigationDrawer][androidx.compose.material3.ModalNavigationDrawer].
  *
- * Показывает сводную статистику по всему периоду работы и кнопки перехода
- * в настройки профиля и приложения.
+ * Переходы в настройки профиля и приложения, синхронизация YClients.
  */
 @Composable
 fun ProfileContent(
     profileViewModel: ProfileViewModel,
-    calendarViewModel: CalendarViewModel,
     syncViewModel: SyncViewModel,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -72,7 +63,6 @@ fun ProfileContent(
     modifier: Modifier = Modifier,
 ) {
     val profile by profileViewModel.userProfile.collectAsState()
-    val dayData by calendarViewModel.dayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -89,7 +79,6 @@ fun ProfileContent(
 
     ProfileContentImpl(
         profile = profile,
-        dayData = dayData,
         syncState = syncState,
         isLoggedInToYClients = isLoggedIn,
         onOpenSettings = onOpenSettings,
@@ -108,7 +97,6 @@ fun ProfileContent(
 @Composable
 private fun ProfileContentImpl(
     profile: UserProfile,
-    dayData: Map<LocalDate, List<String>>,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     autoSyncEnabled: Boolean = true,
@@ -125,27 +113,6 @@ private fun ProfileContentImpl(
     professionStyle: TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     val scrollState = rememberScrollState()
-    val today = remember { LocalDate.now() }
-
-    val totals: ProfileTotals = remember(
-        dayData,
-        profile.pricePerSession,
-        profile.pricePerDiagnostics,
-        profile.monthlyTaxAmount,
-        profile.sessionPriceHistory,
-        today,
-    ) {
-        computeProfileTotals(
-            dayData,
-            profile.pricePerSession,
-            profile.pricePerDiagnostics,
-            today,
-            profile.monthlyTaxAmount,
-            profile.sessionPriceHistory,
-        )
-    }
-
-    val netEarnedText = remember(totals.netEarned) { formatRubles(totals.netEarned) }
 
     Column(
         modifier = modifier
@@ -174,11 +141,25 @@ private fun ProfileContentImpl(
             }
         }
 
-        ProfileStatisticsSection(
-            totals = totals,
-            netEarnedText = netEarnedText,
-            modifier = Modifier.padding(bottom = 24.dp),
-        )
+        SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {
+            SettingsNavigationRow(
+                title = if (profile.isRegistered) "Профиль" else "Создать профиль",
+                subtitle = if (profile.isRegistered) {
+                    "Имя, занятость, цены и налог"
+                } else {
+                    "Заполните данные для расчёта дохода"
+                },
+                icon = Icons.Default.Person,
+                onClick = onOpenSettings,
+            )
+            SettingsNavigationRow(
+                title = "Приложение",
+                subtitle = "Тема, уведомления, экспорт данных",
+                icon = Icons.Default.Tune,
+                onClick = onOpenAppSettings,
+                showDivider = true,
+            )
+        }
 
         SettingsSection(title = "Синхронизация") {
             YClientsActionBlock(
@@ -191,104 +172,14 @@ private fun ProfileContentImpl(
             )
         }
 
-        SettingsSection(
-            title = "Настройки",
-            modifier = Modifier.padding(bottom = 8.dp),
-        ) {
-            SettingsGroupCard {
-                SettingsNavigationRow(
-                    title = if (profile.isRegistered) "Профиль" else "Создать профиль",
-                    subtitle = if (profile.isRegistered) {
-                        "Имя, занятость, цены и налог"
-                    } else {
-                        "Заполните данные для расчёта дохода"
-                    },
-                    icon = Icons.Default.Person,
-                    onClick = onOpenSettings,
-                )
-                SettingsNavigationRow(
-                    title = "Приложение",
-                    subtitle = "Тема, уведомления, экспорт данных",
-                    icon = Icons.Default.Tune,
-                    onClick = onOpenAppSettings,
-                    showDivider = true,
-                )
-            }
-        }
-
         if (BuildConfig.DEBUG) {
+            Spacer(modifier = Modifier.height(32.dp))
             DevDrawerMenu(
                 onLogin = onDevLogin,
                 onSync = onDevSync,
                 onReset = onDevReset,
                 onFullSetup = onDevFullSetup,
             )
-        }
-    }
-}
-
-@Composable
-private fun ProfileStatisticsSection(
-    totals: ProfileTotals,
-    netEarnedText: String,
-    modifier: Modifier = Modifier,
-) {
-    SettingsSection(title = "Статистика", modifier = modifier) {
-        SettingsGroupCard {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                Text(
-                    text = "Заработано чистыми",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = netEarnedText,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                LessonStatRow(
-                    label = "Проведено",
-                    value = totals.attendedSessions,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                LessonStatRow(
-                    label = "Запланировано",
-                    value = totals.futureSessions,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ProfitRow(
-                    label = "Доход без налога",
-                    value = totals.totalEarned,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                ProfitRow(
-                    label = "Ожидается",
-                    value = totals.expectedFromFuture,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
@@ -305,27 +196,23 @@ private fun DevDrawerMenu(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-        )
         TextButton(
             onClick = { menuExpanded = !menuExpanded },
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
             colors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
             ),
         ) {
             Text(
-                text = if (menuExpanded) "Скрыть инструменты" else "Инструменты разработчика",
-                style = MaterialTheme.typography.labelMedium,
+                text = if (menuExpanded) "Скрыть" else "Dev",
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 imageVector = if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(14.dp),
             )
         }
 
@@ -689,7 +576,6 @@ private fun ProfileContentLightPreview() {
                     pricePerSession = 1500.0,
                     monthlyTaxAmount = 5000.0,
                 ),
-                dayData = emptyMap(),
                 syncState = SyncUiState(),
                 isLoggedInToYClients = true,
                 onOpenSettings = {},

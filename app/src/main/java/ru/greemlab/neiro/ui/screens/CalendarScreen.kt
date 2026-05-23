@@ -124,6 +124,26 @@ fun CalendarScreen(
     var yClientsReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
         mutableStateOf(CalendarOverlay.None)
     }
+    /** После закрытия overlay, открытый из drawer, снова показать боковую панель. */
+    var returnToDrawerOnOverlayClose by rememberSaveable { mutableStateOf(false) }
+
+    fun applyOverlayBackNavigation() {
+        val next = overlay.onSystemBack(yClientsReturnOverlay)
+        overlay = next
+        if (next is CalendarOverlay.None && returnToDrawerOnOverlayClose) {
+            returnToDrawerOnOverlayClose = false
+            scope.launch { drawerState.open() }
+        }
+    }
+
+    fun applyYClientsBackNavigation() {
+        val next = yClientsReturnOverlay
+        overlay = next
+        if (next is CalendarOverlay.None && returnToDrawerOnOverlayClose) {
+            returnToDrawerOnOverlayClose = false
+            scope.launch { drawerState.open() }
+        }
+    }
 
     var handledNotificationDeepLink by rememberSaveable(openDateFromNotification) {
         mutableStateOf(false)
@@ -214,7 +234,7 @@ fun CalendarScreen(
     val isAnyOverlayOpen = drawerState.isOpen || overlay !is CalendarOverlay.None
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
-            overlay !is CalendarOverlay.None -> overlay = overlay.onSystemBack(yClientsReturnOverlay)
+            overlay !is CalendarOverlay.None -> applyOverlayBackNavigation()
             drawerState.isOpen -> scope.launch { drawerState.close() }
         }
     }
@@ -227,18 +247,20 @@ fun CalendarScreen(
                 ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
                     ProfileContent(
                         profileViewModel = profileViewModel,
-                        calendarViewModel = viewModel,
                         syncViewModel = syncViewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
+                            returnToDrawerOnOverlayClose = true
                             overlay = CalendarOverlay.Settings
                         },
                         onOpenAppSettings = {
                             scope.launch { drawerState.close() }
+                            returnToDrawerOnOverlayClose = true
                             overlay = CalendarOverlay.AppSettings
                         },
                         onOpenYClients = {
                             scope.launch { drawerState.close() }
+                            returnToDrawerOnOverlayClose = true
                             yClientsReturnOverlay = CalendarOverlay.None
                             overlay = CalendarOverlay.YClients
                         },
@@ -308,7 +330,7 @@ fun CalendarScreen(
             SettingsScreen(
                 viewModel = profileViewModel,
                 syncViewModel = syncViewModel,
-                onBack = { overlay = CalendarOverlay.None },
+                onBack = ::applyOverlayBackNavigation,
                 onOpenYClientsAuth = {
                     yClientsReturnOverlay = CalendarOverlay.Settings
                     overlay = CalendarOverlay.YClients
@@ -318,7 +340,7 @@ fun CalendarScreen(
 
         if (overlay is CalendarOverlay.AppSettings) {
             AppSettingsScreen(
-                onBack = { overlay = CalendarOverlay.None },
+                onBack = ::applyOverlayBackNavigation,
                 onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
                 onOpenProfitSettings = { overlay = CalendarOverlay.ProfitSettings },
             )
@@ -338,10 +360,10 @@ fun CalendarScreen(
 
         if (overlay is CalendarOverlay.YClients) {
             AuthScreen(
-                onBack = { overlay = yClientsReturnOverlay },
+                onBack = ::applyYClientsBackNavigation,
                 onLoginSuccess = {
                     syncViewModel.syncCurrentMonth()
-                    overlay = yClientsReturnOverlay
+                    applyYClientsBackNavigation()
                 },
             )
         }
