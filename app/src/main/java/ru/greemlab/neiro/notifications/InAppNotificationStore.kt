@@ -43,6 +43,7 @@ class InAppNotificationStore private constructor(context: Context) {
         body: String,
         relatedDate: LocalDate? = null,
         dedupeKey: String? = null,
+        kind: SessionEventType? = null,
         timestampEpochMillis: Long = System.currentTimeMillis(),
     ) {
         val current = _items.value
@@ -55,6 +56,7 @@ class InAppNotificationStore private constructor(context: Context) {
             timestampEpochMillis = timestampEpochMillis,
             relatedDateEpochDay = relatedDate?.toEpochDay(),
             dedupeKey = dedupeKey,
+            kind = kind?.name,
             read = false,
         )
         persist(listOf(entry) + current)

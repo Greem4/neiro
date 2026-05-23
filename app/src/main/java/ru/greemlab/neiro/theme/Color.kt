@@ -52,6 +52,12 @@ val StatusExpectedMint = Color(0xFFB2DFDB)
 /** Цвет отмены (минус). */
 val StatusRedBody = Color(0xFFF44336)
 
+/** Перенос — акцент in-app уведомлений на тёмном фоне карточки. */
+val RescheduleNotificationDark = Color(0xFFFFB74D)
+
+/** Перенос — акцент in-app уведомлений на светлом фоне карточки. */
+val RescheduleNotificationLight = Color(0xFFE65100)
+
 /** Фирменный жёлтый YClients — используется для кнопки входа/синхронизации с YClients. */
 val YClientsYellow = Color(0xFFFFCD00)
 

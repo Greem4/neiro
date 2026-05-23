@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +36,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.notifications.InAppNotification
+import ru.greemlab.neiro.notifications.SessionEventType
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.Instant
@@ -177,6 +179,18 @@ private fun NotificationListItem(
 ) {
     val zone = ZoneId.systemDefault()
     val timeLabel = timeFormatter.format(item.timestamp.atZone(zone))
+    val onTintedBackground = !item.read
+    val textColors = rememberNotificationTextColors(
+        kind = item.displayKind,
+        read = item.read,
+        onTintedBackground = onTintedBackground,
+    )
+    val titleText = remember(item.title, textColors) {
+        buildInAppNotificationTitle(item, textColors)
+    }
+    val bodyText = remember(item.body, item.displayKind, textColors) {
+        buildInAppNotificationBody(item, textColors)
+    }
 
     Surface(
         onClick = onClick,
@@ -190,14 +204,12 @@ private fun NotificationListItem(
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
-                text = item.title,
+                text = titleText,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (item.read) FontWeight.Medium else FontWeight.SemiBold,
             )
             Text(
-                text = item.body,
+                text = bodyText,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
@@ -214,15 +226,33 @@ private fun NotificationListItem(
 @Composable
 private fun NotificationsDialogPreview() {
     val now = System.currentTimeMillis()
+    val day = LocalDate.of(2026, 5, 24)
     NeiroTheme {
         NotificationsDialog(
             notifications = listOf(
                 InAppNotification(
                     id = "1",
                     title = "Новая запись: Анна",
-                    body = "14:00–15:00 · Анна · Занятие",
+                    body = "24.05.2026, 14:00–15:00 · Анна · Занятие",
                     timestampEpochMillis = now,
-                    relatedDateEpochDay = LocalDate.now().toEpochDay(),
+                    relatedDateEpochDay = day.toEpochDay(),
+                    kind = SessionEventType.NEW_BOOKING.name,
+                ),
+                InAppNotification(
+                    id = "2",
+                    title = "Отмена: Борис",
+                    body = "24.05.2026, 16:00–16:50 · Борис · Занятие",
+                    timestampEpochMillis = now - 60_000,
+                    relatedDateEpochDay = day.toEpochDay(),
+                    kind = SessionEventType.CANCELLED.name,
+                ),
+                InAppNotification(
+                    id = "3",
+                    title = "Перенос: Лев",
+                    body = "Было: 24.05.2026, 15:00–15:50 · Лев · Занятие\nСтало: 24.05.2026, 17:00–17:50 · Лев · Занятие",
+                    timestampEpochMillis = now - 120_000,
+                    relatedDateEpochDay = day.toEpochDay(),
+                    kind = SessionEventType.RESCHEDULED.name,
                 ),
             ),
             onDismiss = {},

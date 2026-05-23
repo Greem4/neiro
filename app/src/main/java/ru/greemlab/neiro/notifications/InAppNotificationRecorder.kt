@@ -15,6 +15,7 @@ object InAppNotificationRecorder {
             body = SessionNotificationTexts.eventContent(appContext, event),
             relatedDate = event.session.date,
             dedupeKey = "inapp|${event.dedupeKey}",
+            kind = event.type,
         )
     }
 
@@ -30,6 +31,7 @@ object InAppNotificationRecorder {
                 body = SessionNotificationTexts.formatUpcomingLine(session),
                 relatedDate = session.date,
                 dedupeKey = "inapp|reminder|${session.dedupeKey}",
+                kind = SessionEventType.REMINDER,
             )
         }
     }
@@ -44,6 +46,7 @@ object InAppNotificationRecorder {
             body = SessionNotificationTexts.upcomingDigestBody(sorted),
             relatedDate = today,
             dedupeKey = "inapp|today_digest|${today.toEpochDay()}",
+            kind = SessionEventType.TODAY_DIGEST,
         )
     }
 
@@ -57,6 +60,7 @@ object InAppNotificationRecorder {
             body = SessionNotificationTexts.upcomingDigestBody(sorted),
             relatedDate = tomorrow,
             dedupeKey = "inapp|tomorrow_digest|${tomorrow.toEpochDay()}",
+            kind = SessionEventType.TOMORROW_DIGEST,
         )
     }
 
@@ -73,6 +77,7 @@ object InAppNotificationRecorder {
                 body = SessionNotificationTexts.archiveBody(appContext, count),
                 relatedDate = date,
                 dedupeKey = "inapp|archive|${date.toEpochDay()}",
+                kind = SessionEventType.ARCHIVE_REMINDER,
             )
         }
     }
