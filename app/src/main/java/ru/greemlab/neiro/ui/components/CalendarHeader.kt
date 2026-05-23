@@ -1,22 +1,20 @@
 package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -42,34 +41,21 @@ import java.time.YearMonth
  * ПАРАМЕТРЫ ДИЗАЙНА (Твикай здесь)
  */
 object CalendarHeaderLayout {
-    // Весь контейнер
-    val rowStartPadding: Dp = 12.dp    // Отступ слева (от края до лого)
-    val rowEndPadding: Dp = 4.dp      // Отступ справа (от края до "Сегодня")
-    val rowVerticalPadding: Dp = 4.dp // Отступ сверху/снизу
+    val rowStartPadding: Dp = 12.dp
+    val rowEndPadding: Dp = 4.dp
+    val rowVerticalPadding: Dp = 6.dp
+    val rowHeight: Dp = 44.dp
 
-    // 1. Логотип
-    val logoSize: Dp = 32.dp
+    val logoSize: Dp = 36.dp
 
-    // 2. Блок месяца (центр)
-    val monthNavButtonSize: Dp = 36.dp
-    val monthNavIconSize: Dp = 22.dp
+    val monthNavButtonSize: Dp = 40.dp
+    val monthNavIconSize: Dp = 24.dp
     val monthTitleFontSize = 16.sp
+    /** Фиксированная ширина подписи — стрелки не смещаются при смене месяца. */
+    val monthTitleWidth: Dp = 148.dp
 
-    // ХОЧЕШЬ МЕСЯЦ БЛИЖЕ К СТРЕЛКАМ? Уменьшай или увеличивай это число:
-    val monthTitleHorizontalPadding: Dp = 0.dp
-
-    // 3. Правый блок (Колокольчик + Сегодня)
-    val rightActionsSpacing: Dp = 0.dp   // Расстояние между колокольчиком и кнопкой
-    val bellButtonSize: Dp = 40.dp
-    val bellIconSize: Dp = 22.dp
-
-    // Кнопка "Сегодня"
-    val todayButtonCorner: Dp = 12.dp
-    val todayButtonHorizontalPadding: Dp = 8.dp
-    val todayButtonVerticalPadding: Dp = 6.dp
-    val todayIconSize: Dp = 18.dp
-    val todayLabelStartPadding: Dp = 4.dp // Отступ текста от иконки
-    const val showTodayLabel: Boolean = true // false - скрыть текст "Сегодня"
+    val bellButtonSize: Dp = 44.dp
+    val bellIconSize: Dp = 24.dp
 }
 
 /**
@@ -83,11 +69,8 @@ fun CalendarHeader(
     onNextMonth: () -> Unit,
     onMonthTitleClick: () -> Unit = {},
     onMenuClick: () -> Unit,
-    onTodayClick: () -> Unit,
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
-    isRegistered: Boolean = true,
-    onRegistrationRequired: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -106,103 +89,63 @@ fun CalendarHeader(
         // =========================================================================================
         NeiroLogo(size = CalendarHeaderLayout.logoSize, onClick = onMenuClick)
 
-        // =========================================================================================
-        // [2] ВЫБОР МЕСЯЦА (Центр)
-        //
-        // ХОЧЕШЬ СДВИНУТЬ ВЕСЬ БЛОК ВЛЕВО? 
-        // Поменяй ниже Arrangement.Center на Arrangement.Start
-        // =========================================================================================
-        Row(
+        // [2] ВЫБОР МЕСЯЦА — стрелки и подпись с фиксированной геометрией
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .widthIn(min = 0.dp),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically,
+                .height(CalendarHeaderLayout.rowHeight),
+            contentAlignment = Alignment.Center,
         ) {
-            // Кнопка: Назад
-            IconButton(
-                onClick = onPreviousMonth,
-                modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    contentDescription = "Предыдущий месяц",
-                    modifier = Modifier.size(CalendarHeaderLayout.monthNavIconSize),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onPreviousMonth,
+                    modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Предыдущий месяц",
+                        modifier = Modifier.size(CalendarHeaderLayout.monthNavIconSize),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
 
-            // Название месяца (например: "Октябрь 2024") — тап открывает сетку месяцев
-            Text(
-                text = "${getMonthName(currentMonth)} ${currentMonth.year}",
-                style = MaterialTheme.typography.titleMedium,
-                fontSize = CalendarHeaderLayout.monthTitleFontSize,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onMonthTitleClick)
-                    .padding(horizontal = CalendarHeaderLayout.monthTitleHorizontalPadding),
-            )
-
-            // Кнопка: Вперед
-            IconButton(
-                onClick = onNextMonth,
-                modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "Следующий месяц",
-                    modifier = Modifier.size(CalendarHeaderLayout.monthNavIconSize),
-                    tint = MaterialTheme.colorScheme.onBackground,
+                Text(
+                    text = "${getMonthName(currentMonth)} ${currentMonth.year}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = CalendarHeaderLayout.monthTitleFontSize,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .width(CalendarHeaderLayout.monthTitleWidth)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onMonthTitleClick)
+                        .padding(vertical = 4.dp),
                 )
-            }
-        }
 
-        // =========================================================================================
-        // [3] ДЕЙСТВИЯ (Справа)
-        // В этом Row лежат Колокольчик и кнопка Сегодня.
-        // Чтобы поменять их местами - просто переставь вызовы функций местами.
-        // =========================================================================================
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(CalendarHeaderLayout.rightActionsSpacing),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // КНОПКА "СЕГОДНЯ" (Теперь слева)
-            FilledTonalButton(
-                onClick = {
-                    if (isRegistered) onTodayClick() else onRegistrationRequired()
-                },
-                shape = RoundedCornerShape(CalendarHeaderLayout.todayButtonCorner),
-                contentPadding = PaddingValues(
-                    horizontal = CalendarHeaderLayout.todayButtonHorizontalPadding,
-                    vertical = CalendarHeaderLayout.todayButtonVerticalPadding,
-                ),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Today,
-                    contentDescription = null,
-                    modifier = Modifier.size(CalendarHeaderLayout.todayIconSize),
-                )
-                if (CalendarHeaderLayout.showTodayLabel) {
-                    Text(
-                        text = "Сегодня",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        modifier = Modifier.padding(start = CalendarHeaderLayout.todayLabelStartPadding),
+                IconButton(
+                    onClick = onNextMonth,
+                    modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Следующий месяц",
+                        modifier = Modifier.size(CalendarHeaderLayout.monthNavIconSize),
+                        tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
             }
-
-            // КОЛОКОЛЬЧИК (Теперь справа)
-            NotificationsBellButton(
-                unreadCount = unreadNotificationCount,
-                onClick = onNotificationsClick,
-            )
         }
+
+        // =========================================================================================
+        // [3] УВЕДОМЛЕНИЯ (Справа)
+        // =========================================================================================
+        NotificationsBellButton(
+            unreadCount = unreadNotificationCount,
+            onClick = onNotificationsClick,
+        )
     }
 }
 
@@ -251,7 +194,6 @@ private fun CalendarHeaderLightPreview() {
                 onPreviousMonth = {},
                 onNextMonth = {},
                 onMenuClick = {},
-                onTodayClick = {},
                 onNotificationsClick = {},
                 unreadNotificationCount = 3,
             )
@@ -269,7 +211,6 @@ private fun CalendarHeaderDarkPreview() {
                 onPreviousMonth = {},
                 onNextMonth = {},
                 onMenuClick = {},
-                onTodayClick = {},
             )
         }
     }

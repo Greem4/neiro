@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -50,11 +52,17 @@ val DaySummarySlotHeight: Dp = 148.dp
 fun DaySummarySlot(
     date: LocalDate,
     stats: DaySummaryStats,
+    onTodayClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isRegistered: Boolean = true,
+    onRegistrationRequired: () -> Unit = {},
 ) {
     DaySummaryCard(
         date = date,
         stats = stats,
+        onTodayClick = onTodayClick,
+        isRegistered = isRegistered,
+        onRegistrationRequired = onRegistrationRequired,
         modifier = modifier
             .fillMaxWidth()
             .height(DaySummarySlotHeight),
@@ -65,6 +73,9 @@ fun DaySummarySlot(
 private fun DaySummaryCard(
     date: LocalDate,
     stats: DaySummaryStats,
+    onTodayClick: () -> Unit,
+    isRegistered: Boolean,
+    onRegistrationRequired: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dateLabel = remember(date) {
@@ -89,14 +100,26 @@ private fun DaySummaryCard(
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = dateLabel,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                DaySummaryTodayButton(
+                    onClick = {
+                        if (isRegistered) onTodayClick() else onRegistrationRequired()
+                    },
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -183,6 +206,38 @@ private fun DayMoneyCard(
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DaySummaryTodayButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Today,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = "Сегодня",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
             )
         }
     }

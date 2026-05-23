@@ -540,11 +540,8 @@ fun CalendarScreenContent(
                     onNextMonth = onNextMonth,
                     onMonthTitleClick = { monthPickerVisible = !monthPickerVisible },
                     onMenuClick = onMenuClick,
-                    onTodayClick = onTodayClick,
                     onNotificationsClick = onNotificationsClick,
                     unreadNotificationCount = unreadNotificationCount,
-                    isRegistered = isRegistered,
-                    onRegistrationRequired = onRegistrationRequired,
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -580,6 +577,9 @@ fun CalendarScreenContent(
                             DaySummarySlot(
                                 date = selectedDate,
                                 stats = daySummaryStats,
+                                onTodayClick = onTodayClick,
+                                isRegistered = isRegistered,
+                                onRegistrationRequired = onRegistrationRequired,
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }

@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -39,14 +42,43 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.ui.calendar.getShortMonthName
 import java.time.LocalDate
 import java.time.YearMonth
+
+/** Единообразные подписи месяцев — одинаковая длина, без сдвигов сетки. */
+private val MONTH_PICKER_LABELS = listOf(
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+    "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+)
+
+private object MonthPickerLayout {
+    val panelCorner: Dp = 16.dp
+    val panelPadding: Dp = 10.dp
+    val overlayTopPadding: Dp = 44.dp
+
+    val yearBarHeight: Dp = 44.dp
+    val yearNavButtonSize: Dp = 40.dp
+    val yearNavIconSize: Dp = 24.dp
+    val yearLabelWidth: Dp = 56.dp
+
+    val tileRowHeight: Dp = 92.dp
+    val tileSpacing: Dp = 6.dp
+    val rowSpacing: Dp = 6.dp
+
+    val tileCorner: Dp = 10.dp
+    val tileInnerPadding: Dp = 4.dp
+    val monthLabelHeight: Dp = 14.dp
+    val monthLabelFontSize = 9.sp
+    val dayFontSize = 7.sp
+}
 
 @Immutable
 private data class MonthPickerTile(
@@ -84,18 +116,30 @@ fun MonthPickerOverlay(
                 ),
         )
 
-        MonthPickerGrid(
-            currentMonth = currentMonth,
-            onMonthSelected = { month ->
-                onMonthSelected(month)
-                onDismiss()
-            },
+        Surface(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 52.dp)
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = MonthPickerLayout.overlayTopPadding,
+                )
                 .fillMaxWidth(),
-        )
+            shape = RoundedCornerShape(MonthPickerLayout.panelCorner),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            shadowElevation = 4.dp,
+        ) {
+            MonthPickerGrid(
+                currentMonth = currentMonth,
+                onMonthSelected = { month ->
+                    onMonthSelected(month)
+                    onDismiss()
+                },
+                modifier = Modifier.padding(MonthPickerLayout.panelPadding),
+            )
+        }
     }
 }
 
@@ -115,13 +159,13 @@ private fun MonthPickerGrid(
             MonthPickerTile(
                 month = month,
                 days = buildMonthGridDays(month),
-                label = getShortMonthName(month.month),
+                label = MONTH_PICKER_LABELS[monthNumber - 1],
             )
         }
     }
 
     val dayTextStyle = TextStyle(
-        fontSize = 6.sp,
+        fontSize = MonthPickerLayout.dayFontSize,
         color = Color.Unspecified,
         fontWeight = FontWeight.Normal,
     )
@@ -137,39 +181,20 @@ private fun MonthPickerGrid(
                 onClick = {},
             ),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = { displayedYear -= 1 }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    contentDescription = "Предыдущий год",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Text(
-                text = displayedYear.toString(),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            IconButton(onClick = { displayedYear += 1 }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "Следующий год",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-        }
+        MonthPickerYearBar(
+            year = displayedYear,
+            onPreviousYear = { displayedYear -= 1 },
+            onNextYear = { displayedYear += 1 },
+        )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(MonthPickerLayout.rowSpacing))
 
         for (row in 0 until 3) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(MonthPickerLayout.tileRowHeight),
+                horizontalArrangement = Arrangement.spacedBy(MonthPickerLayout.tileSpacing),
             ) {
                 for (col in 0 until 4) {
                     val tile = tiles[row * 4 + col]
@@ -181,13 +206,70 @@ private fun MonthPickerGrid(
                         dayTextStyle = dayTextStyle,
                         todayTextStyle = todayTextStyle,
                         onClick = { onMonthSelected(tile.month) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
                     )
                 }
             }
             if (row < 2) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(MonthPickerLayout.rowSpacing))
             }
+        }
+    }
+}
+
+/** Стрелки закреплены по краям, год — по центру с фиксированной шириной. */
+@Composable
+private fun MonthPickerYearBar(
+    year: Int,
+    onPreviousYear: () -> Unit,
+    onNextYear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(MonthPickerLayout.yearBarHeight),
+    ) {
+        IconButton(
+            onClick = onPreviousYear,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .size(MonthPickerLayout.yearNavButtonSize),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = "Предыдущий год",
+                modifier = Modifier.size(MonthPickerLayout.yearNavIconSize),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        Text(
+            text = year.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(MonthPickerLayout.yearLabelWidth),
+        )
+
+        IconButton(
+            onClick = onNextYear,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(MonthPickerLayout.yearNavButtonSize),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Следующий год",
+                modifier = Modifier.size(MonthPickerLayout.yearNavIconSize),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -203,11 +285,11 @@ private fun MiniMonthCalendar(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tileShape = RoundedCornerShape(8.dp)
+    val tileShape = RoundedCornerShape(MonthPickerLayout.tileCorner)
     val tileBackground = if (isSelected) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     }
     val labelColor = if (isSelected) {
         MaterialTheme.colorScheme.onPrimaryContainer
@@ -223,21 +305,28 @@ private fun MiniMonthCalendar(
 
     Column(
         modifier = modifier
-            .aspectRatio(1f)
             .clip(tileShape)
             .background(tileBackground, tileShape)
             .clickable(onClick = onClick)
-            .padding(2.dp),
+            .padding(MonthPickerLayout.tileInnerPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = tile.label,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = labelColor,
-            maxLines = 1,
-        )
-        Spacer(modifier = Modifier.height(1.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(MonthPickerLayout.monthLabelHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = tile.label,
+                fontSize = MonthPickerLayout.monthLabelFontSize,
+                fontWeight = FontWeight.SemiBold,
+                color = labelColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+            )
+        }
         MiniMonthDaysCanvas(
             days = tile.days,
             month = tile.month,
@@ -269,7 +358,7 @@ private fun MiniMonthDaysCanvas(
 
         val cellW = size.width / 7f
         val cellH = size.height / 6f
-        val todayRadius = minOf(cellW, cellH) * 0.42f
+        val todayRadius = minOf(cellW, cellH) * 0.4f
 
         for (index in days.indices) {
             val date = days[index]
@@ -283,7 +372,7 @@ private fun MiniMonthDaysCanvas(
 
             if (isToday) {
                 drawCircle(
-                    color = todayColor.copy(alpha = 0.12f),
+                    color = todayColor.copy(alpha = 0.14f),
                     radius = todayRadius,
                     center = Offset(cx, cy),
                 )
@@ -306,10 +395,15 @@ private fun MiniMonthDaysCanvas(
 @Composable
 private fun MonthPickerGridPreview() {
     NeiroTheme {
-        MonthPickerGrid(
-            currentMonth = YearMonth.of(2026, 5),
-            onMonthSelected = {},
-            modifier = Modifier.padding(12.dp),
-        )
+        Surface(
+            shape = RoundedCornerShape(MonthPickerLayout.panelCorner),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            MonthPickerGrid(
+                currentMonth = YearMonth.of(2026, 5),
+                onMonthSelected = {},
+                modifier = Modifier.padding(MonthPickerLayout.panelPadding),
+            )
+        }
     }
 }
