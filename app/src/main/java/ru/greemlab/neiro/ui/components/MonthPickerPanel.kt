@@ -82,7 +82,7 @@ private object MonthPickerLayout {
 @Immutable
 private data class MonthPickerTile(
     val month: YearMonth,
-    val days: List<LocalDate>,
+    val days: List<LocalDate?>,
     val label: String,
 )
 
@@ -150,7 +150,7 @@ private fun MonthPickerGrid(
             val month = YearMonth.of(displayedYear, monthNumber)
             MonthPickerTile(
                 month = month,
-                days = buildMonthGridDays(month),
+                days = buildMonthGridCells(month),
                 label = MONTH_PICKER_LABELS[monthNumber - 1],
             )
         }
@@ -336,7 +336,7 @@ private fun MiniMonthCalendar(
 
 @Composable
 private fun MiniMonthDaysCanvas(
-    days: List<LocalDate>,
+    days: List<LocalDate?>,
     month: YearMonth,
     today: LocalDate,
     todayColor: Color,
@@ -349,12 +349,12 @@ private fun MiniMonthDaysCanvas(
         if (size.width <= 0f || size.height <= 0f) return@Canvas
 
         val cellW = size.width / 7f
-        val cellH = size.height / 6f
+        val rowCount = ((days.size + 6) / 7).coerceAtLeast(1)
+        val cellH = size.height / rowCount
         val todayRadius = minOf(cellW, cellH) * 0.4f
 
         for (index in days.indices) {
-            val date = days[index]
-            if (date.month != month.month || date.year != month.year) continue
+            val date = days[index] ?: continue
 
             val col = index % 7
             val row = index / 7

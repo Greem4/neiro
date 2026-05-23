@@ -25,7 +25,7 @@ fun WeekDaysRow() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val weekdayColor = MaterialTheme.colorScheme.onSurfaceVariant
         val weekendColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
