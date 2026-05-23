@@ -348,6 +348,7 @@ fun CalendarScreen(
                     item.relatedDate?.let { viewModel.navigateToDate(it) }
                     overlay = CalendarOverlay.None
                 },
+                onDismissNotification = { notificationStore.remove(it.id) },
                 onClearAll = { notificationStore.clearAll() },
             )
         }

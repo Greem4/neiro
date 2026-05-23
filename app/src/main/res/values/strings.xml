@@ -128,4 +128,5 @@
     <string name="in_app_notifications_empty">Пока нет уведомлений</string>
     <string name="in_app_notifications_close">Закрыть</string>
     <string name="in_app_notifications_clear">Очистить всё</string>
+    <string name="in_app_notifications_dismiss">Удалить уведомление</string>
 </resources>

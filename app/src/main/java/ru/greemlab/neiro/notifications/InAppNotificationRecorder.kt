@@ -19,41 +19,19 @@ object InAppNotificationRecorder {
     }
 
     fun recordEvents(context: Context, events: List<SessionEvent>) {
-        if (events.isEmpty()) return
-        val appContext = context.applicationContext
-        if (events.size == 1) {
-            recordEvent(appContext, events.first())
-            return
-        }
-        val first = events.first()
-        InAppNotificationStore.get(appContext).append(
-            title = SessionNotificationTexts.groupedEventsTitle(appContext, events.size),
-            body = SessionNotificationTexts.groupedEventsBody(appContext, events),
-            relatedDate = first.session.date,
-            dedupeKey = "inapp|group|${events.joinToString(",") { it.dedupeKey }}",
-        )
+        events.forEach { recordEvent(context, it) }
     }
 
     fun recordReminder(context: Context, sessions: List<UpcomingSession>) {
-        if (sessions.isEmpty()) return
-        val appContext = context.applicationContext
-        if (sessions.size == 1) {
-            val session = sessions.first()
+        sessions.forEach { session ->
+            val appContext = context.applicationContext
             InAppNotificationStore.get(appContext).append(
                 title = SessionNotificationTexts.reminderTitle(appContext, session),
                 body = SessionNotificationTexts.formatUpcomingLine(session),
                 relatedDate = session.date,
                 dedupeKey = "inapp|reminder|${session.dedupeKey}",
             )
-            return
         }
-        val sorted = sessions.sortedBy { it.startTime }
-        InAppNotificationStore.get(appContext).append(
-            title = SessionNotificationTexts.groupedRemindersTitle(appContext, sorted.size),
-            body = sorted.joinToString("\n") { SessionNotificationTexts.formatUpcomingLine(it) },
-            relatedDate = sorted.first().date,
-            dedupeKey = "inapp|reminder|group|${sorted.joinToString(",") { it.dedupeKey }}",
-        )
     }
 
     fun recordTodayDigest(context: Context, sessions: List<UpcomingSession>) {
@@ -87,10 +65,8 @@ object InAppNotificationRecorder {
         dates: List<LocalDate>,
         dayData: Map<LocalDate, List<String>>,
     ) {
-        if (dates.isEmpty()) return
-        val appContext = context.applicationContext
-        if (dates.size == 1) {
-            val date = dates.first()
+        dates.forEach { date ->
+            val appContext = context.applicationContext
             val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
             InAppNotificationStore.get(appContext).append(
                 title = SessionNotificationTexts.archiveTitle(appContext),
@@ -98,13 +74,6 @@ object InAppNotificationRecorder {
                 relatedDate = date,
                 dedupeKey = "inapp|archive|${date.toEpochDay()}",
             )
-            return
         }
-        InAppNotificationStore.get(appContext).append(
-            title = SessionNotificationTexts.groupedArchiveTitle(appContext, dates.size),
-            body = SessionNotificationTexts.groupedArchiveBody(appContext, dates, dayData),
-            relatedDate = dates.first(),
-            dedupeKey = "inapp|archive|group|${dates.joinToString(",") { it.toEpochDay().toString() }}",
-        )
     }
 }

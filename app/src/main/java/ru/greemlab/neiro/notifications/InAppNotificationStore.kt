@@ -68,6 +68,10 @@ class InAppNotificationStore private constructor(context: Context) {
         persist(emptyList())
     }
 
+    fun remove(id: String) {
+        persist(_items.value.filter { it.id != id })
+    }
+
     companion object {
         const val RETENTION_DAYS = 10
         private const val MAX_ITEMS = 300

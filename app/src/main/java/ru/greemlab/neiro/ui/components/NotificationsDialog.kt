@@ -1,20 +1,32 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,11 +47,13 @@ private val timeFormatter = DateTimeFormatter.ofPattern("d MMM, HH:mm", RU_LOCAL
 /**
  * Лента in-app уведомлений (колокольчик в [CalendarHeader]).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsDialog(
     notifications: List<InAppNotification>,
     onDismiss: () -> Unit,
     onNotificationClick: (InAppNotification) -> Unit = {},
+    onDismissNotification: (InAppNotification) -> Unit = {},
     onClearAll: () -> Unit = {},
 ) {
     Dialog(
@@ -80,9 +94,10 @@ fun NotificationsDialog(
                         modifier = Modifier.heightIn(max = 420.dp),
                     ) {
                         items(notifications, key = { it.id }) { item ->
-                            NotificationListItem(
+                            SwipeableNotificationItem(
                                 item = item,
                                 onClick = { onNotificationClick(item) },
+                                onDismiss = { onDismissNotification(item) },
                             )
                         }
                     }
@@ -108,6 +123,53 @@ fun NotificationsDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableNotificationItem(
+    item: InAppNotification,
+    onClick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.StartToEnd) {
+                onDismiss()
+                true
+            } else {
+                false
+            }
+        },
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = Modifier.clip(shape),
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = false,
+        backgroundContent = {
+            if (dismissState.progress > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.errorContainer, shape)
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.in_app_notifications_dismiss),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        },
+        content = {
+            NotificationListItem(item = item, onClick = onClick)
+        },
+    )
+}
+
 @Composable
 private fun NotificationListItem(
     item: InAppNotification,
@@ -121,9 +183,9 @@ private fun NotificationListItem(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = if (item.read) {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            MaterialTheme.colorScheme.surfaceVariant
         } else {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            MaterialTheme.colorScheme.primaryContainer
         },
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
