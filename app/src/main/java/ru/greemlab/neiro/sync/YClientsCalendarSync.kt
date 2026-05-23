@@ -64,7 +64,7 @@ class YClientsCalendarSync(
                     val records = result.data
                     val dayDataBefore = calendarRepository.dayDataFlow.first()
                     autoFillProfile(records)
-                    val syncedCount = mergeRecordsToCalendar(records)
+                    val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
                     val dayDataAfter = calendarRepository.dayDataFlow.first()
                     if (recordSuccessfulSync) {
                         syncPreferences.recordSuccessfulSync()
@@ -174,9 +174,11 @@ class YClientsCalendarSync(
         return result.replaceFirstChar { it.uppercase() }
     }
 
-    private suspend fun mergeRecordsToCalendar(records: List<RecordData>): Int {
-        if (records.isEmpty()) return 0
-
+    private suspend fun mergeRecordsToCalendar(
+        records: List<RecordData>,
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Int {
         val userProfile = calendarRepository.userProfileFlow.first()
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var newlyAdded = 0
@@ -227,12 +229,33 @@ class YClientsCalendarSync(
                 }
             }
 
-            val leftover = pool.map { it.first }
-            val merged = syncedEntries + leftover
+            val merged = syncedEntries + retainManualLocalEntries(pool)
             if (merged != existingRaw) {
                 currentDayData[date] = merged
                 changedDays++
             }
+        }
+
+        var date = startDate
+        while (!date.isAfter(endDate)) {
+            if (date !in recordsByDate) {
+                val existingRaw = currentDayData[date] ?: run {
+                    date = date.plusDays(1)
+                    continue
+                }
+                val merged = retainManualLocalEntries(
+                    existingRaw.map { it to SessionParser.parse(it) },
+                )
+                if (merged != existingRaw) {
+                    if (merged.isEmpty()) {
+                        currentDayData.remove(date)
+                    } else {
+                        currentDayData[date] = merged
+                    }
+                    changedDays++
+                }
+            }
+            date = date.plusDays(1)
         }
 
         if (changedDays > 0) {
@@ -241,6 +264,14 @@ class YClientsCalendarSync(
 
         return newlyAdded
     }
+
+    /**
+     * После слияния с API оставляем только ручные интенсивы (их нет в YClients).
+     * Записи учеников/диагностики без пары в API удаляются — иначе «призраки»
+     * остаются в статусе «ожидание», хотя запись в YClients уже снята.
+     */
+    private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
+        pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
 
     private fun collapseDuplicateRecords(
         dayRecords: List<RecordData>,
