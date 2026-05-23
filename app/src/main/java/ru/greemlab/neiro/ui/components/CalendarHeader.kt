@@ -37,65 +37,42 @@ import ru.greemlab.neiro.ui.calendar.getMonthName
 import java.time.YearMonth
 
 /**
- * Размеры и отступы верхней плашки календаря.
- *
- * ## Как подогнать вручную (Figma / превью)
- *
- * 1. Открой [CalendarHeader] в Android Studio → Split / Design → превью Light/Dark.
- * 2. Меняй значения ниже **по одному**, смотри превью; центр месяца сжимается первым
- *    (у него `Modifier.weight(1f)`), правая группа (колокольчик + «Сегодня») — фиксированная ширина.
- * 3. Если не влезает длинное «Сентябрь 2025»:
- *    - уменьши [monthTitleFontSize] или [monthNavIconSize];
- *    - уменьши [todayButtonHorizontalPadding] / скрой текст «Сегодня» (см. [showTodayLabel]);
- *    - увеличь [rowEndPadding] только если нужен воздух у края экрана.
- * 4. «Перетаскивание» в Compose — это не drag-and-drop, а сдвиг через отступы:
- *    - весь ряд: [rowStartPadding], [rowEndPadding], [rowVerticalPadding];
- *    - блок месяца по горизонтали: [monthTitleHorizontalPadding] между стрелками и текстом;
- *    - колокольчик ↔ «Сегодня»: [rightActionsSpacing];
- *    - логотип ↔ месяц: фиксированная ширина логотипа ([logoSize] в [NeiroLogo]).
- *
- * Порядок слева направо: **логотип | ‹ месяц год › | 🔔 | Сегодня**.
+ * ПАРАМЕТРЫ ДИЗАЙНА (Твикай здесь)
  */
 object CalendarHeaderLayout {
-    /** Внешние отступы всей плашки от краёв экрана (слева чуть больше — под логотип). */
-    val rowStartPadding: Dp = 12.dp
-    val rowEndPadding: Dp = 4.dp
-    val rowVerticalPadding: Dp = 4.dp
+    // Весь контейнер
+    val rowStartPadding: Dp = 12.dp    // Отступ слева (от края до лого)
+    val rowEndPadding: Dp = 4.dp      // Отступ справа (от края до "Сегодня")
+    val rowVerticalPadding: Dp = 4.dp // Отступ сверху/снизу
 
-    /** Логотип «N» — передаётся в [NeiroLogo]. */
+    // 1. Логотип
     val logoSize: Dp = 32.dp
 
-    /** Кнопки ‹ › вокруг названия месяца. */
+    // 2. Блок месяца (центр)
     val monthNavButtonSize: Dp = 36.dp
     val monthNavIconSize: Dp = 22.dp
-
-    /** Заголовок «Октябрь 2024». */
     val monthTitleFontSize = 16.sp
-    val monthTitleHorizontalPadding: Dp = 0.dp
 
-    /** Правая группа: колокольчик и «Сегодня». */
-    val rightActionsSpacing: Dp = 0.dp
+    // ХОЧЕШЬ МЕСЯЦ БЛИЖЕ К СТРЕЛКАМ? Уменьшай или увеличивай это число:
+    val monthTitleHorizontalPadding: Dp = 0.dp 
+
+    // 3. Правый блок (Колокольчик + Сегодня)
+    val rightActionsSpacing: Dp = 0.dp   // Расстояние между колокольчиком и кнопкой
     val bellButtonSize: Dp = 40.dp
     val bellIconSize: Dp = 22.dp
 
+    // Кнопка "Сегодня"
     val todayButtonCorner: Dp = 12.dp
     val todayButtonHorizontalPadding: Dp = 8.dp
     val todayButtonVerticalPadding: Dp = 6.dp
     val todayIconSize: Dp = 18.dp
-    val todayLabelStartPadding: Dp = 4.dp
-
-    /** false — только иконка календаря, больше места для месяца на узких экранах. */
-    const val showTodayLabel: Boolean = true
+    val todayLabelStartPadding: Dp = 4.dp // Отступ текста от иконки
+    const val showTodayLabel: Boolean = true // false - скрыть текст "Сегодня"
 }
 
 /**
- * Шапка: логотип, навигация по месяцу, колокольчик уведомлений, «Сегодня» справа.
- *
- * Переключение YClients / архив и обновление — в [CalendarToolbar].
- *
- * @param onMenuClick Тап по [NeiroLogo] — боковая панель профиля.
- * @param onNotificationsClick Открыть ленту in-app уведомлений.
- * @param unreadNotificationCount Бейдж на колокольчике (0 — скрыт).
+ * Шапка календаря.
+ * Чтобы быстро перейти к коду кнопки: Ctrl (или Cmd) + Клик по кнопке в Preview справа.
  */
 @Composable
 fun CalendarHeader(
@@ -120,15 +97,26 @@ fun CalendarHeader(
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // =========================================================================================
+        // [1] ЛОГОТИП (Слева)
+        // Чтобы изменить размер: меняй CalendarHeaderLayout.logoSize
+        // =========================================================================================
         NeiroLogo(size = CalendarHeaderLayout.logoSize, onClick = onMenuClick)
 
+        // =========================================================================================
+        // [2] ВЫБОР МЕСЯЦА (Центр)
+        //
+        // ХОЧЕШЬ СДВИНУТЬ ВЕСЬ БЛОК ВЛЕВО? 
+        // Поменяй ниже Arrangement.Center на Arrangement.Start
+        // =========================================================================================
         Row(
             modifier = Modifier
                 .weight(1f)
                 .widthIn(min = 0.dp),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Кнопка: Назад
             IconButton(
                 onClick = onPreviousMonth,
                 modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
@@ -141,6 +129,7 @@ fun CalendarHeader(
                 )
             }
 
+            // Название месяца (например: "Октябрь 2024")
             Text(
                 text = "${getMonthName(currentMonth)} ${currentMonth.year}",
                 style = MaterialTheme.typography.titleMedium,
@@ -152,6 +141,7 @@ fun CalendarHeader(
                 modifier = Modifier.padding(horizontal = CalendarHeaderLayout.monthTitleHorizontalPadding),
             )
 
+            // Кнопка: Вперед
             IconButton(
                 onClick = onNextMonth,
                 modifier = Modifier.size(CalendarHeaderLayout.monthNavButtonSize),
@@ -165,15 +155,16 @@ fun CalendarHeader(
             }
         }
 
+        // =========================================================================================
+        // [3] ДЕЙСТВИЯ (Справа)
+        // В этом Row лежат Колокольчик и кнопка Сегодня.
+        // Чтобы поменять их местами - просто переставь вызовы функций местами.
+        // =========================================================================================
         Row(
             horizontalArrangement = Arrangement.spacedBy(CalendarHeaderLayout.rightActionsSpacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NotificationsBellButton(
-                unreadCount = unreadNotificationCount,
-                onClick = onNotificationsClick,
-            )
-
+            // КНОПКА "СЕГОДНЯ" (Теперь слева)
             FilledTonalButton(
                 onClick = {
                     if (isRegistered) onTodayClick() else onRegistrationRequired()
@@ -199,10 +190,20 @@ fun CalendarHeader(
                     )
                 }
             }
+
+            // КОЛОКОЛЬЧИК (Теперь справа)
+            NotificationsBellButton(
+                unreadCount = unreadNotificationCount,
+                onClick = onNotificationsClick,
+            )
         }
     }
 }
 
+/**
+ * Отдельный компонент для колокольчика.
+ * Нажми Cmd+Click в Preview на иконку уведомлений, чтобы попасть сюда.
+ */
 @Composable
 private fun NotificationsBellButton(
     unreadCount: Int,
