@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -39,8 +40,13 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.YClientsYellow
+import ru.greemlab.neiro.ui.calendar.CalendarViewModel
+import ru.greemlab.neiro.ui.calendar.ProfileYearStats
+import ru.greemlab.neiro.ui.calendar.availableStatsYears
+import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import java.time.YearMonth
 import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
 import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
@@ -56,6 +62,7 @@ import java.util.Locale
 @Composable
 fun ProfileContent(
     profileViewModel: ProfileViewModel,
+    calendarViewModel: CalendarViewModel,
     syncViewModel: SyncViewModel,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -63,6 +70,7 @@ fun ProfileContent(
     modifier: Modifier = Modifier,
 ) {
     val profile by profileViewModel.userProfile.collectAsState()
+    val dayData by calendarViewModel.effectiveDayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -77,8 +85,29 @@ fun ProfileContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val currentYear = YearMonth.now().year
+    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
+    var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
+    LaunchedEffect(availableYears) {
+        if (selectedYear !in availableYears) {
+            selectedYear = availableYears.first()
+        }
+    }
+    val yearStats = rememberProfileYearStats(
+        year = selectedYear,
+        dayData = dayData,
+        pricePerSession = profile.pricePerSession,
+        pricePerDiagnostics = profile.pricePerDiagnostics,
+        monthlyTaxAmount = profile.monthlyTaxAmount,
+        sessionPriceHistory = profile.sessionPriceHistory,
+    )
+
     ProfileContentImpl(
         profile = profile,
+        yearStats = yearStats,
+        availableYears = availableYears,
+        selectedYear = selectedYear,
+        onYearSelected = { selectedYear = it },
         syncState = syncState,
         isLoggedInToYClients = isLoggedIn,
         onOpenSettings = onOpenSettings,
@@ -97,6 +126,10 @@ fun ProfileContent(
 @Composable
 private fun ProfileContentImpl(
     profile: UserProfile,
+    yearStats: ProfileYearStats,
+    availableYears: List<Int>,
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     autoSyncEnabled: Boolean = true,
@@ -122,7 +155,7 @@ private fun ProfileContentImpl(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 24.dp),
+            modifier = Modifier.padding(bottom = 20.dp),
         ) {
             NeiroLogo(size = 64.dp)
             Spacer(modifier = Modifier.width(16.dp))
@@ -140,6 +173,14 @@ private fun ProfileContentImpl(
                 )
             }
         }
+
+        ProfileYearStatsSection(
+            stats = yearStats,
+            availableYears = availableYears,
+            selectedYear = selectedYear,
+            onYearSelected = onYearSelected,
+            modifier = Modifier.padding(bottom = 24.dp),
+        )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {
             SettingsNavigationRow(
@@ -576,6 +617,18 @@ private fun ProfileContentLightPreview() {
                     pricePerSession = 1500.0,
                     monthlyTaxAmount = 5000.0,
                 ),
+                yearStats = ProfileYearStats(
+                    year = YearMonth.now().year,
+                    completedSessions = 42,
+                    totalNetEarned = 58_000.0,
+                    monthlyNet = listOf(
+                        4_000.0, 5_000.0, 4_500.0, 6_000.0, 5_500.0, 4_800.0,
+                        3_200.0, 5_500.0, 6_500.0, 4_000.0, 4_500.0, 5_000.0,
+                    ),
+                ),
+                availableYears = listOf(YearMonth.now().year),
+                selectedYear = YearMonth.now().year,
+                onYearSelected = {},
                 syncState = SyncUiState(),
                 isLoggedInToYClients = true,
                 onOpenSettings = {},

@@ -247,6 +247,7 @@ fun CalendarScreen(
                 ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
                     ProfileContent(
                         profileViewModel = profileViewModel,
+                        calendarViewModel = viewModel,
                         syncViewModel = syncViewModel,
                         onOpenSettings = {
                             scope.launch { drawerState.close() }
