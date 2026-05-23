@@ -305,7 +305,7 @@ class YClientsCalendarSync(
     private fun extractSessionTime(session: Session): String = when (session) {
         is Session.Student -> session.time
         is Session.Diagnostics -> session.time
-        is Session.Intensive -> ""
+        is Session.Intensive -> session.time
     }
 
     private fun String.normalizeForDedup(): String =

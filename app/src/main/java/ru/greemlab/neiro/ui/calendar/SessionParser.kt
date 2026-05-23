@@ -110,6 +110,7 @@ sealed interface Session {
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
+        val time: String = "",
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Extra
 
@@ -263,7 +264,7 @@ object SessionParser {
             }
         }
         return if (intensive) {
-            Session.Intensive(amount, name, attended, status)
+            Session.Intensive(amount, name, attended, time, status)
         } else {
             Session.Diagnostics(amount, name, attended, time, status)
         }
@@ -315,11 +316,18 @@ object SessionFormat {
         }
     }
 
-    fun serializeIntensive(price: String, name: String, attended: Boolean): String =
-        serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended))
+    fun serializeIntensive(price: String, name: String, attended: Boolean, time: String = ""): String =
+        serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended), time)
 
-    fun serializeIntensive(price: String, name: String, status: AttendanceStatus): String =
-        "$INTENSIVE_PREFIX$price|$name|${status.code}"
+    fun serializeIntensive(
+        price: String,
+        name: String,
+        status: AttendanceStatus,
+        time: String = "",
+    ): String {
+        val base = "$INTENSIVE_PREFIX$price|$name|${status.code}"
+        return if (time.isNotBlank()) "$base|$time" else base
+    }
 
     fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
         serializeDiagnostics(price, name, AttendanceStatus.fromBoolean(attended), time)

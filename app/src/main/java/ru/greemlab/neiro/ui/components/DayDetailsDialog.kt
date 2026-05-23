@@ -50,14 +50,13 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
@@ -65,7 +64,9 @@ import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
+import ru.greemlab.neiro.ui.components.daydetails.EditIntensiveItem
 import ru.greemlab.neiro.ui.components.daydetails.TimelineEntry
+import ru.greemlab.neiro.ui.components.daydetails.buildIntensiveTimeSlotOptions
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -153,6 +154,9 @@ private fun DayDetailsContent(
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
+    var focusNewIntensive by remember { mutableStateOf(false) }
+    val intensiveFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(initialNames, isPlanningMode) {
         if (!isPlanningMode) {
@@ -170,6 +174,23 @@ private fun DayDetailsContent(
     }
 
     val dateText = remember(date) { date.format(DATE_FORMAT) }
+
+    val lessonTimes = remember(entries) {
+        entries
+            .filter { !it.isExtra && it.time.isNotEmpty() }
+            .map { normalizeSessionTime(it.time) }
+            .distinct()
+    }
+    val intensiveTimeSlots = remember(lessonTimes) {
+        buildIntensiveTimeSlotOptions(lessonTimes)
+    }
+
+    LaunchedEffect(focusNewIntensive) {
+        if (!focusNewIntensive) return@LaunchedEffect
+        intensiveFocusRequester.requestFocus()
+        keyboardController?.show()
+        focusNewIntensive = false
+    }
 
     Card(
         modifier = Modifier
@@ -247,6 +268,12 @@ private fun DayDetailsContent(
                         .fillMaxWidth(),
                 )
             } else {
+                val intensiveIndices = remember(currentNames.toList()) {
+                    currentNames.mapIndexedNotNull { index, raw ->
+                        if (SessionParser.isIntensive(raw)) index else null
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f, fill = false)
@@ -254,62 +281,33 @@ private fun DayDetailsContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
-                    items(entries.size) { index ->
-                        val entry = entries[index]
-                        val rawIndex = currentNames.indexOfFirst {
-                            val parsed = SessionParser.parse(it)
-                            val name = when (parsed) {
-                                is Session.Student -> parsed.name
-                                is Session.Extra -> parsed.name
-                            }
-                            val time = when (parsed) {
-                                is Session.Student -> normalizeSessionTime(parsed.time)
-                                is Session.Diagnostics -> normalizeSessionTime(parsed.time)
-                                else -> ""
-                            }
-                            name == entry.name && time == entry.time
+                    items(intensiveIndices.size) { listIndex ->
+                        val rawIndex = intensiveIndices[listIndex]
+                        val intensive = SessionParser.parse(currentNames[rawIndex]) as Session.Intensive
+                        val amountText = if (intensive.amount == 0.0) {
+                            ""
+                        } else {
+                            intensive.amount.toLong().toString()
                         }
 
-                        EditSessionItem(
-                            entry = entry,
-                            onDelete = {
-                                if (rawIndex >= 0) currentNames.removeAt(rawIndex)
-                            },
-                            onPriceChange = { newPrice ->
-                                if (rawIndex >= 0) {
-                                    val currentRaw = currentNames[rawIndex]
-                                    val parsed = SessionParser.parse(currentRaw)
-                                    if (parsed is Session.Extra) {
-                                        val updated = if (parsed is Session.Intensive) {
-                                            SessionFormat.serializeIntensive(newPrice, parsed.name, parsed.status)
-                                        } else {
-                                            val diag = parsed as Session.Diagnostics
-                                            SessionFormat.serializeDiagnostics(
-                                                newPrice, diag.name, diag.status, diag.time,
-                                            )
-                                        }
-                                        currentNames[rawIndex] = updated
-                                    }
+                        EditIntensiveItem(
+                            amountText = amountText,
+                            time = normalizeSessionTime(intensive.time),
+                            timeSlotOptions = intensiveTimeSlots,
+                            requestFocus = focusNewIntensive &&
+                                listIndex == intensiveIndices.lastIndex,
+                            focusRequester = intensiveFocusRequester,
+                            onAmountChange = { newPrice ->
+                                updateIntensiveAt(currentNames, rawIndex) { session ->
+                                    session.copy(amount = newPrice.toDoubleOrNull() ?: 0.0)
                                 }
                             },
-                            onNameChange = { newName ->
-                                if (rawIndex >= 0) {
-                                    val currentRaw = currentNames[rawIndex]
-                                    val parsed = SessionParser.parse(currentRaw)
-                                    if (parsed is Session.Extra) {
-                                        val priceStr = parsed.amount.toInt().toString()
-                                        val updated = if (parsed is Session.Intensive) {
-                                            SessionFormat.serializeIntensive(priceStr, newName, parsed.status)
-                                        } else {
-                                            val diag = parsed as Session.Diagnostics
-                                            SessionFormat.serializeDiagnostics(
-                                                priceStr, newName, diag.status, diag.time,
-                                            )
-                                        }
-                                        currentNames[rawIndex] = updated
-                                    }
+                            onTimeChange = { newTime ->
+                                updateIntensiveAt(currentNames, rawIndex) { session ->
+                                    session.copy(time = newTime)
                                 }
                             },
+                            onDelete = { currentNames.removeAt(rawIndex) },
                         )
                     }
 
@@ -317,14 +315,23 @@ private fun DayDetailsContent(
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(
                             onClick = {
-                                currentNames.add(SessionFormat.serializeIntensive("0", "Новый интенсив", true))
+                                val defaultTime = intensiveTimeSlots.firstOrNull().orEmpty()
+                                currentNames.add(
+                                    SessionFormat.serializeIntensive(
+                                        price = "",
+                                        name = "Интенсив",
+                                        status = AttendanceStatus.ARRIVED,
+                                        time = defaultTime,
+                                    ),
+                                )
+                                focusNewIntensive = true
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                         ) {
                             Icon(Icons.Rounded.Add, null)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Интенсив")
+                            Text("Добавить интенсив")
                         }
                     }
                 }
@@ -376,67 +383,22 @@ private fun DayDetailsContent(
     }
 }
 
-@Composable
-private fun EditSessionItem(
-    entry: ScheduleEntry,
-    onDelete: () -> Unit,
-    onPriceChange: (String) -> Unit,
-    onNameChange: (String) -> Unit
+private fun updateIntensiveAt(
+    names: MutableList<String>,
+    rawIndex: Int,
+    transform: (Session.Intensive) -> Session.Intensive,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                if (entry.isExtra) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        TextField(
-                            value = if (entry.extraAmount == 0.0) "" else entry.extraAmount.toInt().toString(),
-                            onValueChange = onPriceChange,
-                            label = { Text(entry.extraType, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.width(100.dp),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TextField(
-                            value = entry.name,
-                            onValueChange = onNameChange,
-                            placeholder = { Text("Имя") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
-                            )
-                        )
-                    }
-                } else {
-                    Text(
-                        text = entry.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (entry.time.isNotEmpty()) {
-                        Text(text = entry.time, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Rounded.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
+    if (rawIndex !in names.indices) return
+    val parsed = SessionParser.parse(names[rawIndex])
+    if (parsed !is Session.Intensive) return
+    val updated = transform(parsed)
+    val priceStr = if (updated.amount == 0.0) "" else updated.amount.toLong().toString()
+    names[rawIndex] = SessionFormat.serializeIntensive(
+        price = priceStr,
+        name = updated.name.ifBlank { "Интенсив" },
+        status = updated.status,
+        time = normalizeSessionTime(updated.time),
+    )
 }
 
 /**
@@ -616,8 +578,8 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
             )
 
             is Session.Intensive -> ScheduleEntry(
-                name = session.name,
-                time = "",
+                name = session.name.ifBlank { "Интенсив" },
+                time = normalizeSessionTime(session.time),
                 comment = "",
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
                 isExtra = true,
