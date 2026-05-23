@@ -195,7 +195,7 @@ private fun ProfileContentImpl(
                     modifier = Modifier.padding(vertical = 8.dp),
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
-                StatRow("Чистыми (с налогом)", netEarnedText, isHighlight = true)
+                StatRow("Чистыми", netEarnedText, isHighlight = true)
                 StatRow("Без налога", earnedText)
                 StatRow("Ожидаемый доход", expectedText)
             }

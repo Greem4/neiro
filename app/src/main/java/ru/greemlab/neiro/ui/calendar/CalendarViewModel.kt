@@ -98,6 +98,10 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         _currentMonth.value = _currentMonth.value.minusMonths(1)
     }
 
+    fun setMonth(yearMonth: YearMonth) {
+        _currentMonth.value = yearMonth
+    }
+
     fun goToToday() {
         val today = LocalDate.now()
         _currentMonth.value = YearMonth.from(today)

@@ -140,3 +140,8 @@ fun getMonthName(month: YearMonth): String =
     month.month
         .getDisplayName(TextStyle.FULL_STANDALONE, RU_LOCALE)
         .replaceFirstChar { it.uppercase(RU_LOCALE) }
+
+/** Короткое название месяца для сетки выбора (например, «Янв»). */
+fun getShortMonthName(month: java.time.Month): String =
+    month.getDisplayName(TextStyle.SHORT_STANDALONE, RU_LOCALE)
+        .replaceFirstChar { it.uppercase(RU_LOCALE) }

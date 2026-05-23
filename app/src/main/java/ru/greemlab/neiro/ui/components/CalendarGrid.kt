@@ -104,6 +104,9 @@ private fun rememberCurrentDate(): androidx.compose.runtime.State<LocalDate> =
         }
     }
 
+internal fun buildMonthGridDays(currentMonth: YearMonth): List<LocalDate> =
+    buildMonthGrid(currentMonth).days
+
 private fun buildMonthGrid(currentMonth: YearMonth): MonthGrid {
     val firstDayOfMonth = currentMonth.atDay(1)
     val daysInMonth = currentMonth.lengthOfMonth()

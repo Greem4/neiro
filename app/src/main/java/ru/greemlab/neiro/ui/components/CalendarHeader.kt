@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +56,7 @@ object CalendarHeaderLayout {
     val monthTitleFontSize = 16.sp
 
     // ХОЧЕШЬ МЕСЯЦ БЛИЖЕ К СТРЕЛКАМ? Уменьшай или увеличивай это число:
-    val monthTitleHorizontalPadding: Dp = 0.dp 
+    val monthTitleHorizontalPadding: Dp = 0.dp
 
     // 3. Правый блок (Колокольчик + Сегодня)
     val rightActionsSpacing: Dp = 0.dp   // Расстояние между колокольчиком и кнопкой
@@ -79,6 +81,7 @@ fun CalendarHeader(
     currentMonth: YearMonth,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    onMonthTitleClick: () -> Unit = {},
     onMenuClick: () -> Unit,
     onTodayClick: () -> Unit,
     onNotificationsClick: () -> Unit = {},
@@ -129,7 +132,7 @@ fun CalendarHeader(
                 )
             }
 
-            // Название месяца (например: "Октябрь 2024")
+            // Название месяца (например: "Октябрь 2024") — тап открывает сетку месяцев
             Text(
                 text = "${getMonthName(currentMonth)} ${currentMonth.year}",
                 style = MaterialTheme.typography.titleMedium,
@@ -138,7 +141,10 @@ fun CalendarHeader(
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = CalendarHeaderLayout.monthTitleHorizontalPadding),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onMonthTitleClick)
+                    .padding(horizontal = CalendarHeaderLayout.monthTitleHorizontalPadding),
             )
 
             // Кнопка: Вперед
