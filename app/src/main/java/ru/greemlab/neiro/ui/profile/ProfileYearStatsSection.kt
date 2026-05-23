@@ -158,26 +158,37 @@ fun ProfileYearStatsSection(
                     },
                 )
 
-                AnimatedContent(
-                    targetState = stats,
-                    transitionSpec = {
-                        fadeIn(tween(220)) togetherWith fadeOut(tween(180))
-                    },
-                    label = "yearStatsContent",
-                ) { animatedStats ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        YearStatRow(
-                            label = "Проведено занятий",
-                            value = animatedStats.completedSessions.toString(),
-                            icon = Icons.Rounded.School,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        YearStatRow(
-                            label = "Чистыми за год",
-                            value = formatRubles(animatedStats.totalNetEarned),
-                            icon = Icons.Rounded.Payments,
-                            tint = ScheduleHeaderGreen,
-                        )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    AnimatedContent(
+                        targetState = stats,
+                        transitionSpec = {
+                            fadeIn(tween(220)) togetherWith fadeOut(tween(180))
+                        },
+                        label = "yearStatsContent",
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { animatedStats ->
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            YearStatRow(
+                                label = "Проведено занятий",
+                                value = animatedStats.completedSessions.toString(),
+                                icon = Icons.Rounded.School,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            YearStatRow(
+                                label = "Чистыми за год",
+                                value = formatRubles(animatedStats.totalNetEarned),
+                                icon = Icons.Rounded.Payments,
+                                tint = ScheduleHeaderGreen,
+                            )
+                        }
                     }
                 }
 
@@ -185,7 +196,8 @@ fun ProfileYearStatsSection(
                     text = "Чистая прибыль по месяцам",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 2.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
                 )
 
                 YearNetProfitChart(
@@ -255,38 +267,46 @@ private fun YearStatRow(
         shape = RoundedCornerShape(12.dp),
         color = tint.copy(alpha = 0.1f),
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Top,
+                .padding(horizontal = 10.dp, vertical = 10.dp),
         ) {
             Surface(
                 shape = CircleShape,
                 color = tint.copy(alpha = 0.18f),
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier
+                    .size(28.dp)
+                    .align(Alignment.CenterStart),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = tint,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 34.dp, end = 4.dp)
+                    .align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -469,21 +489,21 @@ private fun BestMonthSummary(
     ) {
         Text(
             text = "Лучший месяц — $monthName",
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = netAmount,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = ScheduleHeaderGreen,
             textAlign = TextAlign.Center,
         )
         Text(
             text = "$sessions ${pluralSessions(sessions)}",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = netAmount,
+            style = MaterialTheme.typography.bodySmall,
+            color = ScheduleHeaderGreen,
+            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
         )
     }
