@@ -1,10 +1,7 @@
 package ru.greemlab.neiro.ui.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -29,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +47,13 @@ import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.getShortMonthName
 import java.time.LocalDate
 import java.time.YearMonth
+
+@Immutable
+private data class MonthPickerTile(
+    val month: YearMonth,
+    val days: List<LocalDate>,
+    val label: String,
+)
 
 /**
  * Сетка из 12 мини-календарей поверх экрана.
@@ -58,37 +67,35 @@ fun MonthPickerOverlay(
     onDismiss: () -> Unit,
 ) {
     BackHandler(enabled = visible, onBack = onDismiss)
+    if (!visible) return
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(120)),
-        exit = fadeOut(tween(100)),
-        modifier = Modifier.zIndex(20f),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(20f),
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismiss,
-                    ),
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
 
-            MonthPickerGrid(
-                currentMonth = currentMonth,
-                onMonthSelected = { month ->
-                    onMonthSelected(month)
-                    onDismiss()
-                },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .statusBarsPadding()
-                    .padding(start = 16.dp, end = 16.dp, top = 52.dp)
-                    .fillMaxWidth(),
-            )
-        }
+        MonthPickerGrid(
+            currentMonth = currentMonth,
+            onMonthSelected = { month ->
+                onMonthSelected(month)
+                onDismiss()
+            },
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 52.dp)
+                .fillMaxWidth(),
+        )
     }
 }
 
@@ -100,19 +107,35 @@ private fun MonthPickerGrid(
 ) {
     var displayedYear by remember(currentMonth) { mutableIntStateOf(currentMonth.year) }
     val today = remember { LocalDate.now() }
+    val textMeasurer = rememberTextMeasurer()
 
-    val gridShape = RoundedCornerShape(20.dp)
+    val tiles = remember(displayedYear) {
+        (1..12).map { monthNumber ->
+            val month = YearMonth.of(displayedYear, monthNumber)
+            MonthPickerTile(
+                month = month,
+                days = buildMonthGridDays(month),
+                label = getShortMonthName(month.month),
+            )
+        }
+    }
+
+    val dayTextStyle = TextStyle(
+        fontSize = 6.sp,
+        color = Color.Unspecified,
+        fontWeight = FontWeight.Normal,
+    )
+    val todayTextStyle = dayTextStyle.copy(fontWeight = FontWeight.Bold)
+
+    val gridInteraction = remember { MutableInteractionSource() }
 
     Column(
         modifier = modifier
-            .clip(gridShape)
-            .background(MaterialTheme.colorScheme.surface, gridShape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = gridInteraction,
                 indication = null,
                 onClick = {},
-            )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -149,13 +172,15 @@ private fun MonthPickerGrid(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 for (col in 0 until 4) {
-                    val monthNumber = row * 4 + col + 1
-                    val month = YearMonth.of(displayedYear, monthNumber)
+                    val tile = tiles[row * 4 + col]
                     MiniMonthCalendar(
-                        month = month,
+                        tile = tile,
                         today = today,
-                        isSelected = month == currentMonth,
-                        onClick = { onMonthSelected(month) },
+                        isSelected = tile.month == currentMonth,
+                        textMeasurer = textMeasurer,
+                        dayTextStyle = dayTextStyle,
+                        todayTextStyle = todayTextStyle,
+                        onClick = { onMonthSelected(tile.month) },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -167,22 +192,34 @@ private fun MonthPickerGrid(
     }
 }
 
-/** Мини-календарь одного месяца — как основной, но компактный. */
 @Composable
 private fun MiniMonthCalendar(
-    month: YearMonth,
+    tile: MonthPickerTile,
     today: LocalDate,
     isSelected: Boolean,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    dayTextStyle: TextStyle,
+    todayTextStyle: TextStyle,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val days = remember(month) { buildMonthGridDays(month) }
     val tileShape = RoundedCornerShape(8.dp)
     val tileBackground = if (isSelected) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
+    val labelColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val dayColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val todayColor = MaterialTheme.colorScheme.primary
 
     Column(
         modifier = modifier
@@ -194,78 +231,74 @@ private fun MiniMonthCalendar(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = getShortMonthName(month.month),
+            text = tile.label,
             fontSize = 8.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isSelected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            color = labelColor,
             maxLines = 1,
         )
         Spacer(modifier = Modifier.height(1.dp))
-        var weekIndex = 0
-        while (weekIndex < 6) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                for (dayCol in 0 until 7) {
-                    val date = days[weekIndex * 7 + dayCol]
-                    MiniDayCell(
-                        date = date,
-                        today = today,
-                        displayMonth = month,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            weekIndex++
-        }
+        MiniMonthDaysCanvas(
+            days = tile.days,
+            month = tile.month,
+            today = today,
+            todayColor = todayColor,
+            textMeasurer = textMeasurer,
+            dayTextStyle = dayTextStyle.copy(color = dayColor),
+            todayTextStyle = todayTextStyle.copy(color = todayColor),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        )
     }
 }
 
-/** Уменьшенная ячейка дня — те же правила, что у [DayCard]. */
 @Composable
-private fun MiniDayCell(
-    date: LocalDate,
+private fun MiniMonthDaysCanvas(
+    days: List<LocalDate>,
+    month: YearMonth,
     today: LocalDate,
-    displayMonth: YearMonth,
+    todayColor: Color,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    dayTextStyle: TextStyle,
+    todayTextStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
-    val isCurrentMonth =
-        date.month == displayMonth.month && date.year == displayMonth.year
-    val isToday = date == today
+    Canvas(modifier = modifier) {
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
 
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(3.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (isToday) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(1.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = CircleShape,
-                    ),
+        val cellW = size.width / 7f
+        val cellH = size.height / 6f
+        val todayRadius = minOf(cellW, cellH) * 0.42f
+
+        for (index in days.indices) {
+            val date = days[index]
+            if (date.month != month.month || date.year != month.year) continue
+
+            val col = index % 7
+            val row = index / 7
+            val cx = col * cellW + cellW / 2f
+            val cy = row * cellH + cellH / 2f
+            val isToday = date == today
+
+            if (isToday) {
+                drawCircle(
+                    color = todayColor.copy(alpha = 0.12f),
+                    radius = todayRadius,
+                    center = Offset(cx, cy),
+                )
+            }
+
+            val text = date.dayOfMonth.toString()
+            val layout = textMeasurer.measure(text, if (isToday) todayTextStyle else dayTextStyle)
+            drawText(
+                textLayoutResult = layout,
+                topLeft = Offset(
+                    cx - layout.size.width / 2f,
+                    cy - layout.size.height / 2f,
+                ),
             )
         }
-        Text(
-            text = date.dayOfMonth.toString(),
-            fontSize = 6.sp,
-            lineHeight = 7.sp,
-            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-            color = when {
-                isToday -> MaterialTheme.colorScheme.primary
-                !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-        )
     }
 }
 
