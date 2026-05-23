@@ -200,6 +200,8 @@ fun ProfileYearStatsSection(
                     textAlign = TextAlign.Center,
                 )
 
+                // TODO: Улучшить визуализацию графика и добавить нажатие на каждый столбец
+                //  (чтобы было видно занятия + деньги).
                 YearNetProfitChart(
                     year = stats.year,
                     monthlyNet = stats.monthlyNet,

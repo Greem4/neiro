@@ -89,6 +89,8 @@ private data class MonthPickerTile(
 /**
  * Сетка из 12 мини-календарей поверх экрана.
  * Визуально — уменьшенная копия основного [CalendarGrid] / [DayCard].
+ *
+ * TODO: поправить мелкие календари (выбор даты/периода).
  */
 @Composable
 fun MonthPickerOverlay(

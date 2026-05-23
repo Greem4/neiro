@@ -4,7 +4,8 @@ import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.ServiceData
 import kotlin.math.roundToInt
 
-// TODO: разобраться с оплатой — деление суммы с карты клиента (2500/2800 пополам, 3000 → ставка
+// TODO: изменить логику расчета для сумм 2500 и 2800.
+//  Разобраться с оплатой — деление суммы с карты клиента (2500/2800 пополам, 3000 → ставка
 //  из профиля), отделение cost (зарплата) от cost_to_pay (карта клиента).
 
 /**

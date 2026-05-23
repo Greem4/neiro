@@ -22,7 +22,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
@@ -91,6 +90,9 @@ private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): Cal
  * ## Профиль (боковая панель)
  *
  * Профиль реализован через [ModalNavigationDrawer] и [ProfileContent].
+ *
+ * TODO: Доработка боковой панели (дизайн и функциональность).
+ *
  * Панель не открывается сама — только явным действием пользователя:
  * свайп слева направо или тап по логотипу «N» в шапке.
  *
@@ -104,6 +106,7 @@ private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): Cal
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
+// ...
     profileViewModel: ProfileViewModel = viewModel(),
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
@@ -270,6 +273,7 @@ fun CalendarScreen(
             },
         ) {
             CalendarScreenContent(
+                // TODO: Улучшить основной календарь.
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
@@ -422,9 +426,10 @@ fun CalendarScreen(
 
             if (date != null) {
                 val isArchived = savedDayData.containsKey(date)
-                DayDetailsDialog(
-                    date = date,
-                    initialNames = dayData[date].orEmpty(),
+                    DayDetailsDialog(
+                        date = date,
+                        // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
+                        initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
                     highlightSlotKey = highlightSlotKey,

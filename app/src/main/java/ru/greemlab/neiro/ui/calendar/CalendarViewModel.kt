@@ -90,6 +90,14 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             initialValue = emptyList(),
         )
 
+    /**
+     * TODO: Добавить расчет статистики по ученикам (карточки детей):
+     *  - Посещаемость (сколько отходил / сколько пропустил).
+     *  - Визуальный график посещений.
+     *  - Сумма принесенных денег.
+     *  - Краткий вид истории (когда был, в какие дни).
+     */
+
     fun nextMonth() {
         _currentMonth.value = _currentMonth.value.plusMonths(1)
     }

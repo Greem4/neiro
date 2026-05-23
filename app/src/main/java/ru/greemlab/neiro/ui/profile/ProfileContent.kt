@@ -183,6 +183,7 @@ private fun ProfileContentImpl(
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {
+            // TODO: Добавить переход к списку карточек детей (статистика по ученикам).
             SettingsNavigationRow(
                 title = if (profile.isRegistered) "Профиль" else "Создать профиль",
                 subtitle = if (profile.isRegistered) {

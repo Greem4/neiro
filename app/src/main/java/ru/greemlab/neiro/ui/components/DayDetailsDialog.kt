@@ -344,6 +344,7 @@ private fun DayDetailsContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // TODO: чуть больше проработать с архивом.
                 TextButton(
                     onClick = onArchive,
                     colors = ButtonDefaults.textButtonColors(
