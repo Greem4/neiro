@@ -43,6 +43,8 @@ class ProfileYearStatsTest {
         assertEquals(mayNet, stats.monthlyNet[4], 0.0)
         assertEquals(juneNet, stats.monthlyNet[5], 0.0)
         assertEquals(mayNet + juneNet, stats.totalNetEarned, 0.0)
+        assertEquals(2, stats.monthlyCompleted[4])
+        assertEquals(1, stats.monthlyCompleted[5])
     }
 
     @Test

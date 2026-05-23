@@ -145,3 +145,12 @@ fun getMonthName(month: YearMonth): String =
 fun getShortMonthName(month: java.time.Month): String =
     month.getDisplayName(TextStyle.SHORT_STANDALONE, RU_LOCALE)
         .replaceFirstChar { it.uppercase(RU_LOCALE) }
+
+/** Сокращения месяцев для графиков: «Янв», «Фев», … без точки. */
+fun getChartMonthAbbreviation(month: java.time.Month): String =
+    CHART_MONTH_ABBREVIATIONS[month.ordinal]
+
+private val CHART_MONTH_ABBREVIATIONS = listOf(
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+    "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+)

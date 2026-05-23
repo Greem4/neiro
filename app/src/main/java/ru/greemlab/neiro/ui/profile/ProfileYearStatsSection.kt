@@ -41,15 +41,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
-import ru.greemlab.neiro.ui.calendar.getShortMonthName
+import ru.greemlab.neiro.ui.calendar.getChartMonthAbbreviation
+import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Month
 import java.time.YearMonth
+
+private val StatsContentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+private val ChartMonthLabelStyle
+    @Composable get() = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 9.sp,
+        lineHeight = 11.sp,
+        letterSpacing = 0.sp,
+    )
 
 @Composable
 fun ProfileYearStatsSection(
@@ -87,32 +98,34 @@ fun ProfileYearStatsSection(
     }
 
     SettingsGroupCard(modifier = modifier) {
-        ListItem(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded },
-            headlineContent = {
+                .clickable { expanded = !expanded }
+                .padding(StatsContentPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.BarChart,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text("Статистика", style = MaterialTheme.typography.bodyLarge)
-            },
-            supportingContent = {
                 Text(
                     text = if (expanded) "За ${stats.year} год" else collapsedSubtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            },
-            leadingContent = {
-                Icon(Icons.Rounded.BarChart, contentDescription = null)
-            },
-            trailingContent = {
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = if (expanded) "Свернуть" else "Развернуть",
-                )
-            },
-        )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "Свернуть" else "Развернуть",
+            )
+        }
 
         AnimatedVisibility(
             visible = expanded,
@@ -122,8 +135,12 @@ fun ProfileYearStatsSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(
+                        start = StatsContentPadding.calculateStartPadding(LayoutDirection.Ltr),
+                        end = StatsContentPadding.calculateEndPadding(LayoutDirection.Ltr),
+                        bottom = 12.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
@@ -148,7 +165,7 @@ fun ProfileYearStatsSection(
                     },
                     label = "yearStatsContent",
                 ) { animatedStats ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         YearStatRow(
                             label = "Проведено занятий",
                             value = animatedStats.completedSessions.toString(),
@@ -168,15 +185,17 @@ fun ProfileYearStatsSection(
                     text = "Чистая прибыль по месяцам",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                    modifier = Modifier.padding(start = 2.dp),
                 )
 
                 YearNetProfitChart(
+                    year = stats.year,
                     monthlyNet = stats.monthlyNet,
+                    monthlyCompleted = stats.monthlyCompleted,
                     progress = chartProgress.value,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(172.dp),
+                        .height(188.dp),
                 )
             }
         }
@@ -199,7 +218,7 @@ private fun YearSelectorRow(
         IconButton(
             onClick = onOlder,
             enabled = canGoOlder,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(36.dp),
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
@@ -214,7 +233,7 @@ private fun YearSelectorRow(
         IconButton(
             onClick = onNewer,
             enabled = canGoNewer,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(36.dp),
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -233,50 +252,52 @@ private fun YearStatRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         color = tint.copy(alpha = 0.1f),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
             Surface(
                 shape = CircleShape,
                 color = tint.copy(alpha = 0.18f),
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = tint,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
-            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun YearNetProfitChart(
+    year: Int,
     monthlyNet: List<Double>,
+    monthlyCompleted: List<Int>,
     progress: Float,
     modifier: Modifier = Modifier,
 ) {
@@ -293,30 +314,28 @@ private fun YearNetProfitChart(
     }
 
     val monthLabels = remember {
-        Month.entries.map { getShortMonthName(it) }
+        Month.entries.map { getChartMonthAbbreviation(it) }
     }
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 2.dp, vertical = 8.dp),
     ) {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            val labelReserve = 4.dp.toPx()
-            val chartBottom = size.height - labelReserve
-            val chartTop = 8.dp.toPx()
+            val chartBottom = size.height
+            val chartTop = 6.dp.toPx()
             val chartHeight = chartBottom - chartTop
             val barCount = 12
             val slotWidth = size.width / barCount
-            val barWidth = slotWidth * 0.62f
-            val corner = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+            val barWidth = slotWidth * 0.52f
+            val corner = CornerRadius(5.dp.toPx(), 5.dp.toPx())
 
-            // Горизонтальные направляющие
             listOf(0.33f, 0.66f, 1f).forEach { guide ->
                 val y = chartBottom - chartHeight * guide
                 drawLine(
@@ -339,7 +358,6 @@ private fun YearNetProfitChart(
                 barCenters[index] = left + barWidth / 2f
                 barTops[index] = top
 
-                // Трек столбца
                 drawRoundRect(
                     color = trackColor,
                     topLeft = Offset(left, chartTop),
@@ -364,16 +382,12 @@ private fun YearNetProfitChart(
                     drawRoundRect(
                         brush = barBrush,
                         topLeft = Offset(left, top),
-                        size = Size(
-                            barWidth,
-                            barHeight.coerceAtLeast(3.dp.toPx()),
-                        ),
+                        size = Size(barWidth, barHeight.coerceAtLeast(3.dp.toPx())),
                         cornerRadius = corner,
                     )
                 }
             }
 
-            // Линия тренда по вершинам столбцов
             if (progress > 0.05f) {
                 val linePath = Path()
                 var started = false
@@ -396,7 +410,6 @@ private fun YearNetProfitChart(
                     )
                 }
 
-                // Точки на вершинах
                 monthlyNet.take(barCount).forEachIndexed { index, net ->
                     if (net <= 0.0) return@forEachIndexed
                     val radius = if (index == peakIndex) 4.dp.toPx() else 2.5.dp.toPx()
@@ -409,35 +422,70 @@ private fun YearNetProfitChart(
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        ) {
             monthLabels.forEach { label ->
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = ChartMonthLabelStyle,
                     color = labelColor,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
-                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.92f,
+                    softWrap = false,
                 )
             }
         }
 
-        val peakMonth = Month.of(peakIndex + 1)
         val peakValue = monthlyNet.getOrElse(peakIndex) { 0.0 }
+        val peakSessions = monthlyCompleted.getOrElse(peakIndex) { 0 }
         if (peakValue > 0.0) {
-            Text(
-                text = "Лучший месяц: ${getShortMonthName(peakMonth)} · ${formatRubles(peakValue)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = labelColor,
+            BestMonthSummary(
+                monthName = getMonthName(YearMonth.of(year, peakIndex + 1)),
+                netAmount = formatRubles(peakValue),
+                sessions = peakSessions,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun BestMonthSummary(
+    monthName: String,
+    netAmount: String,
+    sessions: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "Лучший месяц — $monthName",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = netAmount,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = ScheduleHeaderGreen,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "$sessions ${pluralSessions(sessions)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -459,17 +507,20 @@ private fun ProfileYearStatsSectionPreview() {
             ProfileYearStatsSection(
                 stats = ProfileYearStats(
                     year = YearMonth.now().year,
-                    completedSessions = 87,
-                    totalNetEarned = 124_500.0,
+                    completedSessions = 998,
+                    totalNetEarned = 1_319_200.0,
                     monthlyNet = listOf(
-                        8_000.0, 12_000.0, 9_500.0, 11_000.0, 14_200.0, 10_800.0,
+                        8_000.0, 12_000.0, 9_500.0, 11_000.0, 151_700.0, 10_800.0,
                         7_500.0, 13_000.0, 11_500.0, 9_000.0, 8_200.0, 10_000.0,
+                    ),
+                    monthlyCompleted = listOf(
+                        6, 8, 7, 9, 113, 10, 5, 11, 9, 7, 6, 8,
                     ),
                 ),
                 availableYears = listOf(2026, 2025, 2024),
                 selectedYear = 2025,
                 onYearSelected = {},
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
     }

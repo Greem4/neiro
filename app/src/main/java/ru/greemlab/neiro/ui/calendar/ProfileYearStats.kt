@@ -13,6 +13,7 @@ import java.time.YearMonth
  * @param completedSessions Число проведённых занятий (посещённые ученики и диагностики).
  * @param totalNetEarned Сумма чистой прибыли по месяцам (грязные − налог за каждый месяц).
  * @param monthlyNet Чистая прибыль по месяцам, индекс 0 = январь.
+ * @param monthlyCompleted Проведённые занятия по месяцам, индекс 0 = январь.
  */
 @Immutable
 data class ProfileYearStats(
@@ -20,6 +21,7 @@ data class ProfileYearStats(
     val completedSessions: Int,
     val totalNetEarned: Double,
     val monthlyNet: List<Double>,
+    val monthlyCompleted: List<Int>,
 ) {
     companion object {
         fun empty(year: Int): ProfileYearStats = ProfileYearStats(
@@ -27,6 +29,7 @@ data class ProfileYearStats(
             completedSessions = 0,
             totalNetEarned = 0.0,
             monthlyNet = List(12) { 0.0 },
+            monthlyCompleted = List(12) { 0 },
         )
     }
 }
@@ -78,6 +81,7 @@ internal fun computeProfileYearStats(
     var completedSessions = 0
     var totalNetEarned = 0.0
     val monthlyNet = Array(12) { 0.0 }
+    val monthlyCompleted = Array(12) { 0 }
 
     for (month in 1..12) {
         val monthStats = computeMonthStats(
@@ -90,6 +94,7 @@ internal fun computeProfileYearStats(
         )
         completedSessions += monthStats.completedCount
         monthlyNet[month - 1] = monthStats.netProfit
+        monthlyCompleted[month - 1] = monthStats.completedCount
         totalNetEarned += monthStats.netProfit
     }
 
@@ -98,5 +103,6 @@ internal fun computeProfileYearStats(
         completedSessions = completedSessions,
         totalNetEarned = totalNetEarned,
         monthlyNet = monthlyNet.toList(),
+        monthlyCompleted = monthlyCompleted.toList(),
     )
 }

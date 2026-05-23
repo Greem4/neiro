@@ -150,7 +150,7 @@ private fun ProfileContentImpl(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 10.dp, vertical = 16.dp)
             .verticalScroll(scrollState),
     ) {
         Row(
@@ -625,6 +625,7 @@ private fun ProfileContentLightPreview() {
                         4_000.0, 5_000.0, 4_500.0, 6_000.0, 5_500.0, 4_800.0,
                         3_200.0, 5_500.0, 6_500.0, 4_000.0, 4_500.0, 5_000.0,
                     ),
+                    monthlyCompleted = List(12) { 3 + it % 4 },
                 ),
                 availableYears = listOf(YearMonth.now().year),
                 selectedYear = YearMonth.now().year,
