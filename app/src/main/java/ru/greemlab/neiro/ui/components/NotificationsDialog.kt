@@ -39,7 +39,6 @@ import ru.greemlab.neiro.notifications.InAppNotification
 import ru.greemlab.neiro.notifications.SessionEventType
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.util.RU_LOCALE
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -62,63 +61,85 @@ fun NotificationsDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+        NotificationsContent(
+            notifications = notifications,
+            onDismiss = onDismiss,
+            onNotificationClick = onNotificationClick,
+            onDismissNotification = onDismissNotification,
+            onClearAll = onClearAll,
+        )
+    }
+}
+
+/**
+ * Выделенный контент диалога для возможности превью без самого [Dialog].
+ * Это решает проблемы с рендерингом Dialog в Compose Preview.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationsContent(
+    notifications: List<InAppNotification>,
+    onDismiss: () -> Unit,
+    onNotificationClick: (InAppNotification) -> Unit,
+    onDismissNotification: (InAppNotification) -> Unit,
+    onClearAll: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = stringResource(R.string.in_app_notifications_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = stringResource(R.string.in_app_notifications_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+
+            if (notifications.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.in_app_notifications_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = stringResource(R.string.in_app_notifications_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = stringResource(R.string.in_app_notifications_empty),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                    modifier = Modifier.padding(vertical = 24.dp),
                 )
-
-                if (notifications.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.in_app_notifications_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 24.dp),
-                    )
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 8.dp),
-                        modifier = Modifier.heightIn(max = 420.dp),
-                    ) {
-                        items(notifications, key = { it.id }) { item ->
-                            SwipeableNotificationItem(
-                                item = item,
-                                onClick = { onNotificationClick(item) },
-                                onDismiss = { onDismissNotification(item) },
-                            )
-                        }
-                    }
-                }
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.End),
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 8.dp),
+                    modifier = Modifier.heightIn(max = 420.dp),
                 ) {
-                    Text(stringResource(R.string.in_app_notifications_close))
-                }
-
-                if (notifications.isNotEmpty()) {
-                    TextButton(
-                        onClick = onClearAll,
-                        modifier = Modifier.align(androidx.compose.ui.Alignment.Start),
-                    ) {
-                        Text(stringResource(R.string.in_app_notifications_clear))
+                    items(notifications, key = { it.id }) { item ->
+                        SwipeableNotificationItem(
+                            item = item,
+                            onClick = { onNotificationClick(item) },
+                            onDismiss = { onDismissNotification(item) },
+                        )
                     }
+                }
+            }
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(stringResource(R.string.in_app_notifications_close))
+            }
+
+            if (notifications.isNotEmpty()) {
+                TextButton(
+                    onClick = onClearAll,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.Start),
+                ) {
+                    Text(stringResource(R.string.in_app_notifications_clear))
                 }
             }
         }
@@ -177,19 +198,22 @@ private fun NotificationListItem(
     item: InAppNotification,
     onClick: () -> Unit,
 ) {
-    val zone = ZoneId.systemDefault()
-    val timeLabel = timeFormatter.format(item.timestamp.atZone(zone))
+    val zone = remember { ZoneId.systemDefault() }
+    val timeLabel = remember(item.timestamp, zone) {
+        timeFormatter.format(item.timestamp.atZone(zone))
+    }
+    val kind = remember(item.kind, item.title) { item.displayKind }
     val onTintedBackground = !item.read
     val textColors = rememberNotificationTextColors(
-        kind = item.displayKind,
+        kind = kind,
         read = item.read,
         onTintedBackground = onTintedBackground,
     )
     val titleText = remember(item.title, textColors) {
         buildInAppNotificationTitle(item, textColors)
     }
-    val bodyText = remember(item.body, item.displayKind, textColors) {
-        buildInAppNotificationBody(item, textColors)
+    val bodyText = remember(item.body, kind, textColors) {
+        buildNotificationBody(item.body, kind, textColors)
     }
 
     Surface(
@@ -222,13 +246,114 @@ private fun NotificationListItem(
     }
 }
 
+@Preview(showBackground = true, name = "All Notification Variants")
+@Composable
+private fun AllNotificationVariantsPreview() {
+    val now = remember { 1716552000000L } // Fixed timestamp for 24.05.2024
+    val dayStr = "24.05.2026"
+
+    val notifications = listOf(
+        InAppNotification(
+            id = "new",
+            title = "Новая запись: Анна",
+            body = "$dayStr, 14:00–15:00 · Анна · Занятие",
+            timestampEpochMillis = now,
+            kind = SessionEventType.NEW_BOOKING.name,
+        ),
+        InAppNotification(
+            id = "cancel",
+            title = "Отмена: Борис",
+            body = "$dayStr, 16:00–16:50 · Борис · Занятие",
+            timestampEpochMillis = now - 60_000,
+            kind = SessionEventType.CANCELLED.name,
+        ),
+        InAppNotification(
+            id = "resched",
+            title = "Перенос: Лев",
+            body = "Было: $dayStr, 15:00–15:50 · Лев · Занятие\nСтало: $dayStr, 17:00–17:50 · Лев · Занятие",
+            timestampEpochMillis = now - 120_000,
+            kind = SessionEventType.RESCHEDULED.name,
+        ),
+        InAppNotification(
+            id = "deleted",
+            title = "Удалено: Мария",
+            body = "Запись на $dayStr, 10:00–10:50 удалена из календаря",
+            timestampEpochMillis = now - 180_000,
+            kind = SessionEventType.DELETED.name,
+        ),
+        InAppNotification(
+            id = "confirmed",
+            title = "Подтвердил: Виктор",
+            body = "Клиент подтвердил визит на $dayStr, 11:00",
+            timestampEpochMillis = now - 240_000,
+            kind = SessionEventType.CLIENT_CONFIRMED.name,
+        ),
+        InAppNotification(
+            id = "arrived",
+            title = "Пришёл: Елена",
+            body = "Отметка «пришёл» для записи на $dayStr, 12:00",
+            timestampEpochMillis = now - 300_000,
+            kind = SessionEventType.CLIENT_ARRIVED.name,
+        ),
+        InAppNotification(
+            id = "reminder",
+            title = "Скоро: Дмитрий",
+            body = "Занятие начнется через 30 минут ($dayStr, 18:00)",
+            timestampEpochMillis = now - 360_000,
+            kind = SessionEventType.REMINDER.name,
+        ),
+        InAppNotification(
+            id = "today",
+            title = "Сегодня 24 мая",
+            body = "У вас 5 занятий на сегодня. Первое в 10:00.",
+            timestampEpochMillis = now - 420_000,
+            kind = SessionEventType.TODAY_DIGEST.name,
+        ),
+        InAppNotification(
+            id = "tomorrow",
+            title = "Завтра 25 мая",
+            body = "На завтра запланировано 3 занятия.",
+            timestampEpochMillis = now - 480_000,
+            kind = SessionEventType.TOMORROW_DIGEST.name,
+        ),
+        InAppNotification(
+            id = "archive",
+            title = "Перенести в архив",
+            body = "День 23.05.2026 завершен. Перенесите записи в архив.",
+            timestampEpochMillis = now - 540_000,
+            kind = SessionEventType.ARCHIVE_REMINDER.name,
+        ),
+        InAppNotification(
+            id = "read",
+            title = "Прочитанное: Иван (Пример)",
+            body = "$dayStr, 09:00–09:50 · Иван · Занятие",
+            timestampEpochMillis = now - 600_000,
+            kind = SessionEventType.NEW_BOOKING.name,
+            read = true,
+        ),
+    )
+
+    NeiroTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            NotificationsContent(
+                notifications = notifications,
+                onDismiss = {},
+                onNotificationClick = {},
+                onDismissNotification = {},
+                onClearAll = {},
+            )
+        }
+    }
+}
+
 @Preview
 @Composable
 private fun NotificationsDialogPreview() {
-    val now = System.currentTimeMillis()
+
+    val now = remember { 1716552000000L }
     val day = LocalDate.of(2026, 5, 24)
     NeiroTheme {
-        NotificationsDialog(
+        NotificationsContent(
             notifications = listOf(
                 InAppNotification(
                     id = "1",
@@ -256,6 +381,9 @@ private fun NotificationsDialogPreview() {
                 ),
             ),
             onDismiss = {},
+            onNotificationClick = {},
+            onDismissNotification = {},
+            onClearAll = {},
         )
     }
 }

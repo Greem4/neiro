@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.components
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -21,6 +22,7 @@ import ru.greemlab.neiro.theme.StatusRedBody
 /**
  * Палитра акцентов для карточки in-app уведомления (согласована с [MaterialTheme]).
  */
+@Stable
 data class NotificationTextColors(
     val titlePrefix: Color,
     val titleDetail: Color,
@@ -131,7 +133,7 @@ fun buildNotificationBody(
 ): AnnotatedString {
     if (body.isBlank()) return AnnotatedString("")
 
-    return if (kind == SessionEventType.RESCHEDULED && body.contains('\n')) {
+    return if ((kind == SessionEventType.RESCHEDULED) && body.contains('\n')) {
         buildAnnotatedString {
             body.lines().forEachIndexed { index, line ->
                 if (index > 0) append('\n')
@@ -149,11 +151,6 @@ fun buildInAppNotificationTitle(
     item: InAppNotification,
     colors: NotificationTextColors,
 ): AnnotatedString = buildNotificationTitle(item.title, colors)
-
-fun buildInAppNotificationBody(
-    item: InAppNotification,
-    colors: NotificationTextColors,
-): AnnotatedString = buildNotificationBody(item.body, item.displayKind, colors)
 
 private fun AnnotatedString.Builder.appendRescheduleLine(
     line: String,
@@ -209,6 +206,7 @@ private fun collectHighlightSpans(
     vararg rules: Pair<Regex, SpanStyle>,
 ): List<StyledRange> =
     rules
+        .asSequence()
         .flatMap { (regex, style) ->
             regex.findAll(text).map { match ->
                 StyledRange(match.range.first, match.range.last + 1, style)
