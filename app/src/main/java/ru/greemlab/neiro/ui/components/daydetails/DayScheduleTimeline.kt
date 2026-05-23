@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -48,13 +52,23 @@ private val NowLineStroke: Dp = 1.dp
 private val SlotLaneGap: Dp = 4.dp
 /** Минимальный зазор между карточками — почти стык, но без слияния. */
 private val SlotBottomGap: Dp = 2.dp
+/**
+ * Выше [PullToRefreshDefaults.PositionalThreshold], чтобы обновление срабатывало
+ * только при явном сильном потягивании списка вниз.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+private val SchedulePullRefreshThreshold: Dp =
+    PullToRefreshDefaults.PositionalThreshold + 36.dp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayScheduleTimeline(
     entries: List<TimelineEntry>,
     date: LocalDate,
     modifier: Modifier = Modifier,
     highlightSlotKey: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
     val untimedEntries = entries.filter { it.time.isEmpty() }
@@ -77,7 +91,7 @@ fun DayScheduleTimeline(
         scrollState.animateScrollTo(scrollTarget)
     }
 
-    Column(modifier = modifier) {
+    val timelineBody: @Composable () -> Unit = {
         if (layout != null) {
             val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
             val timelineHeight = with(density) {
@@ -201,6 +215,38 @@ fun DayScheduleTimeline(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
                 )
+            }
+        }
+    }
+
+    Column(modifier = modifier) {
+        if (onRefresh != null) {
+            val state = rememberPullToRefreshState()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .pullToRefresh(
+                        state = state,
+                        isRefreshing = isRefreshing,
+                        onRefresh = onRefresh,
+                        threshold = SchedulePullRefreshThreshold,
+                    ),
+            ) {
+                timelineBody()
+                PullToRefreshDefaults.Indicator(
+                    state = state,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+            ) {
+                timelineBody()
             }
         }
     }

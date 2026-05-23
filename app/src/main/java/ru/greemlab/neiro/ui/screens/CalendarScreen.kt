@@ -179,6 +179,37 @@ fun CalendarScreen(
 
     val drawerGesturesEnabled = overlay is CalendarOverlay.None
 
+    val syncViewModel: SyncViewModel = viewModel()
+    val syncState by syncViewModel.uiState.collectAsState()
+    val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, syncViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                syncViewModel.refreshLastSyncFromPrefs()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(syncState.showSuccess, syncState.error) {
+        if (syncState.showSuccess) {
+            val message = if (syncState.syncedCount > 0) {
+                "Обновлено записей: ${syncState.syncedCount}"
+            } else {
+                "Данные актуальны"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            syncViewModel.clearSuccess()
+        }
+        syncState.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            syncViewModel.clearError()
+        }
+    }
+
     val isAnyOverlayOpen = drawerState.isOpen || overlay !is CalendarOverlay.None
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
@@ -188,37 +219,6 @@ fun CalendarScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val syncViewModel: SyncViewModel = viewModel()
-        val syncState by syncViewModel.uiState.collectAsState()
-        val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
-
-        val lifecycleOwner = LocalLifecycleOwner.current
-        DisposableEffect(lifecycleOwner, syncViewModel) {
-            val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    syncViewModel.refreshLastSyncFromPrefs()
-                }
-            }
-            lifecycleOwner.lifecycle.addObserver(observer)
-            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
-
-        LaunchedEffect(syncState.showSuccess, syncState.error) {
-            if (syncState.showSuccess) {
-                val message = if (syncState.syncedCount > 0) {
-                    "Обновлено записей: ${syncState.syncedCount}"
-                } else {
-                    "Данные актуальны"
-                }
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                syncViewModel.clearSuccess()
-            }
-            syncState.error?.let {
-                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-                syncViewModel.clearError()
-            }
-        }
-
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = drawerGesturesEnabled,
@@ -403,6 +403,15 @@ fun CalendarScreen(
                     userProfile = profile,
                     isArchived = isArchived,
                     highlightSlotKey = highlightSlotKey,
+                    isRefreshing = syncState.isLoading,
+                    onRefresh = {
+                        if (isYClientsLoggedIn) {
+                            syncViewModel.syncMonth(YearMonth.from(date))
+                        } else {
+                            yClientsReturnOverlay = CalendarOverlay.DayDetails
+                            overlay = CalendarOverlay.YClients
+                        }
+                    },
                     onDismiss = {
                         highlightSlotKey = null
                         overlay = CalendarOverlay.None
@@ -417,7 +426,7 @@ fun CalendarScreen(
                         } else {
                             viewModel.archiveDay(date, dayData[date].orEmpty())
                         }
-                    }
+                    },
                 )
             } else {
                 overlay = CalendarOverlay.None

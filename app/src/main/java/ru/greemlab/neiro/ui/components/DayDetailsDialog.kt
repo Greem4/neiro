@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -21,12 +24,17 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +75,11 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
+/** Порог жеста «потянуть вниз» для обновления — выше стандартного Material. */
+@OptIn(ExperimentalMaterial3Api::class)
+private val DayDetailsPullRefreshThreshold =
+    PullToRefreshDefaults.PositionalThreshold + 36.dp
+
 private val StatusLavender = Color(0xFFA7B2FF)
 private val StatusRed = Color(0xFFF44336)
 private val StatusGreen = Color(0xFF4CAF50)
@@ -99,6 +112,8 @@ fun DayDetailsDialog(
     userProfile: UserProfile,
     isArchived: Boolean = false,
     highlightSlotKey: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
@@ -113,6 +128,8 @@ fun DayDetailsDialog(
             userProfile = userProfile,
             isArchived = isArchived,
             highlightSlotKey = highlightSlotKey,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             onDismiss = onDismiss,
             onSave = onSave,
             onArchive = onArchive,
@@ -120,6 +137,7 @@ fun DayDetailsDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DayDetailsContent(
     date: LocalDate,
@@ -127,12 +145,21 @@ private fun DayDetailsContent(
     userProfile: UserProfile,
     isArchived: Boolean,
     highlightSlotKey: String?,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     var isPlanningMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialNames, isPlanningMode) {
+        if (!isPlanningMode) {
+            currentNames.clear()
+            currentNames.addAll(initialNames)
+        }
+    }
 
     val entries = remember(currentNames.toList()) {
         parseEntries(currentNames)
@@ -189,7 +216,15 @@ private fun DayDetailsContent(
 
             // Список записей
             if (entries.isEmpty() && !isPlanningMode) {
-                EmptySchedule()
+                DayDetailsRefreshableSection(
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth(),
+                ) {
+                    EmptySchedule()
+                }
             } else if (!isPlanningMode) {
                 DayScheduleTimeline(
                     entries = entries.map { entry ->
@@ -205,6 +240,8 @@ private fun DayDetailsContent(
                     },
                     date = date,
                     highlightSlotKey = highlightSlotKey,
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .fillMaxWidth(),
@@ -485,6 +522,46 @@ private fun StatBadge(
                 color = color,
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayDetailsRefreshableSection(
+    isRefreshing: Boolean,
+    onRefresh: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (onRefresh == null) {
+        Box(modifier = modifier) { content() }
+        return
+    }
+    val scrollState = rememberScrollState()
+    val state = rememberPullToRefreshState()
+    Box(
+        modifier = modifier
+            .heightIn(max = 420.dp)
+            .pullToRefresh(
+                state = state,
+                isRefreshing = isRefreshing,
+                onRefresh = { onRefresh() },
+                threshold = DayDetailsPullRefreshThreshold,
+            ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+        ) {
+            content()
+        }
+
+        PullToRefreshDefaults.Indicator(
+            state = state,
+            isRefreshing = isRefreshing,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
     }
 }
 
