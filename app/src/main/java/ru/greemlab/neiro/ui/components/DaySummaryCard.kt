@@ -15,7 +15,6 @@ import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,6 +47,9 @@ private val ShortDateFormat: DateTimeFormatter =
 
 /** Фиксированная высота слота — календарь не прыгает при смене даты. */
 val DaySummarySlotHeight: Dp = 158.dp
+
+/** Высота строки даты + «Сегодня» — не даёт кнопке раздувать карточку. */
+private val DaySummaryHeaderRowHeight: Dp = 26.dp
 
 @Composable
 fun DaySummarySlot(
@@ -102,7 +104,9 @@ private fun DaySummaryCard(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(DaySummaryHeaderRowHeight),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -219,16 +223,32 @@ private fun DaySummaryTodayButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    IconButton(
+    val label = stringResource(R.string.calendar_go_to_today)
+    Surface(
         onClick = onClick,
-        modifier = modifier.size(28.dp),
+        modifier = modifier.height(DaySummaryHeaderRowHeight),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        tonalElevation = 1.dp,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.Today,
-            contentDescription = stringResource(R.string.calendar_go_to_today),
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp),
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Today,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        }
     }
 }
 
