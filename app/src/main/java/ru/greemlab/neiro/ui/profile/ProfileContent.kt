@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
@@ -42,8 +42,12 @@ import ru.greemlab.neiro.theme.YClientsYellow
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.ProfileTotals
 import ru.greemlab.neiro.ui.calendar.computeProfileTotals
+import ru.greemlab.neiro.ui.components.LessonStatRow
 import ru.greemlab.neiro.ui.components.NeiroLogo
-import ru.greemlab.neiro.ui.components.StatRow
+import ru.greemlab.neiro.ui.components.ProfitRow
+import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
+import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -142,8 +146,6 @@ private fun ProfileContentImpl(
     }
 
     val netEarnedText = remember(totals.netEarned) { formatRubles(totals.netEarned) }
-    val earnedText = remember(totals.totalEarned) { formatRubles(totals.totalEarned) }
-    val expectedText = remember(totals.expectedFromFuture) { formatRubles(totals.expectedFromFuture) }
 
     Column(
         modifier = modifier
@@ -172,83 +174,127 @@ private fun ProfileContentImpl(
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-            ),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Статистика работы",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+        ProfileStatisticsSection(
+            totals = totals,
+            netEarnedText = netEarnedText,
+            modifier = Modifier.padding(bottom = 24.dp),
+        )
 
-                StatRow("Занятий проведено", totals.attendedSessions.toString())
-                StatRow("Запланировано впереди", totals.futureSessions.toString())
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
+        SettingsSection(title = "Синхронизация") {
+            YClientsActionBlock(
+                isLoggedIn = isLoggedInToYClients,
+                autoSyncEnabled = autoSyncEnabled,
+                syncState = syncState,
+                onOpenYClients = onOpenYClients,
+                onSyncNow = onSyncNow,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        SettingsSection(
+            title = "Настройки",
+            modifier = Modifier.padding(bottom = 8.dp),
+        ) {
+            SettingsGroupCard {
+                SettingsNavigationRow(
+                    title = if (profile.isRegistered) "Профиль" else "Создать профиль",
+                    subtitle = if (profile.isRegistered) {
+                        "Имя, занятость, цены и налог"
+                    } else {
+                        "Заполните данные для расчёта дохода"
+                    },
+                    icon = Icons.Default.Person,
+                    onClick = onOpenSettings,
                 )
-                StatRow("Чистыми", netEarnedText, isHighlight = true)
-                StatRow("Без налога", earnedText)
-                StatRow("Ожидаемый доход", expectedText)
+                SettingsNavigationRow(
+                    title = "Приложение",
+                    subtitle = "Тема, уведомления, экспорт данных",
+                    icon = Icons.Default.Tune,
+                    onClick = onOpenAppSettings,
+                    showDivider = true,
+                )
             }
         }
 
-        YClientsActionBlock(
-            isLoggedIn = isLoggedInToYClients,
-            autoSyncEnabled = autoSyncEnabled,
-            syncState = syncState,
-            onOpenYClients = onOpenYClients,
-            onSyncNow = onSyncNow,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-        )
-
-        OutlinedButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(12.dp),
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (profile.isRegistered) "Настройки профиля" else "Создать профиль")
-        }
-
-        TextButton(
-            onClick = onOpenAppSettings,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Настройки приложения", style = MaterialTheme.typography.bodyMedium)
-        }
-
         if (BuildConfig.DEBUG) {
-            Spacer(modifier = Modifier.height(24.dp))
-            DevDrawerSection(
+            DevDrawerMenu(
                 onLogin = onDevLogin,
                 onSync = onDevSync,
                 onReset = onDevReset,
-                onFullSetup = onDevFullSetup
+                onFullSetup = onDevFullSetup,
             )
         }
     }
 }
 
 @Composable
-private fun DevDrawerSection(
+private fun ProfileStatisticsSection(
+    totals: ProfileTotals,
+    netEarnedText: String,
+    modifier: Modifier = Modifier,
+) {
+    SettingsSection(title = "Статистика", modifier = modifier) {
+        SettingsGroupCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    text = "Заработано чистыми",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = netEarnedText,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                LessonStatRow(
+                    label = "Проведено",
+                    value = totals.attendedSessions,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                LessonStatRow(
+                    label = "Запланировано",
+                    value = totals.futureSessions,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ProfitRow(
+                    label = "Доход без налога",
+                    value = totals.totalEarned,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                ProfitRow(
+                    label = "Ожидается",
+                    value = totals.expectedFromFuture,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DevDrawerMenu(
     onLogin: () -> Unit,
     onSync: () -> Unit,
     onReset: () -> Unit,
@@ -259,58 +305,27 @@ private fun DevDrawerSection(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Инструменты разработчика",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(bottom = 8.dp),
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AssistChip(
-                onClick = onLogin,
-                label = { Text("Вход") },
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(
-                onClick = onSync,
-                label = { Text("Синхр.") },
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(
-                onClick = onReset,
-                label = { Text("Сброс") },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Button(
-            onClick = onFullSetup,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            ),
-            shape = RoundedCornerShape(8.dp),
-        ) {
-            Text("Полная настройка", style = MaterialTheme.typography.labelLarge)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
+        TextButton(
             onClick = { menuExpanded = !menuExpanded },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
         ) {
             Text(
-                if (menuExpanded) "Скрыть меню" else "Быстрые действия",
+                text = if (menuExpanded) "Скрыть инструменты" else "Инструменты разработчика",
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                imageVector = if (menuExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                 contentDescription = null,
+                modifier = Modifier.size(18.dp),
             )
         }
 
