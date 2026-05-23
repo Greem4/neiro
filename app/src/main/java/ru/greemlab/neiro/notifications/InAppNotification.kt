@@ -13,6 +13,8 @@ data class InAppNotification(
     val timestampEpochMillis: Long,
     val relatedDateEpochDay: Long? = null,
     val dedupeKey: String? = null,
+    /** Ключ слота для подсветки в расписании дня ([SessionSlotKey]). */
+    val highlightSlotKey: String? = null,
     /** [SessionEventType.name] — для акцентов в UI; старые записи без поля угадываются по заголовку. */
     val kind: String? = null,
     val read: Boolean = false,

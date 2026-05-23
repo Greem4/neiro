@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -26,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import ru.greemlab.neiro.notifications.SessionSlotKey
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -52,6 +54,7 @@ fun DayScheduleTimeline(
     entries: List<TimelineEntry>,
     date: LocalDate,
     modifier: Modifier = Modifier,
+    highlightSlotKey: String? = null,
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
     val untimedEntries = entries.filter { it.time.isEmpty() }
@@ -60,6 +63,19 @@ fun DayScheduleTimeline(
     val currentTime by rememberCurrentTime()
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
+
+    LaunchedEffect(highlightSlotKey, layout) {
+        val key = highlightSlotKey ?: return@LaunchedEffect
+        val currentLayout = layout ?: return@LaunchedEffect
+        val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
+        delay(80)
+        val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
+        val offsetMinutes = minutesFromAxisStart(currentLayout.axisStart, target.layoutAppointment.start)
+        val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
+            .toInt()
+            .coerceAtLeast(0)
+        scrollState.animateScrollTo(scrollTarget)
+    }
 
     Column(modifier = modifier) {
         if (layout != null) {
@@ -128,10 +144,14 @@ fun DayScheduleTimeline(
                                 .width(laneWidth)
                                 .height(slotHeightDp)
 
+                            val slotHighlighted = highlightSlotKey != null &&
+                                positioned.matchesHighlight(highlightSlotKey, date)
+
                             when (positioned) {
                                 is PositionedTimelineItem.Single -> {
                                     TimelineScheduleSlot(
                                         entry = positioned.appointment.entry,
+                                        highlighted = slotHighlighted,
                                         modifier = slotModifier,
                                     )
                                 }
@@ -148,6 +168,7 @@ fun DayScheduleTimeline(
                                             expandedReplacements[slotKey] = !expanded
                                         },
                                         compactForTimeline = true,
+                                        highlighted = slotHighlighted,
                                         modifier = slotModifier,
                                     )
                                 }
@@ -171,8 +192,11 @@ fun DayScheduleTimeline(
         if (untimedEntries.isNotEmpty()) {
             if (layout != null) Spacer(modifier = Modifier.height(8.dp))
             untimedEntries.forEach { entry ->
+                val entryHighlighted = highlightSlotKey != null &&
+                    SessionSlotKey.fromTimelineEntry(entry, date) == highlightSlotKey
                 TimelineScheduleSlot(
                     entry = entry,
+                    highlighted = entryHighlighted,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -262,6 +286,7 @@ private fun CurrentTimeIndicator(
 private fun TimelineScheduleSlot(
     entry: TimelineEntry,
     modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
 ) {
     ScheduleSlotItem(
         time = entry.time,
@@ -271,8 +296,17 @@ private fun TimelineScheduleSlot(
         isDiagnostics = entry.isExtra && entry.extraType == "Диагностика",
         showTime = false,
         compactForTimeline = true,
+        highlighted = highlighted,
         modifier = modifier,
     )
+}
+
+private fun PositionedTimelineItem.matchesHighlight(key: String, date: LocalDate): Boolean = when (this) {
+    is PositionedTimelineItem.Single ->
+        SessionSlotKey.fromTimelineEntry(appointment.entry, date) == key
+    is PositionedTimelineItem.Replacement ->
+        SessionSlotKey.fromTimelineEntry(pair.replacement.entry, date) == key ||
+            SessionSlotKey.fromTimelineEntry(pair.removed.entry, date) == key
 }
 
 private fun TimelineEntry.displayName(): String =

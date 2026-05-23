@@ -170,7 +170,7 @@ object SessionNotificationDisplay {
 
         val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setContentIntent(openCalendarIntent(context, event.session.date))
+            .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
             .build()
 
         notify(context, event.dedupeKey.hashCode(), notification)
@@ -185,7 +185,7 @@ object SessionNotificationDisplay {
             .setStyle(inbox)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
-            .setContentIntent(openCalendarIntent(context, events.first().session.date))
+            .setContentIntent(openCalendarIntent(context, events.first().session.date, events.first().session.slotKey))
             .build()
 
         notify(context, NOTIFICATION_ID_EVENTS_GROUP, summary)
@@ -197,7 +197,7 @@ object SessionNotificationDisplay {
                 SessionNotificationTexts.eventContent(context, event),
             )
                 .setGroup(GROUP_KEY)
-                .setContentIntent(openCalendarIntent(context, event.session.date))
+                .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
                 .build()
             notify(context, event.dedupeKey.hashCode(), child)
         }
@@ -223,7 +223,13 @@ object SessionNotificationDisplay {
         val notification = baseBuilder(context, title, content)
             .setSubText(subText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
-            .setContentIntent(openCalendarIntent(context, session.date))
+            .setContentIntent(
+                openCalendarIntent(
+                    context,
+                    session.date,
+                    SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                ),
+            )
             .build()
 
         notify(context, session.dedupeKey.hashCode(), notification)
@@ -247,7 +253,13 @@ object SessionNotificationDisplay {
         sorted.forEach { session ->
             val child = baseBuilder(context, session.clientName, SessionNotificationTexts.formatUpcomingLine(session))
                 .setGroup(GROUP_KEY)
-                .setContentIntent(openCalendarIntent(context, session.date))
+                .setContentIntent(
+                    openCalendarIntent(
+                        context,
+                        session.date,
+                        SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                    ),
+                )
                 .build()
             notify(context, session.dedupeKey.hashCode(), child)
         }
@@ -273,14 +285,20 @@ object SessionNotificationDisplay {
             date.format(dateFormatter)
         }
 
-    private fun openCalendarIntent(context: Context, date: LocalDate): PendingIntent {
+    private fun openCalendarIntent(
+        context: Context,
+        date: LocalDate,
+        highlightSlotKey: String? = null,
+    ): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_OPEN_DATE, date.toString())
+            highlightSlotKey?.let { putExtra(MainActivity.EXTRA_HIGHLIGHT_SLOT_KEY, it) }
         }
+        val requestCode = date.hashCode() xor (highlightSlotKey?.hashCode() ?: 0)
         return PendingIntent.getActivity(
             context,
-            date.hashCode(),
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

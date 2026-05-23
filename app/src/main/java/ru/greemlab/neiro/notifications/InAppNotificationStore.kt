@@ -43,6 +43,7 @@ class InAppNotificationStore private constructor(context: Context) {
         body: String,
         relatedDate: LocalDate? = null,
         dedupeKey: String? = null,
+        highlightSlotKey: String? = null,
         kind: SessionEventType? = null,
         timestampEpochMillis: Long = System.currentTimeMillis(),
     ) {
@@ -56,6 +57,7 @@ class InAppNotificationStore private constructor(context: Context) {
             timestampEpochMillis = timestampEpochMillis,
             relatedDateEpochDay = relatedDate?.toEpochDay(),
             dedupeKey = dedupeKey,
+            highlightSlotKey = highlightSlotKey,
             kind = kind?.name,
             read = false,
         )

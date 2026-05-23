@@ -24,8 +24,7 @@ data class TrackedSession(
     val isMarkedDeleted: Boolean,
 ) {
     /** Ключ слота: клиент + дата + время начала. */
-    val slotKey: String =
-        "${clientName.normalizeForKey()}|${date}|${startTime.format(TIME_FMT)}"
+    val slotKey: String = SessionSlotKey.build(clientName, date, startTime)
 
     /** Ключ клиента для сопоставления переносов. */
     val clientKey: String = clientName.normalizeForKey()

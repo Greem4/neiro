@@ -15,6 +15,7 @@ object InAppNotificationRecorder {
             body = SessionNotificationTexts.eventContent(appContext, event),
             relatedDate = event.session.date,
             dedupeKey = "inapp|${event.dedupeKey}",
+            highlightSlotKey = event.session.slotKey,
             kind = event.type,
         )
     }
@@ -31,6 +32,7 @@ object InAppNotificationRecorder {
                 body = SessionNotificationTexts.formatUpcomingLine(session),
                 relatedDate = session.date,
                 dedupeKey = "inapp|reminder|${session.dedupeKey}",
+                highlightSlotKey = SessionSlotKey.build(session.clientName, session.date, session.startTime),
                 kind = SessionEventType.REMINDER,
             )
         }

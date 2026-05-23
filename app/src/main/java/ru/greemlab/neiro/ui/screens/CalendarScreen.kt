@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
@@ -104,19 +105,15 @@ fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
     profileViewModel: ProfileViewModel = viewModel(),
     openDateFromNotification: String? = null,
+    highlightSlotKeyFromNotification: String? = null,
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-
-    LaunchedEffect(openDateFromNotification) {
-        val raw = openDateFromNotification ?: return@LaunchedEffect
-        runCatching { LocalDate.parse(raw) }.getOrNull()?.let { date ->
-            viewModel.navigateToDate(date)
-        }
-    }
     val dayData by viewModel.effectiveDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
+
+    var highlightSlotKey by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -126,6 +123,37 @@ fun CalendarScreen(
     var yClientsReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
         mutableStateOf(CalendarOverlay.None)
     }
+
+    var handledNotificationDeepLink by rememberSaveable(openDateFromNotification) {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        openDateFromNotification,
+        highlightSlotKeyFromNotification,
+        profile.isRegistered,
+        handledNotificationDeepLink,
+    ) {
+        if (handledNotificationDeepLink) return@LaunchedEffect
+        val raw = openDateFromNotification ?: return@LaunchedEffect
+        runCatching { LocalDate.parse(raw) }.getOrNull()?.let { date ->
+            viewModel.navigateToDate(date)
+            highlightSlotKey = highlightSlotKeyFromNotification
+            overlay = if (profile.isRegistered) {
+                CalendarOverlay.DayDetails
+            } else {
+                CalendarOverlay.RegistrationPrompt
+            }
+            handledNotificationDeepLink = true
+        }
+    }
+
+    LaunchedEffect(highlightSlotKey) {
+        if (highlightSlotKey == null) return@LaunchedEffect
+        delay(3_500)
+        highlightSlotKey = null
+    }
+
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
         dayData = dayData,
@@ -345,8 +373,18 @@ fun CalendarScreen(
                 notifications = inAppNotifications,
                 onDismiss = { overlay = CalendarOverlay.None },
                 onNotificationClick = { item ->
-                    item.relatedDate?.let { viewModel.navigateToDate(it) }
-                    overlay = CalendarOverlay.None
+                    val date = item.relatedDate
+                    if (date != null) {
+                        viewModel.navigateToDate(date)
+                        highlightSlotKey = item.highlightSlotKey
+                        overlay = if (profile.isRegistered) {
+                            CalendarOverlay.DayDetails
+                        } else {
+                            CalendarOverlay.RegistrationPrompt
+                        }
+                    } else {
+                        overlay = CalendarOverlay.None
+                    }
                 },
                 onDismissNotification = { notificationStore.remove(it.id) },
                 onClearAll = { notificationStore.clearAll() },
@@ -364,7 +402,11 @@ fun CalendarScreen(
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
-                    onDismiss = { overlay = CalendarOverlay.None },
+                    highlightSlotKey = highlightSlotKey,
+                    onDismiss = {
+                        highlightSlotKey = null
+                        overlay = CalendarOverlay.None
+                    },
                     onSave = { updatedNames ->
                         viewModel.saveNamesForDate(date, updatedNames)
                         overlay = CalendarOverlay.None
