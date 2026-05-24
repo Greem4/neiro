@@ -60,23 +60,23 @@ private val MONTH_PICKER_LABELS = listOf(
 
 private object MonthPickerLayout {
     val panelPadding: Dp = 4.dp
-    val overlayTopPadding: Dp = 44.dp
+    val overlayTopPadding: Dp = 60.dp
 
-    val yearBarHeight: Dp = 36.dp
+    val yearBarHeight: Dp = 40.dp
     val yearNavButtonSize: Dp = 32.dp
     val yearNavIconSize: Dp = 22.dp
-    val yearLabelWidth: Dp = 52.dp
-    val yearNavGap: Dp = 0.dp
+    val yearLabelWidth: Dp = 60.dp
+    val yearNavGap: Dp = 4.dp
 
-    val tileRowHeight: Dp = 92.dp
+    val tileRowHeight: Dp = 100.dp
     val tileSpacing: Dp = 6.dp
-    val rowSpacing: Dp = 6.dp
+    val rowSpacing: Dp = 8.dp
 
-    val tileCorner: Dp = 10.dp
+    val tileCorner: Dp = 12.dp
     val tileInnerPadding: Dp = 4.dp
-    val monthLabelHeight: Dp = 14.dp
-    val monthLabelFontSize = 9.sp
-    val dayFontSize = 7.sp
+    val monthLabelHeight: Dp = 20.dp
+    val monthLabelFontSize = 11.sp
+    val dayFontSize = 8.sp
 }
 
 @Immutable
@@ -318,7 +318,7 @@ private fun MiniMonthCalendar(
                 color = labelColor,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         MiniMonthDaysCanvas(
