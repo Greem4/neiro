@@ -9,13 +9,29 @@ import java.time.Month
 import java.time.YearMonth
 import java.time.format.TextStyle
 
+/** Дни одного месяца из полной карты календаря (для статистики и сетки без скана всего архива). */
+internal fun filterDayDataForMonth(
+    dayData: Map<LocalDate, List<String>>,
+    month: YearMonth,
+): Map<LocalDate, List<String>> {
+    val year = month.year
+    val monthValue = month.monthValue
+    val result = HashMap<LocalDate, List<String>>()
+    for ((date, sessions) in dayData) {
+        if (date.year == year && date.monthValue == monthValue) {
+            result[date] = sessions
+        }
+    }
+    return result
+}
+
 /** Чистая прибыль за месяц: грязные минус фиксированный налог из профиля (может быть отрицательной). */
 internal fun monthlyNetProfit(grossEarned: Double, monthlyTaxAmount: Double): Double =
     grossEarned - monthlyTaxAmount
 
 /**
  * Рассчитывает и кэширует статистику за выбранный месяц.
- * Один проход по всем дням без промежуточных коллекций.
+ * [dayData] лучше передавать уже отфильтрованную по месяцу карту ([CalendarViewModel.currentMonthDayData]).
  */
 @Composable
 fun rememberCalendarMonthStats(

@@ -114,6 +114,7 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.effectiveDayData.collectAsState()
+    val currentMonthDayData by viewModel.currentMonthDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
 
@@ -180,7 +181,7 @@ fun CalendarScreen(
 
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
-        dayData = dayData,
+        dayData = currentMonthDayData,
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
@@ -276,6 +277,7 @@ fun CalendarScreen(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
+                monthDayData = currentMonthDayData,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -513,6 +515,7 @@ fun CalendarScreenContent(
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
+    monthDayData: Map<LocalDate, List<String>> = dayData,
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -535,10 +538,11 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics) {
-        val date = selectedDate ?: return@remember null
+    val selectedDaySessions = selectedDate?.let { dayData[it] }
+    val daySummaryStats = remember(selectedDate, selectedDaySessions, pricePerSession, pricePerDiagnostics) {
+        if (selectedDate == null) return@remember null
         computeDayStats(
-            dayData[date].orEmpty(),
+            selectedDaySessions.orEmpty(),
             pricePerSession,
             pricePerDiagnostics,
         )
@@ -617,7 +621,7 @@ fun CalendarScreenContent(
                             CalendarGrid(
                                 currentMonth = targetMonth,
                                 selectedDate = selectedDate,
-                                dayData = dayData,
+                                dayData = monthDayData,
                                 workingDays = workingDays,
                                 onDateClick = onDateClick,
                             )

@@ -12,6 +12,18 @@ class CalendarStatsCalculatorTest {
     private val monthlyTax = 200.0
 
     @Test
+    fun `filterDayDataForMonth keeps only target month`() {
+        val full = mapOf(
+            LocalDate.of(2025, 5, 10) to listOf("Иванов|true"),
+            LocalDate.of(2025, 4, 10) to listOf("Петров|true"),
+            LocalDate.of(2024, 5, 1) to listOf("Старый|true"),
+        )
+        val may = filterDayDataForMonth(full, month)
+        assertEquals(1, may.size)
+        assertEquals(listOf("Иванов|true"), may[LocalDate.of(2025, 5, 10)])
+    }
+
+    @Test
     fun `empty data yields zero stats`() {
         val stats = computeMonthStats(
             currentMonth = month,
