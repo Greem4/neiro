@@ -130,4 +130,7 @@
     <string name="in_app_notifications_close">Закрыть</string>
     <string name="in_app_notifications_clear">Очистить всё</string>
     <string name="in_app_notifications_dismiss">Удалить уведомление</string>
+
+    <string name="settings_profile_show_avatar">Показывать аватар</string>
+    <string name="settings_profile_show_avatar_hint">Если выключено, будет отображаться логотип приложения</string>
 </resources>

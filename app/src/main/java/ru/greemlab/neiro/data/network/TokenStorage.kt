@@ -30,6 +30,9 @@ class TokenStorage(context: Context) {
     private val _isLoggedIn = MutableStateFlow(hasUserToken())
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
+    private val _userAvatarUrl = MutableStateFlow(readUserAvatarUrl())
+    val userAvatarUrlFlow: StateFlow<String?> = _userAvatarUrl.asStateFlow()
+
     /**
      * Partner Token: по умолчанию берётся из BuildConfig (зашит в приложение через local.properties).
      * Можно переопределить через UI настроек (на случай ротации без пересборки).
@@ -80,6 +83,16 @@ class TokenStorage(context: Context) {
         get() = prefs.getString(KEY_USER_NAME, null)
         set(value) = prefs.edit().putString(KEY_USER_NAME, value).apply()
 
+    var userAvatarUrl: String?
+        get() = readUserAvatarUrl()
+        set(value) {
+            val normalized = value?.trim()?.takeIf { it.isNotBlank() }
+            prefs.edit().apply {
+                if (normalized == null) remove(KEY_USER_AVATAR) else putString(KEY_USER_AVATAR, normalized)
+            }.apply()
+            _userAvatarUrl.value = normalized
+        }
+
     fun hasUserToken(): Boolean = userToken != null
 
     fun clear() {
@@ -87,11 +100,16 @@ class TokenStorage(context: Context) {
             .remove(KEY_USER_TOKEN)
             .remove(KEY_USER_LOGIN)
             .remove(KEY_USER_NAME)
+            .remove(KEY_USER_AVATAR)
             .remove(KEY_STAFF_ID)
             .remove(KEY_STAFF_ID_COMPANY)
             .apply()
         _isLoggedIn.value = false
+        _userAvatarUrl.value = null
     }
+
+    private fun readUserAvatarUrl(): String? =
+        prefs.getString(KEY_USER_AVATAR, null)?.trim()?.takeIf { it.isNotBlank() }
 
     companion object {
         private const val PREFS_NAME = "yclients_auth"
@@ -102,5 +120,6 @@ class TokenStorage(context: Context) {
         private const val KEY_STAFF_ID_COMPANY = "staff_id_company"
         private const val KEY_USER_LOGIN = "user_login"
         private const val KEY_USER_NAME = "user_name"
+        private const val KEY_USER_AVATAR = "user_avatar"
     }
 }

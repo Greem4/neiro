@@ -12,6 +12,7 @@ import java.time.DayOfWeek
  * @param sessionPriceHistory История смены ставки (для расчёта прибыли в прошлых месяцах).
  * @param pricePerDiagnostics Цена за диагностику.
  * @param monthlyTaxAmount Налог в рублях за месяц.
+ * @param showAvatar Показывать аватар (если выключено — показывается логотип).
  * @param isRegistered Флаг завершения первичной настройки.
  */
 @Immutable
@@ -23,5 +24,6 @@ data class UserProfile(
     val sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
     val pricePerDiagnostics: Double = 0.0,
     val monthlyTaxAmount: Double = 0.0,
+    val showAvatar: Boolean = true,
     val isRegistered: Boolean = false,
 )

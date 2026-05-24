@@ -48,6 +48,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
 
     val isLoggedIn: StateFlow<Boolean> = yclientsRepository.isLoggedIn
+    val userAvatarUrl: StateFlow<String?> = yclientsRepository.userAvatarUrl
 
     val isAutoSyncEnabled: Boolean
         get() = syncPreferences.isAutoSyncEnabled

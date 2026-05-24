@@ -31,11 +31,13 @@ fun NeiroLogo(
     size: Dp = 32.dp,
     showText: Boolean = false,
     onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     val logoInteraction = remember(onClick) { MutableInteractionSource() }
     Row(
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             modifier = Modifier

@@ -24,6 +24,7 @@ class YClientsRepository(context: Context) {
     private val tokenStorage = YClientsClient.getTokenStorage(context)
 
     val isLoggedIn: StateFlow<Boolean> = tokenStorage.isLoggedIn
+    val userAvatarUrl: StateFlow<String?> = tokenStorage.userAvatarUrlFlow
 
     val companyId: Int get() = tokenStorage.companyId
     val staffId: Int? get() = tokenStorage.staffId
@@ -55,6 +56,8 @@ class YClientsRepository(context: Context) {
                         tokenStorage.userToken = body.data.userToken
                         tokenStorage.userLogin = login
                         tokenStorage.userName = body.data.name
+                        tokenStorage.userAvatarUrl =
+                            normalizeYClientsAvatarUrl(body.data.avatar)
                         ApiResult.Success(body.data)
                     } else {
                         ApiResult.Error("Неверный логин или пароль")
@@ -234,6 +237,16 @@ class YClientsRepository(context: Context) {
             .map { it.trim() }
             .filter { it.length >= 3 }
             .toSet()
+
+    private fun normalizeYClientsAvatarUrl(raw: String?): String? {
+        val trimmed = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return when {
+            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("http://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("//") -> "https:$trimmed"
+            else -> trimmed
+        }
+    }
 
     private fun parseErrorMessage(errorBody: String?): String? {
         if (errorBody.isNullOrBlank()) return null

@@ -45,6 +45,7 @@ import ru.greemlab.neiro.ui.calendar.ProfileYearStats
 import ru.greemlab.neiro.ui.calendar.availableStatsYears
 import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.NeiroLogo
+import ru.greemlab.neiro.ui.components.ProfileAvatar
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import java.time.YearMonth
 import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
@@ -73,6 +74,7 @@ fun ProfileContent(
     val dayData by calendarViewModel.effectiveDayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+    val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     var autoSyncEnabled by remember { mutableStateOf(syncViewModel.isAutoSyncEnabled) }
     DisposableEffect(lifecycleOwner) {
@@ -110,6 +112,7 @@ fun ProfileContent(
         onYearSelected = { selectedYear = it },
         syncState = syncState,
         isLoggedInToYClients = isLoggedIn,
+        userAvatarUrl = userAvatarUrl,
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
@@ -132,6 +135,7 @@ private fun ProfileContentImpl(
     onYearSelected: (Int) -> Unit,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
+    userAvatarUrl: String? = null,
     autoSyncEnabled: Boolean = true,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -157,7 +161,15 @@ private fun ProfileContentImpl(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 20.dp),
         ) {
-            NeiroLogo(size = 64.dp)
+            if (profile.showAvatar) {
+                ProfileAvatar(
+                    avatarUrl = userAvatarUrl,
+                    size = 64.dp,
+                    contentDescription = profile.name.ifBlank { "Пользователь" },
+                )
+            } else {
+                NeiroLogo(size = 64.dp)
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
