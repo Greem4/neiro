@@ -74,7 +74,7 @@ class ProfileTotalsCalculatorTest {
             monthlyTaxAmount = 6500.0,
         )
         assertEquals(1000.0, totals.totalEarned, 0.0)
-        assertEquals(1000.0 - 6500.0 * 2, totals.netEarned, 0.0)
+        assertEquals(0.0, totals.netEarned, 0.0)
     }
 
     @Test

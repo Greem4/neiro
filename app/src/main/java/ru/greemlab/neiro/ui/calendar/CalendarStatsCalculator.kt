@@ -46,9 +46,9 @@ internal fun computeRecentStudents(
         .map { it.key }
 }
 
-/** Чистая прибыль за месяц: грязные минус фиксированный налог из профиля (может быть отрицательной). */
+/** Чистая прибыль за месяц: грязные минус фиксированный налог из профиля, не ниже нуля. */
 internal fun monthlyNetProfit(grossEarned: Double, monthlyTaxAmount: Double): Double =
-    grossEarned - monthlyTaxAmount
+    (grossEarned - monthlyTaxAmount).coerceAtLeast(0.0)
 
 /**
  * Рассчитывает и кэширует статистику за выбранный месяц.

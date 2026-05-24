@@ -34,8 +34,8 @@ class ProfileYearStatsTest {
             monthlyTaxAmount = 6500.0,
         )
         assertEquals(6500.0 * 12, stats.totalTaxAmount, 0.0)
-        assertEquals(-6500.0 * 12, stats.totalNetEarned, 0.0)
-        stats.monthlyNet.forEach { assertEquals(-6500.0, it, 0.0) }
+        assertEquals(0.0, stats.totalNetEarned, 0.0)
+        stats.monthlyNet.forEach { assertEquals(0.0, it, 0.0) }
     }
 
     @Test
@@ -56,7 +56,7 @@ class ProfileYearStatsTest {
         val juneNet = 1000.0 - monthlyTax
         assertEquals(mayNet, stats.monthlyNet[4], 0.0)
         assertEquals(juneNet, stats.monthlyNet[5], 0.0)
-        val otherMonthsNet = -monthlyTax * 10
+        val otherMonthsNet = 0.0
         assertEquals(mayNet + juneNet + otherMonthsNet, stats.totalNetEarned, 0.0)
         assertEquals(monthlyTax * 12, stats.totalTaxAmount, 0.0)
         assertEquals(2, stats.monthlyCompleted[4])
