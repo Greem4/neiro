@@ -99,7 +99,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             calendarRepository.updateProfile { profile ->
                 profile.copy(
                     pricePerSession = 1400.0,
-                    pricePerDiagnostics = 2050.0,
+                    pricePerDiagnostics = 2250.0,
                     monthlyTaxAmount = 6500.0,
                 )
             }

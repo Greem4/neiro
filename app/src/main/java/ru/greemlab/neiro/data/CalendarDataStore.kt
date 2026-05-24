@@ -23,6 +23,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "calendar_data")
 
@@ -32,6 +34,21 @@ private const val PROFILE_KEY = "user_profile_json"
 private const val THEME_KEY = "app_theme"
 private const val EMPTY_OBJECT = "{}"
 private const val SYNC_CACHE_NAME = "neiro_sync_cache"
+
+/** Ключ метки времени в JSON-файле экспорта архива. */
+const val ARCHIVE_EXPORTED_AT_KEY = "exported_at"
+
+private val archiveExportDateTimeFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
+
+private val archiveExportFileNameFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm")
+
+/** Имя файла по умолчанию при экспорте архива (с датой и временем). */
+fun archiveExportSuggestedFileName(): String {
+    val stamp = LocalDateTime.now().format(archiveExportFileNameFormatter)
+    return "neiro_archive_$stamp.json"
+}
 
 const val THEME_SYSTEM = "system"
 const val THEME_LIGHT = "light"
@@ -275,11 +292,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
     override suspend fun exportAllData(): String = withContext(Dispatchers.IO) {
         val prefs = appContext.dataStore.data.first()
-        val data = mapOf(
-            "day_data" to (prefs[dataKey] ?: EMPTY_OBJECT),
+        val data = linkedMapOf(
+            ARCHIVE_EXPORTED_AT_KEY to LocalDateTime.now().format(archiveExportDateTimeFormatter),
             "saved_day_data" to (prefs[savedDataKey] ?: EMPTY_OBJECT),
-            "user_profile" to (prefs[profileKey] ?: EMPTY_OBJECT),
-            "app_theme" to (prefs[themeKey] ?: THEME_SYSTEM),
         )
         gson.toJson(data)
     }
@@ -297,34 +312,16 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
         if (parsed == null) return ImportResult.Failure("Файл пуст")
 
-        val dayJson = parsed["day_data"]
         val savedDayJson = parsed["saved_day_data"]
-        val profileJson = parsed["user_profile"]
-        val themeValue = parsed["app_theme"]
+            ?: return ImportResult.Failure("В файле нет данных архива")
 
-        // Валидируем перед записью — лучше отказать, чем затереть рабочие данные мусором.
-        val parsedDayData = parseDayData(dayJson)
         val parsedSavedDayData = parseDayData(savedDayJson)
-        val parsedProfile = UserProfileJson.fromJson(profileJson)
 
         return writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
-                if (dayJson != null) prefs[dataKey] = dayJson
-                if (savedDayJson != null) prefs[savedDataKey] = savedDayJson
-                if (profileJson != null) prefs[profileKey] = profileJson
-                if (themeValue != null) prefs[themeKey] = themeValue
+                prefs[savedDataKey] = savedDayJson
             }
-            cachedState.value = StoreSnapshot(
-                profile = parsedProfile,
-                dayData = parsedDayData,
-                savedDayData = parsedSavedDayData,
-                theme = themeValue ?: cachedState.value.theme,
-            )
-            writeSyncCache(
-                dayJson = dayJson,
-                profileJson = profileJson,
-                themeValue = themeValue,
-            )
+            cachedState.value = cachedState.value.copy(savedDayData = parsedSavedDayData)
             ImportResult.Success
         }
     }
