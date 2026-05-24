@@ -65,7 +65,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = if (CalendarDataStoreProvider.peekDayData(application).isEmpty()) emptyMap() else CalendarDataStoreProvider.peekDayData(application)
+        initialValue = CalendarDataStoreProvider.peekDayData(application),
     )
 
     /** Список уникальных имен учеников для быстрого выбора. */

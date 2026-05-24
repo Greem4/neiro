@@ -44,6 +44,19 @@ class DaySummaryStatsTest {
     }
 
     @Test
+    fun `cancelled student does not count as lesson`() {
+        val stats = computeDayStats(
+            listOf("Иванов|2", "Петров|3"),
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+        )
+        assertEquals(1, stats.totalLessons)
+        assertEquals(1, stats.attendedLessons)
+        assertEquals(1000.0, stats.earned, 0.0)
+        assertEquals(1000.0, stats.lost, 0.0)
+    }
+
+    @Test
     fun `diagnostics uses global price if provided`() {
         val stats = computeDayStats(
             listOf("__DIAGNOSTICS__:500|Аня|true"),

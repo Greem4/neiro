@@ -10,7 +10,8 @@ import java.time.YearMonth
  * Сводная статистика за календарный год.
  *
  * @param completedSessions Число проведённых занятий (посещённые ученики и диагностики).
- * @param totalNetEarned Сумма чистой прибыли по месяцам (грязные − налог за каждый месяц).
+ * @param totalNetEarned Сумма чистой прибыли по месяцам (грязные − [monthlyTaxAmount] × 12).
+ * @param totalTaxAmount Суммарный налог за год ([monthlyTaxAmount] × 12).
  * @param monthlyNet Чистая прибыль по месяцам, индекс 0 = январь.
  * @param monthlyCompleted Проведённые занятия по месяцам, индекс 0 = январь.
  */
@@ -19,6 +20,7 @@ data class ProfileYearStats(
     val year: Int,
     val completedSessions: Int,
     val totalNetEarned: Double,
+    val totalTaxAmount: Double,
     val monthlyNet: List<Double>,
     val monthlyCompleted: List<Int>,
 ) {
@@ -27,6 +29,7 @@ data class ProfileYearStats(
             year = year,
             completedSessions = 0,
             totalNetEarned = 0.0,
+            totalTaxAmount = 0.0,
             monthlyNet = List(12) { 0.0 },
             monthlyCompleted = List(12) { 0 },
         )
@@ -78,10 +81,16 @@ internal fun computeProfileYearStats(
     val monthlyNet = Array(12) { 0.0 }
     val monthlyCompleted = Array(12) { 0 }
 
+    val yearDayData = buildMap {
+        for ((date, sessions) in dayData) {
+            if (date.year == year) put(date, sessions)
+        }
+    }
+
     for (month in 1..12) {
         val monthStats = computeMonthStats(
             currentMonth = YearMonth.of(year, month),
-            dayData = dayData,
+            dayData = yearDayData,
             pricePerSession = pricePerSession,
             pricePerDiagnostics = pricePerDiagnostics,
             monthlyTaxAmount = monthlyTaxAmount,
@@ -92,10 +101,13 @@ internal fun computeProfileYearStats(
         totalNetEarned += monthStats.netProfit
     }
 
+    val totalTaxAmount = monthlyTaxAmount * 12
+
     return ProfileYearStats(
         year = year,
         completedSessions = completedSessions,
         totalNetEarned = totalNetEarned,
+        totalTaxAmount = totalTaxAmount,
         monthlyNet = monthlyNet.toList(),
         monthlyCompleted = monthlyCompleted.toList(),
     )

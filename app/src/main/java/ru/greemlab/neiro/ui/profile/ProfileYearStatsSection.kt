@@ -97,7 +97,7 @@ fun ProfileYearStatsSection(
             append(stats.completedSessions)
             append(" ")
             append(pluralSessions(stats.completedSessions))
-            if (stats.totalNetEarned > 0.0) {
+            if (stats.totalNetEarned != 0.0) {
                 append(" · ")
                 append(formatRubles(stats.totalNetEarned))
             }
@@ -658,6 +658,7 @@ private fun ProfileYearStatsSectionPreview() {
                     year = YearMonth.now().year,
                     completedSessions = 998,
                     totalNetEarned = 1_319_200.0,
+                    totalTaxAmount = 78_000.0,
                     monthlyNet = listOf(
                         8_000.0, 12_000.0, 9_500.0, 11_000.0, 151_700.0, 10_800.0,
                         7_500.0, 13_000.0, 11_500.0, 9_000.0, 8_200.0, 10_000.0,

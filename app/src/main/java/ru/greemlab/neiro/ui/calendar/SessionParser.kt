@@ -87,6 +87,10 @@ sealed interface Session {
                 name.startsWith("–") || name.startsWith("−")
     }
 
+    /** Учитывается в заработке: только статус «пришёл», без отменённых записей. */
+    fun countsTowardEarnings(): Boolean =
+        !isEffectivelyDeleted() && status.countsTowardEarnings
+
     @Immutable
     data class Student(
         val name: String,
@@ -171,6 +175,19 @@ object SessionParser {
 
     /** Проверяет, является ли запись «удалённой» (отменённой). */
     fun isEffectivelyDeleted(raw: String): Boolean = parse(raw).isEffectivelyDeleted()
+
+    /**
+     * Один проход по сырой строке: учитывается ли в счётчике занятий на ячейке календаря.
+     * (ученик или диагностика, не отменено)
+     */
+    fun countsAsCalendarLesson(raw: String): Boolean {
+        val session = parse(raw)
+        if (session.isEffectivelyDeleted()) return false
+        return session is Session.Student || session is Session.Diagnostics
+    }
+
+    fun isVisibleIntensive(raw: String): Boolean =
+        isIntensive(raw) && !isEffectivelyDeleted(raw)
 
     /**
      * Парсит запись ученика.

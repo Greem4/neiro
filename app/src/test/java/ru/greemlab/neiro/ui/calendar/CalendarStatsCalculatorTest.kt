@@ -85,7 +85,7 @@ class CalendarStatsCalculatorTest {
     }
 
     @Test
-    fun `net profit is zero when tax exceeds income`() {
+    fun `net profit subtracts monthly tax even when income is lower`() {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = mapOf(
@@ -96,6 +96,19 @@ class CalendarStatsCalculatorTest {
             monthlyTaxAmount = 1000.0,
         )
         assertEquals(500.0, stats.totalEarned, 0.0)
-        assertEquals(0.0, stats.netProfit, 0.0)
+        assertEquals(-500.0, stats.netProfit, 0.0)
+    }
+
+    @Test
+    fun `net profit subtracts tax for month without earnings`() {
+        val stats = computeMonthStats(
+            currentMonth = month,
+            dayData = emptyMap(),
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 6500.0,
+        )
+        assertEquals(0.0, stats.totalEarned, 0.0)
+        assertEquals(-6500.0, stats.netProfit, 0.0)
     }
 }

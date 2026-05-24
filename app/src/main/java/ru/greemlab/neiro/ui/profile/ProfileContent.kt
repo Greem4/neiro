@@ -633,6 +633,7 @@ private fun ProfileContentLightPreview() {
                     year = YearMonth.now().year,
                     completedSessions = 42,
                     totalNetEarned = 58_000.0,
+                    totalTaxAmount = 60_000.0,
                     monthlyNet = listOf(
                         4_000.0, 5_000.0, 4_500.0, 6_000.0, 5_500.0, 4_800.0,
                         3_200.0, 5_500.0, 6_500.0, 4_000.0, 4_500.0, 5_000.0,

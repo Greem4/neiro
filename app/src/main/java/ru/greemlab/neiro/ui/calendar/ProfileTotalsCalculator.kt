@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * Сводная статистика по всем записям пользователя.
@@ -10,7 +11,7 @@ import java.time.LocalDate
  * - [futureSessions] — будущие запланированные занятия
  * - [attendedSessions] — посещённые ученики (любая дата)
  * - [totalEarned] — фактически заработано (грязными)
- * - [netEarned] — чистыми (грязные минус налог за месяц)
+ * - [netEarned] — чистыми (грязные минус [monthlyTaxAmount] за каждый месяц, в котором есть записи)
  * - [expectedFromFuture] — деньги, ожидаемые от будущих занятий
  */
 @Immutable
@@ -34,7 +35,7 @@ data class ProfileTotals(
  * @param pricePerSession Стоимость одного занятия ученика.
  * @param pricePerDiagnostics Стоимость одной диагностики.
  * @param today Сегодняшняя дата — нужна, чтобы разделить «прошлое» и «будущее».
- * @param monthlyTaxAmount Налог за месяц — вычитается из [totalEarned] для расчёта [ProfileTotals.netEarned].
+ * @param monthlyTaxAmount Налог в рублях за каждый календарный месяц (как в профиле).
  */
 internal fun computeProfileTotals(
     dayData: Map<LocalDate, List<String>>,
@@ -48,33 +49,43 @@ internal fun computeProfileTotals(
     var attended = 0
     var earned = 0.0
     var expectedFuture = 0.0
+    val grossByMonth = mutableMapOf<YearMonth, Double>()
 
     for ((date, sessions) in dayData) {
         val isFuture = date.isAfter(today)
         for (raw in sessions) {
-            when (val session = SessionParser.parse(raw)) {
+            val session = SessionParser.parse(raw)
+            if (session.isEffectivelyDeleted()) continue
+
+            when (session) {
                 is Session.Student -> {
                     if (isFuture) futureSessions++ else pastSessions++
                     val pay = pricePerSession
-                    if (session.attended) {
+                    if (session.countsTowardEarnings()) {
                         attended++
                         earned += pay
+                        addGross(grossByMonth, date, pay)
                     } else if (isFuture) {
                         expectedFuture += pay
                     }
                 }
 
                 is Session.Intensive -> {
-                    if (session.attended) earned += session.amount
-                    else if (isFuture) expectedFuture += session.amount
+                    if (session.countsTowardEarnings()) {
+                        earned += session.amount
+                        addGross(grossByMonth, date, session.amount)
+                    } else if (isFuture) {
+                        expectedFuture += session.amount
+                    }
                 }
 
                 is Session.Diagnostics -> {
                     if (isFuture) futureSessions++ else pastSessions++
                     val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
-                    if (session.attended) {
+                    if (session.countsTowardEarnings()) {
                         attended++
                         earned += price
+                        addGross(grossByMonth, date, price)
                     } else if (isFuture) {
                         expectedFuture += price
                     }
@@ -83,12 +94,26 @@ internal fun computeProfileTotals(
         }
     }
 
+    val monthsWithEntries = dayData.keys.map { YearMonth.from(it) }.toSet()
+    val netEarned = monthsWithEntries.sumOf { month ->
+        monthlyNetProfit(grossByMonth[month] ?: 0.0, monthlyTaxAmount)
+    }
+
     return ProfileTotals(
         pastSessions = pastSessions,
         futureSessions = futureSessions,
         attendedSessions = attended,
         totalEarned = earned,
-        netEarned = (earned - monthlyTaxAmount).coerceAtLeast(0.0),
+        netEarned = netEarned,
         expectedFromFuture = expectedFuture,
     )
+}
+
+private fun addGross(
+    grossByMonth: MutableMap<YearMonth, Double>,
+    date: LocalDate,
+    amount: Double,
+) {
+    val month = YearMonth.from(date)
+    grossByMonth[month] = (grossByMonth[month] ?: 0.0) + amount
 }

@@ -9,6 +9,10 @@ import java.time.Month
 import java.time.YearMonth
 import java.time.format.TextStyle
 
+/** Чистая прибыль за месяц: грязные минус фиксированный налог из профиля (может быть отрицательной). */
+internal fun monthlyNetProfit(grossEarned: Double, monthlyTaxAmount: Double): Double =
+    grossEarned - monthlyTaxAmount
+
 /**
  * Рассчитывает и кэширует статистику за выбранный месяц.
  * Один проход по всем дням без промежуточных коллекций.
@@ -66,7 +70,7 @@ internal fun computeMonthStats(
 
             when (session) {
                 is Session.Intensive -> {
-                    if (session.attended) {
+                    if (session.countsTowardEarnings()) {
                         intensiveEarnings += session.amount
                         grossEarned += session.amount
                     } else {
@@ -77,7 +81,7 @@ internal fun computeMonthStats(
                 is Session.Diagnostics -> {
                     scheduled++
                     val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
-                    if (session.attended) {
+                    if (session.countsTowardEarnings()) {
                         completed++
                         completedDiagnostics++
                         diagnosticsEarnings += price
@@ -90,7 +94,7 @@ internal fun computeMonthStats(
                 is Session.Student -> {
                     scheduled++
                     val pay = pricePerSession
-                    val isAttended = session.attended
+                    val isAttended = session.countsTowardEarnings()
                     if (isAttended) {
                         completed++
                         completedSessions++
@@ -112,7 +116,7 @@ internal fun computeMonthStats(
         }
     }
 
-    val netProfit = (grossEarned - monthlyTaxAmount).coerceAtLeast(0.0)
+    val netProfit = monthlyNetProfit(grossEarned, monthlyTaxAmount)
 
     return CalendarMonthStats(
         completedCount = completed,
