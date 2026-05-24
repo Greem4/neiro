@@ -45,6 +45,8 @@ private val HourLabelColor = Color(0xFF9E9E9E)
 /** Высота одного часа на шкале. */
 private val TimelineHourHeight: Dp = 72.dp
 private val TimelineMinuteHeight: Dp = TimelineHourHeight / 60
+/** Максимальная высота прокручиваемой области расписания. */
+private val TimelineViewportMaxHeight: Dp = 420.dp
 private val TimeAxisWidth: Dp = 54.dp
 /** Высота строки «сейчас»: бейдж + линия по центру Y. */
 private val NowIndicatorHeight: Dp = 22.dp
@@ -78,7 +80,7 @@ fun DayScheduleTimeline(
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
 
-    LaunchedEffect(highlightSlotKey, layout) {
+    LaunchedEffect(highlightSlotKey, layout, date) {
         val key = highlightSlotKey ?: return@LaunchedEffect
         val currentLayout = layout ?: return@LaunchedEffect
         val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
@@ -88,6 +90,28 @@ fun DayScheduleTimeline(
         val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
             .toInt()
             .coerceAtLeast(0)
+        scrollState.animateScrollTo(scrollTarget)
+    }
+
+    LaunchedEffect(layout, date, highlightSlotKey) {
+        if (highlightSlotKey != null) return@LaunchedEffect
+        val currentLayout = layout ?: return@LaunchedEffect
+        if (date != LocalDate.now()) return@LaunchedEffect
+        val now = LocalTime.now()
+        if (now.isBefore(currentLayout.axisStart) || !now.isBefore(currentLayout.axisEnd)) return@LaunchedEffect
+        delay(80)
+        var layoutAttempts = 0
+        while (scrollState.viewportSize == 0 && layoutAttempts < 30) {
+            delay(16)
+            layoutAttempts++
+        }
+        val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
+        val nowLinePx = minutesFromAxisStart(currentLayout.axisStart, now) * pxPerMinute
+        val viewportPx = scrollState.viewportSize.takeIf { it > 0 }
+            ?: with(density) { TimelineViewportMaxHeight.toPx() }.toInt()
+        val scrollTarget = (nowLinePx - viewportPx / 2f)
+            .toInt()
+            .coerceIn(0, scrollState.maxValue)
         scrollState.animateScrollTo(scrollTarget)
     }
 
@@ -112,7 +136,7 @@ fun DayScheduleTimeline(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = TimelineViewportMaxHeight)
                     .verticalScroll(scrollState),
             ) {
                 Row(
@@ -225,7 +249,7 @@ fun DayScheduleTimeline(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = TimelineViewportMaxHeight)
                     .pullToRefresh(
                         state = state,
                         isRefreshing = isRefreshing,
@@ -244,7 +268,7 @@ fun DayScheduleTimeline(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp),
+                    .heightIn(max = TimelineViewportMaxHeight),
             ) {
                 timelineBody()
             }
