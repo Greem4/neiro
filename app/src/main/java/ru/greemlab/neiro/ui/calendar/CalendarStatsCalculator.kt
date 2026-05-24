@@ -25,6 +25,27 @@ internal fun filterDayDataForMonth(
     return result
 }
 
+/** Топ имён учеников по числу записей в переданной карте (обычно один месяц). */
+internal fun computeRecentStudents(
+    dayData: Map<LocalDate, List<String>>,
+    limit: Int = 10,
+): List<String> {
+    val counts = HashMap<String, Int>()
+    for (sessions in dayData.values) {
+        for (raw in sessions) {
+            val session = SessionParser.parse(raw)
+            if (session !is Session.Student) continue
+            val name = session.name
+            if (name.isBlank()) continue
+            counts[name] = (counts[name] ?: 0) + 1
+        }
+    }
+    return counts.entries
+        .sortedByDescending { it.value }
+        .take(limit)
+        .map { it.key }
+}
+
 /** Чистая прибыль за месяц: грязные минус фиксированный налог из профиля (может быть отрицательной). */
 internal fun monthlyNetProfit(grossEarned: Double, monthlyTaxAmount: Double): Double =
     grossEarned - monthlyTaxAmount

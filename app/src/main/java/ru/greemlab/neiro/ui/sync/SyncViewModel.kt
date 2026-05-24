@@ -62,8 +62,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logoutYClients() {
         yclientsRepository.logout()
-        syncPreferences.clearLastSync()
-        AutoSyncCoordinator.cancelPeriodicSync(getApplication())
+        syncPreferences.clearSyncState()
+        AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
         _uiState.value = SyncUiState()
     }
 
@@ -80,7 +80,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             when (val result = yclientsRepository.login(login, pass)) {
                 is ApiResult.Success -> {
                     _uiState.value = _uiState.value.copy(isLoading = false, showSuccess = true)
-                    AutoSyncCoordinator.schedulePeriodicSync(getApplication())
+                    AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
                     if (autoSync) {
                         devSyncAll()
                     }
@@ -126,16 +126,44 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Полная синхронизация для профиля: с глубокой истории до конца текущего месяца.
+     * После входа в YClients: один раз полная история, дальше — только узкий авто-диапазон.
+     */
+    fun syncAfterLogin() {
+        if (syncPreferences.hasCompletedInitialFullSync) {
+            syncDailyEdgeMonths(showUi = false)
+        } else {
+            syncAllThroughCurrentMonth()
+        }
+    }
+
+    /** Текущий + следующий месяц (ежедневный авто и после повторного входа). */
+    fun syncDailyEdgeMonths(showUi: Boolean = true) {
+        viewModelScope.launch {
+            runSync(showUi = showUi) {
+                calendarSync.syncDefaultAutoRange()
+            }
+        }
+    }
+
+    /**
+     * Полная синхронизация из профиля: вся история до конца текущего месяца (вручную).
      */
     fun syncAllThroughCurrentMonth() {
         viewModelScope.launch {
             runSync(showUi = true) {
-                val end = YearMonth.now().atEndOfMonth()
-                val start = resolveFullSyncStartDate()
-                calendarSync.syncDateRange(start, end)
+                val outcome = runFullHistorySync()
+                if (outcome is SyncOutcome.Success) {
+                    syncPreferences.markInitialFullSyncComplete()
+                }
+                outcome
             }
         }
+    }
+
+    private suspend fun runFullHistorySync(): SyncOutcome {
+        val end = YearMonth.now().atEndOfMonth()
+        val start = resolveFullSyncStartDate()
+        return calendarSync.syncDateRange(start, end)
     }
 
     private suspend fun resolveFullSyncStartDate(): LocalDate {

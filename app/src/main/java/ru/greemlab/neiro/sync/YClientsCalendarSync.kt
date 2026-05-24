@@ -38,7 +38,8 @@ class YClientsCalendarSync(
         syncDateRange(yearMonth.atDay(1), yearMonth.atEndOfMonth())
 
     /**
-     * Диапазон для автосинхронизации: предыдущий, текущий и следующий месяц.
+     * Ежедневная автосинхронизация: текущий и следующий месяц (записи «вперёд»).
+     * Полная история — только вручную из профиля.
      */
     suspend fun syncDefaultAutoRange(): SyncOutcome {
         val (start, end) = defaultAutoSyncRange()
@@ -46,7 +47,8 @@ class YClientsCalendarSync(
     }
 
     /**
-     * Лёгкое обновление с API для live-опроса: узкий диапазон дат, без записи «последней синхронизации».
+     * Live-опрос для уведомлений о будущих записях: текущий и следующий месяц,
+     * без сдвига метки «последней синхронизации» (её обновляет [syncDefaultAutoRange]).
      */
     suspend fun refreshLiveRange(): SyncOutcome {
         val (start, end) = defaultLiveRefreshRange()
@@ -497,13 +499,17 @@ class YClientsCalendarSync(
             return count
         }
 
+        /** Ежедневный авто: с 1-го текущего месяца по конец следующего. */
         fun defaultAutoSyncRange(): Pair<LocalDate, LocalDate> {
-            val center = YearMonth.now()
-            return center.minusMonths(1).atDay(1) to center.plusMonths(1).atEndOfMonth()
+            val current = YearMonth.now()
+            val next = current.plusMonths(1)
+            return current.atDay(1) to next.atEndOfMonth()
         }
 
-        /** Диапазон live-опроса: только текущий месяц. */
-        fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> {
+        /** Live-опрос: текущий и следующий месяц (будущие записи и пуши). */
+        fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> = defaultAutoSyncRange()
+
+        private fun currentCalendarMonthRange(): Pair<LocalDate, LocalDate> {
             val month = YearMonth.now()
             return month.atDay(1) to month.atEndOfMonth()
         }

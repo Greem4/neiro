@@ -367,7 +367,7 @@ fun CalendarScreen(
             AuthScreen(
                 onBack = ::applyYClientsBackNavigation,
                 onLoginSuccess = {
-                    syncViewModel.syncCurrentMonth()
+                    syncViewModel.syncAfterLogin()
                     applyYClientsBackNavigation()
                 },
             )

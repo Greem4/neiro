@@ -89,26 +89,19 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             ),
         )
 
-    /** Список уникальных имен учеников для быстрого выбора. */
-    val recentStudents: StateFlow<List<String>> = repository.dayDataFlow
-        .map { data: Map<LocalDate, List<String>> ->
-            data.values.flatten()
-                .mapNotNull { raw ->
-                    val session = SessionParser.parse(raw)
-                    if (session is Session.Student) session.name else null
-                }
-                .filter { it.isNotBlank() }
-                .groupBy { it }
-                .mapValues { it.value.size }
-                .toList()
-                .sortedByDescending { it.second }
-                .map { it.first }
-                .take(10)
-        }
+    /** Имена для быстрого выбора — только открытый [currentMonth], без обхода архива. */
+    val recentStudents: StateFlow<List<String>> = currentMonthDayData
+        .map(::computeRecentStudents)
+        .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList(),
+            initialValue = computeRecentStudents(
+                filterDayDataForMonth(
+                    CalendarDataStoreProvider.peekDayData(application),
+                    YearMonth.now(),
+                ),
+            ),
         )
 
     /**

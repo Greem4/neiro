@@ -6,8 +6,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import java.time.LocalDate
+import java.time.YearMonth
 
 class YClientsCalendarSyncTest {
+
+    @Test
+    fun `default auto sync range is current and next calendar month`() {
+        val month = YearMonth.now()
+        val (start, end) = YClientsCalendarSync.defaultAutoSyncRange()
+        assertEquals(month.atDay(1), start)
+        assertEquals(month.plusMonths(1).atEndOfMonth(), end)
+    }
+
+    @Test
+    fun `live refresh range matches daily edge months`() {
+        assertEquals(
+            YClientsCalendarSync.defaultAutoSyncRange(),
+            YClientsCalendarSync.defaultLiveRefreshRange(),
+        )
+    }
 
     private val start = LocalDate.of(2025, 5, 1)
     private val end = LocalDate.of(2025, 5, 31)

@@ -12,6 +12,15 @@ class CalendarStatsCalculatorTest {
     private val monthlyTax = 200.0
 
     @Test
+    fun `computeRecentStudents ranks by frequency in given map only`() {
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf("Иванов|true", "Петров|false", "Иванов|true"),
+            LocalDate.of(2025, 5, 2) to listOf("__INTENSIVE__:1000|Лагерь|true"),
+        )
+        assertEquals(listOf("Иванов", "Петров"), computeRecentStudents(dayData, limit = 5))
+    }
+
+    @Test
     fun `filterDayDataForMonth keeps only target month`() {
         val full = mapOf(
             LocalDate.of(2025, 5, 10) to listOf("Иванов|true"),
