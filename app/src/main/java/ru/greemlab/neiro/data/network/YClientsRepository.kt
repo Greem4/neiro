@@ -116,6 +116,7 @@ class YClientsRepository(context: Context) {
             val all = mutableListOf<RecordData>()
 
             var page = 1
+            var lastPageSize = 0
             while (page <= MAX_PAGES) {
                 val response = api.getRecords(
                     companyId = tokenStorage.companyId,
@@ -139,9 +140,16 @@ class YClientsRepository(context: Context) {
                 }
 
                 val pageData = body.data.orEmpty()
+                lastPageSize = pageData.size
                 all += pageData.filter { it.staffId == effectiveStaffId }
                 if (pageData.size < PAGE_SIZE) break
                 page++
+            }
+
+            if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
+                return@withContext ApiResult.Error(
+                    "Слишком много записей за период — загрузка обрезана, календарь не изменён",
+                )
             }
 
             ApiResult.Success(all)

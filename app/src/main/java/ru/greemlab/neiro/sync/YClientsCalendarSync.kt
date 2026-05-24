@@ -63,6 +63,12 @@ class YClientsCalendarSync(
                 is ApiResult.Success -> {
                     val records = result.data
                     val dayDataBefore = calendarRepository.dayDataFlow.first()
+                    if (!shouldApplySyncMerge(records, dayDataBefore, startDate, endDate)) {
+                        return@withLock SyncOutcome.Failure(
+                            "YClients вернул пустой ответ, а в календаре есть записи — " +
+                                "слияние пропущено, локальные данные сохранены",
+                        )
+                    }
                     autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
                     val dayDataAfter = calendarRepository.dayDataFlow.first()
@@ -269,6 +275,9 @@ class YClientsCalendarSync(
      * После слияния с API оставляем только ручные интенсивы (их нет в YClients).
      * Записи учеников/диагностики без пары в API удаляются — иначе «призраки»
      * остаются в статусе «ожидание», хотя запись в YClients уже снята.
+     *
+     * Слияние с удалением выполняется только при [shouldApplySyncMerge] — при ошибках
+     * сети, пустом подозрительном ответе или обрезанной пагинации календарь не трогаем.
      */
     private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
         pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
@@ -454,6 +463,39 @@ class YClientsCalendarSync(
 
     companion object {
         private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
+
+        /**
+         * Можно ли доверять ответу API и удалять локальные записи без пары.
+         *
+         * Пустой список при наличии учеников/диагностики в диапазоне — признак сбоя
+         * (сеть, неверный staff_id, глюк API), а не «в YClients ничего нет».
+         */
+        internal fun shouldApplySyncMerge(
+            records: List<RecordData>,
+            localDayData: Map<LocalDate, List<String>>,
+            startDate: LocalDate,
+            endDate: LocalDate,
+        ): Boolean {
+            if (records.isNotEmpty()) return true
+            return countYClientsManagedLocalEntries(localDayData, startDate, endDate) == 0
+        }
+
+        /** Ученики и диагностика в диапазоне (интенсивы не считаются — они только локальные). */
+        internal fun countYClientsManagedLocalEntries(
+            localDayData: Map<LocalDate, List<String>>,
+            startDate: LocalDate,
+            endDate: LocalDate,
+        ): Int {
+            var count = 0
+            var date = startDate
+            while (!date.isAfter(endDate)) {
+                localDayData[date]?.forEach { raw ->
+                    if (!raw.startsWith(SessionFormat.INTENSIVE_PREFIX)) count++
+                }
+                date = date.plusDays(1)
+            }
+            return count
+        }
 
         fun defaultAutoSyncRange(): Pair<LocalDate, LocalDate> {
             val center = YearMonth.now()
