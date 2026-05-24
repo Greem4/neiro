@@ -59,6 +59,9 @@ import java.time.Month
 import java.time.YearMonth
 
 private val StatsContentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+/** Доля высоты области графика под столбцы (линия использует [ChartLineHeightFraction]). */
+private const val ChartBarHeightFraction = 0.85f
+private const val ChartLineHeightFraction = 0.96f
 private val ChartMonthLabelStyle
     @Composable get() = MaterialTheme.typography.labelSmall.copy(
         fontSize = 9.sp,
@@ -380,19 +383,24 @@ private fun YearNetProfitChart(
                     )
                 }
 
+                val barChartHeight = chartHeight * ChartBarHeightFraction
+                val lineChartHeight = chartHeight * ChartLineHeightFraction
+
                 val barCenters = FloatArray(barCount)
                 val barTops = FloatArray(barCount)
+                val lineTops = FloatArray(barCount)
 
                 monthlyNet.take(barCount).forEachIndexed { index, net ->
                     val isSelected = index == selectedMonthIndex
                     val dimmed = !isSelected
                     val fraction = (net / maxValue).toFloat().coerceIn(0f, 1f)
                     val animatedFraction = fraction * progress
-                    val barHeight = chartHeight * animatedFraction
+                    val barHeight = barChartHeight * animatedFraction
                     val left = slotWidth * index + (slotWidth - barWidth) / 2f
                     val top = chartBottom - barHeight
                     barCenters[index] = left + barWidth / 2f
                     barTops[index] = top
+                    lineTops[index] = chartBottom - lineChartHeight * animatedFraction
 
                     if (isSelected) {
                         val slotLeft = slotWidth * index
@@ -466,7 +474,7 @@ private fun YearNetProfitChart(
                     monthlyNet.take(barCount).forEachIndexed { index, net ->
                         if (net <= 0.0) return@forEachIndexed
                         val x = barCenters[index]
-                        val y = barTops[index]
+                        val y = lineTops[index]
                         if (!started) {
                             linePath.moveTo(x, y)
                             areaPath.moveTo(x, chartBottom)
@@ -518,13 +526,13 @@ private fun YearNetProfitChart(
                                 else -> primary.copy(alpha = 0.75f)
                             },
                             radius = radius * progress,
-                            center = Offset(barCenters[index], barTops[index]),
+                            center = Offset(barCenters[index], lineTops[index]),
                         )
                         if (isSelected) {
                             drawCircle(
                                 color = accent.copy(alpha = 0.22f * progress),
                                 radius = (radius + 3.dp.toPx()) * progress,
-                                center = Offset(barCenters[index], barTops[index]),
+                                center = Offset(barCenters[index], lineTops[index]),
                             )
                         }
                     }
