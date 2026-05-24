@@ -58,7 +58,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.StatusExpectedMint
+import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -80,11 +84,6 @@ private val DATE_FORMAT: DateTimeFormatter =
 @OptIn(ExperimentalMaterial3Api::class)
 private val DayDetailsPullRefreshThreshold =
     PullToRefreshDefaults.PositionalThreshold + 36.dp
-
-private val StatusLavender = Color(0xFFA7B2FF)
-private val StatusRed = Color(0xFFF44336)
-private val StatusGreen = Color(0xFF4CAF50)
-private val StatusMint = Color(0xFFB2DFDB)
 
 /**
  * Данные для отображения записи в расписании.
@@ -425,13 +424,13 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Подтверждено",
                     value = stats.confirmedCount.toString(),
-                    color = StatusLavender,
+                    color = ExpectedAmber,
                     modifier = Modifier.weight(1f),
                 )
                 StatBadge(
                     label = "Ожидают",
                     value = stats.expectedCount.toString(),
-                    color = StatusMint,
+                    color = StatusExpectedMint,
                     modifier = Modifier.weight(1f),
                 )
             } else {
@@ -445,7 +444,7 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Итог",
                     value = formatRubles(stats.totalMoney),
-                    color = StatusGreen,
+                    color = ScheduleHeaderGreen,
                     modifier = Modifier.weight(1f),
                 )
             }

@@ -44,7 +44,7 @@ val ProfitGreen = Color(0xFFFFAD80)
 val ExpectedAmber = Color(0xFFA7B2FF)
 
 /** Цвет шапки записи (время и иконка). */
-val ScheduleHeaderGreen = Color(0xFF33AB84)
+val ScheduleHeaderGreen = Color(0xFF4CAF50)
 
 /** Цвет «ожидания» (новое из скрина) — Мятный. */
 val StatusExpectedMint = Color(0xFFB2DFDB)
