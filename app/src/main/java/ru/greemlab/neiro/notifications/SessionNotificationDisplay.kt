@@ -24,17 +24,22 @@ object SessionNotificationDisplay {
     private val dateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 
     fun ensureChannel(context: Context) {
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        val channel = android.app.NotificationChannel(
-            CHANNEL_ID,
-            context.getString(R.string.notification_channel_sessions),
-            NotificationManager.IMPORTANCE_HIGH,
-        ).apply {
-            description = context.getString(R.string.notification_channel_sessions_desc)
-            enableVibration(true)
-            lightColor = NeiroNotificationBranding.channelLightColor(context)
+        val appContext = context.applicationContext
+        val manager = appContext.getSystemService(NotificationManager::class.java) ?: return
+        try {
+            val channel = android.app.NotificationChannel(
+                CHANNEL_ID,
+                appContext.getString(R.string.notification_channel_sessions),
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = appContext.getString(R.string.notification_channel_sessions_desc)
+                enableVibration(true)
+                lightColor = NeiroNotificationBranding.channelLightColor(appContext)
+            }
+            manager.createNotificationChannel(channel)
+        } catch (_: SecurityException) {
+            // Игнорируем ошибки AppOps/UID при создании канала на некоторых устройствах.
         }
-        manager.createNotificationChannel(channel)
     }
 
     fun showEvents(context: Context, events: List<SessionEvent>) {
@@ -306,9 +311,9 @@ object SessionNotificationDisplay {
 
     private fun notify(context: Context, id: Int, notification: android.app.Notification) {
         try {
-            NotificationManagerCompat.from(context).notify(id, notification)
+            NotificationManagerCompat.from(context.applicationContext).notify(id, notification)
         } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS не выдан.
+            // POST_NOTIFICATIONS не выдан или ошибка AppOps (uid -1).
         }
     }
 

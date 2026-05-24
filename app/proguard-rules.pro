@@ -62,3 +62,17 @@
 }
 -dontwarn kotlinx.coroutines.flow.**
 -dontwarn kotlinx.coroutines.debug.**
+
+# --- WorkManager & Room (R8 full mode fix) ---
+# WorkManager использует рефлексию для создания БД и воркеров.
+-keep class androidx.work.impl.WorkDatabase_Impl { <init>(...); }
+-keep class * extends androidx.room.RoomDatabase {
+    <init>(...);
+}
+-keep class * extends androidx.work.ListenableWorker {
+    <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+# Сохраняем сервисы, чтобы система не теряла связь с UID при запуске Job/Alarm.
+-keep class androidx.work.impl.background.systemjob.SystemJobService { *; }
+-keep class androidx.work.impl.background.systemalarm.SystemAlarmService { *; }
+-keep class androidx.work.impl.foreground.SystemForegroundService { *; }
