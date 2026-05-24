@@ -18,14 +18,12 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +45,9 @@ import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.ProfileAvatar
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
 import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
@@ -75,18 +75,6 @@ fun ProfileContent(
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsState()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var autoSyncEnabled by remember { mutableStateOf(syncViewModel.isAutoSyncEnabled) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                autoSyncEnabled = syncViewModel.isAutoSyncEnabled
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
     val currentYear = YearMonth.now().year
     val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
@@ -115,7 +103,6 @@ fun ProfileContent(
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
-        autoSyncEnabled = autoSyncEnabled,
         onSyncNow = syncViewModel::syncAllThroughCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
@@ -135,7 +122,6 @@ private fun ProfileContentImpl(
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     userAvatarUrl: String? = null,
-    autoSyncEnabled: Boolean = true,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
@@ -217,7 +203,6 @@ private fun ProfileContentImpl(
         SettingsSection(title = "Синхронизация") {
             YClientsActionBlock(
                 isLoggedIn = isLoggedInToYClients,
-                autoSyncEnabled = autoSyncEnabled,
                 syncState = syncState,
                 onOpenYClients = onOpenYClients,
                 onSyncNow = onSyncNow,
@@ -467,14 +452,13 @@ private fun DevMenuItem(
  *  - если пользователь ещё не вошёл — открывает экран авторизации;
  *  - если уже вошёл — полная синхронизация истории (вручную, не чаще чем нужно).
  *
- * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
- * синхронизация …», прогресс или ошибка. Управление аккаунтом (просмотр имени,
- * выход) живёт в «Настройках профиля» — `SettingsScreen`.
+ * Под кнопкой — короткий статус («Подключено», прогресс, ошибка) и при давности
+ * синхронизации > [STALE_SYNC_DAYS] — плашка «Обновите данные».
+ * Управление аккаунтом — в «Настройках профиля» (`SettingsScreen`).
  */
 @Composable
 private fun YClientsActionBlock(
     isLoggedIn: Boolean,
-    autoSyncEnabled: Boolean,
     syncState: SyncUiState,
     onOpenYClients: () -> Unit,
     onSyncNow: () -> Unit,
@@ -525,19 +509,70 @@ private fun YClientsActionBlock(
 
         YClientsStatusLine(
             isLoggedIn = isLoggedIn,
-            autoSyncEnabled = autoSyncEnabled,
             isLoading = isLoading,
             hasError = hasError,
             hasSuccess = hasSuccess,
             syncState = syncState,
         )
+
+        val showStaleHint = isLoggedIn && !isLoading && !hasError && !hasSuccess &&
+            isSyncStale(syncState.lastSyncDate)
+        if (showStaleHint) {
+            Spacer(modifier = Modifier.height(8.dp))
+            YClientsStaleSyncHint(
+                lastSyncDate = syncState.lastSyncDate,
+                onClick = onSyncNow,
+            )
+        }
+    }
+}
+
+@Composable
+private fun YClientsStaleSyncHint(
+    lastSyncDate: LocalDate?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dateLabel = lastSyncDate?.format(LAST_SYNC_FORMATTER)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Обновите данные",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                if (dateLabel != null) {
+                    Text(
+                        text = "Последняя синхронизация: $dateLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun YClientsStatusLine(
     isLoggedIn: Boolean,
-    autoSyncEnabled: Boolean,
     isLoading: Boolean,
     hasError: Boolean,
     hasSuccess: Boolean,
@@ -563,21 +598,7 @@ private fun YClientsStatusLine(
             MaterialTheme.colorScheme.onSurfaceVariant,
             "Загружаю записи…",
         )
-        isLoggedIn -> {
-            val last = syncState.lastSyncDate
-            val label = when {
-                !autoSyncEnabled && last != null ->
-                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER)
-                !autoSyncEnabled ->
-                    "Подключено · только ручная синхронизация"
-                last != null ->
-                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER) +
-                        " · авто: текущий и след. месяц раз в сутки"
-                else ->
-                    "Подключено · авто при открытии · live текущего и след. месяца"
-            }
-            Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
-        }
+        isLoggedIn -> Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, "Подключено")
         else -> Triple(
             Icons.Rounded.CloudSync,
             MaterialTheme.colorScheme.onSurfaceVariant,
@@ -587,7 +608,10 @@ private fun YClientsStatusLine(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
     ) {
         Icon(
             imageVector = icon,
@@ -612,6 +636,13 @@ private fun plural(n: Int, one: String, few: String, many: String): String {
         mod10 in 2..4 && mod100 !in 12..14 -> few
         else -> many
     }
+}
+
+private const val STALE_SYNC_DAYS = 30L
+
+private fun isSyncStale(lastSyncDate: LocalDate?): Boolean {
+    if (lastSyncDate == null) return false
+    return ChronoUnit.DAYS.between(lastSyncDate, LocalDate.now()) >= STALE_SYNC_DAYS
 }
 
 private val LAST_SYNC_FORMATTER: DateTimeFormatter =

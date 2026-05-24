@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -80,10 +81,10 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
-/** Порог жеста «потянуть вниз» для обновления — выше стандартного Material. */
+/** Порог жеста «потянуть вниз» — ниже стандартного, чтобы проще обновить день. */
 @OptIn(ExperimentalMaterial3Api::class)
-private val DayDetailsPullRefreshThreshold =
-    PullToRefreshDefaults.PositionalThreshold + 36.dp
+private val DayDetailsPullRefreshThreshold: Dp =
+    (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
 
 /**
  * Данные для отображения записи в расписании.

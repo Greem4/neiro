@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -340,11 +341,12 @@ private fun YClientsAccountSection(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
+                OutlinedButton(
                     onClick = onLogout,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.textButtonColors(
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
@@ -354,7 +356,10 @@ private fun YClientsAccountSection(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Выйти из YClients")
+                    Text(
+                        text = "Выйти из YClients",
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }

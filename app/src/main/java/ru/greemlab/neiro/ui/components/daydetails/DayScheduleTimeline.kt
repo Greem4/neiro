@@ -54,13 +54,10 @@ private val NowLineStroke: Dp = 1.dp
 private val SlotLaneGap: Dp = 4.dp
 /** Минимальный зазор между карточками — почти стык, но без слияния. */
 private val SlotBottomGap: Dp = 2.dp
-/**
- * Выше [PullToRefreshDefaults.PositionalThreshold], чтобы обновление срабатывало
- * только при явном сильном потягивании списка вниз.
- */
+/** Ниже стандартного порога — обновление дня срабатывает при лёгком потягивании вниз. */
 @OptIn(ExperimentalMaterial3Api::class)
 private val SchedulePullRefreshThreshold: Dp =
-    PullToRefreshDefaults.PositionalThreshold + 36.dp
+    (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
