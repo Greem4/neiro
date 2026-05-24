@@ -34,7 +34,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -185,7 +184,6 @@ fun CalendarScreen(
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
-        sessionPriceHistory = profile.sessionPriceHistory,
     )
 
     val context = LocalContext.current
@@ -299,7 +297,6 @@ fun CalendarScreen(
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
-                sessionPriceHistory = profile.sessionPriceHistory,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -523,7 +520,6 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -539,14 +535,12 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics, sessionPriceHistory) {
+    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics) {
         val date = selectedDate ?: return@remember null
         computeDayStats(
             dayData[date].orEmpty(),
             pricePerSession,
             pricePerDiagnostics,
-            sessionDate = date,
-            sessionPriceHistory = sessionPriceHistory,
         )
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }

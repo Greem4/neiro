@@ -96,7 +96,6 @@ private data class ScheduleEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
-    val employeePay: Double = 0.0,
 )
 
 /**
@@ -169,7 +168,7 @@ private fun DayDetailsContent(
     }
 
     val stats = remember(entries, userProfile, date) {
-        calculateStats(entries, userProfile, date)
+        calculateStats(entries, userProfile)
     }
 
     val dateText = remember(date) { date.format(DATE_FORMAT) }
@@ -574,7 +573,6 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 time = normalizeSessionTime(session.time),
                 comment = session.comment,
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                employeePay = session.payAmount ?: 0.0,
             )
 
             is Session.Intensive -> ScheduleEntry(
@@ -605,9 +603,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 private fun calculateStats(
     entries: List<ScheduleEntry>,
     userProfile: UserProfile,
-    date: LocalDate,
 ): DayStats {
-    // TODO: разобраться с оплатой — сейчас только ставка из профиля, без payAmount и истории.
     val pricePerSession = userProfile.pricePerSession
     val pricePerDiagnostics = userProfile.pricePerDiagnostics
     var expected = 0
@@ -624,7 +620,6 @@ private fun calculateStats(
                 arrived++
                 if (!entry.isExtra) {
                     money += pricePerSession
-                    // val pay = if (entry.employeePay > 0.0) entry.employeePay else pricePerSession
                 } else if (entry.extraType == "Диагностика") {
                     money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
                 } else {

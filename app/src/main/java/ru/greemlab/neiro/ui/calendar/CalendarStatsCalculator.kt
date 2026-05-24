@@ -3,7 +3,6 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.Month
@@ -21,14 +20,12 @@ fun rememberCalendarMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): CalendarMonthStats = remember(
     currentMonth,
     dayData,
     pricePerSession,
     pricePerDiagnostics,
     monthlyTaxAmount,
-    sessionPriceHistory,
 ) {
     computeMonthStats(
         currentMonth,
@@ -36,7 +33,6 @@ fun rememberCalendarMonthStats(
         pricePerSession,
         pricePerDiagnostics,
         monthlyTaxAmount,
-        sessionPriceHistory,
     )
 }
 
@@ -46,7 +42,6 @@ internal fun computeMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): CalendarMonthStats {
     var completed = 0
     var completedSessions = 0
@@ -94,7 +89,7 @@ internal fun computeMonthStats(
 
                 is Session.Student -> {
                     scheduled++
-                    val pay = session.employeePay(pricePerSession, date, sessionPriceHistory)
+                    val pay = pricePerSession
                     val isAttended = session.attended
                     if (isAttended) {
                         completed++

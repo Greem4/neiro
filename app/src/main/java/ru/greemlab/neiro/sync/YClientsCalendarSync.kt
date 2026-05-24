@@ -379,15 +379,12 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
-        val payAmount = resolveEmployeePay(record, userProfile)
-
         return SessionFormat.serializeStudentExtended(
             name = clientName,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
-            payAmount = payAmount,
         )
     }
 
@@ -423,43 +420,13 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
-        // TODO: разобраться с оплатой — EmployeePayResolver, карта клиента, сохранённый payAmount.
-        val payAmount = resolveEmployeePay(record, userProfile)
-        /*
-        val resolved = resolveEmployeePay(record, userProfile)
-        val payAmount = if (
-            EmployeePayResolver.hasClientCardPayment(record) ||
-            EmployeePayResolver.hasPayrollSalary(record)
-        ) {
-            resolved
-        } else {
-            session.payAmount?.takeIf { it > 0.0 } ?: resolved
-        }
-        */
-
         return SessionFormat.serializeStudentExtended(
             name = session.name,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
-            payAmount = payAmount,
         )
-    }
-
-    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double {
-        // Временно: только текущая ставка из профиля.
-        return userProfile.pricePerSession
-        /*
-        val recordDate = recordDate(record)
-        val defaultPay = userProfile.pricePerSessionOn(recordDate)
-        return EmployeePayResolver.resolveFromRecord(record, defaultPay)
-        */
-    }
-
-    private fun recordDate(record: RecordData): LocalDate {
-        val raw = record.datetime ?: record.date ?: return LocalDate.now()
-        return parseRecordDate(raw) ?: LocalDate.now()
     }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =

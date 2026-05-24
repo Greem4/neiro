@@ -101,7 +101,6 @@ fun ProfileContent(
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
-        sessionPriceHistory = profile.sessionPriceHistory,
     )
 
     ProfileContentImpl(

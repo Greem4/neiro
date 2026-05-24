@@ -3,7 +3,6 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
-import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -41,14 +40,12 @@ fun rememberProfileYearStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): ProfileYearStats = remember(
     year,
     dayData,
     pricePerSession,
     pricePerDiagnostics,
     monthlyTaxAmount,
-    sessionPriceHistory,
 ) {
     computeProfileYearStats(
         year = year,
@@ -56,7 +53,6 @@ fun rememberProfileYearStats(
         pricePerSession = pricePerSession,
         pricePerDiagnostics = pricePerDiagnostics,
         monthlyTaxAmount = monthlyTaxAmount,
-        sessionPriceHistory = sessionPriceHistory,
     )
 }
 
@@ -76,7 +72,6 @@ internal fun computeProfileYearStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
 ): ProfileYearStats {
     var completedSessions = 0
     var totalNetEarned = 0.0
@@ -90,7 +85,6 @@ internal fun computeProfileYearStats(
             pricePerSession = pricePerSession,
             pricePerDiagnostics = pricePerDiagnostics,
             monthlyTaxAmount = monthlyTaxAmount,
-            sessionPriceHistory = sessionPriceHistory,
         )
         completedSessions += monthStats.completedCount
         monthlyNet[month - 1] = monthStats.netProfit
