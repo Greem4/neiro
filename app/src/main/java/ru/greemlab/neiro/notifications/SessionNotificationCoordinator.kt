@@ -179,8 +179,13 @@ object SessionNotificationCoordinator {
             return
         }
 
-        val storedBefore = prefs.loadSnapshot()
-        val effectiveBefore = if (storedBefore.isNotEmpty()) storedBefore else before
+        val today = LocalDate.now()
+        val storedBefore = CalendarSessionSnapshot.withinHorizon(prefs.loadSnapshot(), today)
+        val effectiveBefore = if (storedBefore.isNotEmpty()) {
+            storedBefore
+        } else {
+            CalendarSessionSnapshot.withinHorizon(before, today)
+        }
 
         val events = SessionChangeDetector.detect(effectiveBefore, after)
             .filter { prefs.isTypeEnabled(it.type) }

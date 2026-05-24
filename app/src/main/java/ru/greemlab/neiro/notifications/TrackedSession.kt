@@ -71,20 +71,34 @@ data class SessionEvent(
 
 object CalendarSessionSnapshot {
 
+    const val DEFAULT_HORIZON_DAYS = 60
+
     fun from(
         dayData: Map<LocalDate, List<String>>,
         profile: UserProfile,
-        horizonDays: Int = 60,
+        today: LocalDate = LocalDate.now(),
+        horizonDays: Int = DEFAULT_HORIZON_DAYS,
     ): List<TrackedSession> {
         if (!profile.isRegistered) return emptyList()
 
-        val today = LocalDate.now()
-        val end = today.plusDays(horizonDays.toLong())
-
         return dayData.flatMap { (date, entries) ->
-            if (date.isBefore(today.minusDays(7)) || date.isAfter(end)) return@flatMap emptyList()
+            if (!isDateWithinHorizon(date, today, horizonDays)) return@flatMap emptyList()
             entries.mapNotNull { raw -> parseEntry(date, raw) }
         }
+    }
+
+    /** Оставляет только занятия в том же окне, что и [from] (сегодня и вперёд). */
+    fun withinHorizon(
+        sessions: List<TrackedSession>,
+        today: LocalDate = LocalDate.now(),
+        horizonDays: Int = DEFAULT_HORIZON_DAYS,
+    ): List<TrackedSession> = sessions.filter { session ->
+        isDateWithinHorizon(session.date, today, horizonDays)
+    }
+
+    private fun isDateWithinHorizon(date: LocalDate, today: LocalDate, horizonDays: Int): Boolean {
+        if (date.isBefore(today)) return false
+        return !date.isAfter(today.plusDays(horizonDays.toLong()))
     }
 
     private fun parseEntry(date: LocalDate, raw: String): TrackedSession? {
