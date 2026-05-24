@@ -54,7 +54,10 @@ enum class AttendanceStatus(val code: Int) {
             }
         }
 
-        /** Старый формат `name|true` — ручная отметка «пришёл». */
+        /**
+         * Старый формат `name|true` и ручной офлайн-ввод (в т.ч. будущее редактирование архива).
+         * Даёт только EXPECTED/ARRIVED; для YClients и таймлайна — полный код статуса в строке.
+         */
         fun fromBoolean(attended: Boolean): AttendanceStatus =
             if (attended) ARRIVED else EXPECTED
     }
@@ -70,6 +73,7 @@ enum class AttendanceStatus(val code: Int) {
  */
 @Immutable
 sealed interface Session {
+    /** Упрощённая отметка для ручной сериализации; при наличии кода в строке — см. [status]. */
     val attended: Boolean
     val status: AttendanceStatus get() = AttendanceStatus.fromBoolean(attended)
 

@@ -151,6 +151,7 @@ private fun DayDetailsContent(
     onArchive: () -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
+    // Сейчас — только интенсивы; список учеников (StudentItemRow) — для офлайн-правки архива, см. TODO.
     var isPlanningMode by remember { mutableStateOf(false) }
     var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
