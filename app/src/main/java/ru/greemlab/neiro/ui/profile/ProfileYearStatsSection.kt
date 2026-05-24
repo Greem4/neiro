@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.profile
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -12,7 +13,9 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -200,8 +204,6 @@ fun ProfileYearStatsSection(
                     textAlign = TextAlign.Center,
                 )
 
-                // TODO: Улучшить визуализацию графика и добавить нажатие на каждый столбец
-                //  (чтобы было видно занятия + деньги).
                 YearNetProfitChart(
                     year = stats.year,
                     monthlyNet = stats.monthlyNet,
@@ -327,12 +329,19 @@ private fun YearNetProfitChart(
     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
     val accent = ScheduleHeaderGreen
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f)
+    val chartSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+    val chartBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
     val maxValue = remember(monthlyNet) { monthlyNet.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0 }
     val peakIndex = remember(monthlyNet) {
         monthlyNet.indices.maxByOrNull { monthlyNet.getOrElse(it) { 0.0 } } ?: 0
+    }
+
+    var selectedMonthIndex by remember(year, monthlyNet) { mutableIntStateOf(peakIndex) }
+    LaunchedEffect(year, peakIndex) {
+        selectedMonthIndex = peakIndex
     }
 
     val monthLabels = remember {
@@ -342,103 +351,196 @@ private fun YearNetProfitChart(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .background(chartSurface)
+            .border(1.dp, chartBorder, RoundedCornerShape(14.dp))
             .padding(horizontal = 2.dp, vertical = 8.dp),
     ) {
-        Canvas(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            val chartBottom = size.height
-            val chartTop = 6.dp.toPx()
-            val chartHeight = chartBottom - chartTop
-            val barCount = 12
-            val slotWidth = size.width / barCount
-            val barWidth = slotWidth * 0.52f
-            val corner = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val chartBottom = size.height
+                val chartTop = 6.dp.toPx()
+                val chartHeight = chartBottom - chartTop
+                val barCount = 12
+                val slotWidth = size.width / barCount
+                val barWidth = slotWidth * 0.56f
+                val corner = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                val minBarHeight = 3.dp.toPx()
 
-            listOf(0.33f, 0.66f, 1f).forEach { guide ->
-                val y = chartBottom - chartHeight * guide
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
+                listOf(0.33f, 0.66f, 1f).forEach { guide ->
+                    val y = chartBottom - chartHeight * guide
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                }
 
-            val barCenters = FloatArray(barCount)
-            val barTops = FloatArray(barCount)
+                val barCenters = FloatArray(barCount)
+                val barTops = FloatArray(barCount)
 
-            monthlyNet.take(barCount).forEachIndexed { index, net ->
-                val fraction = (net / maxValue).toFloat().coerceIn(0f, 1f)
-                val animatedFraction = fraction * progress
-                val barHeight = chartHeight * animatedFraction
-                val left = slotWidth * index + (slotWidth - barWidth) / 2f
-                val top = chartBottom - barHeight
-                barCenters[index] = left + barWidth / 2f
-                barTops[index] = top
+                monthlyNet.take(barCount).forEachIndexed { index, net ->
+                    val isSelected = index == selectedMonthIndex
+                    val dimmed = !isSelected
+                    val fraction = (net / maxValue).toFloat().coerceIn(0f, 1f)
+                    val animatedFraction = fraction * progress
+                    val barHeight = chartHeight * animatedFraction
+                    val left = slotWidth * index + (slotWidth - barWidth) / 2f
+                    val top = chartBottom - barHeight
+                    barCenters[index] = left + barWidth / 2f
+                    barTops[index] = top
 
-                drawRoundRect(
-                    color = trackColor,
-                    topLeft = Offset(left, chartTop),
-                    size = Size(barWidth, chartHeight),
-                    cornerRadius = corner,
-                )
-
-                if (barHeight > 0f) {
-                    val barBrush = if (index == peakIndex && net > 0.0) {
-                        Brush.verticalGradient(
-                            colors = listOf(accent, accent.copy(alpha = 0.65f)),
-                            startY = top,
-                            endY = chartBottom,
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            colors = listOf(primary, primaryContainer),
-                            startY = top,
-                            endY = chartBottom,
+                    if (isSelected) {
+                        val slotLeft = slotWidth * index
+                        drawRoundRect(
+                            color = primary.copy(alpha = 0.1f),
+                            topLeft = Offset(slotLeft + 1.dp.toPx(), chartTop),
+                            size = Size(slotWidth - 2.dp.toPx(), chartHeight),
+                            cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx()),
                         )
                     }
+
                     drawRoundRect(
-                        brush = barBrush,
-                        topLeft = Offset(left, top),
-                        size = Size(barWidth, barHeight.coerceAtLeast(3.dp.toPx())),
+                        color = trackColor.copy(alpha = if (dimmed) 0.7f else 1f),
+                        topLeft = Offset(left, chartTop),
+                        size = Size(barWidth, chartHeight),
                         cornerRadius = corner,
                     )
+
+                    if (barHeight > 0f) {
+                        val barAlpha = when {
+                            isSelected -> 1f
+                            dimmed -> 0.48f
+                            else -> 1f
+                        }
+                        val barBrush = when {
+                            isSelected -> Brush.verticalGradient(
+                                colors = listOf(
+                                    accent.copy(alpha = barAlpha),
+                                    accent.copy(alpha = 0.55f * barAlpha),
+                                ),
+                                startY = top,
+                                endY = chartBottom,
+                            )
+                            index == peakIndex && net > 0.0 -> Brush.verticalGradient(
+                                colors = listOf(
+                                    primary.copy(alpha = 0.95f * barAlpha),
+                                    primaryContainer.copy(alpha = 0.75f * barAlpha),
+                                ),
+                                startY = top,
+                                endY = chartBottom,
+                            )
+                            else -> Brush.verticalGradient(
+                                colors = listOf(
+                                    primary.copy(alpha = 0.88f * barAlpha),
+                                    primary.copy(alpha = 0.42f * barAlpha),
+                                ),
+                                startY = top,
+                                endY = chartBottom,
+                            )
+                        }
+                        val fillHeight = barHeight.coerceAtLeast(minBarHeight)
+                        drawRoundRect(
+                            brush = barBrush,
+                            topLeft = Offset(left, top),
+                            size = Size(barWidth, fillHeight),
+                            cornerRadius = corner,
+                        )
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.14f * barAlpha),
+                            topLeft = Offset(left + barWidth * 0.12f, top),
+                            size = Size(barWidth * 0.22f, (fillHeight * 0.35f).coerceAtLeast(2.dp.toPx())),
+                            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+                        )
+                    }
+                }
+
+                if (progress > 0.05f) {
+                    val linePath = Path()
+                    val areaPath = Path()
+                    var started = false
+                    monthlyNet.take(barCount).forEachIndexed { index, net ->
+                        if (net <= 0.0) return@forEachIndexed
+                        val x = barCenters[index]
+                        val y = barTops[index]
+                        if (!started) {
+                            linePath.moveTo(x, y)
+                            areaPath.moveTo(x, chartBottom)
+                            areaPath.lineTo(x, y)
+                            started = true
+                        } else {
+                            linePath.lineTo(x, y)
+                            areaPath.lineTo(x, y)
+                        }
+                    }
+                    if (started) {
+                        val lastIndex = monthlyNet.take(barCount)
+                            .indices
+                            .lastOrNull { monthlyNet.getOrElse(it) { 0.0 } > 0.0 } ?: 0
+                        areaPath.lineTo(barCenters[lastIndex], chartBottom)
+                        areaPath.close()
+                        clipRect(top = chartTop, bottom = chartBottom) {
+                            drawPath(
+                                path = areaPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        primary.copy(alpha = 0.16f * progress),
+                                        primary.copy(alpha = 0.02f * progress),
+                                    ),
+                                    startY = chartTop,
+                                    endY = chartBottom,
+                                ),
+                            )
+                        }
+                        drawPath(
+                            path = linePath,
+                            color = primary.copy(alpha = 0.28f * progress),
+                            style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round),
+                        )
+                    }
+
+                    monthlyNet.take(barCount).forEachIndexed { index, net ->
+                        if (net <= 0.0) return@forEachIndexed
+                        val isSelected = index == selectedMonthIndex
+                        val radius = when {
+                            isSelected -> 4.5.dp.toPx()
+                            index == peakIndex -> 3.5.dp.toPx()
+                            else -> 2.5.dp.toPx()
+                        }
+                        drawCircle(
+                            color = when {
+                                isSelected -> accent
+                                index == peakIndex -> primary
+                                else -> primary.copy(alpha = 0.75f)
+                            },
+                            radius = radius * progress,
+                            center = Offset(barCenters[index], barTops[index]),
+                        )
+                        if (isSelected) {
+                            drawCircle(
+                                color = accent.copy(alpha = 0.22f * progress),
+                                radius = (radius + 3.dp.toPx()) * progress,
+                                center = Offset(barCenters[index], barTops[index]),
+                            )
+                        }
+                    }
                 }
             }
 
-            if (progress > 0.05f) {
-                val linePath = Path()
-                var started = false
-                monthlyNet.take(barCount).forEachIndexed { index, net ->
-                    if (net <= 0.0) return@forEachIndexed
-                    val x = barCenters[index]
-                    val y = barTops[index]
-                    if (!started) {
-                        linePath.moveTo(x, y)
-                        started = true
-                    } else {
-                        linePath.lineTo(x, y)
-                    }
-                }
-                if (started) {
-                    drawPath(
-                        path = linePath,
-                        color = primary.copy(alpha = 0.35f * progress),
-                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
-                    )
-                }
-
-                monthlyNet.take(barCount).forEachIndexed { index, net ->
-                    if (net <= 0.0) return@forEachIndexed
-                    val radius = if (index == peakIndex) 4.dp.toPx() else 2.5.dp.toPx()
-                    drawCircle(
-                        color = if (index == peakIndex) accent else primary,
-                        radius = radius * progress,
-                        center = Offset(barCenters[index], barTops[index]),
+            Row(modifier = Modifier.matchParentSize()) {
+                repeat(12) { index ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { selectedMonthIndex = index },
                     )
                 }
             }
@@ -449,11 +551,19 @@ private fun YearNetProfitChart(
                 .fillMaxWidth()
                 .padding(top = 4.dp),
         ) {
-            monthLabels.forEach { label ->
+            monthLabels.forEachIndexed { index, label ->
+                val selected = index == selectedMonthIndex
+                val monthLabelColor by animateColorAsState(
+                    targetValue = if (selected) primary else labelColor,
+                    animationSpec = tween(180),
+                    label = "chartMonthLabel",
+                )
                 Text(
                     text = label,
-                    style = ChartMonthLabelStyle,
-                    color = labelColor,
+                    style = ChartMonthLabelStyle.copy(
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
+                    color = monthLabelColor,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -462,52 +572,61 @@ private fun YearNetProfitChart(
             }
         }
 
-        val peakValue = monthlyNet.getOrElse(peakIndex) { 0.0 }
-        val peakSessions = monthlyCompleted.getOrElse(peakIndex) { 0 }
-        if (peakValue > 0.0) {
-            BestMonthSummary(
-                monthName = getMonthName(YearMonth.of(year, peakIndex + 1)),
-                netAmount = formatRubles(peakValue),
-                sessions = peakSessions,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
-            )
-        }
+        val selectedNet = monthlyNet.getOrElse(selectedMonthIndex) { 0.0 }
+        val selectedSessions = monthlyCompleted.getOrElse(selectedMonthIndex) { 0 }
+        SelectedMonthSummary(
+            monthName = getMonthName(YearMonth.of(year, selectedMonthIndex + 1)),
+            netAmount = formatRubles(selectedNet),
+            sessions = selectedSessions,
+            isPeakMonth = selectedMonthIndex == peakIndex && selectedNet > 0.0,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+        )
     }
 }
 
 @Composable
-private fun BestMonthSummary(
+private fun SelectedMonthSummary(
     monthName: String,
     netAmount: String,
     sessions: Int,
+    isPeakMonth: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    AnimatedContent(
+        targetState = Triple(monthName, sessions, netAmount),
+        transitionSpec = {
+            fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+        },
+        label = "selectedMonthStats",
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = "Лучший месяц — $monthName",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = "$sessions ${pluralSessions(sessions)}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = netAmount,
-            style = MaterialTheme.typography.bodySmall,
-            color = ScheduleHeaderGreen,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-        )
+    ) { (name, sessionCount, amount) ->
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = if (isPeakMonth) "$name · лучший месяц" else name,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "$sessionCount ${pluralSessions(sessionCount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = amount,
+                style = MaterialTheme.typography.bodySmall,
+                color = ScheduleHeaderGreen,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
