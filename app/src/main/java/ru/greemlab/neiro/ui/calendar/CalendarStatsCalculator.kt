@@ -87,6 +87,7 @@ internal fun computeMonthStats(
     var completed = 0
     var completedSessions = 0
     var completedDiagnostics = 0
+    var completedIntensives = 0
     var scheduled = 0
     var grossEarned = 0.0
     var intensiveEarnings = 0.0
@@ -94,6 +95,7 @@ internal fun computeMonthStats(
     var expectedIncome = 0.0
 
     val studentStatsMap = mutableMapOf<String, ru.greemlab.neiro.domain.models.StudentMonthStats>()
+    val completedIntensivesList = mutableListOf<ru.greemlab.neiro.domain.models.IntensiveSession>()
 
     val month: Month = currentMonth.month
     val year = currentMonth.year
@@ -108,8 +110,16 @@ internal fun computeMonthStats(
             when (session) {
                 is Session.Intensive -> {
                     if (session.countsTowardEarnings()) {
+                        completedIntensives++
                         intensiveEarnings += session.amount
                         grossEarned += session.amount
+                        completedIntensivesList.add(
+                            ru.greemlab.neiro.domain.models.IntensiveSession(
+                                name = session.name.ifBlank { "Интенсив" },
+                                date = date,
+                                amount = session.amount
+                            )
+                        )
                     } else {
                         expectedIncome += session.amount
                     }
@@ -159,6 +169,7 @@ internal fun computeMonthStats(
         completedCount = completed,
         completedSessionsCount = completedSessions,
         completedDiagnosticsCount = completedDiagnostics,
+        completedIntensivesCount = completedIntensives,
         totalScheduled = scheduled,
         remainingCount = scheduled - completed,
         totalEarned = grossEarned,
@@ -168,6 +179,7 @@ internal fun computeMonthStats(
         expectedIncome = expectedIncome,
         taxAmount = monthlyTaxAmount,
         statsByStudent = studentStatsMap,
+        completedIntensives = completedIntensivesList.sortedBy { it.date },
     )
 }
 

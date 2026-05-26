@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -19,7 +20,9 @@ import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
+import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 /** Диалог с подробной статистикой занятий за месяц. */
 @Composable
@@ -48,42 +51,74 @@ fun LessonsDetailsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                LessonStatRow(
-                    label = "Проведено",
-                    value = stats.completedCount,
-                    color = MaterialTheme.colorScheme.primary,
-                    isBold = true,
-                )
-                
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     LessonStatRow(
-                        label = "— Занятий",
-                        value = stats.completedSessionsCount,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        label = "Проведено",
+                        value = stats.completedCount,
+                        color = MaterialTheme.colorScheme.primary,
+                        isBold = true,
                     )
-                    LessonStatRow(
-                        label = "— Диагностик",
-                        value = stats.completedDiagnosticsCount,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        LessonStatRow(
+                            label = "Занятий",
+                            value = stats.completedSessionsCount,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        LessonStatRow(
+                            label = "Диагностик",
+                            value = stats.completedDiagnosticsCount,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                LessonStatRow(
-                    label = "Всего запланировано",
-                    value = stats.totalScheduled,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
 
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LessonStatRow(
+                        label = "Всего запланировано",
+                        value = stats.totalScheduled,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
 
-                LessonStatRow(
-                    label = "Осталось / Не подтверждено",
-                    value = stats.remainingCount,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    LessonStatRow(
+                        label = "Осталось / Не подтверждено",
+                        value = stats.remainingCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (stats.completedIntensives.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Text(
+                        text = "Проведенные интенсивы (${stats.completedIntensivesCount}):",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                    )
+
+                    stats.completedIntensives.forEachIndexed { index, intensive ->
+                        val dateStr = intensive.date.format(DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE))
+                        val name = intensive.name.ifBlank { "Интенсив" }
+                        Text(
+                            text = "• $name №${index + 1} проведен $dateStr",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         },
     )
