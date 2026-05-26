@@ -178,6 +178,16 @@ fun ProfitDetailsDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+
+                if (display.showTotalProfit) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ProfitRow(
+                        label = "Всего",
+                        value = stats.netProfit + stats.expectedIncome,
+                        color = ScheduleHeaderGreen,
+                        isBold = true,
+                    )
+                }
             }
         },
     )

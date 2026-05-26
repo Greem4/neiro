@@ -667,6 +667,7 @@ private fun MonthOverviewCard(
     val sessionPriceText = remember(pricePerSession) { formatRubles(pricePerSession) }
     val overviewSubtitle = remember(
         stats.expectedIncome,
+        stats.netProfit,
         pricePerSession,
         display,
         expectedIncomeText,
@@ -676,6 +677,7 @@ private fun MonthOverviewCard(
             display = display,
             expectedIncome = stats.expectedIncome,
             expectedIncomeText = expectedIncomeText,
+            netProfit = stats.netProfit,
             pricePerSession = pricePerSession,
             sessionPriceText = sessionPriceText,
         )
@@ -765,13 +767,21 @@ internal fun buildOverviewProfitSubtitle(
     display: ProfitDisplaySettings,
     expectedIncome: Double,
     expectedIncomeText: String,
+    netProfit: Double,
     pricePerSession: Double,
     sessionPriceText: String,
 ): String {
     val parts = mutableListOf<String>()
-    if (display.showExpectedInOverview && expectedIncome > 0.0) {
-        parts += "Ожидается $expectedIncomeText"
+    
+    if (display.showExpectedInOverview) {
+        if (display.expectedIncludesNet) {
+            val total = netProfit + expectedIncome
+            parts += "Ожидается ${formatRubles(total)}"
+        } else if (expectedIncome > 0.0) {
+            parts += "Ожидается $expectedIncomeText"
+        }
     }
+
     if (display.showPricePerSession && pricePerSession > 0.0) {
         parts += "занятие $sessionPriceText"
     }
