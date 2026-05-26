@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -103,6 +104,7 @@ private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): Cal
  *
  * Подробнее: `docs/profile-drawer.md` в корне репозитория.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
@@ -509,6 +511,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
  * Чистый UI календарного экрана (без drawer и overlay).
  * Используется в [CalendarScreen] и в Compose Preview.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreenContent(
     modifier: Modifier = Modifier,
@@ -553,7 +556,11 @@ fun CalendarScreenContent(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isSyncing,
+            onRefresh = onSyncClick,
+            modifier = Modifier.fillMaxSize(),
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -594,9 +601,7 @@ fun CalendarScreenContent(
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         CalendarToolbar(
                             calendarMode = calendarMode,
-                            isSyncing = isSyncing,
                             onModeChange = onModeChange,
-                            onSyncClick = onSyncClick,
                         )
 
                         if (isRegistered && selectedDate != null && daySummaryStats != null) {
@@ -852,6 +857,7 @@ private fun CompactStatTile(
     uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
     name = "Dark Theme",
 )
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalendarPreviewDark() {
     NeiroTheme(darkTheme = true) {
@@ -872,6 +878,7 @@ private fun CalendarPreviewDark() {
 }
 
 @Preview(showBackground = true, name = "Light Theme")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalendarPreviewLight() {
     NeiroTheme(darkTheme = false) {
