@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -551,6 +552,7 @@ fun CalendarScreenContent(
         )
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
+    val pullRefreshState = rememberPullToRefreshState()
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -559,6 +561,8 @@ fun CalendarScreenContent(
         PullToRefreshBox(
             isRefreshing = isSyncing,
             onRefresh = onSyncClick,
+            state = pullRefreshState,
+            indicator = {},
             modifier = Modifier.fillMaxSize(),
         ) {
             Column(
@@ -568,71 +572,76 @@ fun CalendarScreenContent(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                CalendarHeader(
-                    currentMonth = currentMonth,
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onMonthTitleClick = { monthPickerVisible = !monthPickerVisible },
-                    onMenuClick = onMenuClick,
-                    onNotificationsClick = onNotificationsClick,
-                    unreadNotificationCount = unreadNotificationCount,
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                MonthOverviewCard(
-                    stats = stats,
-                    pricePerSession = pricePerSession,
-                    display = profitDisplay,
-                    onLessonsClick = onLessonsClick,
-                    onProfitClick = onProfitClick,
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                        CalendarToolbar(
-                            calendarMode = calendarMode,
-                            onModeChange = onModeChange,
+                CalendarRefreshSplit(
+                    pullFraction = pullRefreshState.distanceFraction,
+                    isRefreshing = isSyncing,
+                    topContent = {
+                        CalendarHeader(
+                            currentMonth = currentMonth,
+                            onPreviousMonth = onPreviousMonth,
+                            onNextMonth = onNextMonth,
+                            onMonthTitleClick = { monthPickerVisible = !monthPickerVisible },
+                            onMenuClick = onMenuClick,
+                            onNotificationsClick = onNotificationsClick,
+                            unreadNotificationCount = unreadNotificationCount,
                         )
 
-                        if (isRegistered && selectedDate != null && daySummaryStats != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            DaySummarySlot(
-                                date = selectedDate,
-                                stats = daySummaryStats,
-                                onTodayClick = onTodayClick,
-                                isRegistered = isRegistered,
-                                onRegistrationRequired = onRegistrationRequired,
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        WeekDaysRow()
+                        MonthOverviewCard(
+                            stats = stats,
+                            pricePerSession = pricePerSession,
+                            display = profitDisplay,
+                            onLessonsClick = onLessonsClick,
+                            onProfitClick = onProfitClick,
+                        )
+                    },
+                    bottomContent = {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                CalendarToolbar(
+                                    calendarMode = calendarMode,
+                                    onModeChange = onModeChange,
+                                )
 
-                        AnimatedContent(
-                            targetState = currentMonth,
-                            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
-                            label = "CalendarGridTransition",
-                        ) { targetMonth ->
-                            CalendarGrid(
-                                currentMonth = targetMonth,
-                                selectedDate = selectedDate,
-                                dayData = monthDayData,
-                                workingDays = workingDays,
-                                onDateClick = onDateClick,
-                            )
+                                if (isRegistered && selectedDate != null && daySummaryStats != null) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    DaySummarySlot(
+                                        date = selectedDate,
+                                        stats = daySummaryStats,
+                                        onTodayClick = onTodayClick,
+                                        isRegistered = isRegistered,
+                                        onRegistrationRequired = onRegistrationRequired,
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+
+                                WeekDaysRow()
+
+                                AnimatedContent(
+                                    targetState = currentMonth,
+                                    transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                                    label = "CalendarGridTransition",
+                                ) { targetMonth ->
+                                    CalendarGrid(
+                                        currentMonth = targetMonth,
+                                        selectedDate = selectedDate,
+                                        dayData = monthDayData,
+                                        workingDays = workingDays,
+                                        onDateClick = onDateClick,
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
+                    },
+                )
             }
 
             MonthPickerOverlay(
