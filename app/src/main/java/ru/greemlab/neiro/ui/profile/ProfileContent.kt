@@ -25,10 +25,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
@@ -217,6 +219,47 @@ private fun ProfileContentImpl(
                 onSync = onDevSync,
                 onReset = onDevReset,
                 onFullSetup = onDevFullSetup,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        BuildInfoFooter()
+    }
+}
+
+@Composable
+private fun BuildInfoFooter(
+    modifier: Modifier = Modifier,
+) {
+    val buildTypeLabel = when (BuildConfig.BUILD_TYPE.lowercase(Locale.ROOT)) {
+        "debug" -> stringResource(id = R.string.build_type_debug)
+        "prerelease" -> stringResource(id = R.string.build_type_prerelease)
+        else -> stringResource(id = R.string.build_type_release)
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = buildTypeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(
+                    id = R.string.build_version_format,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

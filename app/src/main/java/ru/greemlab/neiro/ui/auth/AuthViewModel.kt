@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.ui.util.formatPhoneForUi
 
 /**
  * Состояние экрана авторизации.
@@ -100,6 +101,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun login() {
         val state = _uiState.value
+        val loginForRequest = normalizeLoginForRequest(state.login)
 
         if (!repository.hasPartnerToken()) {
             _uiState.value = state.copy(
@@ -109,7 +111,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        if (state.login.isBlank()) {
+        if (loginForRequest.isBlank()) {
             _uiState.value = state.copy(error = "Введите логин")
             return
         }
@@ -121,7 +123,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.value = state.copy(isLoading = true, error = null)
 
-            when (val result = repository.login(state.login, state.password)) {
+            when (val result = repository.login(loginForRequest, state.password)) {
                 is ApiResult.Success -> {
                     // Параллельно ищем staff_id текущего пользователя в списке сотрудников филиала.
                     // Если не нашли — не фатально, расписание просто будет без фильтра по сотруднику.
@@ -155,5 +157,39 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    private fun formatLoginInput(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ""
+        if (isLikelyEmail(trimmed) || !looksLikePhoneInput(trimmed)) return trimmed
+
+        val normalizedDigits = normalizePhoneDigits(trimmed)
+        return formatPhoneForUi(normalizedDigits)
+    }
+
+    private fun normalizeLoginForRequest(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ""
+        if (isLikelyEmail(trimmed) || !looksLikePhoneInput(trimmed)) return trimmed
+        return normalizePhoneDigits(trimmed)
+    }
+
+    private fun isLikelyEmail(value: String): Boolean = value.contains('@')
+
+    private fun looksLikePhoneInput(value: String): Boolean =
+        value.all { it.isDigit() || it == '+' || it == '(' || it == ')' || it == '-' || it.isWhitespace() }
+
+    private fun normalizePhoneDigits(raw: String): String {
+        val digits = raw.filter { it.isDigit() }
+        if (digits.isEmpty()) return ""
+
+        val normalized = when {
+            digits.length == 10 -> "7$digits"
+            digits.length >= 11 && digits.startsWith("8") -> "7${digits.drop(1)}"
+            else -> digits
+        }
+
+        return normalized.take(11)
     }
 }

@@ -20,6 +20,15 @@ val yclientsPartnerToken: String = localProps.getProperty("YCLIENTS_PARTNER_TOKE
 val yclientsCompanyId: String = localProps.getProperty("YCLIENTS_COMPANY_ID", "0")
 val devLogin: String = localProps.getProperty("DEV_LOGIN", "")
 val devPassword: String = localProps.getProperty("DEV_PASSWORD", "")
+val releaseStoreFile: String = localProps.getProperty("RELEASE_STORE_FILE", "")
+val releaseStorePassword: String = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
+val releaseKeyAlias: String = localProps.getProperty("RELEASE_KEY_ALIAS", "")
+val releaseKeyPassword: String = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+val hasReleaseSigning: Boolean =
+    releaseStoreFile.isNotBlank() &&
+        releaseStorePassword.isNotBlank() &&
+        releaseKeyAlias.isNotBlank() &&
+        releaseKeyPassword.isNotBlank()
 
 android {
     namespace = "ru.greemlab.neiro"
@@ -30,7 +39,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.5.3"
+        versionName = "0.6.5.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -49,13 +58,34 @@ android {
         localeFilters += listOf("ru", "en")
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
             isMinifyEnabled = false
             isShrinkResources = false
             // Отключаем регистрацию профилировщика в debug — быстрее холодный старт при разработке.
             isDebuggable = true
+        }
+        create("prerelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".prerelease"
+            versionNameSuffix = "-pre"
+            // Промежуточная сборка перед релизом: release-поведение, но отдельный пакет.
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
         }
         release {
             isMinifyEnabled = true
@@ -68,7 +98,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (hasReleaseSigning) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 
@@ -120,8 +155,15 @@ android {
 androidComponents {
     onVariants { variant ->
         val vName = android.defaultConfig.versionName ?: "unknown"
+        val variantSuffix =
+            when (variant.name) {
+                "debug" -> "debug"
+                "prerelease" -> "pre-release"
+                "release" -> "release"
+                else -> variant.name
+            }
         variant.outputs.forEach { output ->
-            output.outputFileName.set("neiro-v$vName-pre-release.apk")
+            output.outputFileName.set("neiro-v$vName-$variantSuffix.apk")
         }
     }
 }
