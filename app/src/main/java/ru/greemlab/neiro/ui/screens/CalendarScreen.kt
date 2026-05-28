@@ -221,7 +221,12 @@ fun CalendarScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(syncState.showSuccess, syncState.error) {
+    LaunchedEffect(
+        syncState.showSuccess,
+        syncState.error,
+        syncState.profileReviewReminder,
+        syncState.openProfileSettings,
+    ) {
         if (syncState.showSuccess) {
             val message = if (syncState.syncedCount > 0) {
                 "Обновлено записей: ${syncState.syncedCount}"
@@ -234,6 +239,13 @@ fun CalendarScreen(
         syncState.error?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             syncViewModel.clearError()
+        }
+        syncState.profileReviewReminder?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            if (syncState.openProfileSettings) {
+                overlay = CalendarOverlay.Settings
+            }
+            syncViewModel.clearProfileReviewReminder()
         }
     }
 

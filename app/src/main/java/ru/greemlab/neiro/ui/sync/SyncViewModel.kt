@@ -29,6 +29,8 @@ data class SyncUiState(
     val syncedCount: Int = 0,
     val lastSyncDate: LocalDate? = null,
     val showSuccess: Boolean = false,
+    val profileReviewReminder: String? = null,
+    val openProfileSettings: Boolean = false,
 )
 
 /**
@@ -150,12 +152,16 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun syncAllThroughCurrentMonth() {
         viewModelScope.launch {
-            runSync(showUi = true) {
+            val isFirstFullSync = !syncPreferences.hasCompletedInitialFullSync
+            val outcome = runSync(showUi = true) {
                 val outcome = runFullHistorySync()
                 if (outcome is SyncOutcome.Success) {
                     syncPreferences.markInitialFullSyncComplete()
                 }
                 outcome
+            }
+            if (isFirstFullSync && outcome is SyncOutcome.Success) {
+                maybeShowProfileReviewReminder()
             }
         }
     }
@@ -194,7 +200,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun runSync(showUi: Boolean, block: suspend () -> SyncOutcome) {
+    private suspend fun runSync(showUi: Boolean, block: suspend () -> SyncOutcome): SyncOutcome {
         if (showUi) {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
@@ -203,7 +209,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        when (val outcome = block()) {
+        val outcome = block()
+        when (outcome) {
             is SyncOutcome.Success -> {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -220,6 +227,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+        return outcome
     }
 
     fun clearError() {
@@ -230,10 +238,38 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(showSuccess = false)
     }
 
+    fun clearProfileReviewReminder() {
+        _uiState.value = _uiState.value.copy(
+            profileReviewReminder = null,
+            openProfileSettings = false,
+        )
+    }
+
     /** Обновляет дату последней синхронизации в UI после тихой автосинхронизации. */
     fun refreshLastSyncFromPrefs() {
         _uiState.value = _uiState.value.copy(
             lastSyncDate = syncPreferences.lastSyncLocalDate(),
+        )
+    }
+
+    private suspend fun maybeShowProfileReviewReminder() {
+        val profile = calendarRepository.userProfileFlow.first()
+        val hasPriceIssue = profile.pricePerSession <= 0.0
+        val hasTaxIssue = profile.monthlyTaxAmount <= 0.0
+        if (!hasPriceIssue && !hasTaxIssue) return
+
+        val reminder = buildString {
+            append("Проверьте профиль после синхронизации: ")
+            val missingParts = buildList {
+                if (hasPriceIssue) add("цену за занятие")
+                if (hasTaxIssue) add("налог")
+            }
+            append(missingParts.joinToString(" и "))
+            append(".")
+        }
+        _uiState.value = _uiState.value.copy(
+            profileReviewReminder = reminder,
+            openProfileSettings = true,
         )
     }
 
