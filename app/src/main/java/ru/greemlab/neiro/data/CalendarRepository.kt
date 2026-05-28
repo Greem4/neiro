@@ -33,17 +33,8 @@ interface CalendarRepository {
      */
     suspend fun updateProfile(transform: (UserProfile) -> UserProfile)
 
-    /**
-     * Меняет ставку за занятие: замораживает прежнюю в записях без выплаты,
-     * дописывает историю и сохраняет новую текущую ставку.
-     */
+    /** Меняет текущую ставку за занятие в профиле. */
     suspend fun applySessionPriceChange(newPrice: Double)
-
-    /**
-     * Однократно: задать прежнюю ставку до [lastDayOfPreviousPrice] и зафиксировать её
-     * в записях без суммы (если ставку меняли до появления истории).
-     */
-    suspend fun bootstrapPreviousSessionPrice(previousPrice: Double, lastDayOfPreviousPrice: LocalDate)
 
     suspend fun saveDayData(data: Map<LocalDate, List<String>>)
 
@@ -58,12 +49,12 @@ interface CalendarRepository {
 
     suspend fun saveTheme(theme: String)
 
-    /** JSON со всеми данными для экспорта. */
+    /** JSON с данными архивного календаря и меткой `exported_at` (дд-мм-гггг чч:мм). */
     suspend fun exportAllData(): String
 
     /**
-     * Восстанавливает данные из JSON. Возвращает [ImportResult] с информацией
-     * об успехе или причине отказа — не молча проглатывает ошибки.
+     * Восстанавливает архивный календарь из JSON. Профиль, тема и основной календарь
+     * не затрагиваются. Возвращает [ImportResult] с информацией об успехе или отказе.
      */
     suspend fun restoreAllData(json: String): ImportResult
 }

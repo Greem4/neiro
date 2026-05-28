@@ -32,10 +32,27 @@ class SyncPreferences(context: Context) {
         prefs.edit().remove(KEY_LAST_SYNC_EPOCH).apply()
     }
 
+    /** Полная загрузка истории с YClients уже выполнялась (повтор — только вручную). */
+    var hasCompletedInitialFullSync: Boolean
+        get() = prefs.getBoolean(KEY_INITIAL_FULL_SYNC_DONE, false)
+        set(value) = prefs.edit().putBoolean(KEY_INITIAL_FULL_SYNC_DONE, value).apply()
+
+    fun markInitialFullSyncComplete() {
+        hasCompletedInitialFullSync = true
+    }
+
+    fun clearSyncState() {
+        prefs.edit()
+            .remove(KEY_LAST_SYNC_EPOCH)
+            .remove(KEY_INITIAL_FULL_SYNC_DONE)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "neiro_sync_prefs"
         private const val KEY_AUTO_SYNC = "auto_sync_enabled"
         private const val KEY_LAST_SYNC_EPOCH = "last_sync_epoch"
+        private const val KEY_INITIAL_FULL_SYNC_DONE = "initial_full_sync_done"
 
         @Volatile
         private var instance: SyncPreferences? = null

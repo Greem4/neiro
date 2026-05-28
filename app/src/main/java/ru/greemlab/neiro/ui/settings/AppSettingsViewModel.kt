@@ -63,7 +63,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Экспорт всех данных в указанный URI. Возвращает [ExportResult].
+     * Экспорт архивного календаря в указанный URI. Возвращает [ExportResult].
      * Чтение и запись файла выполняются на IO-диспатчере, чтобы не блокировать main.
      */
     fun exportData(context: Context, uri: Uri, onResult: (ExportResult) -> Unit) {
@@ -82,8 +82,8 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Импорт данных из указанного URI. Парсит файл в фоне и применяет атомарно
-     * через [CalendarRepository.restoreAllData].
+     * Импорт архивного календаря из указанного URI. Парсит файл в фоне и применяет
+     * атомарно через [CalendarRepository.restoreAllData].
      */
     fun importData(context: Context, uri: Uri, onResult: (ImportResult) -> Unit) {
         viewModelScope.launch {

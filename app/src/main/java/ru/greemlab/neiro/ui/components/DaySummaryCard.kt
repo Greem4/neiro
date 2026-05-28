@@ -32,15 +32,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.theme.ExpectedAmber
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-
-private val StatusGreen = Color(0xFF4CAF50)
-private val StatusRed = Color(0xFFF44336)
 
 private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
@@ -141,7 +139,7 @@ private fun DaySummaryCard(
                 )
                 DaySummaryMetric(
                     icon = Icons.Rounded.CheckCircle,
-                    tint = StatusGreen,
+                    tint = ScheduleHeaderGreen,
                     value = if (stats.totalLessons > 0) {
                         "${stats.attendedLessons}/${stats.totalLessons}"
                     } else "0",
@@ -157,8 +155,8 @@ private fun DaySummaryCard(
                 DayMoneyCard(
                     label = "Заработано",
                     amountText = earnedText,
-                    amountColor = StatusGreen,
-                    background = StatusGreen.copy(alpha = 0.14f),
+                    amountColor = ScheduleHeaderGreen,
+                    background = ScheduleHeaderGreen.copy(alpha = 0.14f),
                     modifier = Modifier.weight(1f),
                 )
                 DayMoneyCard(

@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,13 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
-import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -103,6 +105,7 @@ private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): Cal
  *
  * Подробнее: `docs/profile-drawer.md` в корне репозитория.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel(),
@@ -114,6 +117,7 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.effectiveDayData.collectAsState()
+    val currentMonthDayData by viewModel.currentMonthDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
     val profile by profileViewModel.userProfile.collectAsState()
 
@@ -180,11 +184,10 @@ fun CalendarScreen(
 
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
-        dayData = dayData,
+        dayData = currentMonthDayData,
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
-        sessionPriceHistory = profile.sessionPriceHistory,
     )
 
     val context = LocalContext.current
@@ -218,7 +221,12 @@ fun CalendarScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(syncState.showSuccess, syncState.error) {
+    LaunchedEffect(
+        syncState.showSuccess,
+        syncState.error,
+        syncState.profileReviewReminder,
+        syncState.openProfileSettings,
+    ) {
         if (syncState.showSuccess) {
             val message = if (syncState.syncedCount > 0) {
                 "Обновлено записей: ${syncState.syncedCount}"
@@ -231,6 +239,13 @@ fun CalendarScreen(
         syncState.error?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             syncViewModel.clearError()
+        }
+        syncState.profileReviewReminder?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            if (syncState.openProfileSettings) {
+                overlay = CalendarOverlay.Settings
+            }
+            syncViewModel.clearProfileReviewReminder()
         }
     }
 
@@ -277,6 +292,7 @@ fun CalendarScreen(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
+                monthDayData = currentMonthDayData,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -298,7 +314,6 @@ fun CalendarScreen(
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
-                sessionPriceHistory = profile.sessionPriceHistory,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -367,7 +382,7 @@ fun CalendarScreen(
             AuthScreen(
                 onBack = ::applyYClientsBackNavigation,
                 onLoginSuccess = {
-                    syncViewModel.syncCurrentMonth()
+                    syncViewModel.syncAfterLogin()
                     applyYClientsBackNavigation()
                 },
             )
@@ -426,22 +441,13 @@ fun CalendarScreen(
 
             if (date != null) {
                 val isArchived = savedDayData.containsKey(date)
-                    DayDetailsDialog(
-                        date = date,
-                        // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
-                        initialNames = dayData[date].orEmpty(),
+                DayDetailsDialog(
+                    date = date,
+                    // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
+                    initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
                     highlightSlotKey = highlightSlotKey,
-                    isRefreshing = syncState.isLoading,
-                    onRefresh = {
-                        if (isYClientsLoggedIn) {
-                            syncViewModel.syncMonth(YearMonth.from(date))
-                        } else {
-                            yClientsReturnOverlay = CalendarOverlay.DayDetails
-                            overlay = CalendarOverlay.YClients
-                        }
-                    },
                     onDismiss = {
                         highlightSlotKey = null
                         overlay = CalendarOverlay.None
@@ -509,12 +515,14 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
  * Чистый UI календарного экрана (без drawer и overlay).
  * Используется в [CalendarScreen] и в Compose Preview.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreenContent(
     modifier: Modifier = Modifier,
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
+    monthDayData: Map<LocalDate, List<String>> = dayData,
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -522,7 +530,6 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
-    sessionPriceHistory: List<SessionPriceHistoryEntry> = emptyList(),
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -538,23 +545,29 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, dayData, pricePerSession, pricePerDiagnostics, sessionPriceHistory) {
-        val date = selectedDate ?: return@remember null
+    val selectedDaySessions = selectedDate?.let { dayData[it] }
+    val daySummaryStats = remember(selectedDate, selectedDaySessions, pricePerSession, pricePerDiagnostics) {
+        if (selectedDate == null) return@remember null
         computeDayStats(
-            dayData[date].orEmpty(),
+            selectedDaySessions.orEmpty(),
             pricePerSession,
             pricePerDiagnostics,
-            sessionDate = date,
-            sessionPriceHistory = sessionPriceHistory,
         )
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
+    val pullRefreshState = rememberPullToRefreshState()
 
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isSyncing,
+            onRefresh = onSyncClick,
+            state = pullRefreshState,
+            indicator = {},
+            modifier = Modifier.fillMaxSize(),
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -562,73 +575,76 @@ fun CalendarScreenContent(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                CalendarHeader(
-                    currentMonth = currentMonth,
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onMonthTitleClick = { monthPickerVisible = !monthPickerVisible },
-                    onMenuClick = onMenuClick,
-                    onNotificationsClick = onNotificationsClick,
-                    unreadNotificationCount = unreadNotificationCount,
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                MonthOverviewCard(
-                    stats = stats,
-                    pricePerSession = pricePerSession,
-                    display = profitDisplay,
-                    onLessonsClick = onLessonsClick,
-                    onProfitClick = onProfitClick,
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                        CalendarToolbar(
-                            calendarMode = calendarMode,
-                            isSyncing = isSyncing,
-                            onModeChange = onModeChange,
-                            onSyncClick = onSyncClick,
+                CalendarRefreshSplit(
+                    pullFraction = pullRefreshState.distanceFraction,
+                    isRefreshing = isSyncing,
+                    topContent = {
+                        CalendarHeader(
+                            currentMonth = currentMonth,
+                            onPreviousMonth = onPreviousMonth,
+                            onNextMonth = onNextMonth,
+                            onMonthTitleClick = { monthPickerVisible = !monthPickerVisible },
+                            onMenuClick = onMenuClick,
+                            onNotificationsClick = onNotificationsClick,
+                            unreadNotificationCount = unreadNotificationCount,
                         )
 
-                        if (isRegistered && selectedDate != null && daySummaryStats != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            DaySummarySlot(
-                                date = selectedDate,
-                                stats = daySummaryStats,
-                                onTodayClick = onTodayClick,
-                                isRegistered = isRegistered,
-                                onRegistrationRequired = onRegistrationRequired,
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        WeekDaysRow()
+                        MonthOverviewCard(
+                            stats = stats,
+                            pricePerSession = pricePerSession,
+                            display = profitDisplay,
+                            onLessonsClick = onLessonsClick,
+                            onProfitClick = onProfitClick,
+                        )
+                    },
+                    bottomContent = {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                CalendarToolbar(
+                                    calendarMode = calendarMode,
+                                    onModeChange = onModeChange,
+                                )
 
-                        AnimatedContent(
-                            targetState = currentMonth,
-                            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
-                            label = "CalendarGridTransition",
-                        ) { targetMonth ->
-                            CalendarGrid(
-                                currentMonth = targetMonth,
-                                selectedDate = selectedDate,
-                                dayData = dayData,
-                                workingDays = workingDays,
-                                onDateClick = onDateClick,
-                            )
+                                if (isRegistered && selectedDate != null && daySummaryStats != null) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    DaySummarySlot(
+                                        date = selectedDate,
+                                        stats = daySummaryStats,
+                                        onTodayClick = onTodayClick,
+                                        isRegistered = isRegistered,
+                                        onRegistrationRequired = onRegistrationRequired,
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+
+                                WeekDaysRow()
+
+                                AnimatedContent(
+                                    targetState = currentMonth,
+                                    transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                                    label = "CalendarGridTransition",
+                                ) { targetMonth ->
+                                    CalendarGrid(
+                                        currentMonth = targetMonth,
+                                        selectedDate = selectedDate,
+                                        dayData = monthDayData,
+                                        workingDays = workingDays,
+                                        onDateClick = onDateClick,
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
+                    },
+                )
             }
 
             MonthPickerOverlay(
@@ -668,6 +684,7 @@ private fun MonthOverviewCard(
     val sessionPriceText = remember(pricePerSession) { formatRubles(pricePerSession) }
     val overviewSubtitle = remember(
         stats.expectedIncome,
+        stats.netProfit,
         pricePerSession,
         display,
         expectedIncomeText,
@@ -677,6 +694,7 @@ private fun MonthOverviewCard(
             display = display,
             expectedIncome = stats.expectedIncome,
             expectedIncomeText = expectedIncomeText,
+            netProfit = stats.netProfit,
             pricePerSession = pricePerSession,
             sessionPriceText = sessionPriceText,
         )
@@ -748,7 +766,9 @@ private fun MonthOverviewCard(
                 val hasSubtitle = overviewSubtitle.isNotBlank()
                 Text(
                     text = overviewSubtitle.ifBlank { "\u00A0" },
+                    modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.End,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = if (hasSubtitle) 0.85f else 0f,
                     ),
@@ -764,13 +784,21 @@ internal fun buildOverviewProfitSubtitle(
     display: ProfitDisplaySettings,
     expectedIncome: Double,
     expectedIncomeText: String,
+    netProfit: Double,
     pricePerSession: Double,
     sessionPriceText: String,
 ): String {
     val parts = mutableListOf<String>()
-    if (display.showExpectedInOverview && expectedIncome > 0.0) {
-        parts += "Ожидается $expectedIncomeText"
+    
+    if (display.showExpectedInOverview) {
+        if (display.expectedIncludesNet) {
+            val total = netProfit + expectedIncome
+            parts += "Ожидается ${formatRubles(total)}"
+        } else if (expectedIncome > 0.0) {
+            parts += "Ожидается $expectedIncomeText"
+        }
     }
+
     if (display.showPricePerSession && pricePerSession > 0.0) {
         parts += "занятие $sessionPriceText"
     }
@@ -841,6 +869,7 @@ private fun CompactStatTile(
     uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
     name = "Dark Theme",
 )
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalendarPreviewDark() {
     NeiroTheme(darkTheme = true) {
@@ -861,6 +890,7 @@ private fun CalendarPreviewDark() {
 }
 
 @Preview(showBackground = true, name = "Light Theme")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalendarPreviewLight() {
     NeiroTheme(darkTheme = false) {

@@ -20,6 +20,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/**
+ * Строка ученика/интенсива/диагностики для **ручного** редактирования списка дня.
+ *
+ * Не используется в режиме просмотра YClients ([DayDetailsDialog] + таймлайн).
+ * Оставлен для офлайн-правки архивного календаря: перетаскивание, имя, галочка
+ * [StudentItem.attended]. При реализации архива — расширить до полного
+ * [ru.greemlab.neiro.ui.calendar.AttendanceStatus], см. [StudentItem].
+ */
 @Composable
 fun StudentItemRow(
     modifier: Modifier = Modifier,

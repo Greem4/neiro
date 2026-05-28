@@ -1,14 +1,13 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -38,11 +37,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 private val PickerTimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private const val TIME_GRID_COLUMNS = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +60,8 @@ fun EditIntensiveItem(
 ) {
     var showTimePicker by remember { mutableStateOf(false) }
     val normalizedTime = remember(time) { normalizeSessionTime(time) }
-    val scrollState = rememberScrollState()
+    val isCustomTimeSelected = normalizedTime.isNotEmpty() &&
+        timeSlotOptions.none { normalizeSessionTime(it) == normalizedTime }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -122,33 +124,45 @@ fun EditIntensiveItem(
                 }
             }
 
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(scrollState),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                for (slot in timeSlotOptions) {
-                    val slotNormalized = normalizeSessionTime(slot)
-                    IntensiveTimeSlotChip(
-                        label = formatTimeSlotLabel(slotNormalized),
-                        selected = normalizedTime.isNotEmpty() && normalizedTime == slotNormalized,
-                        onClick = { onTimeChange(slotNormalized) },
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Время",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (normalizedTime.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        ) {
+                            Text(
+                                text = formatTimeSlotLabel(normalizedTime),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                 }
-                IntensiveTimeSlotChip(
-                    label = "…",
-                    selected = normalizedTime.isNotEmpty() &&
-                        timeSlotOptions.none { normalizeSessionTime(it) == normalizedTime },
-                    onClick = { showTimePicker = true },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Rounded.Schedule,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    },
+
+                IntensiveTimeSlotGrid(
+                    timeSlotOptions = timeSlotOptions,
+                    normalizedTime = normalizedTime,
+                    isCustomTimeSelected = isCustomTimeSelected,
+                    onTimeChange = onTimeChange,
+                    onCustomTimeClick = { showTimePicker = true },
                 )
             }
         }
@@ -189,10 +203,81 @@ fun EditIntensiveItem(
 }
 
 @Composable
+private fun IntensiveTimeSlotGrid(
+    timeSlotOptions: List<String>,
+    normalizedTime: String,
+    isCustomTimeSelected: Boolean,
+    onTimeChange: (String) -> Unit,
+    onCustomTimeClick: () -> Unit,
+) {
+    val rows = remember(timeSlotOptions) {
+        timeSlotOptions
+            .map { normalizeSessionTime(it) }
+            .distinct()
+            .chunked(TIME_GRID_COLUMNS)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        rows.forEach { rowSlots ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                rowSlots.forEach { slotNormalized ->
+                    IntensiveTimeSlotChip(
+                        label = formatTimeSlotLabel(slotNormalized),
+                        selected = normalizedTime.isNotEmpty() && normalizedTime == slotNormalized,
+                        onClick = { onTimeChange(slotNormalized) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(TIME_GRID_COLUMNS - rowSlots.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            IntensiveTimeSlotChip(
+                label = if (isCustomTimeSelected) {
+                    formatTimeSlotLabel(normalizedTime)
+                } else {
+                    "Другое"
+                },
+                selected = isCustomTimeSelected,
+                onClick = onCustomTimeClick,
+                modifier = Modifier.weight(1f),
+                leadingIcon = if (!isCustomTimeSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Rounded.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
+            repeat(TIME_GRID_COLUMNS - 1) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
 private fun IntensiveTimeSlotChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     val containerColor = if (selected) {
@@ -213,21 +298,29 @@ private fun IntensiveTimeSlotChip(
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
         color = containerColor,
         contentColor = contentColor,
         border = border,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.Center,
         ) {
-            leadingIcon?.invoke()
+            if (leadingIcon != null) {
+                leadingIcon()
+                Spacer(modifier = Modifier.size(3.dp))
+            }
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
             )
         }
     }

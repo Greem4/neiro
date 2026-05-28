@@ -5,25 +5,27 @@ import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
- * Интервалы live-опроса YClients по времени суток (локальный часовой пояс устройства).
+ * Интервалы live-опроса YClients (текущий + след. месяц для уведомлений) по МСК.
  *
- * - 08:00–22:00 — активно, каждые [DAY_INTERVAL_MINUTES];
- * - 22:00–08:00 — тихий режим, раз в [NIGHT_INTERVAL_MINUTES].
+ * - 09:00–21:00 МСК — каждые [DAY_INTERVAL_MINUTES];
+ * - 21:00–09:00 МСК — раз в [NIGHT_INTERVAL_MINUTES].
  */
 object LiveApiPollSchedule {
 
-    private val dayStart = LocalTime.of(8, 0)
-    private val quietStart = LocalTime.of(22, 0)
+    val syncZone: ZoneId = ZoneId.of("Europe/Moscow")
 
-    const val DAY_INTERVAL_MINUTES = 3L
+    private val dayStart = LocalTime.of(9, 0)
+    private val quietStart = LocalTime.of(21, 0)
+
+    const val DAY_INTERVAL_MINUTES = 1L
     const val NIGHT_INTERVAL_MINUTES = 60L
 
     fun isQuietHours(
-        time: LocalTime = LocalTime.now(ZoneId.systemDefault()),
+        time: LocalTime = LocalTime.now(syncZone),
     ): Boolean = time >= quietStart || time < dayStart
 
     fun intervalMillis(
-        time: LocalTime = LocalTime.now(ZoneId.systemDefault()),
+        time: LocalTime = LocalTime.now(syncZone),
     ): Long = if (isQuietHours(time)) {
         TimeUnit.MINUTES.toMillis(NIGHT_INTERVAL_MINUTES)
     } else {

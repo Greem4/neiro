@@ -18,19 +18,19 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
@@ -45,8 +45,11 @@ import ru.greemlab.neiro.ui.calendar.ProfileYearStats
 import ru.greemlab.neiro.ui.calendar.availableStatsYears
 import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.NeiroLogo
+import ru.greemlab.neiro.ui.components.ProfileAvatar
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 import ru.greemlab.neiro.ui.settings.SettingsNavigationRow
 import ru.greemlab.neiro.ui.settings.SettingsSection
 import ru.greemlab.neiro.ui.sync.SyncUiState
@@ -73,18 +76,7 @@ fun ProfileContent(
     val dayData by calendarViewModel.effectiveDayData.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var autoSyncEnabled by remember { mutableStateOf(syncViewModel.isAutoSyncEnabled) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                autoSyncEnabled = syncViewModel.isAutoSyncEnabled
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
+    val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsState()
     val currentYear = YearMonth.now().year
     val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
@@ -99,7 +91,6 @@ fun ProfileContent(
         pricePerSession = profile.pricePerSession,
         pricePerDiagnostics = profile.pricePerDiagnostics,
         monthlyTaxAmount = profile.monthlyTaxAmount,
-        sessionPriceHistory = profile.sessionPriceHistory,
     )
 
     ProfileContentImpl(
@@ -110,10 +101,10 @@ fun ProfileContent(
         onYearSelected = { selectedYear = it },
         syncState = syncState,
         isLoggedInToYClients = isLoggedIn,
+        userAvatarUrl = userAvatarUrl,
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
-        autoSyncEnabled = autoSyncEnabled,
         onSyncNow = syncViewModel::syncAllThroughCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
@@ -132,7 +123,7 @@ private fun ProfileContentImpl(
     onYearSelected: (Int) -> Unit,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
-    autoSyncEnabled: Boolean = true,
+    userAvatarUrl: String? = null,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
@@ -157,7 +148,15 @@ private fun ProfileContentImpl(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 20.dp),
         ) {
-            NeiroLogo(size = 64.dp)
+            if (profile.showAvatar) {
+                ProfileAvatar(
+                    avatarUrl = userAvatarUrl,
+                    size = 64.dp,
+                    contentDescription = profile.name.ifBlank { "Пользователь" },
+                )
+            } else {
+                NeiroLogo(size = 64.dp)
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -206,7 +205,6 @@ private fun ProfileContentImpl(
         SettingsSection(title = "Синхронизация") {
             YClientsActionBlock(
                 isLoggedIn = isLoggedInToYClients,
-                autoSyncEnabled = autoSyncEnabled,
                 syncState = syncState,
                 onOpenYClients = onOpenYClients,
                 onSyncNow = onSyncNow,
@@ -221,6 +219,47 @@ private fun ProfileContentImpl(
                 onSync = onDevSync,
                 onReset = onDevReset,
                 onFullSetup = onDevFullSetup,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        BuildInfoFooter()
+    }
+}
+
+@Composable
+private fun BuildInfoFooter(
+    modifier: Modifier = Modifier,
+) {
+    val buildTypeLabel = when (BuildConfig.BUILD_TYPE.lowercase(Locale.ROOT)) {
+        "debug" -> stringResource(id = R.string.build_type_debug)
+        "prerelease" -> stringResource(id = R.string.build_type_prerelease)
+        else -> stringResource(id = R.string.build_type_release)
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = buildTypeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(
+                    id = R.string.build_version_format,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -454,16 +493,15 @@ private fun DevMenuItem(
  * Поведение зависит от состояния авторизации (флаг хранится в `TokenStorage`
  * и переживает перезапуск приложения):
  *  - если пользователь ещё не вошёл — открывает экран авторизации;
- *  - если уже вошёл — синхронизирует всю историю до конца текущего месяца.
+ *  - если уже вошёл — полная синхронизация истории (вручную, не чаще чем нужно).
  *
- * Под кнопкой выводится короткая строка статуса: «не подключено», «последняя
- * синхронизация …», прогресс или ошибка. Управление аккаунтом (просмотр имени,
- * выход) живёт в «Настройках профиля» — `SettingsScreen`.
+ * Под кнопкой — короткий статус («Подключено», прогресс, ошибка) и при давности
+ * синхронизации > [STALE_SYNC_DAYS] — плашка «Обновите данные».
+ * Управление аккаунтом — в «Настройках профиля» (`SettingsScreen`).
  */
 @Composable
 private fun YClientsActionBlock(
     isLoggedIn: Boolean,
-    autoSyncEnabled: Boolean,
     syncState: SyncUiState,
     onOpenYClients: () -> Unit,
     onSyncNow: () -> Unit,
@@ -514,19 +552,70 @@ private fun YClientsActionBlock(
 
         YClientsStatusLine(
             isLoggedIn = isLoggedIn,
-            autoSyncEnabled = autoSyncEnabled,
             isLoading = isLoading,
             hasError = hasError,
             hasSuccess = hasSuccess,
             syncState = syncState,
         )
+
+        val showStaleHint = isLoggedIn && !isLoading && !hasError && !hasSuccess &&
+            isSyncStale(syncState.lastSyncDate)
+        if (showStaleHint) {
+            Spacer(modifier = Modifier.height(8.dp))
+            YClientsStaleSyncHint(
+                lastSyncDate = syncState.lastSyncDate,
+                onClick = onSyncNow,
+            )
+        }
+    }
+}
+
+@Composable
+private fun YClientsStaleSyncHint(
+    lastSyncDate: LocalDate?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dateLabel = lastSyncDate?.format(LAST_SYNC_FORMATTER)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Обновите данные",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                if (dateLabel != null) {
+                    Text(
+                        text = "Последняя синхронизация: $dateLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun YClientsStatusLine(
     isLoggedIn: Boolean,
-    autoSyncEnabled: Boolean,
     isLoading: Boolean,
     hasError: Boolean,
     hasSuccess: Boolean,
@@ -552,21 +641,7 @@ private fun YClientsStatusLine(
             MaterialTheme.colorScheme.onSurfaceVariant,
             "Загружаю записи…",
         )
-        isLoggedIn -> {
-            val last = syncState.lastSyncDate
-            val label = when {
-                !autoSyncEnabled && last != null ->
-                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER)
-                !autoSyncEnabled ->
-                    "Подключено · только ручная синхронизация"
-                last != null ->
-                    "Подключено · обновлено " + last.format(LAST_SYNC_FORMATTER) +
-                        " · авто каждые 4 ч"
-                else ->
-                    "Подключено · авто при открытии приложения"
-            }
-            Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
-        }
+        isLoggedIn -> Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, "Подключено")
         else -> Triple(
             Icons.Rounded.CloudSync,
             MaterialTheme.colorScheme.onSurfaceVariant,
@@ -576,7 +651,10 @@ private fun YClientsStatusLine(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
     ) {
         Icon(
             imageVector = icon,
@@ -603,6 +681,13 @@ private fun plural(n: Int, one: String, few: String, many: String): String {
     }
 }
 
+private const val STALE_SYNC_DAYS = 30L
+
+private fun isSyncStale(lastSyncDate: LocalDate?): Boolean {
+    if (lastSyncDate == null) return false
+    return ChronoUnit.DAYS.between(lastSyncDate, LocalDate.now()) >= STALE_SYNC_DAYS
+}
+
 private val LAST_SYNC_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 
@@ -622,6 +707,7 @@ private fun ProfileContentLightPreview() {
                     year = YearMonth.now().year,
                     completedSessions = 42,
                     totalNetEarned = 58_000.0,
+                    totalTaxAmount = 60_000.0,
                     monthlyNet = listOf(
                         4_000.0, 5_000.0, 4_500.0, 6_000.0, 5_500.0, 4_800.0,
                         3_200.0, 5_500.0, 6_500.0, 4_000.0, 4_500.0, 5_000.0,

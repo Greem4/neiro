@@ -72,8 +72,12 @@
     <string name="settings_profit_tax_hint">Строка в диалоге «Финансы»</string>
     <string name="settings_profit_expected">Ожидаемый доход</string>
     <string name="settings_profit_expected_hint">В диалоге «Финансы»</string>
+    <string name="settings_profit_expected_includes_net">Прогноз: итого за месяц</string>
+    <string name="settings_profit_expected_includes_net_hint">Если включено, «Ожидается» на главном экране покажет сумму за весь месяц (уже заработанное + будущие занятия)</string>
     <string name="settings_profit_expected_overview">Ожидается под прогрессом</string>
     <string name="settings_profit_expected_overview_hint">Под полосой прогресса на главном экране</string>
+    <string name="settings_profit_total">Строка «Всего» в финансах</string>
+    <string name="settings_profit_total_hint">Показывать итоговую сумму в самом диалоге</string>
     <string name="settings_profit_session_price">Стоимость одного занятия</string>
     <string name="settings_profit_session_price_hint">Рядом с ожидаемым доходом (для проверки расчётов)</string>
     <string name="settings_profit_intensive">Заработано интенсив</string>
@@ -130,4 +134,12 @@
     <string name="in_app_notifications_close">Закрыть</string>
     <string name="in_app_notifications_clear">Очистить всё</string>
     <string name="in_app_notifications_dismiss">Удалить уведомление</string>
+
+    <string name="settings_profile_show_avatar">Показывать аватар</string>
+    <string name="settings_profile_show_avatar_hint">Если выключено, будет отображаться логотип приложения</string>
+
+    <string name="build_type_debug">DEBUG</string>
+    <string name="build_type_prerelease">PRE-RELEASE</string>
+    <string name="build_type_release">RELEASE</string>
+    <string name="build_version_format">Версия %1$s (%2$d)</string>
 </resources>

@@ -1,11 +1,5 @@
 package ru.greemlab.neiro.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -17,20 +11,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.CollectionsBookmark
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,14 +30,12 @@ import ru.greemlab.neiro.ui.calendar.CalendarMode
 private val ToolbarHeight = 40.dp
 
 /**
- * Панель над сеткой: источник данных (YClients / архив) и обновление.
+ * Панель над сеткой: переключатель источника данных (YClients / архив).
  */
 @Composable
 fun CalendarToolbar(
     calendarMode: CalendarMode,
-    isSyncing: Boolean,
     onModeChange: (CalendarMode) -> Unit,
-    onSyncClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -64,42 +51,6 @@ fun CalendarToolbar(
             onModeChange = onModeChange,
             modifier = Modifier.weight(1f),
         )
-
-        if (calendarMode == CalendarMode.SYNCED) {
-            val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
-            val rotation by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart,
-                ),
-                label = "rotation",
-            )
-
-            FilledIconButton(
-                onClick = onSyncClick,
-                enabled = !isSyncing,
-                modifier = Modifier.size(ToolbarHeight),
-                shape = RoundedCornerShape(12.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                    disabledContentColor = MaterialTheme.colorScheme.outline,
-                ),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Sync,
-                    contentDescription = if (isSyncing) "Обновляю" else "Обновить",
-                    modifier = Modifier
-                        .size(22.dp)
-                        .then(
-                            if (isSyncing) Modifier.graphicsLayer(rotationZ = rotation) else Modifier,
-                        ),
-                )
-            }
-        }
     }
 }
 
@@ -183,7 +134,7 @@ private fun SourceTab(
             horizontalArrangement = Arrangement.Center,
         ) {
             Icon(
-                imageVector = icon,
+                icon,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = contentColor,

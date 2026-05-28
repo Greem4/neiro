@@ -25,6 +25,20 @@ class ProfileYearStatsTest {
     }
 
     @Test
+    fun `year tax is monthly amount times twelve`() {
+        val stats = computeProfileYearStats(
+            year = year,
+            dayData = emptyMap(),
+            pricePerSession = pricePerSession,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 6500.0,
+        )
+        assertEquals(6500.0 * 12, stats.totalTaxAmount, 0.0)
+        assertEquals(0.0, stats.totalNetEarned, 0.0)
+        stats.monthlyNet.forEach { assertEquals(0.0, it, 0.0) }
+    }
+
+    @Test
     fun `sums completed sessions and net across months with tax per month`() {
         val dayData = mapOf(
             LocalDate.of(2025, 5, 10) to listOf("Иванов|true", "Петров|true"),
@@ -42,7 +56,9 @@ class ProfileYearStatsTest {
         val juneNet = 1000.0 - monthlyTax
         assertEquals(mayNet, stats.monthlyNet[4], 0.0)
         assertEquals(juneNet, stats.monthlyNet[5], 0.0)
-        assertEquals(mayNet + juneNet, stats.totalNetEarned, 0.0)
+        val otherMonthsNet = 0.0
+        assertEquals(mayNet + juneNet + otherMonthsNet, stats.totalNetEarned, 0.0)
+        assertEquals(monthlyTax * 12, stats.totalTaxAmount, 0.0)
         assertEquals(2, stats.monthlyCompleted[4])
         assertEquals(1, stats.monthlyCompleted[5])
     }

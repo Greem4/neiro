@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.data.ImportResult
+import ru.greemlab.neiro.data.archiveExportSuggestedFileName
 import ru.greemlab.neiro.data.THEME_DARK
 import ru.greemlab.neiro.data.THEME_LIGHT
 import ru.greemlab.neiro.data.THEME_SYSTEM
@@ -68,8 +69,8 @@ fun AppSettingsScreen(
         uri ?: return@rememberLauncherForActivityResult
         viewModel.exportData(context, uri) { result ->
             val text = when (result) {
-                is ExportResult.Success -> "Данные экспортированы"
-                is ExportResult.Failure -> "Ошибка экспорта: ${result.reason}"
+                is ExportResult.Success -> "Архив экспортирован"
+                is ExportResult.Failure -> "Ошибка экспорта архива: ${result.reason}"
             }
             Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
@@ -81,8 +82,8 @@ fun AppSettingsScreen(
         uri ?: return@rememberLauncherForActivityResult
         viewModel.importData(context, uri) { result ->
             val text = when (result) {
-                is ImportResult.Success -> "Данные импортированы"
-                is ImportResult.Failure -> "Ошибка импорта: ${result.reason}"
+                is ImportResult.Success -> "Архив импортирован"
+                is ImportResult.Failure -> "Ошибка импорта архива: ${result.reason}"
             }
             Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
@@ -180,15 +181,15 @@ fun AppSettingsScreen(
                 }
             }
 
-            SettingsSection(title = "Данные") {
+            SettingsSection(title = "Архив") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { exportLauncher.launch("neiro_backup.json") },
+                        onClick = { exportLauncher.launch(archiveExportSuggestedFileName()) },
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(12.dp),
                     ) {
                         Icon(Icons.Rounded.Download, contentDescription = null)
-                        Text("Экспорт данных", modifier = Modifier.padding(start = 8.dp))
+                        Text("Экспорт архива", modifier = Modifier.padding(start = 8.dp))
                     }
                     OutlinedButton(
                         onClick = { importLauncher.launch(arrayOf("application/json")) },
@@ -197,7 +198,7 @@ fun AppSettingsScreen(
                         colors = ButtonDefaults.outlinedButtonColors(),
                     ) {
                         Icon(Icons.Rounded.Upload, contentDescription = null)
-                        Text("Импорт данных", modifier = Modifier.padding(start = 8.dp))
+                        Text("Импорт архива", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
             }

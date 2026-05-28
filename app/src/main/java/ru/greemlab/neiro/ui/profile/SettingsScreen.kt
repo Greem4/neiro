@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,14 +19,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.components.DayChip
+import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import ru.greemlab.neiro.ui.settings.SettingsSwitchRow
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import java.time.DayOfWeek
 
@@ -50,6 +55,7 @@ fun SettingsScreen(
         onDiagnosticsPriceChange = viewModel::updateDiagnosticsPrice,
         onTaxChange = viewModel::updateTaxAmount,
         onToggleDay = viewModel::toggleWorkingDay,
+        onShowAvatarChange = viewModel::updateShowAvatar,
         onOpenYClientsAuth = onOpenYClientsAuth,
         onLogoutYClients = syncViewModel::logoutYClients,
         onBack = {
@@ -73,6 +79,7 @@ private fun SettingsScreenImpl(
     onDiagnosticsPriceChange: (Double) -> Unit,
     onTaxChange: (Double) -> Unit,
     onToggleDay: (DayOfWeek) -> Unit,
+    onShowAvatarChange: (Boolean) -> Unit,
     onOpenYClientsAuth: () -> Unit,
     onLogoutYClients: () -> Unit,
     onBack: () -> Unit,
@@ -218,6 +225,17 @@ private fun SettingsScreenImpl(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            SettingsGroupCard {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_profile_show_avatar),
+                    subtitle = stringResource(R.string.settings_profile_show_avatar_hint),
+                    checked = profile.showAvatar,
+                    onCheckedChange = onShowAvatarChange,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -323,11 +341,12 @@ private fun YClientsAccountSection(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
+                OutlinedButton(
                     onClick = onLogout,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.textButtonColors(
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
@@ -337,7 +356,10 @@ private fun YClientsAccountSection(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Выйти из YClients")
+                    Text(
+                        text = "Выйти из YClients",
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -400,6 +422,7 @@ private fun SettingsScreenLightPreview() {
             onDiagnosticsPriceChange = {},
             onTaxChange = {},
             onToggleDay = {},
+            onShowAvatarChange = {},
             onOpenYClientsAuth = {},
             onLogoutYClients = {},
             onBack = {},

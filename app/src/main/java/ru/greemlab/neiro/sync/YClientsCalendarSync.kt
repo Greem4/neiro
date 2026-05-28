@@ -38,7 +38,8 @@ class YClientsCalendarSync(
         syncDateRange(yearMonth.atDay(1), yearMonth.atEndOfMonth())
 
     /**
-     * Диапазон для автосинхронизации: предыдущий, текущий и следующий месяц.
+     * Ежедневная автосинхронизация: текущий и следующий месяц (записи «вперёд»).
+     * Полная история — только вручную из профиля.
      */
     suspend fun syncDefaultAutoRange(): SyncOutcome {
         val (start, end) = defaultAutoSyncRange()
@@ -46,7 +47,8 @@ class YClientsCalendarSync(
     }
 
     /**
-     * Лёгкое обновление с API для live-опроса: узкий диапазон дат, без записи «последней синхронизации».
+     * Live-опрос для уведомлений о будущих записях: текущий и следующий месяц,
+     * без сдвига метки «последней синхронизации» (её обновляет [syncDefaultAutoRange]).
      */
     suspend fun refreshLiveRange(): SyncOutcome {
         val (start, end) = defaultLiveRefreshRange()
@@ -63,6 +65,12 @@ class YClientsCalendarSync(
                 is ApiResult.Success -> {
                     val records = result.data
                     val dayDataBefore = calendarRepository.dayDataFlow.first()
+                    if (!shouldApplySyncMerge(records, dayDataBefore, startDate, endDate)) {
+                        return@withLock SyncOutcome.Failure(
+                            "YClients вернул пустой ответ, а в календаре есть записи — " +
+                                "слияние пропущено, локальные данные сохранены",
+                        )
+                    }
                     autoFillProfile(records)
                     val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
                     val dayDataAfter = calendarRepository.dayDataFlow.first()
@@ -269,6 +277,9 @@ class YClientsCalendarSync(
      * После слияния с API оставляем только ручные интенсивы (их нет в YClients).
      * Записи учеников/диагностики без пары в API удаляются — иначе «призраки»
      * остаются в статусе «ожидание», хотя запись в YClients уже снята.
+     *
+     * Слияние с удалением выполняется только при [shouldApplySyncMerge] — при ошибках
+     * сети, пустом подозрительном ответе или обрезанной пагинации календарь не трогаем.
      */
     private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
         pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
@@ -379,15 +390,12 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
-        val payAmount = resolveEmployeePay(record, userProfile)
-
         return SessionFormat.serializeStudentExtended(
             name = clientName,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
-            payAmount = payAmount,
         )
     }
 
@@ -423,43 +431,13 @@ class YClientsCalendarSync(
         val phone = record.client?.phone.orEmpty()
         val comment = record.comment.orEmpty()
 
-        // TODO: разобраться с оплатой — EmployeePayResolver, карта клиента, сохранённый payAmount.
-        val payAmount = resolveEmployeePay(record, userProfile)
-        /*
-        val resolved = resolveEmployeePay(record, userProfile)
-        val payAmount = if (
-            EmployeePayResolver.hasClientCardPayment(record) ||
-            EmployeePayResolver.hasPayrollSalary(record)
-        ) {
-            resolved
-        } else {
-            session.payAmount?.takeIf { it > 0.0 } ?: resolved
-        }
-        */
-
         return SessionFormat.serializeStudentExtended(
             name = session.name,
             status = status,
             time = time,
             phone = phone,
             comment = comment,
-            payAmount = payAmount,
         )
-    }
-
-    private fun resolveEmployeePay(record: RecordData, userProfile: UserProfile): Double {
-        // Временно: только текущая ставка из профиля.
-        return userProfile.pricePerSession
-        /*
-        val recordDate = recordDate(record)
-        val defaultPay = userProfile.pricePerSessionOn(recordDate)
-        return EmployeePayResolver.resolveFromRecord(record, defaultPay)
-        */
-    }
-
-    private fun recordDate(record: RecordData): LocalDate {
-        val raw = record.datetime ?: record.date ?: return LocalDate.now()
-        return parseRecordDate(raw) ?: LocalDate.now()
     }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
@@ -488,13 +466,50 @@ class YClientsCalendarSync(
     companion object {
         private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
-        fun defaultAutoSyncRange(): Pair<LocalDate, LocalDate> {
-            val center = YearMonth.now()
-            return center.minusMonths(1).atDay(1) to center.plusMonths(1).atEndOfMonth()
+        /**
+         * Можно ли доверять ответу API и удалять локальные записи без пары.
+         *
+         * Пустой список при наличии учеников/диагностики в диапазоне — признак сбоя
+         * (сеть, неверный staff_id, глюк API), а не «в YClients ничего нет».
+         */
+        internal fun shouldApplySyncMerge(
+            records: List<RecordData>,
+            localDayData: Map<LocalDate, List<String>>,
+            startDate: LocalDate,
+            endDate: LocalDate,
+        ): Boolean {
+            if (records.isNotEmpty()) return true
+            return countYClientsManagedLocalEntries(localDayData, startDate, endDate) == 0
         }
 
-        /** Диапазон live-опроса: только текущий месяц. */
-        fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> {
+        /** Ученики и диагностика в диапазоне (интенсивы не считаются — они только локальные). */
+        internal fun countYClientsManagedLocalEntries(
+            localDayData: Map<LocalDate, List<String>>,
+            startDate: LocalDate,
+            endDate: LocalDate,
+        ): Int {
+            var count = 0
+            var date = startDate
+            while (!date.isAfter(endDate)) {
+                localDayData[date]?.forEach { raw ->
+                    if (!raw.startsWith(SessionFormat.INTENSIVE_PREFIX)) count++
+                }
+                date = date.plusDays(1)
+            }
+            return count
+        }
+
+        /** Ежедневный авто: с 1-го текущего месяца по конец следующего. */
+        fun defaultAutoSyncRange(): Pair<LocalDate, LocalDate> {
+            val current = YearMonth.now()
+            val next = current.plusMonths(1)
+            return current.atDay(1) to next.atEndOfMonth()
+        }
+
+        /** Live-опрос: текущий и следующий месяц (будущие записи и пуши). */
+        fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> = defaultAutoSyncRange()
+
+        private fun currentCalendarMonthRange(): Pair<LocalDate, LocalDate> {
             val month = YearMonth.now()
             return month.atDay(1) to month.atEndOfMonth()
         }

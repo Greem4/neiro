@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -58,7 +58,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.StatusExpectedMint
+import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -76,15 +80,10 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
-/** Порог жеста «потянуть вниз» для обновления — выше стандартного Material. */
+/** Порог жеста «потянуть вниз» — ниже стандартного, чтобы проще обновить день. */
 @OptIn(ExperimentalMaterial3Api::class)
-private val DayDetailsPullRefreshThreshold =
-    PullToRefreshDefaults.PositionalThreshold + 36.dp
-
-private val StatusLavender = Color(0xFFA7B2FF)
-private val StatusRed = Color(0xFFF44336)
-private val StatusGreen = Color(0xFF4CAF50)
-private val StatusMint = Color(0xFFB2DFDB)
+private val DayDetailsPullRefreshThreshold: Dp =
+    (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
 
 /**
  * Данные для отображения записи в расписании.
@@ -97,7 +96,6 @@ private data class ScheduleEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
-    val employeePay: Double = 0.0,
 )
 
 /**
@@ -153,6 +151,7 @@ private fun DayDetailsContent(
     onArchive: () -> Unit,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
+    // Сейчас — только интенсивы; список учеников (StudentItemRow) — для офлайн-правки архива, см. TODO.
     var isPlanningMode by remember { mutableStateOf(false) }
     var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
@@ -170,7 +169,7 @@ private fun DayDetailsContent(
     }
 
     val stats = remember(entries, userProfile, date) {
-        calculateStats(entries, userProfile, date)
+        calculateStats(entries, userProfile)
     }
 
     val dateText = remember(date) { date.format(DATE_FORMAT) }
@@ -425,13 +424,13 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Подтверждено",
                     value = stats.confirmedCount.toString(),
-                    color = StatusLavender,
+                    color = ExpectedAmber,
                     modifier = Modifier.weight(1f),
                 )
                 StatBadge(
                     label = "Ожидают",
                     value = stats.expectedCount.toString(),
-                    color = StatusMint,
+                    color = StatusExpectedMint,
                     modifier = Modifier.weight(1f),
                 )
             } else {
@@ -445,7 +444,7 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Итог",
                     value = formatRubles(stats.totalMoney),
-                    color = StatusGreen,
+                    color = ScheduleHeaderGreen,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -575,7 +574,6 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 time = normalizeSessionTime(session.time),
                 comment = session.comment,
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                employeePay = session.payAmount ?: 0.0,
             )
 
             is Session.Intensive -> ScheduleEntry(
@@ -606,9 +604,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
 private fun calculateStats(
     entries: List<ScheduleEntry>,
     userProfile: UserProfile,
-    date: LocalDate,
 ): DayStats {
-    // TODO: разобраться с оплатой — сейчас только ставка из профиля, без payAmount и истории.
     val pricePerSession = userProfile.pricePerSession
     val pricePerDiagnostics = userProfile.pricePerDiagnostics
     var expected = 0
@@ -625,7 +621,6 @@ private fun calculateStats(
                 arrived++
                 if (!entry.isExtra) {
                     money += pricePerSession
-                    // val pay = if (entry.employeePay > 0.0) entry.employeePay else pricePerSession
                 } else if (entry.extraType == "Диагностика") {
                     money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
                 } else {

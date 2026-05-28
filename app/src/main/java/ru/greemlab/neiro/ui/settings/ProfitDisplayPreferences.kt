@@ -12,6 +12,8 @@ data class ProfitDisplaySettings(
     val showExpectedInOverview: Boolean = true,
     val showIntensiveEarnings: Boolean = true,
     val showDiagnosticsEarnings: Boolean = true,
+    val showTotalProfit: Boolean = false,
+    val expectedIncludesNet: Boolean = false,
 )
 
 class ProfitDisplayPreferences(context: Context) {
@@ -27,6 +29,8 @@ class ProfitDisplayPreferences(context: Context) {
         showExpectedInOverview = prefs.getBoolean(KEY_SHOW_EXPECTED_OVERVIEW, true),
         showIntensiveEarnings = prefs.getBoolean(KEY_SHOW_INTENSIVE, true),
         showDiagnosticsEarnings = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, true),
+        showTotalProfit = prefs.getBoolean(KEY_SHOW_TOTAL, false),
+        expectedIncludesNet = prefs.getBoolean(KEY_EXPECTED_INCLUDES_NET, false),
     )
 
     fun save(settings: ProfitDisplaySettings) {
@@ -39,6 +43,8 @@ class ProfitDisplayPreferences(context: Context) {
             .putBoolean(KEY_SHOW_EXPECTED_OVERVIEW, settings.showExpectedInOverview)
             .putBoolean(KEY_SHOW_INTENSIVE, settings.showIntensiveEarnings)
             .putBoolean(KEY_SHOW_DIAGNOSTICS, settings.showDiagnosticsEarnings)
+            .putBoolean(KEY_SHOW_TOTAL, settings.showTotalProfit)
+            .putBoolean(KEY_EXPECTED_INCLUDES_NET, settings.expectedIncludesNet)
             .apply()
     }
 
@@ -56,6 +62,8 @@ class ProfitDisplayPreferences(context: Context) {
         private const val KEY_SHOW_EXPECTED_OVERVIEW = "show_expected_in_overview"
         private const val KEY_SHOW_INTENSIVE = "show_intensive"
         private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
+        private const val KEY_SHOW_TOTAL = "show_total_profit"
+        private const val KEY_EXPECTED_INCLUDES_NET = "expected_includes_net"
 
         @Volatile
         private var instance: ProfitDisplayPreferences? = null

@@ -29,6 +29,8 @@ data class SyncUiState(
     val syncedCount: Int = 0,
     val lastSyncDate: LocalDate? = null,
     val showSuccess: Boolean = false,
+    val profileReviewReminder: String? = null,
+    val openProfileSettings: Boolean = false,
 )
 
 /**
@@ -48,6 +50,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
 
     val isLoggedIn: StateFlow<Boolean> = yclientsRepository.isLoggedIn
+    val userAvatarUrl: StateFlow<String?> = yclientsRepository.userAvatarUrl
 
     val isAutoSyncEnabled: Boolean
         get() = syncPreferences.isAutoSyncEnabled
@@ -61,8 +64,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logoutYClients() {
         yclientsRepository.logout()
-        syncPreferences.clearLastSync()
-        AutoSyncCoordinator.cancelPeriodicSync(getApplication())
+        syncPreferences.clearSyncState()
+        AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
         _uiState.value = SyncUiState()
     }
 
@@ -79,7 +82,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             when (val result = yclientsRepository.login(login, pass)) {
                 is ApiResult.Success -> {
                     _uiState.value = _uiState.value.copy(isLoading = false, showSuccess = true)
-                    AutoSyncCoordinator.schedulePeriodicSync(getApplication())
+                    AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
                     if (autoSync) {
                         devSyncAll()
                     }
@@ -99,7 +102,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             calendarRepository.updateProfile { profile ->
                 profile.copy(
                     pricePerSession = 1400.0,
-                    pricePerDiagnostics = 2050.0,
+                    pricePerDiagnostics = 2250.0,
                     monthlyTaxAmount = 6500.0,
                 )
             }
@@ -125,16 +128,48 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Полная синхронизация для профиля: с глубокой истории до конца текущего месяца.
+     * После входа в YClients: один раз полная история, дальше — только узкий авто-диапазон.
+     */
+    fun syncAfterLogin() {
+        if (syncPreferences.hasCompletedInitialFullSync) {
+            syncDailyEdgeMonths(showUi = false)
+        } else {
+            syncAllThroughCurrentMonth()
+        }
+    }
+
+    /** Текущий + следующий месяц (ежедневный авто и после повторного входа). */
+    fun syncDailyEdgeMonths(showUi: Boolean = true) {
+        viewModelScope.launch {
+            runSync(showUi = showUi) {
+                calendarSync.syncDefaultAutoRange()
+            }
+        }
+    }
+
+    /**
+     * Полная синхронизация из профиля: вся история до конца текущего месяца (вручную).
      */
     fun syncAllThroughCurrentMonth() {
         viewModelScope.launch {
-            runSync(showUi = true) {
-                val end = YearMonth.now().atEndOfMonth()
-                val start = resolveFullSyncStartDate()
-                calendarSync.syncDateRange(start, end)
+            val isFirstFullSync = !syncPreferences.hasCompletedInitialFullSync
+            val outcome = runSync(showUi = true) {
+                val outcome = runFullHistorySync()
+                if (outcome is SyncOutcome.Success) {
+                    syncPreferences.markInitialFullSyncComplete()
+                }
+                outcome
+            }
+            if (isFirstFullSync && outcome is SyncOutcome.Success) {
+                maybeShowProfileReviewReminder()
             }
         }
+    }
+
+    private suspend fun runFullHistorySync(): SyncOutcome {
+        val end = YearMonth.now().atEndOfMonth()
+        val start = resolveFullSyncStartDate()
+        return calendarSync.syncDateRange(start, end)
     }
 
     private suspend fun resolveFullSyncStartDate(): LocalDate {
@@ -165,7 +200,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun runSync(showUi: Boolean, block: suspend () -> SyncOutcome) {
+    private suspend fun runSync(showUi: Boolean, block: suspend () -> SyncOutcome): SyncOutcome {
         if (showUi) {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
@@ -174,7 +209,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        when (val outcome = block()) {
+        val outcome = block()
+        when (outcome) {
             is SyncOutcome.Success -> {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -191,6 +227,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+        return outcome
     }
 
     fun clearError() {
@@ -201,10 +238,38 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(showSuccess = false)
     }
 
+    fun clearProfileReviewReminder() {
+        _uiState.value = _uiState.value.copy(
+            profileReviewReminder = null,
+            openProfileSettings = false,
+        )
+    }
+
     /** Обновляет дату последней синхронизации в UI после тихой автосинхронизации. */
     fun refreshLastSyncFromPrefs() {
         _uiState.value = _uiState.value.copy(
             lastSyncDate = syncPreferences.lastSyncLocalDate(),
+        )
+    }
+
+    private suspend fun maybeShowProfileReviewReminder() {
+        val profile = calendarRepository.userProfileFlow.first()
+        val hasPriceIssue = profile.pricePerSession <= 0.0
+        val hasTaxIssue = profile.monthlyTaxAmount <= 0.0
+        if (!hasPriceIssue && !hasTaxIssue) return
+
+        val reminder = buildString {
+            append("Проверьте профиль после синхронизации: ")
+            val missingParts = buildList {
+                if (hasPriceIssue) add("цену за занятие")
+                if (hasTaxIssue) add("налог")
+            }
+            append(missingParts.joinToString(" и "))
+            append(".")
+        }
+        _uiState.value = _uiState.value.copy(
+            profileReviewReminder = reminder,
+            openProfileSettings = true,
         )
     }
 

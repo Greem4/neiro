@@ -50,10 +50,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -190,11 +193,16 @@ private fun LoginForm(
         enabled = !isLoading,
         modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Email,
+            keyboardType = KeyboardType.Text,
             imeAction = ImeAction.Next,
         ),
         keyboardActions = KeyboardActions(onNext = { onFocusNext() }),
         shape = RoundedCornerShape(12.dp),
+        visualTransformation = if (shouldApplyPhoneMask(login)) {
+            PhoneLoginVisualTransformation
+        } else {
+            VisualTransformation.None
+        },
     )
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -259,6 +267,61 @@ private fun LoginForm(
         } else {
             Text("Войти")
         }
+    }
+}
+
+private fun shouldApplyPhoneMask(value: String): Boolean =
+    value.isNotEmpty() && value.length <= 11 && value.all { it.isDigit() }
+
+private object PhoneLoginVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text
+        if (raw.isEmpty()) {
+            return TransformedText(text, OffsetMapping.Identity)
+        }
+
+        val transformed = StringBuilder()
+        val originalToTransformed = IntArray(raw.length + 1)
+
+        raw.forEachIndexed { index, char ->
+            when (index) {
+                1 -> transformed.append('(')
+                4 -> transformed.append(")-")
+                7, 9 -> transformed.append('-')
+            }
+            originalToTransformed[index] = transformed.length
+            transformed.append(char)
+            originalToTransformed[index + 1] = transformed.length
+        }
+
+        val transformedToOriginal = IntArray(transformed.length + 1)
+        var originalIndex = 0
+        for (transformedIndex in transformedToOriginal.indices) {
+            while (
+                originalIndex < originalToTransformed.lastIndex &&
+                originalToTransformed[originalIndex + 1] <= transformedIndex
+            ) {
+                originalIndex++
+            }
+            transformedToOriginal[transformedIndex] = originalIndex
+        }
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                val safe = offset.coerceIn(0, raw.length)
+                return originalToTransformed[safe]
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val safe = offset.coerceIn(0, transformed.length)
+                return transformedToOriginal[safe]
+            }
+        }
+
+        return TransformedText(
+            text = AnnotatedString(transformed.toString()),
+            offsetMapping = offsetMapping,
+        )
     }
 }
 

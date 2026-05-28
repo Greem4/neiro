@@ -54,7 +54,10 @@ enum class AttendanceStatus(val code: Int) {
             }
         }
 
-        /** Старый формат `name|true` — ручная отметка «пришёл». */
+        /**
+         * Старый формат `name|true` и ручной офлайн-ввод (в т.ч. будущее редактирование архива).
+         * Даёт только EXPECTED/ARRIVED; для YClients и таймлайна — полный код статуса в строке.
+         */
         fun fromBoolean(attended: Boolean): AttendanceStatus =
             if (attended) ARRIVED else EXPECTED
     }
@@ -70,6 +73,7 @@ enum class AttendanceStatus(val code: Int) {
  */
 @Immutable
 sealed interface Session {
+    /** Упрощённая отметка для ручной сериализации; при наличии кода в строке — см. [status]. */
     val attended: Boolean
     val status: AttendanceStatus get() = AttendanceStatus.fromBoolean(attended)
 
@@ -87,6 +91,10 @@ sealed interface Session {
                 name.startsWith("–") || name.startsWith("−")
     }
 
+    /** Учитывается в заработке: только статус «пришёл», без отменённых записей. */
+    fun countsTowardEarnings(): Boolean =
+        !isEffectivelyDeleted() && status.countsTowardEarnings
+
     @Immutable
     data class Student(
         val name: String,
@@ -94,8 +102,6 @@ sealed interface Session {
         val time: String = "",        // Например "10:00-10:50"
         val phone: String = "",       // Телефон клиента
         val comment: String = "",     // Комментарий к записи
-        /** Выплата сотруднику за занятие; задаётся при синхронизации с YClients. */
-        val payAmount: Double? = null,
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
     ) : Session
 
@@ -175,12 +181,24 @@ object SessionParser {
     fun isEffectivelyDeleted(raw: String): Boolean = parse(raw).isEffectivelyDeleted()
 
     /**
+     * Один проход по сырой строке: учитывается ли в счётчике занятий на ячейке календаря.
+     * (ученик или диагностика, не отменено)
+     */
+    fun countsAsCalendarLesson(raw: String): Boolean {
+        val session = parse(raw)
+        if (session.isEffectivelyDeleted()) return false
+        return session is Session.Student || session is Session.Diagnostics
+    }
+
+    fun isVisibleIntensive(raw: String): Boolean =
+        isIntensive(raw) && !isEffectivelyDeleted(raw)
+
+    /**
      * Парсит запись ученика.
      *
      * Форматы (обратная совместимость):
      *  - Старый: `name|attended` где attended = true/false
      *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
-     *  - С оплатой: `name|statusCode|time|phone|comment|payAmount`
      */
     private fun parseStudent(raw: String): Session.Student {
         val parts = raw.split('|')
@@ -203,14 +221,12 @@ object SessionParser {
             val time = parts.getOrNull(2).orEmpty()
             val phone = parts.getOrNull(3).orEmpty()
             val comment = parts.getOrNull(4).orEmpty()
-            val payAmount = parts.getOrNull(5)?.toDoubleOrNull()
             Session.Student(
                 name = name,
                 attended = status.countsTowardEarnings,
                 time = time,
                 phone = phone,
                 comment = comment,
-                payAmount = payAmount,
                 status = status,
             )
         } else {
@@ -295,26 +311,14 @@ object SessionFormat {
     /** Старый формат (для обратной совместимости). */
     fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
 
-    /**
-     * Новый расширенный формат записи ученика.
-     * Формат: `name|statusCode|time|phone|comment` или с выплатой — `...|payAmount`
-     */
+    /** Расширенный формат: `name|statusCode|time|phone|comment`. */
     fun serializeStudentExtended(
         name: String,
         status: AttendanceStatus,
         time: String = "",
         phone: String = "",
         comment: String = "",
-        payAmount: Double? = null,
-    ): String {
-        val base = "$name|${status.code}|$time|$phone|$comment"
-        return if (payAmount != null && payAmount > 0.0) {
-            val pay = if (payAmount % 1.0 == 0.0) payAmount.toLong().toString() else payAmount.toString()
-            "$base|$pay"
-        } else {
-            base
-        }
-    }
+    ): String = "$name|${status.code}|$time|$phone|$comment"
 
     fun serializeIntensive(price: String, name: String, attended: Boolean, time: String = ""): String =
         serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended), time)

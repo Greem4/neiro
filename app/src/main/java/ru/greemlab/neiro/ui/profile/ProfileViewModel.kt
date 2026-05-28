@@ -96,5 +96,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateTaxAmount(tax: Double) = enqueueUpdate { it.copy(monthlyTaxAmount = tax) }
 
+    fun updateShowAvatar(show: Boolean) = enqueueUpdate { it.copy(showAvatar = show) }
+
     fun completeRegistration() = enqueueUpdate { it.copy(isRegistered = true) }
 }

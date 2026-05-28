@@ -45,12 +45,36 @@ class ProfileTotalsCalculatorTest {
     }
 
     @Test
-    fun `uses profile rate not stored pay while payment logic disabled`() {
+    fun `cancelled sessions are excluded from totals`() {
         val dayData = mapOf(
-            LocalDate.of(2025, 5, 1) to listOf("Иванов|3|||1250"),
+            LocalDate.of(2025, 5, 1) to listOf("Иванов|2", "Петров|3"),
         )
-        val totals = computeProfileTotals(dayData, pricePerSession = 1400.0, pricePerDiagnostics = 0.0, today = today)
-        assertEquals(1400.0, totals.totalEarned, 0.0)
+        val totals = computeProfileTotals(
+            dayData,
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+            today = today,
+        )
+        assertEquals(1, totals.pastSessions)
+        assertEquals(1, totals.attendedSessions)
+        assertEquals(1000.0, totals.totalEarned, 0.0)
+    }
+
+    @Test
+    fun `net earned subtracts tax per month with calendar entries`() {
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf("Иванов|3"),
+            LocalDate.of(2025, 6, 1) to listOf("Петров|false"),
+        )
+        val totals = computeProfileTotals(
+            dayData,
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+            today = today,
+            monthlyTaxAmount = 6500.0,
+        )
+        assertEquals(1000.0, totals.totalEarned, 0.0)
+        assertEquals(0.0, totals.netEarned, 0.0)
     }
 
     @Test

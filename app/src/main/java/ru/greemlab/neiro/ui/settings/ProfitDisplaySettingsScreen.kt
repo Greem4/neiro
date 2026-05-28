@@ -89,22 +89,36 @@ fun ProfitDisplaySettingsScreen(
                         onCheckedChange = { enabled -> updateProfit { it.copy(showTax = enabled) } },
                         showDivider = true,
                     )
+                    ProfitDisplaySwitch(
+                        title = stringResource(R.string.settings_profit_total),
+                        subtitle = stringResource(R.string.settings_profit_total_hint),
+                        checked = profitDisplay.showTotalProfit,
+                        onCheckedChange = { enabled -> updateProfit { it.copy(showTotalProfit = enabled) } },
+                        showDivider = true,
+                    )
                 }
             }
 
             SettingsSection(title = stringResource(R.string.settings_profit_section_forecast)) {
                 SettingsGroupCard {
                     ProfitDisplaySwitch(
-                        title = stringResource(R.string.settings_profit_expected),
-                        subtitle = stringResource(R.string.settings_profit_expected_hint),
-                        checked = profitDisplay.showExpectedIncome,
-                        onCheckedChange = { enabled -> updateProfit { it.copy(showExpectedIncome = enabled) } },
-                    )
-                    ProfitDisplaySwitch(
                         title = stringResource(R.string.settings_profit_expected_overview),
                         subtitle = stringResource(R.string.settings_profit_expected_overview_hint),
                         checked = profitDisplay.showExpectedInOverview,
                         onCheckedChange = { enabled -> updateProfit { it.copy(showExpectedInOverview = enabled) } },
+                    )
+                    ProfitDisplaySwitch(
+                        title = stringResource(R.string.settings_profit_expected_includes_net),
+                        subtitle = stringResource(R.string.settings_profit_expected_includes_net_hint),
+                        checked = profitDisplay.expectedIncludesNet,
+                        onCheckedChange = { enabled -> updateProfit { it.copy(expectedIncludesNet = enabled) } },
+                        showDivider = true,
+                    )
+                    ProfitDisplaySwitch(
+                        title = stringResource(R.string.settings_profit_expected),
+                        subtitle = stringResource(R.string.settings_profit_expected_hint),
+                        checked = profitDisplay.showExpectedIncome,
+                        onCheckedChange = { enabled -> updateProfit { it.copy(showExpectedIncome = enabled) } },
                         showDivider = true,
                     )
                     ProfitDisplaySwitch(

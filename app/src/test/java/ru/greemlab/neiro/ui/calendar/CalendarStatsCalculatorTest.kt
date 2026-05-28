@@ -2,8 +2,6 @@ package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import ru.greemlab.neiro.domain.models.SESSION_PRICE_EPOCH
-import ru.greemlab.neiro.domain.models.SessionPriceHistoryEntry
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -12,6 +10,27 @@ class CalendarStatsCalculatorTest {
     private val month: YearMonth = YearMonth.of(2025, 5)
     private val pricePerSession = 1000.0
     private val monthlyTax = 200.0
+
+    @Test
+    fun `computeRecentStudents ranks by frequency in given map only`() {
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf("Иванов|true", "Петров|false", "Иванов|true"),
+            LocalDate.of(2025, 5, 2) to listOf("__INTENSIVE__:1000|Лагерь|true"),
+        )
+        assertEquals(listOf("Иванов", "Петров"), computeRecentStudents(dayData, limit = 5))
+    }
+
+    @Test
+    fun `filterDayDataForMonth keeps only target month`() {
+        val full = mapOf(
+            LocalDate.of(2025, 5, 10) to listOf("Иванов|true"),
+            LocalDate.of(2025, 4, 10) to listOf("Петров|true"),
+            LocalDate.of(2024, 5, 1) to listOf("Старый|true"),
+        )
+        val may = filterDayDataForMonth(full, month)
+        assertEquals(1, may.size)
+        assertEquals(listOf("Иванов|true"), may[LocalDate.of(2025, 5, 10)])
+    }
 
     @Test
     fun `empty data yields zero stats`() {
@@ -72,13 +91,9 @@ class CalendarStatsCalculatorTest {
     }
 
     @Test
-    fun `month profit uses profile rate regardless of history while payment disabled`() {
-        val history = listOf(
-            SessionPriceHistoryEntry(SESSION_PRICE_EPOCH, 1200.0),
-            SessionPriceHistoryEntry("2025-05-01", 1500.0),
-        )
+    fun `month profit uses pricePerSession from profile`() {
         val april = mapOf(
-            LocalDate.of(2025, 4, 10) to listOf("Иванов|true|||1250"),
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|true"),
         )
         val aprilStats = computeMonthStats(
             YearMonth.of(2025, 4),
@@ -86,13 +101,12 @@ class CalendarStatsCalculatorTest {
             pricePerSession = 1400.0,
             pricePerDiagnostics = 0.0,
             monthlyTaxAmount = 0.0,
-            sessionPriceHistory = history,
         )
         assertEquals(1400.0, aprilStats.totalEarned, 0.0)
     }
 
     @Test
-    fun `net profit is zero when tax exceeds income`() {
+    fun `net profit is zero when income is lower than tax`() {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = mapOf(
@@ -103,6 +117,19 @@ class CalendarStatsCalculatorTest {
             monthlyTaxAmount = 1000.0,
         )
         assertEquals(500.0, stats.totalEarned, 0.0)
+        assertEquals(0.0, stats.netProfit, 0.0)
+    }
+
+    @Test
+    fun `net profit is zero for month without earnings`() {
+        val stats = computeMonthStats(
+            currentMonth = month,
+            dayData = emptyMap(),
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 6500.0,
+        )
+        assertEquals(0.0, stats.totalEarned, 0.0)
         assertEquals(0.0, stats.netProfit, 0.0)
     }
 }
