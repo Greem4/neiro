@@ -11,6 +11,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -52,12 +56,15 @@ private val NowLineStroke: Dp = 1.dp
 private val SlotLaneGap: Dp = 4.dp
 /** Минимальный зазор между карточками — почти стык, но без слияния. */
 private val SlotBottomGap: Dp = 2.dp
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayScheduleTimeline(
     entries: List<TimelineEntry>,
     date: LocalDate,
     modifier: Modifier = Modifier,
     highlightSlotKey: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
     onTopReachedChanged: (Boolean) -> Unit = {},
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
@@ -240,12 +247,32 @@ fun DayScheduleTimeline(
         }
     }
 
+    val state = rememberPullToRefreshState()
+
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .then(
+                    if (onRefresh != null) {
+                        Modifier.pullToRefresh(
+                            state = state,
+                            isRefreshing = isRefreshing,
+                            onRefresh = onRefresh,
+                            threshold = (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
+                        )
+                    } else Modifier
+                ),
         ) {
             timelineBody()
+
+            if (onRefresh != null) {
+                PullToRefreshDefaults.Indicator(
+                    state = state,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
         }
     }
 }

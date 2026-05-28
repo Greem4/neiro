@@ -7,15 +7,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -23,6 +24,9 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,7 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Save
@@ -49,8 +57,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -74,7 +80,14 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
-/** Данные для отображения записи в расписании. */
+/** Порог жеста «потянуть вниз» — ниже стандартного, чтобы проще обновить день. */
+@OptIn(ExperimentalMaterial3Api::class)
+private val DayDetailsPullRefreshThreshold: Dp =
+    (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
+
+/**
+ * Данные для отображения записи в расписании.
+ */
 private data class ScheduleEntry(
     val name: String,
     val time: String,
@@ -91,7 +104,6 @@ private data class ScheduleEntry(
  * Отображает список записей в компактном виде без возможности редактирования.
  * Все изменения производятся через синхронизацию с YClients.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayDetailsDialog(
     date: LocalDate,
@@ -99,34 +111,28 @@ fun DayDetailsDialog(
     userProfile: UserProfile,
     isArchived: Boolean = false,
     highlightSlotKey: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            decorFitsSystemWindows = false,
-        ),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            DayDetailsContent(
-                date = date,
-                initialNames = initialNames,
-                userProfile = userProfile,
-                isArchived = isArchived,
-                highlightSlotKey = highlightSlotKey,
-                onDismiss = onDismiss,
-                onSave = onSave,
-                onArchive = onArchive,
-            )
-        }
+        DayDetailsContent(
+            date = date,
+            initialNames = initialNames,
+            userProfile = userProfile,
+            isArchived = isArchived,
+            highlightSlotKey = highlightSlotKey,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            onDismiss = onDismiss,
+            onSave = onSave,
+            onArchive = onArchive,
+        )
     }
 }
 
@@ -138,6 +144,8 @@ private fun DayDetailsContent(
     userProfile: UserProfile,
     isArchived: Boolean,
     highlightSlotKey: String?,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
@@ -175,7 +183,6 @@ private fun DayDetailsContent(
     val intensiveTimeSlots = remember(lessonTimes) {
         buildIntensiveTimeSlotOptions(lessonTimes)
     }
-    val planningListState = rememberLazyListState()
 
     LaunchedEffect(focusNewIntensive) {
         if (!focusNewIntensive) return@LaunchedEffect
@@ -186,16 +193,15 @@ private fun DayDetailsContent(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        shape = RoundedCornerShape(24.dp),
+            .fillMaxWidth(0.95f)
+            .padding(vertical = 16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -221,20 +227,21 @@ private fun DayDetailsContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Статистика
             StatsRow(stats = stats, date = date)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Список записей
             if (entries.isEmpty() && !isPlanningMode) {
-                Box(
+                DayDetailsRefreshableSection(
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
                     modifier = Modifier
-                        .weight(1f, fill = true)
+                        .weight(1f, fill = false)
                         .fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
                 ) {
                     EmptySchedule()
                 }
@@ -253,8 +260,10 @@ private fun DayDetailsContent(
                     },
                     date = date,
                     highlightSlotKey = highlightSlotKey,
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
                     modifier = Modifier
-                        .weight(1f, fill = true)
+                        .weight(1f, fill = false)
                         .fillMaxWidth(),
                 )
             } else {
@@ -265,9 +274,8 @@ private fun DayDetailsContent(
                 }
 
                 LazyColumn(
-                    state = planningListState,
                     modifier = Modifier
-                        .weight(1f, fill = true)
+                        .weight(1f, fill = false)
                         .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
@@ -326,10 +334,9 @@ private fun DayDetailsContent(
                         }
                     }
                 }
-
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Кнопки действий
             Row(
@@ -477,6 +484,46 @@ private fun StatBadge(
                 color = color,
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayDetailsRefreshableSection(
+    isRefreshing: Boolean,
+    onRefresh: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (onRefresh == null) {
+        Box(modifier = modifier) { content() }
+        return
+    }
+    val scrollState = rememberScrollState()
+    val state = rememberPullToRefreshState()
+    Box(
+        modifier = modifier
+            .heightIn(max = 420.dp)
+            .pullToRefresh(
+                state = state,
+                isRefreshing = isRefreshing,
+                onRefresh = { onRefresh() },
+                threshold = DayDetailsPullRefreshThreshold,
+            ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+        ) {
+            content()
+        }
+
+        PullToRefreshDefaults.Indicator(
+            state = state,
+            isRefreshing = isRefreshing,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
     }
 }
 
