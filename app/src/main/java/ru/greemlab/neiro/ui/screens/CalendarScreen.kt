@@ -429,22 +429,13 @@ fun CalendarScreen(
 
             if (date != null) {
                 val isArchived = savedDayData.containsKey(date)
-                    DayDetailsDialog(
-                        date = date,
-                        // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
-                        initialNames = dayData[date].orEmpty(),
+                DayDetailsDialog(
+                    date = date,
+                    // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
+                    initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
                     highlightSlotKey = highlightSlotKey,
-                    isRefreshing = syncState.isLoading,
-                    onRefresh = {
-                        if (isYClientsLoggedIn) {
-                            syncViewModel.syncMonth(YearMonth.from(date))
-                        } else {
-                            yClientsReturnOverlay = CalendarOverlay.DayDetails
-                            overlay = CalendarOverlay.YClients
-                        }
-                    },
                     onDismiss = {
                         highlightSlotKey = null
                         overlay = CalendarOverlay.None

@@ -2,17 +2,15 @@ package ru.greemlab.neiro.ui.components.daydetails
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.pullToRefresh
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -54,20 +52,13 @@ private val NowLineStroke: Dp = 1.dp
 private val SlotLaneGap: Dp = 4.dp
 /** Минимальный зазор между карточками — почти стык, но без слияния. */
 private val SlotBottomGap: Dp = 2.dp
-/** Ниже стандартного порога — обновление дня срабатывает при лёгком потягивании вниз. */
-@OptIn(ExperimentalMaterial3Api::class)
-private val SchedulePullRefreshThreshold: Dp =
-    (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayScheduleTimeline(
     entries: List<TimelineEntry>,
     date: LocalDate,
     modifier: Modifier = Modifier,
     highlightSlotKey: String? = null,
-    isRefreshing: Boolean = false,
-    onRefresh: (() -> Unit)? = null,
+    onTopReachedChanged: (Boolean) -> Unit = {},
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
     val untimedEntries = entries.filter { it.time.isEmpty() }
@@ -87,7 +78,10 @@ fun DayScheduleTimeline(
         val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
             .toInt()
             .coerceAtLeast(0)
-        scrollState.animateScrollTo(scrollTarget)
+        scrollState.animateScrollTo(
+            value = scrollTarget,
+            animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+        )
     }
 
     LaunchedEffect(layout, date, highlightSlotKey) {
@@ -109,7 +103,14 @@ fun DayScheduleTimeline(
         val scrollTarget = (nowLinePx - viewportPx / 2f)
             .toInt()
             .coerceIn(0, scrollState.maxValue)
-        scrollState.animateScrollTo(scrollTarget)
+        scrollState.animateScrollTo(
+            value = scrollTarget,
+            animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        )
+    }
+
+    LaunchedEffect(scrollState.value) {
+        onTopReachedChanged(scrollState.value == 0)
     }
 
     val timelineBody: @Composable () -> Unit = {
@@ -133,7 +134,6 @@ fun DayScheduleTimeline(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = TimelineViewportMaxHeight)
                     .verticalScroll(scrollState),
             ) {
                 Row(
@@ -241,34 +241,11 @@ fun DayScheduleTimeline(
     }
 
     Column(modifier = modifier) {
-        if (onRefresh != null) {
-            val state = rememberPullToRefreshState()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = TimelineViewportMaxHeight)
-                    .pullToRefresh(
-                        state = state,
-                        isRefreshing = isRefreshing,
-                        onRefresh = onRefresh,
-                        threshold = SchedulePullRefreshThreshold,
-                    ),
-            ) {
-                timelineBody()
-                PullToRefreshDefaults.Indicator(
-                    state = state,
-                    isRefreshing = isRefreshing,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = TimelineViewportMaxHeight),
-            ) {
-                timelineBody()
-            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(),
+        ) {
+            timelineBody()
         }
     }
 }
