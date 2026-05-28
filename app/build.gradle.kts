@@ -51,6 +51,7 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             isMinifyEnabled = false
             isShrinkResources = false
             // Отключаем регистрацию профилировщика в debug — быстрее холодный старт при разработке.
@@ -60,6 +61,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = true
+            installation {
+                enableBaselineProfile = false
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
