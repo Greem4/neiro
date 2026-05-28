@@ -20,18 +20,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -40,9 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Save
@@ -52,16 +46,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -114,45 +103,30 @@ fun DayDetailsDialog(
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
 ) {
-    var canDismissBySwipe by remember { mutableStateOf(true) }
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val dismissOffsetThresholdPx = remember(configuration.screenHeightDp, density) {
-        // Порог закрытия ближе к отметке на скрине: умеренное, а не «силовое» стягивание вниз.
-        with(density) { configuration.screenHeightDp.dp.toPx() * 0.30f }
-    }
-    var sheetOffsetPx by remember { mutableStateOf(0f) }
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { target ->
-            if (target != SheetValue.Hidden) return@rememberModalBottomSheetState true
-            canDismissBySwipe && sheetOffsetPx >= dismissOffsetThresholdPx
-        },
-    )
-    LaunchedEffect(sheetState) {
-        snapshotFlow { runCatching { sheetState.requireOffset() }.getOrNull() }
-            .filterNotNull()
-            .map { it.coerceAtLeast(0f) }
-            .distinctUntilChanged()
-            .collect { sheetOffsetPx = it }
-    }
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = null,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        DayDetailsContent(
-            date = date,
-            initialNames = initialNames,
-            userProfile = userProfile,
-            isArchived = isArchived,
-            highlightSlotKey = highlightSlotKey,
-            onTopReachedChanged = { canDismissBySwipe = it },
-            onDismiss = onDismiss,
-            onSave = onSave,
-            onArchive = onArchive,
-        )
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            DayDetailsContent(
+                date = date,
+                initialNames = initialNames,
+                userProfile = userProfile,
+                isArchived = isArchived,
+                highlightSlotKey = highlightSlotKey,
+                onDismiss = onDismiss,
+                onSave = onSave,
+                onArchive = onArchive,
+            )
+        }
     }
 }
 
@@ -164,7 +138,6 @@ private fun DayDetailsContent(
     userProfile: UserProfile,
     isArchived: Boolean,
     highlightSlotKey: String?,
-    onTopReachedChanged: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
     onArchive: () -> Unit,
@@ -214,32 +187,18 @@ private fun DayDetailsContent(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.97f)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .fillMaxHeight()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(0.14f)
-                        .height(4.dp),
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                ) {}
-            }
             // Заголовок
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -262,16 +221,15 @@ private fun DayDetailsContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Статистика
             StatsRow(stats = stats, date = date)
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Список записей
             if (entries.isEmpty() && !isPlanningMode) {
-                LaunchedEffect(Unit) { onTopReachedChanged(true) }
                 Box(
                     modifier = Modifier
                         .weight(1f, fill = true)
@@ -295,7 +253,6 @@ private fun DayDetailsContent(
                     },
                     date = date,
                     highlightSlotKey = highlightSlotKey,
-                    onTopReachedChanged = onTopReachedChanged,
                     modifier = Modifier
                         .weight(1f, fill = true)
                         .fillMaxWidth(),
@@ -370,18 +327,9 @@ private fun DayDetailsContent(
                     }
                 }
 
-                LaunchedEffect(
-                    planningListState.firstVisibleItemIndex,
-                    planningListState.firstVisibleItemScrollOffset,
-                ) {
-                    onTopReachedChanged(
-                        planningListState.firstVisibleItemIndex == 0 &&
-                            planningListState.firstVisibleItemScrollOffset == 0,
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Кнопки действий
             Row(
