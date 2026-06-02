@@ -71,6 +71,7 @@ import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
 import ru.greemlab.neiro.ui.components.daydetails.EditIntensiveItem
 import ru.greemlab.neiro.ui.components.daydetails.TimelineEntry
 import ru.greemlab.neiro.ui.components.daydetails.buildIntensiveTimeSlotOptions
+import ru.greemlab.neiro.ui.components.daydetails.intensiveDefaultTimeSlot
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -314,13 +315,12 @@ private fun DayDetailsContent(
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(
                             onClick = {
-                                val defaultTime = intensiveTimeSlots.firstOrNull().orEmpty()
                                 currentNames.add(
                                     SessionFormat.serializeIntensive(
                                         price = "",
                                         name = "Интенсив",
                                         status = AttendanceStatus.ARRIVED,
-                                        time = defaultTime,
+                                        time = intensiveDefaultTimeSlot(),
                                     ),
                                 )
                                 focusNewIntensive = true

@@ -245,17 +245,72 @@ fun formatNowLabel(time: LocalTime): String = time.format(TIME_FORMAT)
 fun formatTimeSlotLabel(timeRange: String): String =
     parseTimeRangeStart(timeRange)?.format(TIME_FORMAT) ?: timeRange
 
+/** Час по умолчанию для нового интенсива и стартовой прокрутки ленты. */
+const val INTENSIVE_TIME_SCROLL_ANCHOR_HOUR = 18
+
+/** Слоты с [SCHEDULE_DAY_START] до [SCHEDULE_DAY_END], шаг 1 час. */
+fun buildIntensiveStandardTimeGrid(): List<String> =
+    (SCHEDULE_DAY_START.hour until SCHEDULE_DAY_END.hour).map { hour ->
+        timeRangeFromStart(LocalTime.of(hour, 0))
+    }
+
+fun timeRangeFromStart(start: LocalTime): String {
+    val end = start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+    return "${start.format(TIME_FORMAT)}-${end.format(TIME_FORMAT)}"
+}
+
 /**
- * Варианты времени для интенсива: слоты занятий дня и стандартная сетка с 9:00 до 18:00.
+ * Варианты времени для интенсива: слоты занятий дня и сетка от начала работы центра до закрытия.
  */
 fun buildIntensiveTimeSlotOptions(lessonTimes: List<String>): List<String> {
     val fromLessons = lessonTimes
         .map { normalizeSessionTime(it) }
         .filter { it.isNotEmpty() }
-    val standardGrid = (9..18).map { hour ->
-        normalizeSessionTime(LocalTime.of(hour, 0).format(TIME_FORMAT))
-    }
+    val standardGrid = buildIntensiveStandardTimeGrid()
     return (fromLessons + standardGrid)
         .distinct()
         .sortedBy { parseTimeRangeStart(it) ?: LocalTime.MAX }
+}
+
+/** Слоты для горизонтального выбора: опции дня + текущее значение, если его нет в списке. */
+fun buildIntensiveScrollSlots(
+    timeSlotOptions: List<String>,
+    selectedTime: String,
+): List<String> {
+    val normalizedSelected = normalizeSessionTime(selectedTime)
+    val base = timeSlotOptions
+        .map { normalizeSessionTime(it) }
+        .filter { it.isNotEmpty() }
+        .distinct()
+    val custom = if (normalizedSelected.isNotEmpty() && normalizedSelected !in base) {
+        listOf(normalizedSelected)
+    } else {
+        emptyList()
+    }
+    return (base + custom).sortedBy { parseTimeRangeStart(it) ?: LocalTime.MAX }
+}
+
+/** Время по умолчанию для нового интенсива. */
+fun intensiveDefaultTimeSlot(): String =
+    timeRangeFromStart(LocalTime.of(INTENSIVE_TIME_SCROLL_ANCHOR_HOUR, 0))
+
+/** Индекс слота для стартовой прокрутки ленты (якорный час). */
+fun intensiveDefaultSlotIndex(slots: List<String>): Int {
+    if (slots.isEmpty()) return 0
+    val anchor = LocalTime.of(INTENSIVE_TIME_SCROLL_ANCHOR_HOUR, 0)
+    slots.indexOfFirst { parseTimeRangeStart(it) == anchor }
+        .takeIf { it >= 0 }
+        ?.let { return it }
+    return slots.indexOfFirst { slot ->
+        (parseTimeRangeStart(slot) ?: LocalTime.MIN) >= anchor
+    }.takeIf { it >= 0 } ?: 0
+}
+
+fun clampIntensiveStartTime(time: LocalTime): LocalTime {
+    val lastHourStart = LocalTime.of(SCHEDULE_DAY_END.hour - 1, 0)
+    return when {
+        time.isBefore(SCHEDULE_DAY_START) -> SCHEDULE_DAY_START
+        !time.isBefore(SCHEDULE_DAY_END) -> lastHourStart
+        else -> time.withMinute(0).withSecond(0).withNano(0)
+    }
 }
