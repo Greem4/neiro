@@ -405,6 +405,9 @@ fun CalendarScreen(
             currentMonth = currentMonth,
             stats = stats,
             pricePerSession = profile.pricePerSession,
+            salaryAdvanceOnCard = profile.salaryAdvanceOnCard,
+            salaryMainOnCard = profile.salaryMainOnCard,
+            salaryOnCardFallback = profile.salaryOnCard,
             display = profitDisplay,
             onDismiss = { overlay = CalendarOverlay.None },
         )

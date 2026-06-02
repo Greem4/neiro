@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -130,6 +132,9 @@ fun ProfitDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
     pricePerSession: Double,
+    salaryAdvanceOnCard: Double,
+    salaryMainOnCard: Double,
+    salaryOnCardFallback: Double,
     display: ProfitDisplaySettings,
     onDismiss: () -> Unit,
 ) {
@@ -223,9 +228,93 @@ fun ProfitDetailsDialog(
                         isBold = true,
                     )
                 }
+
+                val totalOnCard = salaryAdvanceOnCard + salaryMainOnCard
+                if (totalOnCard > 0.0 || salaryOnCardFallback > 0.0) {
+                    SalarySummaryPlaque(
+                        salaryAdvanceOnCard = salaryAdvanceOnCard,
+                        salaryMainOnCard = salaryMainOnCard,
+                        salaryOnCardFallback = salaryOnCardFallback,
+                        netProfit = stats.netProfit,
+                    )
+                }
             }
         },
     )
+}
+
+@Composable
+private fun SalarySummaryPlaque(
+    salaryAdvanceOnCard: Double,
+    salaryMainOnCard: Double,
+    salaryOnCardFallback: Double,
+    netProfit: Double,
+    modifier: Modifier = Modifier,
+) {
+    val totalOnCard = remember(salaryAdvanceOnCard, salaryMainOnCard, salaryOnCardFallback) {
+        val fromParts = salaryAdvanceOnCard + salaryMainOnCard
+        if (fromParts > 0.0) fromParts else salaryOnCardFallback
+    }
+    val salaryInHand = remember(netProfit, totalOnCard) {
+        (netProfit - totalOnCard).coerceAtLeast(0.0)
+    }
+    val showBreakdown = salaryAdvanceOnCard > 0.0 || salaryMainOnCard > 0.0
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ProfitRow(
+                label = "Зарплата на карту",
+                value = totalOnCard,
+                color = MaterialTheme.colorScheme.onSurface,
+                approximate = true,
+                isBold = true,
+            )
+            if (showBreakdown) {
+                Column(
+                    modifier = Modifier.padding(start = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (salaryAdvanceOnCard > 0.0) {
+                        ProfitRow(
+                            label = "Аванс",
+                            value = salaryAdvanceOnCard,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            compact = true,
+                            approximate = true,
+                        )
+                    }
+                    if (salaryMainOnCard > 0.0) {
+                        ProfitRow(
+                            label = "Зарплата",
+                            value = salaryMainOnCard,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            compact = true,
+                            approximate = true,
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
+            ProfitRow(
+                label = "Зарплата на руки",
+                value = salaryInHand,
+                color = ScheduleHeaderGreen,
+                isBold = true,
+            )
+        }
+    }
 }
 
 /** Диалог-предложение завершить регистрацию/настройку профиля. */
