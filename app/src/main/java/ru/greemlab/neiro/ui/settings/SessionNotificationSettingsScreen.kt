@@ -10,7 +10,7 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -171,7 +171,7 @@ fun SessionNotificationSettingsScreen(
                             R.string.notification_settings_archive_reminder_hint,
                             settings.archiveReminderTime.formatForDisplay(),
                         ),
-                        icon = Icons.Rounded.Archive,
+                        icon = Icons.Rounded.Storage,
                         checked = settings.notifyArchiveReminder,
                         onCheckedChange = viewModel::setNotifyArchiveReminder,
                     )
