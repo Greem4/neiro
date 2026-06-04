@@ -193,6 +193,29 @@ object SessionParser {
     fun isVisibleIntensive(raw: String): Boolean =
         isIntensive(raw) && !isEffectivelyDeleted(raw)
 
+    /** Обновляет код статуса в сырой строке, сохраняя остальные поля. */
+    fun withStatus(raw: String, status: AttendanceStatus): String = when (val session = parse(raw)) {
+        is Session.Student -> SessionFormat.serializeStudentExtended(
+            name = session.name,
+            status = status,
+            time = session.time,
+            phone = session.phone,
+            comment = session.comment,
+        )
+        is Session.Intensive -> SessionFormat.serializeIntensive(
+            price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+            name = session.name.ifBlank { "Интенсив" },
+            status = status,
+            time = session.time,
+        )
+        is Session.Diagnostics -> SessionFormat.serializeDiagnostics(
+            price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+            name = session.name,
+            status = status,
+            time = session.time,
+        )
+    }
+
     /**
      * Парсит запись ученика.
      *

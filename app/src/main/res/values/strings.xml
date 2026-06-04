@@ -101,6 +101,23 @@
     <string name="notification_settings_confirmed_hint">Галочка в YClients — клиент подтвердил, что придёт</string>
     <string name="notification_settings_arrived">Пришёл</string>
     <string name="notification_settings_arrived_hint">Отметка «пришёл» в YClients</string>
+
+    <string name="attendance_status_picker_cd">Выбрать статус записи</string>
+    <string name="attendance_status_expected">Ожидает</string>
+    <string name="attendance_status_confirmed">Подтвердил</string>
+    <string name="attendance_status_cancelled">Не пришёл</string>
+    <string name="attendance_status_arrived">Пришёл</string>
+
+    <string name="archive_sync_mismatch_banner">Архив не совпадает с данными YClients. Ручные правки в архиве могут отличаться.</string>
+    <string name="archive_sync_mismatch_calendar_cd">Архив отличается от синхронизации</string>
+    <string name="archive_sync_overwrite_title">Обновить архив?</string>
+    <string name="archive_sync_overwrite_message">Записи в архиве будут заменены текущими данными из YClients. Ручные изменения в архиве пропадут.</string>
+    <string name="archive_sync_overwrite_confirm">Обновить</string>
+    <string name="archive_sync_overwrite_cancel">Отмена</string>
+    <string name="archive_action_update_from_sync">Обновить</string>
+    <string name="archive_action_remove">Из архива</string>
+    <string name="archive_action_to_archive">В архив</string>
+    <string name="archive_action_in_archive">В архиве</string>
     <string name="notification_settings_reminder">Напоминание перед занятием</string>
     <string name="notification_settings_reminder_hint">За %1$d минут до начала</string>
     <string name="notification_settings_reminder_lead">За сколько напомнить</string>

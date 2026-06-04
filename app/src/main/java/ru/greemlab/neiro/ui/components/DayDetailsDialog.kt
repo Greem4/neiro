@@ -56,6 +56,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.rounded.Warning
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -96,6 +99,7 @@ private data class ScheduleEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
+    val sourceIndex: Int,
 )
 
 /**
@@ -110,12 +114,17 @@ fun DayDetailsDialog(
     initialNames: List<String>,
     userProfile: UserProfile,
     isArchived: Boolean = false,
+    archiveMismatch: Boolean = false,
+    allowStatusEdit: Boolean = false,
     highlightSlotKey: String? = null,
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
-    onArchive: () -> Unit,
+    onMoveToArchive: () -> Unit = {},
+    onUnarchive: () -> Unit = {},
+    onRequestOverwriteArchive: () -> Unit = {},
+    onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -126,12 +135,17 @@ fun DayDetailsDialog(
             initialNames = initialNames,
             userProfile = userProfile,
             isArchived = isArchived,
+            archiveMismatch = archiveMismatch,
+            allowStatusEdit = allowStatusEdit,
             highlightSlotKey = highlightSlotKey,
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
             onDismiss = onDismiss,
             onSave = onSave,
-            onArchive = onArchive,
+            onMoveToArchive = onMoveToArchive,
+            onUnarchive = onUnarchive,
+            onRequestOverwriteArchive = onRequestOverwriteArchive,
+            onStudentStatusChange = onStudentStatusChange,
         )
     }
 }
@@ -143,12 +157,17 @@ private fun DayDetailsContent(
     initialNames: List<String>,
     userProfile: UserProfile,
     isArchived: Boolean,
+    archiveMismatch: Boolean,
+    allowStatusEdit: Boolean,
     highlightSlotKey: String?,
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit,
-    onArchive: () -> Unit,
+    onMoveToArchive: () -> Unit,
+    onUnarchive: () -> Unit,
+    onRequestOverwriteArchive: () -> Unit,
+    onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)?,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     // Сейчас — только интенсивы; список учеников (StudentItemRow) — для офлайн-правки архива, см. TODO.
@@ -157,12 +176,31 @@ private fun DayDetailsContent(
     val intensiveFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    LaunchedEffect(allowStatusEdit) {
+        if (!allowStatusEdit) isPlanningMode = false
+    }
+
     LaunchedEffect(initialNames, isPlanningMode) {
         if (!isPlanningMode) {
             currentNames.clear()
             currentNames.addAll(initialNames)
         }
     }
+
+    val handleStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? =
+        if (!allowStatusEdit) {
+            null
+        } else {
+            { sourceIndex, status ->
+                if (sourceIndex in currentNames.indices) {
+                    currentNames[sourceIndex] = SessionParser.withStatus(
+                        currentNames[sourceIndex],
+                        status,
+                    )
+                }
+                onStudentStatusChange?.invoke(sourceIndex, status)
+            }
+        }
 
     val entries = remember(currentNames.toList()) {
         parseEntries(currentNames)
@@ -215,19 +253,30 @@ private fun DayDetailsContent(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                IconButton(
-                    onClick = { isPlanningMode = !isPlanningMode },
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                ) {
-                    Icon(
-                        imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
-                        contentDescription = "Режим редактирования",
-                        tint = if (isPlanningMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (allowStatusEdit) {
+                    IconButton(
+                        onClick = { isPlanningMode = !isPlanningMode },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
+                            contentDescription = "Режим редактирования",
+                            tint = if (isPlanningMode) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (archiveMismatch) {
+                ArchiveMismatchBanner()
+                Spacer(modifier = Modifier.height(10.dp))
+            }
 
             // Статистика
             StatsRow(stats = stats, date = date)
@@ -256,12 +305,14 @@ private fun DayDetailsContent(
                             isExtra = entry.isExtra,
                             extraType = entry.extraType,
                             extraAmount = entry.extraAmount,
+                            sourceIndex = entry.sourceIndex,
                         )
                     },
                     date = date,
                     highlightSlotKey = highlightSlotKey,
                     isRefreshing = isRefreshing,
-                    onRefresh = onRefresh,
+                    onRefresh = if (allowStatusEdit) null else onRefresh,
+                    onStudentStatusChange = handleStudentStatusChange,
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .fillMaxWidth(),
@@ -337,47 +388,91 @@ private fun DayDetailsContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопки действий
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // TODO: чуть больше проработать с архивом.
-                TextButton(
-                    onClick = onArchive,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = if (isArchived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Storage,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isArchived) "В архиве" else "В архив")
+                if (!allowStatusEdit || isArchived) {
+                    TextButton(
+                        onClick = {
+                            when {
+                                allowStatusEdit && isArchived -> onUnarchive()
+                                isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                                isArchived -> onUnarchive()
+                                else -> onMoveToArchive()
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (isArchived) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Storage,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            if (isArchived) {
+                                stringResource(R.string.archive_action_in_archive)
+                            } else {
+                                stringResource(R.string.archive_action_to_archive)
+                            },
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
                 TextButton(
                     onClick = onDismiss,
-                    contentPadding = PaddingValues(horizontal = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp),
                 ) {
                     Text("Закрыть")
                 }
 
-                if (isPlanningMode) {
+                if (allowStatusEdit && isPlanningMode) {
                     Button(
                         onClick = { onSave(currentNames.toList()) },
                         shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     ) {
                         Text("Сохранить", fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveMismatchBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = ExpectedAmber.copy(alpha = 0.14f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = ExpectedAmber,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = stringResource(R.string.archive_sync_mismatch_banner),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -561,8 +656,8 @@ private data class DayStats(
 )
 
 private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
-    return rawNames.mapNotNull { raw ->
-        if (raw.isBlank()) return@mapNotNull null
+    return rawNames.mapIndexedNotNull { index, raw ->
+        if (raw.isBlank()) return@mapIndexedNotNull null
 
         val session = SessionParser.parse(raw)
         val isDeleted = session.isEffectivelyDeleted()
@@ -573,6 +668,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 time = normalizeSessionTime(session.time),
                 comment = session.comment,
                 status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                sourceIndex = index,
             )
 
             is Session.Intensive -> ScheduleEntry(
@@ -583,6 +679,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 isExtra = true,
                 extraType = "Интенсив",
                 extraAmount = session.amount,
+                sourceIndex = index,
             )
 
             is Session.Diagnostics -> ScheduleEntry(
@@ -593,6 +690,7 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
                 isExtra = true,
                 extraType = "Диагностика",
                 extraAmount = session.amount,
+                sourceIndex = index,
             )
         }
     }.sortedBy { entry ->
@@ -656,10 +754,15 @@ private fun DayDetailsLightPreview() {
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = false,
+                    archiveMismatch = false,
+                    allowStatusEdit = false,
                     highlightSlotKey = null,
                     onDismiss = {},
                     onSave = { _ -> },
-                    onArchive = {},
+                    onMoveToArchive = {},
+                    onUnarchive = {},
+                    onRequestOverwriteArchive = {},
+                    onStudentStatusChange = null,
                 )
             }
         }
@@ -680,10 +783,15 @@ private fun DayDetailsDarkPreview() {
                     ),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = true,
+                    archiveMismatch = true,
+                    allowStatusEdit = true,
                     highlightSlotKey = null,
                     onDismiss = {},
                     onSave = { _ -> },
-                    onArchive = {},
+                    onMoveToArchive = {},
+                    onUnarchive = {},
+                    onRequestOverwriteArchive = {},
+                    onStudentStatusChange = { _, _ -> },
                 )
             }
         }
@@ -701,10 +809,15 @@ private fun DayDetailsEmptyPreview() {
                     initialNames = emptyList(),
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = true,
+                    archiveMismatch = true,
+                    allowStatusEdit = true,
                     highlightSlotKey = null,
                     onDismiss = {},
                     onSave = { _ -> },
-                    onArchive = {},
+                    onMoveToArchive = {},
+                    onUnarchive = {},
+                    onRequestOverwriteArchive = {},
+                    onStudentStatusChange = { _, _ -> },
                 )
             }
         }

@@ -66,6 +66,7 @@ fun DayScheduleTimeline(
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     onTopReachedChanged: (Boolean) -> Unit = {},
+    onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
     val timedEntries = entries.filter { it.time.isNotEmpty() }
     val untimedEntries = entries.filter { it.time.isEmpty() }
@@ -194,6 +195,7 @@ fun DayScheduleTimeline(
                                     TimelineScheduleSlot(
                                         entry = positioned.appointment.entry,
                                         highlighted = slotHighlighted,
+                                        onStudentStatusChange = onStudentStatusChange,
                                         modifier = slotModifier,
                                     )
                                 }
@@ -239,6 +241,7 @@ fun DayScheduleTimeline(
                 TimelineScheduleSlot(
                     entry = entry,
                     highlighted = entryHighlighted,
+                    onStudentStatusChange = onStudentStatusChange,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -358,7 +361,12 @@ private fun TimelineScheduleSlot(
     entry: TimelineEntry,
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
+    onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
+    val statusEditable = onStudentStatusChange != null &&
+        !entry.isExtra &&
+        entry.sourceIndex >= 0
+
     ScheduleSlotItem(
         time = entry.time,
         name = entry.displayName(),
@@ -368,6 +376,11 @@ private fun TimelineScheduleSlot(
         showTime = false,
         compactForTimeline = true,
         highlighted = highlighted,
+        onStatusChange = if (statusEditable) {
+            { newStatus -> onStudentStatusChange(entry.sourceIndex, newStatus) }
+        } else {
+            null
+        },
         modifier = modifier,
     )
 }

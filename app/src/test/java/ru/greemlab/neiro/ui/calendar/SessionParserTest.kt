@@ -188,6 +188,23 @@ class SessionParserTest {
     }
 
     @Test
+    fun `withStatus updates extended student preserving fields`() {
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Иванов",
+            status = AttendanceStatus.EXPECTED,
+            time = "10:00-10:50",
+            phone = "+7900",
+            comment = "5л",
+        )
+        val updated = SessionParser.withStatus(raw, AttendanceStatus.ARRIVED)
+        val parsed = SessionParser.parse(updated) as Session.Student
+        assertEquals(AttendanceStatus.ARRIVED, parsed.status)
+        assertEquals("10:00-10:50", parsed.time)
+        assertEquals("+7900", parsed.phone)
+        assertEquals("5л", parsed.comment)
+    }
+
+    @Test
     fun `parses diagnostics with cancelled status code`() {
         val raw = SessionFormat.serializeDiagnostics(
             price = "4500",

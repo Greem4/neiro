@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,6 +40,7 @@ import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
@@ -119,8 +121,13 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.effectiveDayData.collectAsState()
+    val syncedDayData by viewModel.dayData.collectAsState()
+    val savedDayData by viewModel.savedDayData.collectAsState()
     val currentMonthDayData by viewModel.currentMonthDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
+    val archiveMismatchDates = remember(syncedDayData, savedDayData) {
+        ArchiveSyncCompare.mismatchDates(syncedDayData, savedDayData)
+    }
     val profile by profileViewModel.userProfile.collectAsState()
 
     var highlightSlotKey by remember { mutableStateOf<String?>(null) }
@@ -300,6 +307,7 @@ fun CalendarScreen(
                 selectedDate = selectedDate,
                 dayData = dayData,
                 monthDayData = currentMonthDayData,
+                archiveMismatchDates = archiveMismatchDates,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -457,16 +465,43 @@ fun CalendarScreen(
 
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
-            val savedDayData by viewModel.savedDayData.collectAsState()
+            var showArchiveOverwriteConfirm by remember(date) { mutableStateOf(false) }
+
+            if (showArchiveOverwriteConfirm && date != null) {
+                AlertDialog(
+                    onDismissRequest = { showArchiveOverwriteConfirm = false },
+                    title = { Text(stringResource(R.string.archive_sync_overwrite_title)) },
+                    text = { Text(stringResource(R.string.archive_sync_overwrite_message)) },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.archiveDay(date, syncedDayData[date].orEmpty())
+                                showArchiveOverwriteConfirm = false
+                            },
+                        ) {
+                            Text(stringResource(R.string.archive_sync_overwrite_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showArchiveOverwriteConfirm = false }) {
+                            Text(stringResource(R.string.archive_sync_overwrite_cancel))
+                        }
+                    },
+                )
+            }
 
             if (date != null) {
                 val isArchived = savedDayData.containsKey(date)
+                val syncedSessions = syncedDayData[date].orEmpty()
+                val archiveMismatch = isArchived &&
+                    ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
                 DayDetailsDialog(
                     date = date,
-                    // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
+                    archiveMismatch = archiveMismatch,
+                    allowStatusEdit = isArchiveCalendarMode,
                     highlightSlotKey = highlightSlotKey,
                     onDismiss = {
                         highlightSlotKey = null
@@ -476,12 +511,15 @@ fun CalendarScreen(
                         viewModel.saveNamesForDate(date, updatedNames)
                         overlay = CalendarOverlay.None
                     },
-                    onArchive = {
-                        if (isArchived) {
-                            viewModel.unarchiveDay(date)
-                        } else {
-                            viewModel.archiveDay(date, dayData[date].orEmpty())
-                        }
+                    onMoveToArchive = {
+                        viewModel.archiveDay(date, syncedSessions)
+                    },
+                    onUnarchive = { viewModel.unarchiveDay(date) },
+                    onRequestOverwriteArchive = { showArchiveOverwriteConfirm = true },
+                    onStudentStatusChange = if (isArchiveCalendarMode) {
+                        { index, status -> viewModel.updateSessionStatus(date, index, status) }
+                    } else {
+                        null
                     },
                 )
             } else {
@@ -543,6 +581,7 @@ fun CalendarScreenContent(
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
     monthDayData: Map<LocalDate, List<String>> = dayData,
+    archiveMismatchDates: Set<LocalDate> = emptySet(),
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -657,6 +696,7 @@ fun CalendarScreenContent(
                                         currentMonth = targetMonth,
                                         selectedDate = selectedDate,
                                         dayData = monthDayData,
+                                        archiveMismatchDates = archiveMismatchDates,
                                         workingDays = workingDays,
                                         onDateClick = onDateClick,
                                     )

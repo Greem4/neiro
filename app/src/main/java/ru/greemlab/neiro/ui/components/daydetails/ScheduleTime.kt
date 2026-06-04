@@ -15,6 +15,8 @@ data class TimelineEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
+    /** Индекс в сыром списке дня — для правки статуса в архиве. */
+    val sourceIndex: Int = -1,
 )
 
 /** Длительность обычного занятия в минутах. */
