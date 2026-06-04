@@ -49,11 +49,11 @@ interface CalendarRepository {
 
     suspend fun saveTheme(theme: String)
 
-    /** JSON с данными архивного календаря и меткой `exported_at` (дд-мм-гггг чч:мм). */
+    /** JSON с архивным календарём, лентой уведомлений и меткой `exported_at` (дд-мм-гггг чч:мм). */
     suspend fun exportAllData(): String
 
     /**
-     * Восстанавливает архивный календарь из JSON. Профиль, тема и основной календарь
+     * Восстанавливает архивный календарь и уведомления из JSON. Профиль, тема и основной календарь
      * не затрагиваются. Возвращает [ImportResult] с информацией об успехе или отказе.
      */
     suspend fun restoreAllData(json: String): ImportResult

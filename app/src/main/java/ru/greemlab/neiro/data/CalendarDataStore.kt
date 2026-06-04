@@ -22,6 +22,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.notifications.ArchiveNotificationStore
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -268,6 +269,7 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         val data = linkedMapOf(
             ARCHIVE_EXPORTED_AT_KEY to LocalDateTime.now().format(archiveExportDateTimeFormatter),
             "saved_day_data" to (prefs[savedDataKey] ?: EMPTY_OBJECT),
+            ArchiveNotificationStore.EXPORT_KEY to ArchiveNotificationStore.get(appContext).exportJson(),
         )
         gson.toJson(data)
     }
@@ -289,6 +291,10 @@ class CalendarDataStore(context: Context) : CalendarRepository {
             ?: return ImportResult.Failure("В файле нет данных архива")
 
         val parsedSavedDayData = parseDayData(savedDayJson)
+
+        parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
+            ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
+        }
 
         return writeMutex.withLock {
             appContext.dataStore.edit { prefs ->

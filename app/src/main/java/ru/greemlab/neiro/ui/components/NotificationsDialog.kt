@@ -53,6 +53,8 @@ private val timeFormatter = DateTimeFormatter.ofPattern("d MMM, HH:mm", RU_LOCAL
 fun NotificationsDialog(
     notifications: List<InAppNotification>,
     onDismiss: () -> Unit,
+    subtitleRes: Int = R.string.in_app_notifications_subtitle_sync,
+    allowDismiss: Boolean = true,
     onNotificationClick: (InAppNotification) -> Unit = {},
     onDismissNotification: (InAppNotification) -> Unit = {},
     onClearAll: () -> Unit = {},
@@ -63,6 +65,8 @@ fun NotificationsDialog(
     ) {
         NotificationsContent(
             notifications = notifications,
+            subtitleRes = subtitleRes,
+            allowDismiss = allowDismiss,
             onDismiss = onDismiss,
             onNotificationClick = onNotificationClick,
             onDismissNotification = onDismissNotification,
@@ -79,6 +83,8 @@ fun NotificationsDialog(
 @Composable
 private fun NotificationsContent(
     notifications: List<InAppNotification>,
+    subtitleRes: Int,
+    allowDismiss: Boolean,
     onDismiss: () -> Unit,
     onNotificationClick: (InAppNotification) -> Unit,
     onDismissNotification: (InAppNotification) -> Unit,
@@ -98,7 +104,7 @@ private fun NotificationsContent(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = stringResource(R.string.in_app_notifications_subtitle),
+                text = stringResource(subtitleRes),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
@@ -118,11 +124,18 @@ private fun NotificationsContent(
                     modifier = Modifier.heightIn(max = 420.dp),
                 ) {
                     items(notifications, key = { it.id }) { item ->
-                        SwipeableNotificationItem(
-                            item = item,
-                            onClick = { onNotificationClick(item) },
-                            onDismiss = { onDismissNotification(item) },
-                        )
+                        if (allowDismiss) {
+                            SwipeableNotificationItem(
+                                item = item,
+                                onClick = { onNotificationClick(item) },
+                                onDismiss = { onDismissNotification(item) },
+                            )
+                        } else {
+                            NotificationListItem(
+                                item = item,
+                                onClick = { onNotificationClick(item) },
+                            )
+                        }
                     }
                 }
             }
@@ -134,7 +147,7 @@ private fun NotificationsContent(
                 Text(stringResource(R.string.in_app_notifications_close))
             }
 
-            if (notifications.isNotEmpty()) {
+            if (allowDismiss && notifications.isNotEmpty()) {
                 TextButton(
                     onClick = onClearAll,
                     modifier = Modifier.align(androidx.compose.ui.Alignment.Start),
@@ -337,6 +350,8 @@ private fun AllNotificationVariantsPreview() {
         Surface(color = MaterialTheme.colorScheme.background) {
             NotificationsContent(
                 notifications = notifications,
+                subtitleRes = R.string.in_app_notifications_subtitle_sync,
+                allowDismiss = true,
                 onDismiss = {},
                 onNotificationClick = {},
                 onDismissNotification = {},
@@ -380,6 +395,8 @@ private fun NotificationsDialogPreview() {
                     kind = SessionEventType.RESCHEDULED.name,
                 ),
             ),
+            subtitleRes = R.string.in_app_notifications_subtitle_sync,
+            allowDismiss = true,
             onDismiss = {},
             onNotificationClick = {},
             onDismissNotification = {},

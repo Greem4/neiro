@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -52,6 +53,7 @@ import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettingsScreen
 import ru.greemlab.neiro.ui.settings.SessionNotificationSettingsScreen
+import ru.greemlab.neiro.notifications.ArchiveNotificationStore
 import ru.greemlab.neiro.notifications.InAppNotificationStore
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -191,10 +193,15 @@ fun CalendarScreen(
     )
 
     val context = LocalContext.current
-    val notificationStore = remember(context) { InAppNotificationStore.get(context) }
-    val inAppNotifications by notificationStore.items.collectAsState()
-    val unreadNotificationCount = remember(inAppNotifications) {
-        inAppNotifications.count { !it.read }
+    val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
+    val archiveNotificationStore = remember(context) { ArchiveNotificationStore.get(context) }
+    val activeNotifications by activeNotificationStore.items.collectAsState()
+    val archiveNotifications by archiveNotificationStore.items.collectAsState()
+    val isArchiveCalendarMode = calendarMode == CalendarMode.PERSONAL
+    val visibleNotifications = if (isArchiveCalendarMode) archiveNotifications else activeNotifications
+    val unreadNotificationCount = remember(isArchiveCalendarMode, activeNotifications, archiveNotifications) {
+        val list = if (isArchiveCalendarMode) archiveNotifications else activeNotifications
+        list.count { !it.read }
     }
 
     var profitDisplay by remember(context) {
@@ -413,11 +420,21 @@ fun CalendarScreen(
         )
 
         is CalendarOverlay.Notifications -> {
-            LaunchedEffect(Unit) {
-                notificationStore.markAllRead()
+            LaunchedEffect(isArchiveCalendarMode) {
+                if (isArchiveCalendarMode) {
+                    archiveNotificationStore.markAllRead()
+                } else {
+                    activeNotificationStore.markAllRead()
+                }
             }
             NotificationsDialog(
-                notifications = inAppNotifications,
+                notifications = visibleNotifications,
+                subtitleRes = if (isArchiveCalendarMode) {
+                    R.string.in_app_notifications_subtitle_archive
+                } else {
+                    R.string.in_app_notifications_subtitle_sync
+                },
+                allowDismiss = !isArchiveCalendarMode,
                 onDismiss = { overlay = CalendarOverlay.None },
                 onNotificationClick = { item ->
                     val date = item.relatedDate
@@ -433,8 +450,8 @@ fun CalendarScreen(
                         overlay = CalendarOverlay.None
                     }
                 },
-                onDismissNotification = { notificationStore.remove(it.id) },
-                onClearAll = { notificationStore.clearAll() },
+                onDismissNotification = { activeNotificationStore.remove(it.id) },
+                onClearAll = { activeNotificationStore.clearAll() },
             )
         }
 
