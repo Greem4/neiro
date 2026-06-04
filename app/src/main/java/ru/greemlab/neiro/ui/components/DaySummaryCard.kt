@@ -225,20 +225,20 @@ private fun DaySummaryTodayButton(
     Surface(
         onClick = onClick,
         modifier = modifier.height(DaySummaryHeaderRowHeight),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shadowElevation = 1.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Today,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
+                contentDescription = label,
+                modifier = Modifier.size(15.dp),
             )
             Text(
                 text = label,
