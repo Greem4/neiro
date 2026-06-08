@@ -188,7 +188,7 @@ private fun DayDetailsContent(
     }
 
     val handleStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? =
-        if (!allowStatusEdit) {
+        if (onStudentStatusChange == null) {
             null
         } else {
             { sourceIndex, status ->
@@ -198,7 +198,7 @@ private fun DayDetailsContent(
                         status,
                     )
                 }
-                onStudentStatusChange?.invoke(sourceIndex, status)
+                onStudentStatusChange.invoke(sourceIndex, status)
             }
         }
 
@@ -392,7 +392,7 @@ private fun DayDetailsContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (!allowStatusEdit || isArchived) {
+                 if (!isPlanningMode && (onStudentStatusChange == null || isArchived)) {
                     TextButton(
                         onClick = {
                             when {

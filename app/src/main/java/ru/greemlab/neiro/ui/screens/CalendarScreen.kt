@@ -501,7 +501,7 @@ fun CalendarScreen(
                     userProfile = profile,
                     isArchived = isArchived,
                     archiveMismatch = archiveMismatch,
-                    allowStatusEdit = isArchiveCalendarMode,
+                    allowStatusEdit = true,
                     highlightSlotKey = highlightSlotKey,
                     onDismiss = {
                         highlightSlotKey = null
