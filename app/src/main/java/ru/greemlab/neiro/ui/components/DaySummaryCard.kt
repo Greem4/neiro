@@ -44,7 +44,7 @@ private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
 /** Фиксированная высота слота — календарь не прыгает при смене даты. */
-val DaySummarySlotHeight: Dp = 158.dp
+val DaySummarySlotHeight: Dp = 166.dp
 
 /** Высота строки даты + «Сегодня» — не даёт кнопке раздувать карточку. */
 private val DaySummaryHeaderRowHeight: Dp = 26.dp
@@ -98,7 +98,7 @@ private fun DaySummaryCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
@@ -191,7 +191,7 @@ private fun DayMoneyCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {

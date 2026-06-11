@@ -674,7 +674,7 @@ fun CalendarScreenContent(
                                 )
 
                                 if (isRegistered && selectedDate != null && daySummaryStats != null) {
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     DaySummarySlot(
                                         date = selectedDate,
                                         stats = daySummaryStats,
@@ -682,7 +682,7 @@ fun CalendarScreenContent(
                                         isRegistered = isRegistered,
                                         onRegistrationRequired = onRegistrationRequired,
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
 
                                 WeekDaysRow()
