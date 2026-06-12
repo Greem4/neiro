@@ -187,11 +187,13 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             val item = list.getOrNull(index) ?: return@launch
             if (SessionParser.isExtra(item)) return@launch
 
-            val sep = item.indexOf('|')
-            val name = if (sep < 0) item else item.substring(0, sep)
-            val currentAttended = SessionParser.isAttended(item)
+            val currentStatus = SessionParser.getStatus(item)
+            val nextStatus = when (currentStatus) {
+                AttendanceStatus.ARRIVED -> AttendanceStatus.EXPECTED
+                else -> AttendanceStatus.ARRIVED
+            }
             val updated = list.toMutableList().apply {
-                this[index] = "$name|${!currentAttended}"
+                this[index] = SessionParser.withStatus(item, nextStatus)
             }
 
             if (mode == CalendarMode.SYNCED) {

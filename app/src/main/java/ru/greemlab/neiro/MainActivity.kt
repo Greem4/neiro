@@ -1,6 +1,7 @@
 package ru.greemlab.neiro
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,20 +10,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.THEME_DARK
-import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.data.THEME_LIGHT
+import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.screens.CalendarScreen
@@ -35,29 +39,47 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_HIGHLIGHT_SLOT_KEY = "highlight_slot_key"
     }
 
+    private var openDate by mutableStateOf<String?>(null)
+    private var highlightSlotKey by mutableStateOf<String?>(null)
+    private var notificationDeepLinkVersion by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Системный splash ставится до super.onCreate — иначе будет чёрная вспышка.
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        val openDate = intent?.getStringExtra(EXTRA_OPEN_DATE)
-        val highlightSlotKey = intent?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
+        applyNotificationExtras(intent)
 
         setContent {
+            val deepLinkVersion = notificationDeepLinkVersion
             NeiroApp(
                 openDateFromNotification = openDate,
                 highlightSlotKeyFromNotification = highlightSlotKey,
+                notificationDeepLinkVersion = deepLinkVersion,
             )
             RequestNotificationPermissionIfNeeded()
-            CheckDueDigestsOnAppOpen()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyNotificationExtras(intent)
+    }
+
+    private fun applyNotificationExtras(source: Intent?) {
+        openDate = source?.getStringExtra(EXTRA_OPEN_DATE)
+        highlightSlotKey = source?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
+        notificationDeepLinkVersion++
     }
 }
 
 @Composable
 private fun RequestNotificationPermissionIfNeeded() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        CheckDueDigestsOnAppOpen()
+        return
+    }
 
     val context = LocalContext.current
     val granted = ContextCompat.checkSelfPermission(
@@ -99,6 +121,7 @@ private fun CheckDueDigestsOnAppOpen() {
 private fun NeiroApp(
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
+    notificationDeepLinkVersion: Int = 0,
 ) {
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
@@ -116,6 +139,7 @@ private fun NeiroApp(
             profileViewModel = profileViewModel,
             openDateFromNotification = openDateFromNotification,
             highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
+            notificationDeepLinkVersion = notificationDeepLinkVersion,
         )
     }
 }
