@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,9 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
@@ -52,6 +55,7 @@ import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettingsScreen
 import ru.greemlab.neiro.ui.settings.SessionNotificationSettingsScreen
+import ru.greemlab.neiro.notifications.ArchiveNotificationStore
 import ru.greemlab.neiro.notifications.InAppNotificationStore
 import ru.greemlab.neiro.ui.sync.SyncViewModel
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -117,8 +121,13 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val dayData by viewModel.effectiveDayData.collectAsState()
+    val syncedDayData by viewModel.dayData.collectAsState()
+    val savedDayData by viewModel.savedDayData.collectAsState()
     val currentMonthDayData by viewModel.currentMonthDayData.collectAsState()
     val calendarMode by viewModel.calendarMode.collectAsState()
+    val archiveMismatchDates = remember(syncedDayData, savedDayData) {
+        ArchiveSyncCompare.mismatchDates(syncedDayData, savedDayData)
+    }
     val profile by profileViewModel.userProfile.collectAsState()
 
     var highlightSlotKey by remember { mutableStateOf<String?>(null) }
@@ -191,10 +200,15 @@ fun CalendarScreen(
     )
 
     val context = LocalContext.current
-    val notificationStore = remember(context) { InAppNotificationStore.get(context) }
-    val inAppNotifications by notificationStore.items.collectAsState()
-    val unreadNotificationCount = remember(inAppNotifications) {
-        inAppNotifications.count { !it.read }
+    val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
+    val archiveNotificationStore = remember(context) { ArchiveNotificationStore.get(context) }
+    val activeNotifications by activeNotificationStore.items.collectAsState()
+    val archiveNotifications by archiveNotificationStore.items.collectAsState()
+    val isArchiveCalendarMode = calendarMode == CalendarMode.PERSONAL
+    val visibleNotifications = if (isArchiveCalendarMode) archiveNotifications else activeNotifications
+    val unreadNotificationCount = remember(isArchiveCalendarMode, activeNotifications, archiveNotifications) {
+        val list = if (isArchiveCalendarMode) archiveNotifications else activeNotifications
+        list.count { !it.read }
     }
 
     var profitDisplay by remember(context) {
@@ -293,6 +307,7 @@ fun CalendarScreen(
                 selectedDate = selectedDate,
                 dayData = dayData,
                 monthDayData = currentMonthDayData,
+                archiveMismatchDates = archiveMismatchDates,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -405,16 +420,29 @@ fun CalendarScreen(
             currentMonth = currentMonth,
             stats = stats,
             pricePerSession = profile.pricePerSession,
+            salaryAdvanceOnCard = profile.salaryAdvanceOnCard,
+            salaryMainOnCard = profile.salaryMainOnCard,
+            salaryOnCardFallback = profile.salaryOnCard,
             display = profitDisplay,
             onDismiss = { overlay = CalendarOverlay.None },
         )
 
         is CalendarOverlay.Notifications -> {
-            LaunchedEffect(Unit) {
-                notificationStore.markAllRead()
+            LaunchedEffect(isArchiveCalendarMode) {
+                if (isArchiveCalendarMode) {
+                    archiveNotificationStore.markAllRead()
+                } else {
+                    activeNotificationStore.markAllRead()
+                }
             }
             NotificationsDialog(
-                notifications = inAppNotifications,
+                notifications = visibleNotifications,
+                subtitleRes = if (isArchiveCalendarMode) {
+                    R.string.in_app_notifications_subtitle_archive
+                } else {
+                    R.string.in_app_notifications_subtitle_sync
+                },
+                allowDismiss = !isArchiveCalendarMode,
                 onDismiss = { overlay = CalendarOverlay.None },
                 onNotificationClick = { item ->
                     val date = item.relatedDate
@@ -430,23 +458,50 @@ fun CalendarScreen(
                         overlay = CalendarOverlay.None
                     }
                 },
-                onDismissNotification = { notificationStore.remove(it.id) },
-                onClearAll = { notificationStore.clearAll() },
+                onDismissNotification = { activeNotificationStore.remove(it.id) },
+                onClearAll = { activeNotificationStore.clearAll() },
             )
         }
 
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
-            val savedDayData by viewModel.savedDayData.collectAsState()
+            var showArchiveOverwriteConfirm by remember(date) { mutableStateOf(false) }
+
+            if (showArchiveOverwriteConfirm && date != null) {
+                AlertDialog(
+                    onDismissRequest = { showArchiveOverwriteConfirm = false },
+                    title = { Text(stringResource(R.string.archive_sync_overwrite_title)) },
+                    text = { Text(stringResource(R.string.archive_sync_overwrite_message)) },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.archiveDay(date, syncedDayData[date].orEmpty())
+                                showArchiveOverwriteConfirm = false
+                            },
+                        ) {
+                            Text(stringResource(R.string.archive_sync_overwrite_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showArchiveOverwriteConfirm = false }) {
+                            Text(stringResource(R.string.archive_sync_overwrite_cancel))
+                        }
+                    },
+                )
+            }
 
             if (date != null) {
                 val isArchived = savedDayData.containsKey(date)
+                val syncedSessions = syncedDayData[date].orEmpty()
+                val archiveMismatch = isArchived &&
+                    ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
                 DayDetailsDialog(
                     date = date,
-                    // TODO: Добавить возможность отмечать проведенное занятие и др. статусы.
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
+                    archiveMismatch = archiveMismatch,
+                    allowStatusEdit = true,
                     highlightSlotKey = highlightSlotKey,
                     onDismiss = {
                         highlightSlotKey = null
@@ -456,12 +511,15 @@ fun CalendarScreen(
                         viewModel.saveNamesForDate(date, updatedNames)
                         overlay = CalendarOverlay.None
                     },
-                    onArchive = {
-                        if (isArchived) {
-                            viewModel.unarchiveDay(date)
-                        } else {
-                            viewModel.archiveDay(date, dayData[date].orEmpty())
-                        }
+                    onMoveToArchive = {
+                        viewModel.archiveDay(date, syncedSessions)
+                    },
+                    onUnarchive = { viewModel.unarchiveDay(date) },
+                    onRequestOverwriteArchive = { showArchiveOverwriteConfirm = true },
+                    onStudentStatusChange = if (isArchiveCalendarMode) {
+                        { index, status -> viewModel.updateSessionStatus(date, index, status) }
+                    } else {
+                        null
                     },
                 )
             } else {
@@ -523,6 +581,7 @@ fun CalendarScreenContent(
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>>,
     monthDayData: Map<LocalDate, List<String>> = dayData,
+    archiveMismatchDates: Set<LocalDate> = emptySet(),
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -615,7 +674,7 @@ fun CalendarScreenContent(
                                 )
 
                                 if (isRegistered && selectedDate != null && daySummaryStats != null) {
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     DaySummarySlot(
                                         date = selectedDate,
                                         stats = daySummaryStats,
@@ -623,7 +682,7 @@ fun CalendarScreenContent(
                                         isRegistered = isRegistered,
                                         onRegistrationRequired = onRegistrationRequired,
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
 
                                 WeekDaysRow()
@@ -637,6 +696,7 @@ fun CalendarScreenContent(
                                         currentMonth = targetMonth,
                                         selectedDate = selectedDate,
                                         dayData = monthDayData,
+                                        archiveMismatchDates = archiveMismatchDates,
                                         workingDays = workingDays,
                                         onDateClick = onDateClick,
                                     )

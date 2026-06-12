@@ -2,18 +2,18 @@ package ru.greemlab.neiro.notifications
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 /**
- * Активная лента уведомлений для режима YClients: ~[RETENTION_DAYS] дней, можно удалять.
+ * Журнал уведомлений вкладки «Архив»: только накопление, без удаления из UI.
  */
-class InAppNotificationStore private constructor(context: Context) {
+class ArchiveNotificationStore private constructor(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -68,34 +68,43 @@ class InAppNotificationStore private constructor(context: Context) {
         persist(_items.value.map { it.copy(read = true) })
     }
 
-    fun clearAll() {
-        persist(emptyList())
-    }
+    /** JSON-массив уведомлений для экспорта архива. */
+    fun exportJson(): String = gson.toJson(_items.value)
 
-    fun remove(id: String) {
-        persist(_items.value.filter { it.id != id })
+    /**
+     * Восстановление из бэкапа. При ошибке разбора список не меняется.
+     *
+     * @return `true`, если данные применены.
+     */
+    fun importJson(json: String): Boolean {
+        if (json.isBlank()) return false
+        return runCatching {
+            @Suppress("UNCHECKED_CAST")
+            val parsed = gson.fromJson<List<InAppNotification>>(json, listType) ?: emptyList()
+            persist(parsed)
+            true
+        }.getOrDefault(false)
     }
 
     companion object {
-        const val RETENTION_DAYS = 10
-        private const val MAX_ITEMS = 300
-        private const val PREFS_NAME = "in_app_notifications"
+        private const val MAX_ITEMS = 5_000
+        private const val PREFS_NAME = "neiro_archive_notifications"
         private const val KEY_ITEMS = "items_json"
 
-        @Volatile
-        private var instance: InAppNotificationStore? = null
+        /** Ключ в JSON-файле экспорта архива. */
+        const val EXPORT_KEY = "archive_notifications"
 
-        fun get(context: Context): InAppNotificationStore =
+        @Volatile
+        private var instance: ArchiveNotificationStore? = null
+
+        fun get(context: Context): ArchiveNotificationStore =
             instance ?: synchronized(this) {
-                instance ?: InAppNotificationStore(context).also { instance = it }
+                instance ?: ArchiveNotificationStore(context).also { instance = it }
             }
 
-        fun prune(items: List<InAppNotification>, nowMillis: Long = System.currentTimeMillis()): List<InAppNotification> {
-            val cutoff = nowMillis - TimeUnit.DAYS.toMillis(RETENTION_DAYS.toLong())
-            return items
-                .filter { it.timestampEpochMillis >= cutoff }
+        fun prune(items: List<InAppNotification>): List<InAppNotification> =
+            items
                 .sortedByDescending { it.timestampEpochMillis }
                 .take(MAX_ITEMS)
-        }
     }
 }

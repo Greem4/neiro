@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
 import java.time.LocalDate
 
@@ -47,6 +48,7 @@ fun DayCard(
     namesCount: Int = 0,
     hasIntensive: Boolean = false,
     isWorkingDay: Boolean = true,
+    archiveMismatch: Boolean = false,
     onDateClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -73,6 +75,16 @@ fun DayCard(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                         shape = CircleShape,
                     ),
+            )
+        }
+
+        if (archiveMismatch) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(7.dp)
+                    .background(color = ExpectedAmber, shape = CircleShape),
             )
         }
 

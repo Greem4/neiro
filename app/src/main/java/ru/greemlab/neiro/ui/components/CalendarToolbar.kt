@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.CloudSync
-import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -82,7 +82,7 @@ private fun CalendarSourceSwitcher(
             )
             SourceTab(
                 label = "Архив",
-                icon = Icons.Rounded.CollectionsBookmark,
+                icon = Icons.Rounded.Storage,
                 selected = calendarMode == CalendarMode.PERSONAL,
                 brandSelected = false,
                 onClick = { onModeChange(CalendarMode.PERSONAL) },

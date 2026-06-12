@@ -4,7 +4,7 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * Запись в ленте уведомлений внутри приложения (колокольчик в шапке календаря).
+ * Запись в ленте уведомлений (активная YClients или журнал архива).
  */
 data class InAppNotification(
     val id: String,

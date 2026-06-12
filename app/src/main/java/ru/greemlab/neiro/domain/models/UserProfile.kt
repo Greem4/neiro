@@ -11,6 +11,9 @@ import java.time.DayOfWeek
  * @param pricePerSession Ставка сотрудника за одно занятие.
  * @param pricePerDiagnostics Цена за диагностику.
  * @param monthlyTaxAmount Налог в рублях за месяц.
+ * @param salaryOnCard Устаревшее поле: сумма на карту, если не заданы части ниже.
+ * @param salaryAdvanceOnCard Аванс на карту (примерная сумма, каждый месяц).
+ * @param salaryMainOnCard Основная выплата на карту (примерная сумма, каждый месяц).
  * @param showAvatar Показывать аватар (если выключено — показывается логотип).
  * @param isRegistered Флаг завершения первичной настройки.
  */
@@ -22,6 +25,15 @@ data class UserProfile(
     val pricePerSession: Double = 0.0,
     val pricePerDiagnostics: Double = 0.0,
     val monthlyTaxAmount: Double = 0.0,
+    val salaryOnCard: Double = 33_000.0,
+    val salaryAdvanceOnCard: Double = 11_206.0,
+    val salaryMainOnCard: Double = 21_854.0,
     val showAvatar: Boolean = true,
     val isRegistered: Boolean = false,
 )
+
+/** Сумма переводов на карту: аванс + зарплата, иначе [salaryOnCard]. */
+fun UserProfile.totalSalaryOnCard(): Double {
+    val fromParts = salaryAdvanceOnCard + salaryMainOnCard
+    return if (fromParts > 0.0) fromParts else salaryOnCard
+}

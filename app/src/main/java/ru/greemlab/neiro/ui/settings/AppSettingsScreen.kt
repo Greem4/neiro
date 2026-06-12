@@ -15,13 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.SettingsSuggest
 import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -188,7 +187,7 @@ fun AppSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(12.dp),
                     ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null)
+                        Icon(Icons.Rounded.Storage, contentDescription = null)
                         Text("Экспорт архива", modifier = Modifier.padding(start = 8.dp))
                     }
                     OutlinedButton(
@@ -197,7 +196,7 @@ fun AppSettingsScreen(
                         contentPadding = PaddingValues(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(),
                     ) {
-                        Icon(Icons.Rounded.Upload, contentDescription = null)
+                        Icon(Icons.Rounded.Storage, contentDescription = null)
                         Text("Импорт архива", modifier = Modifier.padding(start = 8.dp))
                     }
                 }

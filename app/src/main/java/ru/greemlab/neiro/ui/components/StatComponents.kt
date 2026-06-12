@@ -138,24 +138,44 @@ fun ProfitRow(
     label: String,
     value: Double,
     color: Color,
+    modifier: Modifier = Modifier,
     isBold: Boolean = false,
+    compact: Boolean = false,
+    approximate: Boolean = false,
     prefix: String = "",
 ) {
-    val formattedValue = remember(value, prefix) { "$prefix${formatRubles(value)}" }
+    val formattedValue = remember(value, prefix, approximate) {
+        val amount = "$prefix${formatRubles(value)}"
+        if (approximate) "~$amount" else amount
+    }
+    val labelStyle = when {
+        compact -> MaterialTheme.typography.bodySmall
+        else -> MaterialTheme.typography.bodyMedium
+    }
+    val valueStyle = when {
+        isBold && !compact -> MaterialTheme.typography.titleMedium
+        compact -> MaterialTheme.typography.bodyMedium
+        else -> MaterialTheme.typography.bodyLarge
+    }
+    val valueWeight = when {
+        isBold -> FontWeight.ExtraBold
+        compact -> FontWeight.Medium
+        else -> FontWeight.SemiBold
+    }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = labelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = formattedValue,
-            style = if (isBold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
-            fontWeight = if (isBold) FontWeight.ExtraBold else FontWeight.SemiBold,
+            style = valueStyle,
+            fontWeight = valueWeight,
             color = color,
         )
     }

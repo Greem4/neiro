@@ -158,6 +158,24 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * Меняет статус ученика только в архивном календаре ([CalendarMode.PERSONAL]).
+     * Интенсивы и диагностику не трогает.
+     */
+    fun updateSessionStatus(date: LocalDate, index: Int, status: AttendanceStatus) {
+        viewModelScope.launch {
+            if (calendarMode.value != CalendarMode.PERSONAL) return@launch
+            val list = savedDayData.value[date] ?: return@launch
+            val item = list.getOrNull(index) ?: return@launch
+            if (SessionParser.isExtra(item)) return@launch
+
+            val updated = list.toMutableList().apply {
+                this[index] = SessionParser.withStatus(item, status)
+            }
+            repository.saveDayToArchive(date, updated)
+        }
+    }
+
+    /**
      * Переключает статус посещения для записи на указанной дате.
      * Игнорирует «экстра» записи (интенсив/диагностика) — у них статус меняется по-другому.
      */

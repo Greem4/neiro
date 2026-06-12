@@ -44,6 +44,7 @@ import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
 import ru.greemlab.neiro.ui.calendar.availableStatsYears
 import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
+import ru.greemlab.neiro.ui.components.ArchiveIconPickerDialog
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.ProfileAvatar
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
@@ -275,6 +276,11 @@ private fun DevDrawerMenu(
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var menuExpanded by remember { mutableStateOf(false) }
+    var showArchiveIconPicker by remember { mutableStateOf(false) }
+
+    if (showArchiveIconPicker) {
+        ArchiveIconPickerDialog(onDismiss = { showArchiveIconPicker = false })
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         TextButton(
@@ -308,6 +314,13 @@ private fun DevDrawerMenu(
                     .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                DevMenuSectionTitle("UI")
+                DevMenuItem(
+                    title = "Иконки архива",
+                    subtitle = "Варианты 1–15 — выбери номер",
+                    onClick = { showArchiveIconPicker = true },
+                )
+
                 DevMenuSectionTitle("Загрузка данных")
                 DevMenuItem(
                     title = "Войти в YClients",

@@ -54,6 +54,8 @@ fun SettingsScreen(
         onPriceChange = viewModel::updatePrice,
         onDiagnosticsPriceChange = viewModel::updateDiagnosticsPrice,
         onTaxChange = viewModel::updateTaxAmount,
+        onSalaryAdvanceChange = viewModel::updateSalaryAdvanceOnCard,
+        onSalaryMainChange = viewModel::updateSalaryMainOnCard,
         onToggleDay = viewModel::toggleWorkingDay,
         onShowAvatarChange = viewModel::updateShowAvatar,
         onOpenYClientsAuth = onOpenYClientsAuth,
@@ -78,6 +80,8 @@ private fun SettingsScreenImpl(
     onPriceChange: (Double) -> Unit,
     onDiagnosticsPriceChange: (Double) -> Unit,
     onTaxChange: (Double) -> Unit,
+    onSalaryAdvanceChange: (Double) -> Unit,
+    onSalaryMainChange: (Double) -> Unit,
     onToggleDay: (DayOfWeek) -> Unit,
     onShowAvatarChange: (Boolean) -> Unit,
     onOpenYClientsAuth: () -> Unit,
@@ -99,6 +103,12 @@ private fun SettingsScreenImpl(
     }
     var taxText by remember(profile.monthlyTaxAmount) {
         mutableStateOf(formatMoneyForInput(profile.monthlyTaxAmount))
+    }
+    var salaryAdvanceText by remember(profile.salaryAdvanceOnCard) {
+        mutableStateOf(formatMoneyForInput(profile.salaryAdvanceOnCard))
+    }
+    var salaryMainText by remember(profile.salaryMainOnCard) {
+        mutableStateOf(formatMoneyForInput(profile.salaryMainOnCard))
     }
 
     Scaffold(
@@ -197,6 +207,40 @@ private fun SettingsScreenImpl(
                 label = { Text("Налог в месяц (₽)") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = salaryAdvanceText,
+                onValueChange = { value ->
+                    val sanitized = sanitizeMoneyInput(value)
+                    salaryAdvanceText = sanitized
+                    onSalaryAdvanceChange(sanitized.toDoubleOrNull() ?: 0.0)
+                },
+                label = { Text("Аванс на карту (₽), ~") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = salaryMainText,
+                onValueChange = { value ->
+                    val sanitized = sanitizeMoneyInput(value)
+                    salaryMainText = sanitized
+                    onSalaryMainChange(sanitized.toDoubleOrNull() ?: 0.0)
+                },
+                label = { Text("Зарплата на карту (₽), ~") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
@@ -421,6 +465,8 @@ private fun SettingsScreenLightPreview() {
             onPriceChange = {},
             onDiagnosticsPriceChange = {},
             onTaxChange = {},
+            onSalaryAdvanceChange = {},
+            onSalaryMainChange = {},
             onToggleDay = {},
             onShowAvatarChange = {},
             onOpenYClientsAuth = {},

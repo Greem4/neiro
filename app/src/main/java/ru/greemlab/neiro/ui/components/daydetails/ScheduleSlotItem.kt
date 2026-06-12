@@ -7,14 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,12 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ProfitGreen
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
-import ru.greemlab.neiro.theme.StatusExpectedMint
-import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
 private val CancelledIndicatorRed = Color(0xFFF44336)
@@ -60,27 +49,10 @@ fun ScheduleSlotItem(
     compactForTimeline: Boolean = false,
     indicatorColors: List<Color>? = null,
     highlighted: Boolean = false,
+    onStatusChange: ((AttendanceStatus) -> Unit)? = null,
 ) {
-    // Цвет для текста имени в зависимости от статуса
-    val nameColor = when (status) {
-        AttendanceStatus.ARRIVED -> ProfitGreen
-        AttendanceStatus.CONFIRMED -> ExpectedAmber
-        AttendanceStatus.CANCELLED -> StatusRedBody
-        AttendanceStatus.EXPECTED -> StatusExpectedMint
-    }
-
-    val icon = when (status) {
-        AttendanceStatus.ARRIVED -> Icons.Rounded.Add
-        AttendanceStatus.CONFIRMED -> Icons.Rounded.Check
-        AttendanceStatus.CANCELLED -> Icons.Rounded.Remove
-        AttendanceStatus.EXPECTED -> Icons.Rounded.History
-    }
-
-    val indicatorColor = when {
-        status == AttendanceStatus.CANCELLED -> CancelledIndicatorRed
-        isDiagnostics -> Color(0xFF5C6BC0)
-        else -> ScheduleHeaderGreen
-    }
+    val nameColor = AttendanceStatusVisuals.nameColor(status)
+    val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
     val indicatorBars = indicatorColors?.takeIf { it.isNotEmpty() } ?: listOf(indicatorColor)
 
     val baseSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -151,22 +123,19 @@ fun ScheduleSlotItem(
                 }
             }
 
-            // Иконка
-            Surface(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(24.dp),
-                shape = CircleShape,
-                color = Color.White,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = indicatorColor,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
+            if (onStatusChange != null) {
+                AttendanceStatusPickerIcon(
+                    status = status,
+                    onStatusSelected = onStatusChange,
+                    isDiagnostics = isDiagnostics,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            } else {
+                AttendanceStatusReadOnlyIcon(
+                    status = status,
+                    isDiagnostics = isDiagnostics,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
             }
         }
     }
