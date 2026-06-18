@@ -169,7 +169,7 @@ fun AppSettingsScreen(
                 SettingsGroupCard {
                     SettingsSwitchRow(
                         title = "Автосинхронизация",
-                        subtitle = "При открытии приложения и каждые 4 часа в фоне",
+                        subtitle = "Полная синхронизация при открытии, если прошло больше суток",
                         icon = Icons.Rounded.Sync,
                         checked = autoSyncEnabled,
                         onCheckedChange = { enabled ->

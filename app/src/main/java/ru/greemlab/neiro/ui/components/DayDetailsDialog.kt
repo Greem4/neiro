@@ -103,10 +103,10 @@ private data class ScheduleEntry(
 )
 
 /**
- * Диалог просмотра расписания на выбранную дату.
+ * Диалог расписания на выбранную дату: таймлайн, статистика, архив.
  *
- * Отображает список записей в компактном виде без возможности редактирования.
- * Все изменения производятся через синхронизацию с YClients.
+ * Live-календарь обновляется через YClients; в режиме архива доступна
+ * смена статусов учеников и режим планирования (интенсивы).
  */
 @Composable
 fun DayDetailsDialog(
@@ -170,7 +170,7 @@ private fun DayDetailsContent(
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)?,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
-    // Сейчас — только интенсивы; список учеников (StudentItemRow) — для офлайн-правки архива, см. TODO.
+    // Режим планирования — добавление интенсивов; статусы учеников — в таймлайне (архив).
     var isPlanningMode by remember { mutableStateOf(false) }
     var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }

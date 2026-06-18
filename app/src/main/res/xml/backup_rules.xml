@@ -2,7 +2,5 @@
 <full-backup-content>
     <!-- DataStore: профиль, календарь, тема -->
     <include domain="file" path="datastore/" />
-    <!-- Токены YClients — только в EncryptedSharedPreferences, не бэкапим -->
-    <exclude domain="sharedpref" path="neiro_yclients_secure.xml" />
-    <exclude domain="sharedpref" path="neiro_yclients_fallback.xml" />
+    <!-- sharedpref не включён — токены YClients (neiro_yclients_*) не попадают в бэкап -->
 </full-backup-content>

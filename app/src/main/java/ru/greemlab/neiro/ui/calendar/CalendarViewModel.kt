@@ -104,13 +104,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             ),
         )
 
-    /**
-     * TODO: Добавить расчет статистики по ученикам (карточки детей):
-     *  - Посещаемость (сколько отходил / сколько пропустил).
-     *  - Визуальный график посещений.
-     *  - Сумма принесенных денег.
-     *  - Краткий вид истории (когда был, в какие дни).
-     */
+    // Карточки детей — см. TODO.md «Карточки детей».
 
     fun nextMonth() {
         _currentMonth.value = _currentMonth.value.plusMonths(1)
@@ -172,35 +166,6 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 this[index] = SessionParser.withStatus(item, status)
             }
             repository.saveDayToArchive(date, updated)
-        }
-    }
-
-    /**
-     * Переключает статус посещения для записи на указанной дате.
-     * Игнорирует «экстра» записи (интенсив/диагностика) — у них статус меняется по-другому.
-     */
-    fun toggleAttendance(date: LocalDate, index: Int) {
-        viewModelScope.launch {
-            val mode = calendarMode.value
-            val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
-            val list = currentMap[date] ?: return@launch
-            val item = list.getOrNull(index) ?: return@launch
-            if (SessionParser.isExtra(item)) return@launch
-
-            val currentStatus = SessionParser.getStatus(item)
-            val nextStatus = when (currentStatus) {
-                AttendanceStatus.ARRIVED -> AttendanceStatus.EXPECTED
-                else -> AttendanceStatus.ARRIVED
-            }
-            val updated = list.toMutableList().apply {
-                this[index] = SessionParser.withStatus(item, nextStatus)
-            }
-
-            if (mode == CalendarMode.SYNCED) {
-                repository.saveDayData(currentMap + (date to updated))
-            } else {
-                repository.saveDayToArchive(date, updated)
-            }
         }
     }
 
