@@ -51,6 +51,7 @@ fun ScheduleSlotItem(
     indicatorColors: List<Color>? = null,
     highlighted: Boolean = false,
     onStatusChange: ((AttendanceStatus) -> Unit)? = null,
+    onStatusIconClick: (() -> Unit)? = null,
 ) {
     val nameColor = AttendanceStatusVisuals.nameColor(status)
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
@@ -135,6 +136,7 @@ fun ScheduleSlotItem(
                 AttendanceStatusReadOnlyIcon(
                     status = status,
                     isDiagnostics = isDiagnostics,
+                    onClick = onStatusIconClick,
                     modifier = Modifier.padding(end = 8.dp),
                 )
             }
@@ -175,10 +177,12 @@ fun IntensiveTimelineChip(
     title: String,
     amount: Double,
     status: AttendanceStatus,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
+    indicatorColors: List<Color>? = null,
+    onDetailsClick: (() -> Unit)? = null,
 ) {
     val amountLabel = if (amount > 0.0) {
         ru.greemlab.neiro.ui.util.formatRubles(amount)
@@ -193,23 +197,36 @@ fun IntensiveTimelineChip(
     ScheduleSlotItem(
         time = "",
         name = collapsedName,
-        comment = "Нажмите, чтобы открыть",
+        comment = if (onClick != null) "Нажмите, чтобы открыть" else "",
         status = status,
         showTime = false,
         compactForTimeline = compactForTimeline,
+        indicatorColors = indicatorColors,
         highlighted = highlighted,
+        onStatusChange = null,
+        onStatusIconClick = onDetailsClick,
         modifier = modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
             ),
     )
 }
 
 /** Красная и зелёная полоски слева — маркер слота с заменой (сняли → встал). */
 val ReplacementCollapsedIndicators: List<Color> =
+    listOf(CancelledIndicatorRed, ScheduleHeaderGreen)
+
+/** Красная и зелёная полоски — интенсив скрывает отменённые занятия в слоте. */
+val IntensiveCoverCollapsedIndicators: List<Color> =
     listOf(CancelledIndicatorRed, ScheduleHeaderGreen)
 
 /**
@@ -279,6 +296,92 @@ fun ExpandableReplacementSlot(
                 compactForTimeline = compactForTimeline,
                 indicatorColors = ReplacementCollapsedIndicators,
                 highlighted = highlighted,
+                modifier = slotModifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Интенсив в слоте: свёрнуто — одна плашка; по нажатию слева отменённые, справа интенсив.
+ */
+@Composable
+fun ExpandableIntensiveCoverSlot(
+    intensiveTitle: String,
+    intensiveAmount: Double,
+    intensiveStatus: AttendanceStatus,
+    covered: List<ScheduleSlotContent>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onIntensiveDetails: () -> Unit,
+    modifier: Modifier = Modifier,
+    compactForTimeline: Boolean = false,
+    highlighted: Boolean = false,
+    onCoveredStatusChange: ((index: Int, status: AttendanceStatus) -> Unit)? = null,
+) {
+    val gap = if (compactForTimeline) 4.dp else 6.dp
+    val slotModifier = Modifier.fillMaxHeight()
+    val hasCovered = covered.isNotEmpty()
+
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .then(
+                if (hasCovered) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onToggle,
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            ),
+        horizontalArrangement = Arrangement.spacedBy(if (expanded) gap else 0.dp),
+    ) {
+        if (expanded && hasCovered) {
+            covered.forEachIndexed { index, entry ->
+                ScheduleSlotItem(
+                    time = entry.time,
+                    name = entry.name,
+                    comment = entry.comment,
+                    status = entry.status,
+                    isDiagnostics = entry.isDiagnostics,
+                    showTime = entry.showTime,
+                    compactForTimeline = compactForTimeline,
+                    highlighted = highlighted,
+                    onStatusChange = onCoveredStatusChange?.let { handler ->
+                        { status -> handler(index, status) }
+                    },
+                    modifier = slotModifier.weight(1f),
+                )
+            }
+            IntensiveTimelineChip(
+                title = intensiveTitle,
+                amount = intensiveAmount,
+                status = intensiveStatus,
+                onClick = null,
+                compactForTimeline = compactForTimeline,
+                highlighted = highlighted,
+                onDetailsClick = onIntensiveDetails,
+                modifier = slotModifier.weight(1f),
+            )
+        } else {
+            IntensiveTimelineChip(
+                title = intensiveTitle,
+                amount = intensiveAmount,
+                status = intensiveStatus,
+                onClick = if (hasCovered) null else onIntensiveDetails,
+                compactForTimeline = compactForTimeline,
+                highlighted = highlighted,
+                indicatorColors = if (hasCovered) IntensiveCoverCollapsedIndicators else null,
+                onDetailsClick = if (hasCovered) onIntensiveDetails else null,
                 modifier = slotModifier.fillMaxWidth(),
             )
         }

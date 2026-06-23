@@ -9,8 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +35,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +58,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.ExpectedAmber
@@ -106,6 +107,7 @@ private data class ScheduleEntry(
     val extraType: String = "",
     val extraAmount: Double = 0.0,
     val intensiveChildren: List<Session.IntensiveChild> = emptyList(),
+    val coveredEntries: List<ScheduleEntry> = emptyList(),
     val sourceIndex: Int,
 )
 
@@ -137,7 +139,8 @@ fun DayDetailsDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        DayDetailsContent(
+        Box(modifier = Modifier.fillMaxSize()) {
+            DayDetailsContent(
             date = date,
             initialNames = initialNames,
             userProfile = userProfile,
@@ -153,7 +156,8 @@ fun DayDetailsDialog(
             onUnarchive = onUnarchive,
             onRequestOverwriteArchive = onRequestOverwriteArchive,
             onStudentStatusChange = onStudentStatusChange,
-        )
+            )
+        }
     }
 }
 
@@ -237,27 +241,32 @@ private fun DayDetailsContent(
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth(0.95f)
-            .padding(vertical = 16.dp),
-        shape = MaterialTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(
+            topStart = 0.dp,
+            topEnd = 0.dp,
+            bottomStart = 28.dp,
+            bottomEnd = 28.dp,
+        ),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // Заголовок
-            Box(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = dateText,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
                 )
 
                 if (allowStatusEdit) {
@@ -285,10 +294,10 @@ private fun DayDetailsContent(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Статистика
             StatsRow(stats = stats, date = date)
 
             Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Список записей
             if (entries.isEmpty() && !isPlanningMode) {
@@ -296,8 +305,9 @@ private fun DayDetailsContent(
                     isRefreshing = isRefreshing,
                     onRefresh = onRefresh,
                     modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth(),
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                 ) {
                     EmptySchedule()
                 }
@@ -313,6 +323,15 @@ private fun DayDetailsContent(
                             extraType = entry.extraType,
                             extraAmount = entry.extraAmount,
                             intensiveChildren = entry.intensiveChildren,
+                            coveredEntries = entry.coveredEntries.map { covered ->
+                                TimelineEntry(
+                                    name = covered.name,
+                                    time = covered.time,
+                                    comment = covered.comment,
+                                    status = covered.status,
+                                    sourceIndex = covered.sourceIndex,
+                                )
+                            },
                             sourceIndex = entry.sourceIndex,
                         )
                     },
@@ -322,8 +341,9 @@ private fun DayDetailsContent(
                     onRefresh = if (allowStatusEdit) null else onRefresh,
                     onStudentStatusChange = handleStudentStatusChange,
                     modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth(),
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                 )
             } else {
                 val intensiveIndices = remember(currentNames.toList()) {
@@ -334,8 +354,9 @@ private fun DayDetailsContent(
 
                 LazyColumn(
                     modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth(),
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
@@ -397,10 +418,13 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                 if (!isPlanningMode && (onStudentStatusChange == null || isArchived)) {
+                if (!isPlanningMode && (onStudentStatusChange == null || isArchived)) {
                     TextButton(
                         onClick = {
                             when {
@@ -606,7 +630,7 @@ private fun DayDetailsRefreshableSection(
     val state = rememberPullToRefreshState()
     Box(
         modifier = modifier
-            .heightIn(max = 420.dp)
+            .fillMaxSize()
             .pullToRefresh(
                 state = state,
                 isRefreshing = isRefreshing,
@@ -616,7 +640,7 @@ private fun DayDetailsRefreshableSection(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .verticalScroll(scrollState),
         ) {
             content()
@@ -668,9 +692,11 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(
         rawNames.map(SessionParser::parse),
     )
+    val coveredByIntensiveTime = mutableMapOf<String, MutableList<ScheduleEntry>>()
+    val entries = mutableListOf<ScheduleEntry>()
 
-    return rawNames.mapIndexedNotNull { index, raw ->
-        if (raw.isBlank()) return@mapIndexedNotNull null
+    rawNames.forEachIndexed { index, raw ->
+        if (raw.isBlank()) return@forEachIndexed
 
         val session = SessionParser.parse(raw)
         val isDeleted = session.isEffectivelyDeleted()
@@ -678,14 +704,26 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
         when (session) {
             is Session.Student -> {
                 if (isStudentCoveredByIntensive(session, intensiveChildrenByTime)) {
-                    return@mapIndexedNotNull null
+                    val covered = ScheduleEntry(
+                        name = session.name,
+                        time = normalizeSessionTime(session.time),
+                        comment = session.comment,
+                        status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                        sourceIndex = index,
+                    )
+                    coveredByIntensiveTime
+                        .getOrPut(covered.time) { mutableListOf() }
+                        .add(covered)
+                    return@forEachIndexed
                 }
-                ScheduleEntry(
-                    name = session.name,
-                    time = normalizeSessionTime(session.time),
-                    comment = session.comment,
-                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                    sourceIndex = index,
+                entries.add(
+                    ScheduleEntry(
+                        name = session.name,
+                        time = normalizeSessionTime(session.time),
+                        comment = session.comment,
+                        status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                        sourceIndex = index,
+                    ),
                 )
             }
 
@@ -697,36 +735,50 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
                 } else {
                     session.name.ifBlank { "Интенсив" }
                 }
-                ScheduleEntry(
-                    name = title,
-                    time = normalizeSessionTime(session.time),
-                    comment = "",
-                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.displayStatus(),
-                    isExtra = true,
-                    extraType = "Интенсив",
-                    extraAmount = session.totalAmount(
-                        userProfile.pricePerIntensiveChild,
-                        onlyArrived = false,
+                entries.add(
+                    ScheduleEntry(
+                        name = title,
+                        time = normalizeSessionTime(session.time),
+                        comment = "",
+                        status = if (isDeleted) AttendanceStatus.CANCELLED else session.displayStatus(),
+                        isExtra = true,
+                        extraType = "Интенсив",
+                        extraAmount = session.totalAmount(
+                            userProfile.pricePerIntensiveChild,
+                            onlyArrived = false,
+                        ),
+                        intensiveChildren = visibleChildren,
+                        sourceIndex = index,
                     ),
-                    intensiveChildren = visibleChildren,
-                    sourceIndex = index,
                 )
             }
 
-            is Session.Diagnostics -> ScheduleEntry(
-                name = session.name,
-                time = normalizeSessionTime(session.time),
-                comment = "",
-                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                isExtra = true,
-                extraType = "Диагностика",
-                extraAmount = session.amount,
-                sourceIndex = index,
+            is Session.Diagnostics -> entries.add(
+                ScheduleEntry(
+                    name = session.name,
+                    time = normalizeSessionTime(session.time),
+                    comment = "",
+                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                    isExtra = true,
+                    extraType = "Диагностика",
+                    extraAmount = session.amount,
+                    sourceIndex = index,
+                ),
             )
         }
-    }.sortedBy { entry ->
-        if (entry.time.isEmpty()) "99:99" else entry.time
     }
+
+    return entries
+        .map { entry ->
+            if (entry.isExtra && entry.extraType == "Интенсив") {
+                entry.copy(coveredEntries = coveredByIntensiveTime[entry.time].orEmpty())
+            } else {
+                entry
+            }
+        }
+        .sortedBy { entry ->
+            if (entry.time.isEmpty()) "99:99" else entry.time
+        }
 }
 
 private fun calculateStats(

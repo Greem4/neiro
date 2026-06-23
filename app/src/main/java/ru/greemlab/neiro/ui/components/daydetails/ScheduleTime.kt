@@ -17,6 +17,8 @@ data class TimelineEntry(
     val extraType: String = "",
     val extraAmount: Double = 0.0,
     val intensiveChildren: List<Session.IntensiveChild> = emptyList(),
+    /** Ученики под интенсивом — в списке скрыты, в таймлайне под плашкой интенсива. */
+    val coveredEntries: List<TimelineEntry> = emptyList(),
     /** Индекс в сыром списке дня — для правки статуса в архиве. */
     val sourceIndex: Int = -1,
 )
@@ -50,6 +52,13 @@ data class ReplacementPair(
     val removed: TimedAppointment,
 )
 
+/** Интенсив в слоте: отменённые занятия скрыты под ним до раскрытия. */
+@Immutable
+data class IntensiveCoverPair(
+    val intensive: TimedAppointment,
+    val covered: List<TimedAppointment>,
+)
+
 @Immutable
 sealed class PositionedTimelineItem {
     abstract val lane: Int
@@ -72,6 +81,15 @@ sealed class PositionedTimelineItem {
         override val laneCount: Int,
     ) : PositionedTimelineItem() {
         override val layoutAppointment: TimedAppointment = pair.replacement
+    }
+
+    @Immutable
+    data class IntensiveCover(
+        val pair: IntensiveCoverPair,
+        override val lane: Int,
+        override val laneCount: Int,
+    ) : PositionedTimelineItem() {
+        override val layoutAppointment: TimedAppointment = pair.intensive
     }
 }
 
@@ -138,44 +156,92 @@ fun findReplacementPair(appointments: List<TimedAppointment>): ReplacementPair? 
     }
 }
 
+private fun TimedAppointment.isIntensiveEntry(): Boolean =
+    entry.isExtra && entry.extraType == "Интенсив"
+
+private fun TimedAppointment.isCancelledStudent(): Boolean =
+    !entry.isExtra && entry.status == AttendanceStatus.CANCELLED
+
+private fun entryToTimedAppointment(entry: TimelineEntry): TimedAppointment? {
+    val start = parseTimeRangeStart(entry.time) ?: return null
+    val end = parseTimeRangeEnd(entry.time) ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+    return TimedAppointment(entry = entry, start = start, end = end)
+}
+
+/** Интенсив + отменённые в том же слоте (в т.ч. ученики, скрытые в списке дня). */
+fun findIntensiveCoverPair(appointments: List<TimedAppointment>): IntensiveCoverPair? {
+    val intensive = appointments.firstOrNull { it.isIntensiveEntry() } ?: return null
+    val coveredFromEntry = intensive.entry.coveredEntries.mapNotNull(::entryToTimedAppointment)
+    val cancelledInSlot = appointments.filter { appt ->
+        appt != intensive && appt.isCancelledStudent()
+    }
+    val covered = (coveredFromEntry + cancelledInSlot)
+        .distinctBy { it.entry.sourceIndex.takeIf { index -> index >= 0 } ?: it.entry.name.hashCode() }
+    return if (covered.isNotEmpty()) {
+        IntensiveCoverPair(intensive = intensive, covered = covered)
+    } else {
+        null
+    }
+}
+
 private fun AttendanceStatus.isReplacementTop(): Boolean =
     this == AttendanceStatus.ARRIVED || this == AttendanceStatus.CONFIRMED
 
 fun computePositionedTimelineItems(appointments: List<TimedAppointment>): List<PositionedTimelineItem> {
     val sorted = appointments.sortedWith(compareBy({ it.start }, { it.entry.name }))
     val used = mutableSetOf<TimedAppointment>()
-    val groups = mutableListOf<Pair<TimedAppointment, ReplacementPair?>>()
+    val groups = mutableListOf<Pair<TimedAppointment, SlotGroup?>>()
 
     for (appt in sorted) {
         if (appt in used) continue
         val sameSlot = sorted.filter { other ->
             other !in used && other.start == appt.start && other.end == appt.end
         }
-        val pair = findReplacementPair(sameSlot)
-        if (pair != null) {
-            groups.add(pair.replacement to pair)
-            used.add(pair.replacement)
-            used.add(pair.removed)
-        } else {
-            groups.add(appt to null)
-            used.add(appt)
+        val replacement = findReplacementPair(sameSlot)
+        if (replacement != null) {
+            groups.add(replacement.replacement to SlotGroup.Replacement(replacement))
+            used.add(replacement.replacement)
+            used.add(replacement.removed)
+            continue
         }
+        val intensiveCover = findIntensiveCoverPair(sameSlot)
+        if (intensiveCover != null) {
+            groups.add(intensiveCover.intensive to SlotGroup.IntensiveCover(intensiveCover))
+            used.add(intensiveCover.intensive)
+            used.addAll(intensiveCover.covered)
+            continue
+        }
+        groups.add(appt to null)
+        used.add(appt)
     }
 
     val positioned = computePositionedAppointments(groups.map { it.first })
 
-    return groups.zip(positioned) { (layoutAppt, pair), pos ->
+    return groups.zip(positioned) { (layoutAppt, group), pos ->
         require(pos.appointment == layoutAppt)
-        if (pair != null) {
-            PositionedTimelineItem.Replacement(pair = pair, lane = pos.lane, laneCount = pos.laneCount)
-        } else {
-            PositionedTimelineItem.Single(
+        when (group) {
+            is SlotGroup.Replacement -> PositionedTimelineItem.Replacement(
+                pair = group.pair,
+                lane = pos.lane,
+                laneCount = pos.laneCount,
+            )
+            is SlotGroup.IntensiveCover -> PositionedTimelineItem.IntensiveCover(
+                pair = group.pair,
+                lane = pos.lane,
+                laneCount = pos.laneCount,
+            )
+            null -> PositionedTimelineItem.Single(
                 appointment = pos.appointment,
                 lane = pos.lane,
                 laneCount = pos.laneCount,
             )
         }
     }
+}
+
+private sealed class SlotGroup {
+    data class Replacement(val pair: ReplacementPair) : SlotGroup()
+    data class IntensiveCover(val pair: IntensiveCoverPair) : SlotGroup()
 }
 
 private fun intervalsOverlap(a: TimedAppointment, b: TimedAppointment): Boolean =

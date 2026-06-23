@@ -1,5 +1,7 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -91,10 +93,23 @@ fun AttendanceStatusReadOnlyIcon(
     status: AttendanceStatus,
     modifier: Modifier = Modifier,
     isDiagnostics: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
     Surface(
-        modifier = modifier.size(24.dp),
+        modifier = modifier
+            .size(24.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
         shape = CircleShape,
         color = Color.White,
     ) {

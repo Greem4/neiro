@@ -123,40 +123,58 @@ fun DayScheduleTimeline(
         onTopReachedChanged(scrollState.value == 0)
     }
 
-    val timelineBody: @Composable () -> Unit = {
-        var selectedIntensive by remember { mutableStateOf<TimelineEntry?>(null) }
+    var selectedIntensive by remember { mutableStateOf<TimelineEntry?>(null) }
+    val pullToRefreshState = rememberPullToRefreshState()
 
-        selectedIntensive?.let { entry ->
-            IntensiveDetailsDialog(
-                time = entry.time,
-                children = entry.intensiveChildren,
-                amount = entry.extraAmount,
-                onDismiss = { selectedIntensive = null },
-            )
-        }
+    selectedIntensive?.let { entry ->
+        IntensiveDetailsDialog(
+            time = entry.time,
+            children = entry.intensiveChildren,
+            amount = entry.extraAmount,
+            onDismiss = { selectedIntensive = null },
+        )
+    }
 
-        if (layout != null) {
-            val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
-            val timelineHeight = with(density) {
-                (layout.totalMinutes * pxPerMinute).toDp()
-            }
-            val nowOffsetMinutes = if (isToday &&
-                !currentTime.isBefore(layout.axisStart) &&
-                currentTime.isBefore(layout.axisEnd)
-            ) {
-                minutesFromAxisStart(layout.axisStart, currentTime)
-            } else {
-                null
-            }
-            val nowLineY = nowOffsetMinutes?.let { offset ->
-                with(density) { (offset * pxPerMinute).toDp() }
-            }
+    Column(modifier = modifier.fillMaxHeight()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .then(
+                    if (onRefresh != null) {
+                        Modifier.pullToRefresh(
+                            state = pullToRefreshState,
+                            isRefreshing = isRefreshing,
+                            onRefresh = onRefresh,
+                            threshold = (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            if (layout != null) {
+                val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
+                val timelineHeight = with(density) {
+                    (layout.totalMinutes * pxPerMinute).toDp()
+                }
+                val nowOffsetMinutes = if (isToday &&
+                    !currentTime.isBefore(layout.axisStart) &&
+                    currentTime.isBefore(layout.axisEnd)
+                ) {
+                    minutesFromAxisStart(layout.axisStart, currentTime)
+                } else {
+                    null
+                }
+                val nowLineY = nowOffsetMinutes?.let { offset ->
+                    with(density) { (offset * pxPerMinute).toDp() }
+                }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState),
-            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState),
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,6 +193,7 @@ fun DayScheduleTimeline(
                             .height(timelineHeight),
                     ) {
                         val expandedReplacements = remember { mutableStateMapOf<String, Boolean>() }
+                        val expandedIntensiveCovers = remember { mutableStateMapOf<String, Boolean>() }
 
                         layout.positioned.forEach { positioned ->
                             val appt = positioned.layoutAppointment
@@ -228,6 +247,51 @@ fun DayScheduleTimeline(
                                         modifier = slotGeometry.modifier,
                                     )
                                 }
+                                is PositionedTimelineItem.IntensiveCover -> {
+                                    val pair = positioned.pair
+                                    val intensiveEntry = pair.intensive.entry
+                                    val slotKey = buildString {
+                                        append(appt.start)
+                                        append('-')
+                                        append(appt.end)
+                                        append('-')
+                                        append(intensiveEntry.name)
+                                        pair.covered.forEach { covered ->
+                                            append('-')
+                                            append(covered.entry.name)
+                                        }
+                                    }
+                                    val expanded = expandedIntensiveCovers[slotKey] == true
+
+                                    ExpandableIntensiveCoverSlot(
+                                        intensiveTitle = intensiveEntry.name,
+                                        intensiveAmount = intensiveEntry.extraAmount,
+                                        intensiveStatus = intensiveEntry.status,
+                                        covered = pair.covered.map { it.entry.toSlotContent() },
+                                        expanded = expanded,
+                                        onToggle = {
+                                            expandedIntensiveCovers[slotKey] = !expanded
+                                        },
+                                        onIntensiveDetails = { selectedIntensive = intensiveEntry },
+                                        compactForTimeline = true,
+                                        highlighted = slotHighlighted,
+                                        onCoveredStatusChange = if (onStudentStatusChange != null) {
+                                            { index, status ->
+                                                val sourceIndex = pair.covered
+                                                    .getOrNull(index)
+                                                    ?.entry
+                                                    ?.sourceIndex
+                                                    ?: return@ExpandableIntensiveCoverSlot
+                                                if (sourceIndex >= 0) {
+                                                    onStudentStatusChange(sourceIndex, status)
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        modifier = slotGeometry.modifier,
+                                    )
+                                }
                             }
                         }
                     }
@@ -243,10 +307,19 @@ fun DayScheduleTimeline(
                     )
                 }
             }
+            }
+
+            if (onRefresh != null) {
+                PullToRefreshDefaults.Indicator(
+                    state = pullToRefreshState,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
         }
 
         if (untimedEntries.isNotEmpty()) {
-            if (layout != null) Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             untimedEntries.forEach { entry ->
                 val entryHighlighted = highlightSlotKey != null &&
                     SessionSlotKey.fromTimelineEntry(entry, date) == highlightSlotKey
@@ -272,35 +345,6 @@ fun DayScheduleTimeline(
                             .padding(vertical = 4.dp),
                     )
                 }
-            }
-        }
-    }
-
-    val state = rememberPullToRefreshState()
-
-    Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (onRefresh != null) {
-                        Modifier.pullToRefresh(
-                            state = state,
-                            isRefreshing = isRefreshing,
-                            onRefresh = onRefresh,
-                            threshold = (PullToRefreshDefaults.PositionalThreshold - 28.dp).coerceAtLeast(48.dp)
-                        )
-                    } else Modifier
-                ),
-        ) {
-            timelineBody()
-
-            if (onRefresh != null) {
-                PullToRefreshDefaults.Indicator(
-                    state = state,
-                    isRefreshing = isRefreshing,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
             }
         }
     }
@@ -417,6 +461,9 @@ private fun PositionedTimelineItem.matchesHighlight(key: String, date: LocalDate
     is PositionedTimelineItem.Replacement ->
         SessionSlotKey.fromTimelineEntry(pair.replacement.entry, date) == key ||
             SessionSlotKey.fromTimelineEntry(pair.removed.entry, date) == key
+    is PositionedTimelineItem.IntensiveCover ->
+        SessionSlotKey.fromTimelineEntry(pair.intensive.entry, date) == key ||
+            pair.covered.any { SessionSlotKey.fromTimelineEntry(it.entry, date) == key }
 }
 
 private fun TimelineEntry.isIntensiveWithChildren(): Boolean =
