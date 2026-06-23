@@ -1,5 +1,7 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,8 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
@@ -41,14 +42,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -112,10 +113,10 @@ private data class ScheduleEntry(
 )
 
 /**
- * Диалог расписания на выбранную дату: таймлайн, статистика, архив.
+ * Полноэкранный список занятий на выбранную дату: таймлайн, статистика, архив.
  *
- * Live-календарь обновляется через YClients; в режиме архива доступна
- * смена статусов учеников и режим планирования (интенсивы).
+ * Рисуется overlay в том же окне, что и календарь — без отдельного [Dialog],
+ * чтобы фон был ровным от статус-бара до низа экрана.
  */
 @Composable
 fun DayDetailsDialog(
@@ -135,12 +136,14 @@ fun DayDetailsDialog(
     onRequestOverwriteArchive: () -> Unit = {},
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+    BackHandler(onBack = onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(30f)
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            DayDetailsContent(
+        DayDetailsContent(
             date = date,
             initialNames = initialNames,
             userProfile = userProfile,
@@ -156,8 +159,7 @@ fun DayDetailsDialog(
             onUnarchive = onUnarchive,
             onRequestOverwriteArchive = onRequestOverwriteArchive,
             onStudentStatusChange = onStudentStatusChange,
-            )
-        }
+        )
     }
 }
 
@@ -240,18 +242,11 @@ private fun DayDetailsContent(
         focusNewIntensive = false
     }
 
-    Card(
-        modifier = Modifier.fillMaxSize(),
-        shape = RoundedCornerShape(
-            topStart = 0.dp,
-            topEnd = 0.dp,
-            bottomStart = 28.dp,
-            bottomEnd = 28.dp,
-        ),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -415,67 +410,103 @@ private fun DayDetailsContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (!isPlanningMode && (onStudentStatusChange == null || isArchived)) {
-                    TextButton(
-                        onClick = {
-                            when {
-                                allowStatusEdit && isArchived -> onUnarchive()
-                                isArchived && archiveMismatch -> onRequestOverwriteArchive()
-                                isArchived -> onUnarchive()
-                                else -> onMoveToArchive()
-                            }
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = if (isArchived) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        ),
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Storage,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            if (isArchived) {
-                                stringResource(R.string.archive_action_in_archive)
-                            } else {
-                                stringResource(R.string.archive_action_to_archive)
-                            },
-                        )
+            DayDetailsBottomBar(
+                isPlanningMode = isPlanningMode,
+                allowStatusEdit = allowStatusEdit,
+                isArchived = isArchived,
+                showArchiveAction = onStudentStatusChange == null || isArchived,
+                onArchiveClick = {
+                    when {
+                        allowStatusEdit && isArchived -> onUnarchive()
+                        isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                        isArchived -> onUnarchive()
+                        else -> onMoveToArchive()
                     }
-                }
+                },
+                onDismiss = onDismiss,
+                onSave = { onSave(currentNames.toList()) },
+            )
+        }
+}
 
-                Spacer(modifier = Modifier.weight(1f))
+private val DayDetailsBottomBarButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
 
+@Composable
+private fun DayDetailsBottomBar(
+    isPlanningMode: Boolean,
+    allowStatusEdit: Boolean,
+    isArchived: Boolean,
+    showArchiveAction: Boolean,
+    onArchiveClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+    ) {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!isPlanningMode && showArchiveAction) {
                 TextButton(
-                    onClick = onDismiss,
-                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    onClick = onArchiveClick,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (isArchived) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    ),
+                    contentPadding = DayDetailsBottomBarButtonPadding,
+                    modifier = Modifier.defaultMinSize(minHeight = 36.dp),
                 ) {
-                    Text("Закрыть")
+                    Icon(
+                        imageVector = Icons.Rounded.Storage,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isArchived) {
+                            stringResource(R.string.archive_action_in_archive)
+                        } else {
+                            stringResource(R.string.archive_action_to_archive)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
+            }
 
-                if (allowStatusEdit && isPlanningMode) {
-                    Button(
-                        onClick = { onSave(currentNames.toList()) },
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Text("Сохранить", fontWeight = FontWeight.Bold)
-                    }
+            Spacer(modifier = Modifier.weight(1f))
+
+            TextButton(
+                onClick = onDismiss,
+                contentPadding = DayDetailsBottomBarButtonPadding,
+                modifier = Modifier.defaultMinSize(minHeight = 36.dp),
+            ) {
+                Text(
+                    text = "Закрыть",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+
+            if (allowStatusEdit && isPlanningMode) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Button(
+                    onClick = onSave,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = 36.dp),
+                ) {
+                    Text("Сохранить", fontWeight = FontWeight.Bold)
                 }
             }
         }
