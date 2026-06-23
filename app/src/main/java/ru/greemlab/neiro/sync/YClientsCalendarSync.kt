@@ -15,6 +15,7 @@ import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.calendar.totalAmount
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -50,45 +51,126 @@ class YClientsCalendarSync(
     /**
      * Live-опрос для уведомлений о будущих записях: текущий и следующий месяц,
      * без сдвига метки «последней синхронизации» (её обновляет [syncDefaultAutoRange]).
+     *
+     * Между полными подтяжками запрашивает только записи с `changed_after` —
+     * пуши приходят так же часто, трафик в десятки раз меньше.
      */
     suspend fun refreshLiveRange(): SyncOutcome {
         val (start, end) = defaultLiveRefreshRange()
-        return syncDateRange(start, end, recordSuccessfulSync = false)
+        return syncMutex.withLock {
+            if (shouldRunFullLiveSync()) {
+                return@withLock applyFullLiveSync(start, end)
+            }
+            refreshLiveIncrementalLocked(start, end)
+        }
+    }
+
+    private fun shouldRunFullLiveSync(): Boolean =
+        isFullLiveSyncDue(
+            lastFullLiveSyncEpochMillis = syncPreferences.lastFullLiveSyncEpochMillis(),
+            nowMillis = System.currentTimeMillis(),
+        )
+
+    private suspend fun applyFullLiveSync(
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): SyncOutcome {
+        val outcome = syncDateRangeLocked(startDate, endDate, recordSuccessfulSync = false)
+        if (outcome is SyncOutcome.Success) {
+            syncPreferences.recordLivePoll()
+            syncPreferences.recordFullLiveSync()
+        }
+        return outcome
+    }
+
+    private suspend fun refreshLiveIncrementalLocked(
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): SyncOutcome {
+        val lastPoll = syncPreferences.lastLivePollEpochMillis()
+        val changedAfter = if (lastPoll > 0L) {
+            Instant.ofEpochMilli(lastPoll)
+        } else {
+            Instant.EPOCH
+        }
+        when (
+            val result = yclientsRepository.getRecordsChangedSince(
+                changedAfter = changedAfter,
+                startDate = startDate,
+                endDate = endDate,
+            )
+        ) {
+            is ApiResult.Success -> {
+                syncPreferences.recordLivePoll()
+                val records = result.data
+                if (records.isEmpty()) {
+                    return SyncOutcome.Success(0)
+                }
+
+                val dayDataBefore = calendarRepository.dayDataFlow.first()
+                autoFillProfile(records)
+                val outcome = mergeIncrementalRecords(
+                    records = records,
+                    rangeStart = startDate,
+                    rangeEnd = endDate,
+                )
+                if (outcome is SyncOutcome.Failure) {
+                    return outcome
+                }
+                val syncedCount = (outcome as SyncOutcome.Success).newlyAdded
+                val dayDataAfter = calendarRepository.dayDataFlow.first()
+                SessionNotificationCoordinator.onCalendarUpdatedFromApi(
+                    appContext,
+                    dayDataBefore,
+                    dayDataAfter,
+                )
+                return SyncOutcome.Success(syncedCount)
+            }
+
+            is ApiResult.Error -> return applyFullLiveSync(startDate, endDate)
+        }
     }
 
     suspend fun syncDateRange(
         startDate: LocalDate,
         endDate: LocalDate,
         recordSuccessfulSync: Boolean = true,
-    ): SyncOutcome =
-        syncMutex.withLock {
-            when (val result = yclientsRepository.getRecords(startDate, endDate)) {
-                is ApiResult.Success -> {
-                    val records = result.data
-                    val dayDataBefore = calendarRepository.dayDataFlow.first()
-                    if (!shouldApplySyncMerge(records, dayDataBefore, startDate, endDate)) {
-                        return@withLock SyncOutcome.Failure(
-                            "YClients вернул пустой ответ, а в календаре есть записи — " +
-                                "слияние пропущено, локальные данные сохранены",
-                        )
-                    }
-                    autoFillProfile(records)
-                    val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
-                    val dayDataAfter = calendarRepository.dayDataFlow.first()
-                    if (recordSuccessfulSync) {
-                        syncPreferences.recordSuccessfulSync()
-                    }
-                    SessionNotificationCoordinator.onCalendarUpdatedFromApi(
-                        appContext,
-                        dayDataBefore,
-                        dayDataAfter,
-                    )
-                    SyncOutcome.Success(syncedCount)
-                }
+    ): SyncOutcome = syncMutex.withLock {
+        syncDateRangeLocked(startDate, endDate, recordSuccessfulSync)
+    }
 
-                is ApiResult.Error -> SyncOutcome.Failure(result.message)
+    private suspend fun syncDateRangeLocked(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        recordSuccessfulSync: Boolean,
+    ): SyncOutcome {
+        when (val result = yclientsRepository.getRecords(startDate, endDate)) {
+            is ApiResult.Success -> {
+                val records = result.data
+                val dayDataBefore = calendarRepository.dayDataFlow.first()
+                if (!shouldApplySyncMerge(records, dayDataBefore, startDate, endDate)) {
+                    return SyncOutcome.Failure(
+                        "YClients вернул пустой ответ, а в календаре есть записи — " +
+                            "слияние пропущено, локальные данные сохранены",
+                    )
+                }
+                autoFillProfile(records)
+                val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
+                val dayDataAfter = calendarRepository.dayDataFlow.first()
+                if (recordSuccessfulSync) {
+                    syncPreferences.recordSuccessfulSync()
+                }
+                SessionNotificationCoordinator.onCalendarUpdatedFromApi(
+                    appContext,
+                    dayDataBefore,
+                    dayDataAfter,
+                )
+                return SyncOutcome.Success(syncedCount)
             }
+
+            is ApiResult.Error -> return SyncOutcome.Failure(result.message)
         }
+    }
 
     private suspend fun autoFillProfile(records: List<RecordData>) {
         val currentProfile = calendarRepository.userProfileFlow.first()
@@ -199,6 +281,7 @@ class YClientsCalendarSync(
         records: List<RecordData>,
         startDate: LocalDate,
         endDate: LocalDate,
+        clearMissingDaysInRange: Boolean = true,
     ): Int {
         val userProfile = calendarRepository.userProfileFlow.first()
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
@@ -213,9 +296,26 @@ class YClientsCalendarSync(
             .groupBy({ it.first }, { it.second })
 
         for ((date, dayRecords) in recordsByDate) {
+            if (isInCurrentMonth(date)) {
+                val merged = buildAuthoritativeDayFromApi(dayRecords, userProfile)
+                if (merged != currentDayData[date].orEmpty()) {
+                    if (merged.isEmpty()) {
+                        currentDayData.remove(date)
+                    } else {
+                        currentDayData[date] = merged
+                    }
+                    changedDays++
+                }
+                continue
+            }
+
             val existingRaw = currentDayData[date].orEmpty()
             val pool = existingRaw.map { it to SessionParser.parse(it) }.toMutableList()
-            val (intensiveDayRecords, regularDayRecords) = dayRecords.partition { isIntensiveRecord(it) }
+            val (deletedDayRecords, remainingDayRecords) = dayRecords.partition { it.deleted == true }
+            for (record in deletedDayRecords) {
+                removeMatchingSessions(pool, record)
+            }
+            val (intensiveDayRecords, regularDayRecords) = remainingDayRecords.partition { isIntensiveRecord(it) }
             purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
             val collapsedRecords = collapseDuplicateRecords(regularDayRecords)
             val syncedEntries = mutableListOf<String>()
@@ -261,26 +361,34 @@ class YClientsCalendarSync(
             }
         }
 
-        var date = startDate
-        while (!date.isAfter(endDate)) {
-            if (date !in recordsByDate) {
-                val existingRaw = currentDayData[date] ?: run {
-                    date = date.plusDays(1)
-                    continue
-                }
-                val merged = retainManualLocalEntries(
-                    existingRaw.map { it to SessionParser.parse(it) },
-                )
-                if (merged != existingRaw) {
-                    if (merged.isEmpty()) {
-                        currentDayData.remove(date)
+        if (clearMissingDaysInRange) {
+            var date = startDate
+            while (!date.isAfter(endDate)) {
+                if (date !in recordsByDate) {
+                    if (isInCurrentMonth(date)) {
+                        if (currentDayData.remove(date) != null) {
+                            changedDays++
+                        }
                     } else {
-                        currentDayData[date] = merged
+                        val existingRaw = currentDayData[date] ?: run {
+                            date = date.plusDays(1)
+                            continue
+                        }
+                        val merged = retainManualLocalEntries(
+                            existingRaw.map { it to SessionParser.parse(it) },
+                        )
+                        if (merged != existingRaw) {
+                            if (merged.isEmpty()) {
+                                currentDayData.remove(date)
+                            } else {
+                                currentDayData[date] = merged
+                            }
+                            changedDays++
+                        }
                     }
-                    changedDays++
                 }
+                date = date.plusDays(1)
             }
-            date = date.plusDays(1)
         }
 
         if (changedDays > 0) {
@@ -288,6 +396,82 @@ class YClientsCalendarSync(
         }
 
         return newlyAdded
+    }
+
+    /**
+     * Инкрементальный live-опрос: текущий месяц подтягиваем целиком и перезаписываем,
+     * остальной диапазон — точечное слияние по changed_after.
+     */
+    private suspend fun mergeIncrementalRecords(
+        records: List<RecordData>,
+        rangeStart: LocalDate,
+        rangeEnd: LocalDate,
+    ): SyncOutcome {
+        val (currentMonthTouching, otherRecords) = records.partition { record ->
+            parseRecordDate(record.date)?.let(::isInCurrentMonth) == true
+        }
+
+        var syncedCount = 0
+        if (currentMonthTouching.isNotEmpty()) {
+            val (monthStart, monthEnd) = currentCalendarMonthRange()
+            when (val fullMonth = yclientsRepository.getRecords(monthStart, monthEnd)) {
+                is ApiResult.Success -> {
+                    syncedCount += mergeRecordsToCalendar(
+                        records = fullMonth.data,
+                        startDate = monthStart,
+                        endDate = monthEnd,
+                        clearMissingDaysInRange = true,
+                    )
+                }
+
+                is ApiResult.Error -> return applyFullLiveSync(rangeStart, rangeEnd)
+            }
+        }
+
+        if (otherRecords.isNotEmpty()) {
+            syncedCount += mergeRecordsToCalendar(
+                records = otherRecords,
+                startDate = rangeStart,
+                endDate = rangeEnd,
+                clearMissingDaysInRange = false,
+            )
+        }
+
+        return SyncOutcome.Success(syncedCount)
+    }
+
+    /** День текущего месяца целиком из ответа API — без локальных «хвостов». */
+    private fun buildAuthoritativeDayFromApi(
+        dayRecords: List<RecordData>,
+        userProfile: UserProfile,
+    ): List<String> {
+        val pool = mutableListOf<Pair<String, Session>>()
+        val activeRecords = dayRecords.filter { it.deleted != true }
+        val (intensiveDayRecords, regularDayRecords) = activeRecords.partition { isIntensiveRecord(it) }
+        purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
+        val syncedEntries = mutableListOf<String>()
+
+        for ((_, record) in collapseDuplicateRecords(regularDayRecords)) {
+            syncedEntries += createEntryFromRecord(record, userProfile)
+        }
+
+        mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
+        return syncedEntries
+    }
+
+    private fun removeMatchingSessions(
+        pool: MutableList<Pair<String, Session>>,
+        record: RecordData,
+    ) {
+        val normalizedName = extractClientName(record).normalizeForDedup()
+        if (normalizedName.isEmpty()) return
+        val recordTime = formatRecordTime(record)
+        pool.removeAll { (_, session) ->
+            extractSessionName(session).normalizeForDedup() == normalizedName &&
+                (recordTime.isBlank() ||
+                    extractSessionTime(session) == recordTime ||
+                    extractSessionTime(session).isEmpty())
+        }
     }
 
     /**
@@ -605,10 +789,27 @@ class YClientsCalendarSync(
         /** Live-опрос: текущий и следующий месяц (будущие записи и пуши). */
         fun defaultLiveRefreshRange(): Pair<LocalDate, LocalDate> = defaultAutoSyncRange()
 
-        private fun currentCalendarMonthRange(): Pair<LocalDate, LocalDate> {
+        /** Полная подтяжка live-диапазона раз в 6 ч — страховка от переносов и «призраков». */
+        internal const val FULL_LIVE_SYNC_INTERVAL_MS = 6L * 60L * 60L * 1000L
+
+        internal fun isFullLiveSyncDue(
+            lastFullLiveSyncEpochMillis: Long,
+            nowMillis: Long,
+        ): Boolean {
+            if (lastFullLiveSyncEpochMillis <= 0L) return true
+            return nowMillis - lastFullLiveSyncEpochMillis >= FULL_LIVE_SYNC_INTERVAL_MS
+        }
+
+        fun currentCalendarMonthRange(): Pair<LocalDate, LocalDate> {
             val month = YearMonth.now()
             return month.atDay(1) to month.atEndOfMonth()
         }
+
+        /** Текущий календарный месяц — источник правды YClients, локаль не сохраняется. */
+        internal fun isInCurrentMonth(
+            date: LocalDate,
+            month: YearMonth = YearMonth.now(),
+        ): Boolean = !date.isBefore(month.atDay(1)) && !date.isAfter(month.atEndOfMonth())
 
         @Volatile
         private var instance: YClientsCalendarSync? = null

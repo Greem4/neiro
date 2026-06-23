@@ -59,7 +59,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.ui.Alignment
@@ -94,6 +93,9 @@ import java.time.format.DateTimeFormatter
 
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
+
+/** Временно отключено добавление ручных интенсивов в диалоге дня. */
+private const val MANUAL_INTENSIVES_ENABLED = false
 
 /** Порог жеста «потянуть вниз» — ниже стандартного, чтобы проще обновить день. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -193,12 +195,14 @@ private fun DayDetailsContent(
     // Режим планирования — добавление интенсивов; статусы учеников — в таймлайне (архив).
     var isPlanningMode by remember { mutableStateOf(false) }
     var showArchiveMismatchDetails by remember { mutableStateOf(false) }
-    var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
+    val hasManualIntensives = remember(currentNames.toList()) {
+        currentNames.any { SessionParser.isIntensive(it) }
+    }
+    val showPlanningMode = allowStatusEdit && (MANUAL_INTENSIVES_ENABLED || hasManualIntensives)
 
-    LaunchedEffect(allowStatusEdit) {
-        if (!allowStatusEdit) isPlanningMode = false
+    LaunchedEffect(allowStatusEdit, showPlanningMode) {
+        if (!allowStatusEdit || !showPlanningMode) isPlanningMode = false
     }
 
     LaunchedEffect(initialNames, isPlanningMode) {
@@ -243,13 +247,6 @@ private fun DayDetailsContent(
         buildIntensiveTimeSlotOptions(lessonTimes)
     }
 
-    LaunchedEffect(focusNewIntensive) {
-        if (!focusNewIntensive) return@LaunchedEffect
-        intensiveFocusRequester.requestFocus()
-        keyboardController?.show()
-        focusNewIntensive = false
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -272,7 +269,7 @@ private fun DayDetailsContent(
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                if (allowStatusEdit) {
+                if (showPlanningMode) {
                     IconButton(
                         onClick = { isPlanningMode = !isPlanningMode },
                         modifier = Modifier.align(Alignment.CenterEnd),
@@ -382,8 +379,7 @@ private fun DayDetailsContent(
                         amountText = amountText,
                         time = normalizeSessionTime(intensive.time),
                         timeSlotOptions = intensiveTimeSlots,
-                        requestFocus = focusNewIntensive &&
-                                listIndex == intensiveIndices.lastIndex,
+                        requestFocus = false,
                         focusRequester = intensiveFocusRequester,
                         onAmountChange = { newPrice ->
                             updateIntensiveAt(currentNames, rawIndex) { session ->
@@ -399,26 +395,27 @@ private fun DayDetailsContent(
                     )
                 }
 
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            currentNames.add(
-                                SessionFormat.serializeIntensive(
-                                    price = "",
-                                    name = "Интенсив",
-                                    status = AttendanceStatus.ARRIVED,
-                                    time = intensiveDefaultTimeSlot(),
-                                ),
-                            )
-                            focusNewIntensive = true
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Icon(Icons.Rounded.Add, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Добавить интенсив")
+                if (MANUAL_INTENSIVES_ENABLED) {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                currentNames.add(
+                                    SessionFormat.serializeIntensive(
+                                        price = "",
+                                        name = "Интенсив",
+                                        status = AttendanceStatus.ARRIVED,
+                                        time = intensiveDefaultTimeSlot(),
+                                    ),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Icon(Icons.Rounded.Add, null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Добавить интенсив")
+                        }
                     }
                 }
             }

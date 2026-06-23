@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
  * - сразу после входа и при возврате в приложение;
  * - на переднем плане: [LiveApiPollSchedule.DAY_INTERVAL_MINUTES] днём,
  *   [LiveApiPollSchedule.NIGHT_INTERVAL_MINUTES] с 22:00 до 08:00;
+ * - между полными подтяжками — только записи с `changed_after` (лёгкий трафик);
  * - в фоне — те же интервалы через цепочку [LiveApiRefreshWorker].
  */
 object LiveApiCoordinator {

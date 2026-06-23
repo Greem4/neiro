@@ -57,6 +57,8 @@ data class RecordData(
     @SerializedName("seance_length") val seanceLength: Int?,
     val length: Int?,
     @SerializedName("visit_attendance") val visitAttendance: Int?,
+    val deleted: Boolean? = null,
+    @SerializedName("last_change_date") val lastChangeDate: String? = null,
     val client: ClientData?,
     val services: List<ServiceData>?,
 )

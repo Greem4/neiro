@@ -26,6 +26,40 @@ class YClientsCalendarSyncTest {
         )
     }
 
+    @Test
+    fun `full live sync due when never synced`() {
+        assertTrue(
+            YClientsCalendarSync.isFullLiveSyncDue(
+                lastFullLiveSyncEpochMillis = 0L,
+                nowMillis = 1_000_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `full live sync not due within interval`() {
+        val now = 10_000_000L
+        val last = now - YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS + 1_000L
+        assertFalse(
+            YClientsCalendarSync.isFullLiveSyncDue(
+                lastFullLiveSyncEpochMillis = last,
+                nowMillis = now,
+            ),
+        )
+    }
+
+    @Test
+    fun `full live sync due after interval`() {
+        val now = 10_000_000L
+        val last = now - YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS
+        assertTrue(
+            YClientsCalendarSync.isFullLiveSyncDue(
+                lastFullLiveSyncEpochMillis = last,
+                nowMillis = now,
+            ),
+        )
+    }
+
     private val start = LocalDate.of(2025, 5, 1)
     private val end = LocalDate.of(2025, 5, 31)
 
@@ -104,6 +138,35 @@ class YClientsCalendarSyncTest {
             LocalDate.of(2025, 5, 11) to listOf(intensive),
         )
         assertEquals(1, YClientsCalendarSync.countYClientsManagedLocalEntries(dayData, start, end))
+    }
+
+    @Test
+    fun `isInCurrentMonth matches calendar month boundaries`() {
+        val month = YearMonth.of(2025, 6)
+        assertTrue(
+            YClientsCalendarSync.isInCurrentMonth(
+                LocalDate.of(2025, 6, 1),
+                month = month,
+            ),
+        )
+        assertTrue(
+            YClientsCalendarSync.isInCurrentMonth(
+                LocalDate.of(2025, 6, 30),
+                month = month,
+            ),
+        )
+        assertFalse(
+            YClientsCalendarSync.isInCurrentMonth(
+                LocalDate.of(2025, 5, 31),
+                month = month,
+            ),
+        )
+        assertFalse(
+            YClientsCalendarSync.isInCurrentMonth(
+                LocalDate.of(2025, 7, 1),
+                month = month,
+            ),
+        )
     }
 
     private fun fakeRecord() = ru.greemlab.neiro.data.network.RecordData(

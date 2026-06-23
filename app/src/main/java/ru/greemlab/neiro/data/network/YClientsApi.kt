@@ -45,6 +45,9 @@ interface YClientsApi {
         @Query("staff_id") staffId: Int? = null,
         @Query("page") page: Int = 1,
         @Query("count") count: Int = 100,
+        @Query("changed_after") changedAfter: String? = null,
+        /** 1 — включить удалённые записи (нужно для live-опроса с [changedAfter]). */
+        @Query("with_deleted") withDeleted: Int? = null,
     ): Response<RecordsResponse>
 
     /**

@@ -4,8 +4,10 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import ru.greemlab.neiro.sync.YClientsLiveSyncFormat
 
 /**
  * Результат операции с API.
@@ -100,13 +102,37 @@ class YClientsRepository(context: Context) {
         startDate: LocalDate,
         endDate: LocalDate,
     ): ApiResult<List<RecordData>> = withContext(Dispatchers.IO) {
+        fetchRecords(startDate, endDate, changedAfter = null)
+    }
+
+    /**
+     * Записи, созданные или изменённые после [changedAfter] (live-опрос).
+     * Включает удалённые ([with_deleted]=1), чтобы пушить отмены.
+     */
+    suspend fun getRecordsChangedSince(
+        changedAfter: Instant,
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): ApiResult<List<RecordData>> = withContext(Dispatchers.IO) {
+        fetchRecords(
+            startDate = startDate,
+            endDate = endDate,
+            changedAfter = YClientsLiveSyncFormat.formatChangedAfter(changedAfter),
+        )
+    }
+
+    private suspend fun fetchRecords(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        changedAfter: String?,
+    ): ApiResult<List<RecordData>> {
         try {
             val effectiveStaffId = tokenStorage.staffId ?: detectAndSaveStaffId()
             if (effectiveStaffId == null) {
-                return@withContext ApiResult.Error(
+                return ApiResult.Error(
                     "Не удалось определить сотрудника YClients. " +
-                            "Проверьте, что имя в вашем профиле YClients совпадает с " +
-                            "карточкой сотрудника в филиале.",
+                        "Проверьте, что имя в вашем профиле YClients совпадает с " +
+                        "карточкой сотрудника в филиале.",
                 )
             }
 
@@ -125,10 +151,12 @@ class YClientsRepository(context: Context) {
                     staffId = effectiveStaffId,
                     page = page,
                     count = PAGE_SIZE,
+                    changedAfter = changedAfter,
+                    withDeleted = if (changedAfter != null) 1 else null,
                 )
 
                 if (!response.isSuccessful) {
-                    return@withContext ApiResult.Error(
+                    return ApiResult.Error(
                         message = "Ошибка загрузки записей",
                         code = response.code(),
                     )
@@ -136,7 +164,7 @@ class YClientsRepository(context: Context) {
 
                 val body = response.body()
                 if (body?.success != true) {
-                    return@withContext ApiResult.Error("Не удалось получить записи")
+                    return ApiResult.Error("Не удалось получить записи")
                 }
 
                 val pageData = body.data.orEmpty()
@@ -147,14 +175,14 @@ class YClientsRepository(context: Context) {
             }
 
             if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
-                return@withContext ApiResult.Error(
+                return ApiResult.Error(
                     "Слишком много записей за период — загрузка обрезана, календарь не изменён",
                 )
             }
 
-            ApiResult.Success(all)
+            return ApiResult.Success(all)
         } catch (e: Exception) {
-            ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+            return ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
     }
 

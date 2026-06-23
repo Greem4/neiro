@@ -45,6 +45,29 @@ class SyncPreferences(context: Context) {
         prefs.edit()
             .remove(KEY_LAST_SYNC_EPOCH)
             .remove(KEY_INITIAL_FULL_SYNC_DONE)
+            .remove(KEY_LAST_LIVE_POLL_EPOCH)
+            .remove(KEY_LAST_FULL_LIVE_SYNC_EPOCH)
+            .apply()
+    }
+
+    /** Метка последнего live-опроса (инкремент или полный). */
+    fun lastLivePollEpochMillis(): Long = prefs.getLong(KEY_LAST_LIVE_POLL_EPOCH, 0L)
+
+    fun recordLivePoll(atMillis: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(KEY_LAST_LIVE_POLL_EPOCH, atMillis).apply()
+    }
+
+    /** Метка последней полной подтяжки диапазона live-опроса (страховка от «призраков»). */
+    fun lastFullLiveSyncEpochMillis(): Long = prefs.getLong(KEY_LAST_FULL_LIVE_SYNC_EPOCH, 0L)
+
+    fun recordFullLiveSync(atMillis: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(KEY_LAST_FULL_LIVE_SYNC_EPOCH, atMillis).apply()
+    }
+
+    fun clearLivePollState() {
+        prefs.edit()
+            .remove(KEY_LAST_LIVE_POLL_EPOCH)
+            .remove(KEY_LAST_FULL_LIVE_SYNC_EPOCH)
             .apply()
     }
 
@@ -53,6 +76,8 @@ class SyncPreferences(context: Context) {
         private const val KEY_AUTO_SYNC = "auto_sync_enabled"
         private const val KEY_LAST_SYNC_EPOCH = "last_sync_epoch"
         private const val KEY_INITIAL_FULL_SYNC_DONE = "initial_full_sync_done"
+        private const val KEY_LAST_LIVE_POLL_EPOCH = "last_live_poll_epoch"
+        private const val KEY_LAST_FULL_LIVE_SYNC_EPOCH = "last_full_live_sync_epoch"
 
         @Volatile
         private var instance: SyncPreferences? = null
