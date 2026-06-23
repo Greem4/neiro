@@ -70,7 +70,10 @@ import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.calendar.displayStatus
+import ru.greemlab.neiro.ui.calendar.buildIntensiveChildrenByTime
 import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
+import ru.greemlab.neiro.ui.calendar.isStudentCoveredByIntensive
+import ru.greemlab.neiro.ui.calendar.visibleChildren
 import ru.greemlab.neiro.ui.calendar.totalAmount
 import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
 import ru.greemlab.neiro.ui.components.daydetails.EditIntensiveItem
@@ -662,6 +665,10 @@ private data class DayStats(
 )
 
 private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List<ScheduleEntry> {
+    val intensiveChildrenByTime = buildIntensiveChildrenByTime(
+        rawNames.map(SessionParser::parse),
+    )
+
     return rawNames.mapIndexedNotNull { index, raw ->
         if (raw.isBlank()) return@mapIndexedNotNull null
 
@@ -669,16 +676,22 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
         val isDeleted = session.isEffectivelyDeleted()
 
         when (session) {
-            is Session.Student -> ScheduleEntry(
-                name = session.name,
-                time = normalizeSessionTime(session.time),
-                comment = session.comment,
-                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                sourceIndex = index,
-            )
+            is Session.Student -> {
+                if (isStudentCoveredByIntensive(session, intensiveChildrenByTime)) {
+                    return@mapIndexedNotNull null
+                }
+                ScheduleEntry(
+                    name = session.name,
+                    time = normalizeSessionTime(session.time),
+                    comment = session.comment,
+                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                    sourceIndex = index,
+                )
+            }
 
             is Session.Intensive -> {
-                val childCount = session.children.size
+                val visibleChildren = session.children.visibleChildren()
+                val childCount = visibleChildren.size
                 val title = if (childCount > 0) {
                     "Интенсив · ${intensiveChildrenLabel(childCount)}"
                 } else {
@@ -695,7 +708,7 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
                         userProfile.pricePerIntensiveChild,
                         onlyArrived = false,
                     ),
-                    intensiveChildren = session.children,
+                    intensiveChildren = visibleChildren,
                     sourceIndex = index,
                 )
             }

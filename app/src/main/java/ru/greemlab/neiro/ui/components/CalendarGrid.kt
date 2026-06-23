@@ -68,7 +68,7 @@ fun CalendarGrid(
                         )
                     } else {
                         val sessions = dayData[date]
-                        val studentsCount = sessions?.count(SessionParser::countsAsCalendarLesson) ?: 0
+                        val studentsCount = sessions?.let(SessionParser::countCalendarLessons) ?: 0
                         val hasIntensive = sessions?.any(SessionParser::isVisibleIntensive) ?: false
 
                         DayCard(

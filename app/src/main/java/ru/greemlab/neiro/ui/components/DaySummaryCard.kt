@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Card
@@ -34,6 +35,7 @@ import ru.greemlab.neiro.R
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
+import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
@@ -86,6 +88,10 @@ private fun DaySummaryCard(
     }
     val earnedText = remember(stats.earned) { formatRubles(stats.earned) }
     val expectedText = remember(stats.expected) { formatRubles(stats.expected) }
+    val intensiveConductedText = remember(stats.attendedIntensiveChildren, stats.totalIntensiveChildren) {
+        formatIntensiveConductedLabel(stats.attendedIntensiveChildren, stats.totalIntensiveChildren)
+    }
+    val showIntensiveMetric = stats.totalIntensiveChildren > 0
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -146,6 +152,15 @@ private fun DaySummaryCard(
                     label = "проведено",
                     modifier = Modifier.weight(1f),
                 )
+                if (showIntensiveMetric) {
+                    DaySummaryMetric(
+                        icon = Icons.Rounded.Groups,
+                        tint = Color(0xFFE53935),
+                        value = intensiveConductedText,
+                        label = "интенсив",
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             Row(

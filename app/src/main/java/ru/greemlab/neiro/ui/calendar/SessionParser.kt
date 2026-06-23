@@ -220,6 +220,21 @@ object SessionParser {
         return session is Session.Student || session is Session.Diagnostics
     }
 
+    /** Число занятий на день с учётом детей интенсива (без дублей в слоте интенсива). */
+    fun countCalendarLessons(sessions: List<String>): Int {
+        val parsed = sessions.map(::parse)
+        val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
+        return parsed.count { session ->
+            when (session) {
+                is Session.Student ->
+                    !session.isEffectivelyDeleted() &&
+                        !isStudentCoveredByIntensive(session, intensiveChildrenByTime)
+                is Session.Diagnostics -> !session.isEffectivelyDeleted()
+                else -> false
+            }
+        }
+    }
+
     fun isVisibleIntensive(raw: String): Boolean =
         isIntensive(raw) && !isEffectivelyDeleted(raw)
 

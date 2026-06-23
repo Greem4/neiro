@@ -325,6 +325,7 @@ fun CalendarScreen(
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
+                pricePerIntensiveChild = profile.pricePerIntensiveChild,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -585,6 +586,7 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
+    pricePerIntensiveChild: Double = 0.0,
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -601,12 +603,19 @@ fun CalendarScreenContent(
     unreadNotificationCount: Int = 0,
 ) {
     val selectedDaySessions = selectedDate?.let { dayData[it] }
-    val daySummaryStats = remember(selectedDate, selectedDaySessions, pricePerSession, pricePerDiagnostics) {
+    val daySummaryStats = remember(
+        selectedDate,
+        selectedDaySessions,
+        pricePerSession,
+        pricePerDiagnostics,
+        pricePerIntensiveChild,
+    ) {
         if (selectedDate == null) return@remember null
         computeDayStats(
             selectedDaySessions.orEmpty(),
             pricePerSession,
             pricePerDiagnostics,
+            pricePerIntensiveChild,
         )
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }

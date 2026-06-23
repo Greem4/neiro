@@ -27,8 +27,57 @@ class DaySummaryStatsTest {
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)
+        assertEquals(1, stats.totalIntensiveChildren)
+        assertEquals(1, stats.attendedIntensiveChildren)
         assertEquals(1000.0 + 1500.0, stats.earned, 0.0)
         assertEquals(0.0, stats.expected, 0.0)
+    }
+
+    @Test
+    fun `intensive children show conducted ratio`() {
+        val intensive = SessionFormat.serializeIntensive(
+            price = "",
+            name = "Интенсив",
+            status = AttendanceStatus.EXPECTED,
+            time = "18:00-18:50",
+            children = listOf(
+                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Маша", AttendanceStatus.EXPECTED),
+            ),
+        )
+        val stats = computeDayStats(
+            listOf(intensive),
+            pricePerSession = 0.0,
+            pricePerDiagnostics = 0.0,
+            pricePerIntensiveChild = 1000.0,
+        )
+        assertEquals(2, stats.totalIntensiveChildren)
+        assertEquals(1, stats.attendedIntensiveChildren)
+        assertEquals(1000.0, stats.earned, 0.0)
+        assertEquals(1000.0, stats.expected, 0.0)
+    }
+
+    @Test
+    fun `student on intensive slot is not counted twice`() {
+        val intensive = SessionFormat.serializeIntensive(
+            price = "",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "18:00-18:50",
+            children = listOf(
+                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+            ),
+        )
+        val stats = computeDayStats(
+            listOf(intensive, "Дима|3|18:00-18:50"),
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+            pricePerIntensiveChild = 800.0,
+        )
+        assertEquals(0, stats.totalLessons)
+        assertEquals(1, stats.totalIntensiveChildren)
+        assertEquals(1, stats.attendedIntensiveChildren)
+        assertEquals(800.0, stats.earned, 0.0)
     }
 
     @Test

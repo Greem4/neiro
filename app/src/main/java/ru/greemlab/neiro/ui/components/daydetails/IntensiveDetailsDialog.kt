@@ -27,6 +27,7 @@ import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
+import ru.greemlab.neiro.ui.calendar.visibleChildren
 import ru.greemlab.neiro.ui.util.formatRubles
 
 @Composable
@@ -57,7 +58,8 @@ private fun IntensiveDetailsCard(
     onDismiss: () -> Unit,
 ) {
     val timeLabel = formatIntensiveTimeLabel(time)
-    val arrivedCount = children.count { it.status == AttendanceStatus.ARRIVED }
+    val visibleChildren = children.visibleChildren()
+    val arrivedCount = visibleChildren.count { it.status == AttendanceStatus.ARRIVED }
     val amountLabel = if (amount > 0.0) formatRubles(amount) else null
 
     Card(
@@ -84,7 +86,7 @@ private fun IntensiveDetailsCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Интенсив · ${intensiveChildrenLabel(children.size)}",
+                text = "Интенсив · ${intensiveChildrenLabel(visibleChildren.size)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -93,7 +95,7 @@ private fun IntensiveDetailsCard(
 
             Text(
                 text = buildString {
-                    append("Пришли: $arrivedCount из ${children.size}")
+                    append("Пришли: $arrivedCount из ${visibleChildren.size}")
                     amountLabel?.let { append(" · $it") }
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -109,7 +111,7 @@ private fun IntensiveDetailsCard(
                     .heightIn(max = 320.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(children, key = { it.name }) { child ->
+                items(visibleChildren, key = { it.name }) { child ->
                     ScheduleSlotItem(
                         time = "",
                         name = child.name,
