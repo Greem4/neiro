@@ -10,6 +10,7 @@ import java.time.DayOfWeek
  * @param workingDays Набор рабочих дней недели.
  * @param pricePerSession Ставка сотрудника за одно занятие.
  * @param pricePerDiagnostics Цена за диагностику.
+ * @param pricePerIntensiveChild Ставка за одного ребёнка в интенсиве.
  * @param monthlyTaxAmount Налог в рублях за месяц.
  * @param salaryOnCard Устаревшее поле: сумма на карту, если не заданы части ниже.
  * @param salaryAdvanceOnCard Аванс на карту (примерная сумма, каждый месяц).
@@ -24,6 +25,7 @@ data class UserProfile(
     val workingDays: Set<DayOfWeek> = emptySet(),
     val pricePerSession: Double = 0.0,
     val pricePerDiagnostics: Double = 0.0,
+    val pricePerIntensiveChild: Double = 0.0,
     val monthlyTaxAmount: Double = 0.0,
     val salaryOnCard: Double = 33_000.0,
     val salaryAdvanceOnCard: Double = 11_206.0,

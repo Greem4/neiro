@@ -11,13 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
+import ru.greemlab.neiro.ui.calendar.Session
 
 private val CancelledIndicatorRed = Color(0xFFF44336)
 
@@ -164,6 +165,47 @@ private fun SlotIndicatorBars(
             )
         }
     }
+}
+
+/**
+ * Свернутая плашка интенсива в таймлайне (фиксированная высота слота).
+ */
+@Composable
+fun IntensiveTimelineChip(
+    title: String,
+    amount: Double,
+    status: AttendanceStatus,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compactForTimeline: Boolean = false,
+    highlighted: Boolean = false,
+) {
+    val amountLabel = if (amount > 0.0) {
+        ru.greemlab.neiro.ui.util.formatRubles(amount)
+    } else {
+        ""
+    }
+    val collapsedName = buildString {
+        append(title)
+        if (amountLabel.isNotEmpty()) append(" · $amountLabel")
+    }
+
+    ScheduleSlotItem(
+        time = "",
+        name = collapsedName,
+        comment = "Нажмите, чтобы открыть",
+        status = status,
+        showTime = false,
+        compactForTimeline = compactForTimeline,
+        highlighted = highlighted,
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+    )
 }
 
 /** Красная и зелёная полоски слева — маркер слота с заменой (сняли → встал). */

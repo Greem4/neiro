@@ -14,6 +14,7 @@ import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.ui.calendar.SessionParser
+import ru.greemlab.neiro.ui.calendar.totalAmount
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -149,6 +150,18 @@ class YClientsCalendarSync(
                         changed = true
                     }
                 }
+
+                if (updated.pricePerIntensiveChild == 0.0) {
+                    val intensiveServices = allServices.filter { service ->
+                        service.title?.contains("интенсив", ignoreCase = true) == true
+                    }
+                    val commonIntensivePrice = intensiveServices.mapNotNull { it.cost }
+                        .groupBy { it }.maxByOrNull { it.value.size }?.key
+                    if (commonIntensivePrice != null) {
+                        updated = updated.copy(pricePerIntensiveChild = commonIntensivePrice)
+                        changed = true
+                    }
+                }
             }
 
             if (updated.name.isNotBlank() && !updated.isRegistered) {
@@ -202,7 +215,9 @@ class YClientsCalendarSync(
         for ((date, dayRecords) in recordsByDate) {
             val existingRaw = currentDayData[date].orEmpty()
             val pool = existingRaw.map { it to SessionParser.parse(it) }.toMutableList()
-            val collapsedRecords = collapseDuplicateRecords(dayRecords)
+            val (intensiveDayRecords, regularDayRecords) = dayRecords.partition { isIntensiveRecord(it) }
+            purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
+            val collapsedRecords = collapseDuplicateRecords(regularDayRecords)
             val syncedEntries = mutableListOf<String>()
 
             for ((_, record) in collapsedRecords) {
@@ -236,6 +251,8 @@ class YClientsCalendarSync(
                     newlyAdded++
                 }
             }
+
+            newlyAdded += mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
 
             val merged = syncedEntries + retainManualLocalEntries(pool)
             if (merged != existingRaw) {
@@ -283,6 +300,78 @@ class YClientsCalendarSync(
      */
     private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
         pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
+
+    private fun isIntensiveRecord(record: RecordData): Boolean =
+        record.services?.any { it.title?.contains("интенсив", ignoreCase = true) == true } == true
+
+    private fun purgeIntensiveStudentsFromPool(
+        pool: MutableList<Pair<String, Session>>,
+        intensiveRecords: List<RecordData>,
+    ) {
+        if (intensiveRecords.isEmpty()) return
+        val byTime = intensiveRecords.groupBy { formatRecordTime(it, intensive = true) }
+        for ((time, records) in byTime) {
+            val names = records.map { extractClientName(it).normalizeForDedup() }.toSet()
+            pool.removeAll { (_, session) ->
+                session is Session.Student &&
+                    extractSessionTime(session) == time &&
+                    session.name.normalizeForDedup() in names
+            }
+        }
+    }
+
+    private fun mergeIntensivesFromApi(
+        records: List<RecordData>,
+        userProfile: UserProfile,
+        pool: MutableList<Pair<String, Session>>,
+        syncedEntries: MutableList<String>,
+    ): Int {
+        if (records.isEmpty()) return 0
+        var added = 0
+        val groups = records.groupBy { recordStartTimeKey(it) }
+        for ((_, group) in groups) {
+            if (group.isEmpty()) continue
+            val time = formatRecordTime(group.first(), intensive = true)
+            val children = group.map { record ->
+                Session.IntensiveChild(
+                    name = extractClientName(record),
+                    status = mapAttendanceStatus(record),
+                    phone = record.client?.phone.orEmpty(),
+                    comment = record.comment.orEmpty(),
+                )
+            }
+            val status = children.maxByOrNull { it.status.mergePriority }?.status
+                ?: AttendanceStatus.EXPECTED
+            val unitPrice = userProfile.pricePerIntensiveChild
+            val amount = if (unitPrice > 0.0) {
+                unitPrice * children.count { it.status != AttendanceStatus.CANCELLED }
+            } else {
+                0.0
+            }
+            val entry = SessionFormat.serializeIntensive(
+                price = if (amount > 0.0) amount.toLong().toString() else "",
+                name = "Интенсив",
+                status = status,
+                time = time,
+                children = children,
+            )
+            pool.removeAll { (_, session) ->
+                session is Session.Intensive && extractSessionTime(session) == time
+            }
+            syncedEntries += entry
+            added++
+        }
+        return added
+    }
+
+    private fun recordStartTimeKey(record: RecordData): String {
+        val datetime = record.datetime ?: return ""
+        return if (datetime.contains("T")) {
+            datetime.substringAfter("T").take(5)
+        } else {
+            datetime.substringAfter(" ").take(5)
+        }
+    }
 
     private fun collapseDuplicateRecords(
         dayRecords: List<RecordData>,
@@ -443,7 +532,7 @@ class YClientsCalendarSync(
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
         AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance)
 
-    private fun formatRecordTime(record: RecordData): String {
+    private fun formatRecordTime(record: RecordData, intensive: Boolean = false): String {
         val datetime = record.datetime ?: return ""
 
         return try {
@@ -454,7 +543,14 @@ class YClientsCalendarSync(
                 LocalTime.parse(timePart)
             }
 
-            val durationMinutes = 50
+            val durationMinutes = if (intensive) {
+                (record.seanceLength ?: record.length)
+                    ?.let { it / 60 }
+                    ?.takeIf { mins -> mins in 1..180 }
+                    ?: 90
+            } else {
+                50
+            }
             val endTime = startTime.plusMinutes(durationMinutes.toLong())
 
             "${startTime.format(TIME_FORMAT)}-${endTime.format(TIME_FORMAT)}"
