@@ -35,4 +35,38 @@ class ArchiveSyncCompareTest {
         )
         assertEquals(setOf(date), ArchiveSyncCompare.mismatchDates(synced, archived))
     }
+
+    @Test
+    fun `describeDiff reports status change`() {
+        val synced = listOf(
+            SessionFormat.serializeStudentExtended("Иванов", AttendanceStatus.ARRIVED, "10:00"),
+        )
+        val archived = listOf(
+            SessionFormat.serializeStudentExtended("Иванов", AttendanceStatus.EXPECTED, "10:00"),
+        )
+        val diff = ArchiveSyncCompare.describeDiff(synced, archived)
+        assertEquals(1, diff.size)
+        assertTrue(diff[0].contains("Иванов"))
+        assertTrue(diff[0].contains("статус"))
+        assertTrue(diff[0].contains("Пришёл"))
+        assertTrue(diff[0].contains("Ожидает"))
+    }
+
+    @Test
+    fun `describeDiff reports session only in archive`() {
+        val synced = emptyList<String>()
+        val archived = listOf(
+            SessionFormat.serializeStudentExtended("Петров", AttendanceStatus.ARRIVED, "11:00"),
+        )
+        val diff = ArchiveSyncCompare.describeDiff(synced, archived)
+        assertEquals(1, diff.size)
+        assertTrue(diff[0].contains("Только в архиве"))
+        assertTrue(diff[0].contains("Петров"))
+    }
+
+    @Test
+    fun `describeDiff is empty when days match`() {
+        val sessions = listOf(SessionFormat.serializeStudentExtended("А", AttendanceStatus.ARRIVED))
+        assertTrue(ArchiveSyncCompare.describeDiff(sessions, sessions).isEmpty())
+    }
 }

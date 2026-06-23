@@ -8,9 +8,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import android.graphics.Color
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,6 +25,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -27,6 +34,7 @@ import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.THEME_DARK
 import ru.greemlab.neiro.data.THEME_LIGHT
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
+import ru.greemlab.neiro.theme.ApplySystemBars
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.screens.CalendarScreen
@@ -45,7 +53,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
 
         applyNotificationExtras(intent)
@@ -135,11 +146,18 @@ private fun NeiroApp(
     }
 
     NeiroTheme(darkTheme = isDarkTheme) {
-        CalendarScreen(
-            profileViewModel = profileViewModel,
-            openDateFromNotification = openDateFromNotification,
-            highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
-            notificationDeepLinkVersion = notificationDeepLinkVersion,
-        )
+        ApplySystemBars(darkTheme = isDarkTheme)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            CalendarScreen(
+                profileViewModel = profileViewModel,
+                openDateFromNotification = openDateFromNotification,
+                highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
+                notificationDeepLinkVersion = notificationDeepLinkVersion,
+            )
+        }
     }
 }

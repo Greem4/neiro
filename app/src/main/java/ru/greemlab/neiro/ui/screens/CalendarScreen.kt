@@ -260,6 +260,8 @@ fun CalendarScreen(
         }
     }
 
+    var showArchiveOverwriteConfirm by rememberSaveable { mutableStateOf(false) }
+
     val isAnyOverlayOpen = drawerState.isOpen || overlay !is CalendarOverlay.None
     BackHandler(enabled = isAnyOverlayOpen) {
         when {
@@ -399,6 +401,56 @@ fun CalendarScreen(
                 },
             )
         }
+
+        if (overlay is CalendarOverlay.DayDetails) {
+            val date = selectedDate
+            if (date == null) {
+                LaunchedEffect(Unit) { overlay = CalendarOverlay.None }
+            } else {
+                val isArchived = savedDayData.containsKey(date)
+                val syncedSessions = syncedDayData[date].orEmpty()
+                val archiveMismatch = isArchived &&
+                    ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
+                val archiveMismatchDetails = remember(syncedSessions, savedDayData, date, archiveMismatch) {
+                    if (archiveMismatch) {
+                        ArchiveSyncCompare.describeDiff(
+                            syncedSessions,
+                            savedDayData[date].orEmpty(),
+                        )
+                    } else {
+                        emptyList()
+                    }
+                }
+                DayDetailsDialog(
+                    date = date,
+                    initialNames = dayData[date].orEmpty(),
+                    userProfile = profile,
+                    isArchived = isArchived,
+                    archiveMismatch = archiveMismatch,
+                    archiveMismatchDetails = archiveMismatchDetails,
+                    allowStatusEdit = true,
+                    highlightSlotKey = highlightSlotKey,
+                    onDismiss = {
+                        highlightSlotKey = null
+                        overlay = CalendarOverlay.None
+                    },
+                    onSave = { updatedNames ->
+                        viewModel.saveNamesForDate(date, updatedNames)
+                        overlay = CalendarOverlay.None
+                    },
+                    onMoveToArchive = {
+                        viewModel.archiveDay(date, syncedSessions)
+                    },
+                    onUnarchive = { viewModel.unarchiveDay(date) },
+                    onRequestOverwriteArchive = { showArchiveOverwriteConfirm = true },
+                    onStudentStatusChange = if (isArchiveCalendarMode) {
+                        { index, status -> viewModel.updateSessionStatus(date, index, status) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
     }
 
     when (overlay) {
@@ -462,8 +514,6 @@ fun CalendarScreen(
 
         is CalendarOverlay.DayDetails -> {
             val date = selectedDate
-            var showArchiveOverwriteConfirm by remember(date) { mutableStateOf(false) }
-
             if (showArchiveOverwriteConfirm && date != null) {
                 AlertDialog(
                     onDismissRequest = { showArchiveOverwriteConfirm = false },
@@ -485,42 +535,6 @@ fun CalendarScreen(
                         }
                     },
                 )
-            }
-
-            if (date != null) {
-                val isArchived = savedDayData.containsKey(date)
-                val syncedSessions = syncedDayData[date].orEmpty()
-                val archiveMismatch = isArchived &&
-                    ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
-                DayDetailsDialog(
-                    date = date,
-                    initialNames = dayData[date].orEmpty(),
-                    userProfile = profile,
-                    isArchived = isArchived,
-                    archiveMismatch = archiveMismatch,
-                    allowStatusEdit = true,
-                    highlightSlotKey = highlightSlotKey,
-                    onDismiss = {
-                        highlightSlotKey = null
-                        overlay = CalendarOverlay.None
-                    },
-                    onSave = { updatedNames ->
-                        viewModel.saveNamesForDate(date, updatedNames)
-                        overlay = CalendarOverlay.None
-                    },
-                    onMoveToArchive = {
-                        viewModel.archiveDay(date, syncedSessions)
-                    },
-                    onUnarchive = { viewModel.unarchiveDay(date) },
-                    onRequestOverwriteArchive = { showArchiveOverwriteConfirm = true },
-                    onStudentStatusChange = if (isArchiveCalendarMode) {
-                        { index, status -> viewModel.updateSessionStatus(date, index, status) }
-                    } else {
-                        null
-                    },
-                )
-            } else {
-                overlay = CalendarOverlay.None
             }
         }
 

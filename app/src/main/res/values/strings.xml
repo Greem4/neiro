@@ -109,6 +109,9 @@
     <string name="attendance_status_arrived">Пришёл</string>
 
     <string name="archive_sync_mismatch_banner">Архив не совпадает с данными YClients. Ручные правки в архиве могут отличаться.</string>
+    <string name="archive_sync_mismatch_banner_cd">Показать отличия архива от YClients</string>
+    <string name="archive_sync_mismatch_details_title">Отличия архива от YClients</string>
+    <string name="archive_sync_mismatch_details_ok">Понятно</string>
     <string name="archive_sync_mismatch_calendar_cd">Архив отличается от синхронизации</string>
     <string name="archive_sync_overwrite_title">Обновить архив?</string>
     <string name="archive_sync_overwrite_message">Записи в архиве будут заменены текущими данными из YClients. Ручные изменения в архиве пропадут.</string>
