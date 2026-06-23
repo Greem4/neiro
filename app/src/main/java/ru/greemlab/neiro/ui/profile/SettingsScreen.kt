@@ -53,6 +53,7 @@ fun SettingsScreen(
         onActivityChange = viewModel::updateActivityType,
         onPriceChange = viewModel::updatePrice,
         onDiagnosticsPriceChange = viewModel::updateDiagnosticsPrice,
+        onIntensiveChildPriceChange = viewModel::updateIntensiveChildPrice,
         onTaxChange = viewModel::updateTaxAmount,
         onSalaryAdvanceChange = viewModel::updateSalaryAdvanceOnCard,
         onSalaryMainChange = viewModel::updateSalaryMainOnCard,
@@ -79,6 +80,7 @@ private fun SettingsScreenImpl(
     onActivityChange: (String) -> Unit,
     onPriceChange: (Double) -> Unit,
     onDiagnosticsPriceChange: (Double) -> Unit,
+    onIntensiveChildPriceChange: (Double) -> Unit,
     onTaxChange: (Double) -> Unit,
     onSalaryAdvanceChange: (Double) -> Unit,
     onSalaryMainChange: (Double) -> Unit,
@@ -100,6 +102,9 @@ private fun SettingsScreenImpl(
     }
     var diagnosticsPriceText by remember(profile.pricePerDiagnostics) {
         mutableStateOf(formatMoneyForInput(profile.pricePerDiagnostics))
+    }
+    var intensiveChildPriceText by remember(profile.pricePerIntensiveChild) {
+        mutableStateOf(formatMoneyForInput(profile.pricePerIntensiveChild))
     }
     var taxText by remember(profile.monthlyTaxAmount) {
         mutableStateOf(formatMoneyForInput(profile.monthlyTaxAmount))
@@ -188,6 +193,23 @@ private fun SettingsScreenImpl(
                     onDiagnosticsPriceChange(sanitized.toDoubleOrNull() ?: 0.0)
                 },
                 label = { Text("Цена за диагностику (₽)") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = intensiveChildPriceText,
+                onValueChange = { value ->
+                    val sanitized = sanitizeMoneyInput(value)
+                    intensiveChildPriceText = sanitized
+                    onIntensiveChildPriceChange(sanitized.toDoubleOrNull() ?: 0.0)
+                },
+                label = { Text("Ставка за ребёнка в интенсиве (₽)") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -464,6 +486,7 @@ private fun SettingsScreenLightPreview() {
             onActivityChange = {},
             onPriceChange = {},
             onDiagnosticsPriceChange = {},
+            onIntensiveChildPriceChange = {},
             onTaxChange = {},
             onSalaryAdvanceChange = {},
             onSalaryMainChange = {},

@@ -7,9 +7,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
-import ru.greemlab.neiro.ui.util.formatPhoneForUi
+
+private fun defaultCompanyId(): String {
+    val fromBuildConfig = BuildConfig.YCLIENTS_COMPANY_ID
+    return if (fromBuildConfig > 0) fromBuildConfig.toString() else ""
+}
 
 /**
  * Состояние экрана авторизации.
@@ -18,7 +23,7 @@ data class AuthUiState(
     val login: String = "",
     val password: String = "",
     val partnerToken: String = "",
-    val companyId: String = "520135",
+    val companyId: String = defaultCompanyId(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
@@ -157,15 +162,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
-    }
-
-    private fun formatLoginInput(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return ""
-        if (isLikelyEmail(trimmed) || !looksLikePhoneInput(trimmed)) return trimmed
-
-        val normalizedDigits = normalizePhoneDigits(trimmed)
-        return formatPhoneForUi(normalizedDigits)
     }
 
     private fun normalizeLoginForRequest(raw: String): String {

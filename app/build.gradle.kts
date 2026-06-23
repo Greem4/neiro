@@ -39,7 +39,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.5.10"
+        versionName = "0.6.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -49,8 +49,6 @@ android {
         // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
         buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
         buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
-        buildConfigField("String", "DEV_LOGIN", "\"$devLogin\"")
-        buildConfigField("String", "DEV_PASSWORD", "\"$devPassword\"")
     }
 
     // Уменьшаем APK: только нужные локали (актуальный API в AGP 9.x).
@@ -77,6 +75,8 @@ android {
             isShrinkResources = false
             // Отключаем регистрацию профилировщика в debug — быстрее холодный старт при разработке.
             isDebuggable = true
+            buildConfigField("String", "DEV_LOGIN", "\"$devLogin\"")
+            buildConfigField("String", "DEV_PASSWORD", "\"$devPassword\"")
         }
         create("prerelease") {
             initWith(getByName("release"))
@@ -86,8 +86,12 @@ android {
             isDebuggable = false
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
+            buildConfigField("String", "DEV_LOGIN", "\"\"")
+            buildConfigField("String", "DEV_PASSWORD", "\"\"")
         }
         release {
+            buildConfigField("String", "DEV_LOGIN", "\"\"")
+            buildConfigField("String", "DEV_PASSWORD", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = true

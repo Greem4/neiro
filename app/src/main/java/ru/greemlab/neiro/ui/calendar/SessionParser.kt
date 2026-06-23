@@ -68,7 +68,8 @@ enum class AttendanceStatus(val code: Int) {
  *
  * Сериализованный формат (обратно-совместимый со старыми данными):
  *  - Обычное занятие: `name|attended` или расширенный `name|status|time|phone|comment`
- *  - Интенсив:        `__INTENSIVE__:amount|name|attended`
+ *  - Интенсив:        `__INTENSIVE__:amount|name|status|time|children`
+ *                       children: `имя|код;;имя2|код` (опционально)
  *  - Диагностика:     `__DIAGNOSTICS__:amount|name|attended`
  */
 @Immutable
@@ -112,13 +113,42 @@ sealed interface Session {
     }
 
     @Immutable
+    data class IntensiveChild(
+        val name: String,
+        val status: AttendanceStatus = AttendanceStatus.EXPECTED,
+        val phone: String = "",
+        val comment: String = "",
+    )
+
+    @Immutable
     data class Intensive(
         override val amount: Double,
         override val name: String,
         override val attended: Boolean,
         val time: String = "",
+        val children: List<IntensiveChild> = emptyList(),
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
-    ) : Extra
+    ) : Extra {
+        override fun isEffectivelyDeleted(): Boolean {
+            if (children.isNotEmpty()) {
+                return children.all { child ->
+                    child.status == AttendanceStatus.CANCELLED ||
+                        child.name.startsWith("-") || child.name.startsWith("—") ||
+                        child.name.startsWith("–") || child.name.startsWith("−")
+                }
+            }
+            return status == AttendanceStatus.CANCELLED ||
+                name.startsWith("-") || name.startsWith("—") ||
+                name.startsWith("–") || name.startsWith("−")
+        }
+
+        override fun countsTowardEarnings(): Boolean {
+            if (children.isNotEmpty()) {
+                return children.any { it.status.countsTowardEarnings }
+            }
+            return !isEffectivelyDeleted() && status.countsTowardEarnings
+        }
+    }
 
     @Immutable
     data class Diagnostics(
@@ -190,6 +220,21 @@ object SessionParser {
         return session is Session.Student || session is Session.Diagnostics
     }
 
+    /** Число занятий на день с учётом детей интенсива (без дублей в слоте интенсива). */
+    fun countCalendarLessons(sessions: List<String>): Int {
+        val parsed = sessions.map(::parse)
+        val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
+        return parsed.count { session ->
+            when (session) {
+                is Session.Student ->
+                    !session.isEffectivelyDeleted() &&
+                        !isStudentCoveredByIntensive(session, intensiveChildrenByTime)
+                is Session.Diagnostics -> !session.isEffectivelyDeleted()
+                else -> false
+            }
+        }
+    }
+
     fun isVisibleIntensive(raw: String): Boolean =
         isIntensive(raw) && !isEffectivelyDeleted(raw)
 
@@ -207,6 +252,7 @@ object SessionParser {
             name = session.name.ifBlank { "Интенсив" },
             status = status,
             time = session.time,
+            children = session.children,
         )
         is Session.Diagnostics -> SessionFormat.serializeDiagnostics(
             price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
@@ -264,49 +310,89 @@ object SessionParser {
     }
 
     private fun parseExtra(raw: String, payloadStart: Int, intensive: Boolean): Session.Extra {
-        // Формат payload: amount|name|attended
-        val firstSep = raw.indexOf('|', startIndex = payloadStart)
+        val payload = raw.substring(payloadStart)
+        if (intensive) {
+            return parseIntensivePayload(payload)
+        }
+        return parseDiagnosticsPayload(payload)
+    }
+
+    private fun parseIntensivePayload(payload: String): Session.Intensive {
+        val segments = payload.split("|", limit = 5)
+        val amount = segments.getOrNull(0)?.toDoubleOrNull() ?: 0.0
+        val name = segments.getOrNull(1).orEmpty()
+        val statusField = segments.getOrNull(2).orEmpty()
+        val time = segments.getOrNull(3).orEmpty()
+        val childrenRaw = segments.getOrNull(4).orEmpty()
+        val (attended, status) = when {
+            statusField.isEmpty() -> true to AttendanceStatus.ARRIVED
+            else -> parseExtraStatusField(statusField)
+                ?: run {
+                    val bool = statusField.toBooleanStrictOrNullCompat() ?: true
+                    bool to AttendanceStatus.fromBoolean(bool)
+                }
+        }
+        val children = parseIntensiveChildren(childrenRaw)
+        return Session.Intensive(amount, name, attended, time, children, status)
+    }
+
+    private fun parseIntensiveChildren(raw: String): List<Session.IntensiveChild> {
+        if (raw.isBlank()) return emptyList()
+        return raw.split(INTENSIVE_CHILD_SEP).mapNotNull { chunk ->
+            if (chunk.isBlank()) return@mapNotNull null
+            val parts = chunk.split("|", limit = 4)
+            val childName = parts.getOrNull(0).orEmpty()
+            if (childName.isBlank()) return@mapNotNull null
+            val childStatus = parts.getOrNull(1)?.toIntOrNull()?.let(AttendanceStatus::fromCode)
+                ?: AttendanceStatus.EXPECTED
+            Session.IntensiveChild(
+                name = childName,
+                status = childStatus,
+                phone = parts.getOrNull(2).orEmpty(),
+                comment = parts.getOrNull(3).orEmpty(),
+            )
+        }
+    }
+
+    private fun parseDiagnosticsPayload(payload: String): Session.Diagnostics {
+        val firstSep = payload.indexOf('|')
         val amount = if (firstSep < 0) {
-            raw.substring(payloadStart).toDoubleOrNull() ?: 0.0
+            payload.toDoubleOrNull() ?: 0.0
         } else {
-            raw.substring(payloadStart, firstSep).toDoubleOrNull() ?: 0.0
+            payload.substring(0, firstSep).toDoubleOrNull() ?: 0.0
         }
         var name = ""
-        var attended = true // Старые записи без флага считаем посещёнными.
+        var attended = true
         var status = AttendanceStatus.ARRIVED
         var time = ""
         if (firstSep >= 0) {
-            val secondSep = raw.indexOf('|', startIndex = firstSep + 1)
+            val secondSep = payload.indexOf('|', startIndex = firstSep + 1)
             if (secondSep < 0) {
-                name = raw.substring(firstSep + 1)
+                name = payload.substring(firstSep + 1)
             } else {
-                name = raw.substring(firstSep + 1, secondSep)
-                val thirdSep = raw.indexOf('|', startIndex = secondSep + 1)
+                name = payload.substring(firstSep + 1, secondSep)
+                val thirdSep = payload.indexOf('|', startIndex = secondSep + 1)
                 if (thirdSep < 0) {
-                    parseExtraStatusField(raw.substring(secondSep + 1))?.let { (a, s) ->
+                    parseExtraStatusField(payload.substring(secondSep + 1))?.let { (a, s) ->
                         attended = a
                         status = s
                     } ?: run {
-                        attended = raw.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
+                        attended = payload.substring(secondSep + 1).toBooleanStrictOrNullCompat() ?: true
                         status = AttendanceStatus.fromBoolean(attended)
                     }
                 } else {
-                    parseExtraStatusField(raw.substring(secondSep + 1, thirdSep))?.let { (a, s) ->
+                    parseExtraStatusField(payload.substring(secondSep + 1, thirdSep))?.let { (a, s) ->
                         attended = a
                         status = s
                     } ?: run {
-                        attended = raw.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
+                        attended = payload.substring(secondSep + 1, thirdSep).toBooleanStrictOrNullCompat() ?: true
                         status = AttendanceStatus.fromBoolean(attended)
                     }
-                    time = raw.substring(thirdSep + 1)
+                    time = payload.substring(thirdSep + 1)
                 }
             }
         }
-        return if (intensive) {
-            Session.Intensive(amount, name, attended, time, status)
-        } else {
-            Session.Diagnostics(amount, name, attended, time, status)
-        }
+        return Session.Diagnostics(amount, name, attended, time, status)
     }
 
     private fun String.toBooleanStrictOrNullCompat(): Boolean? = when (this) {
@@ -321,6 +407,8 @@ object SessionParser {
         val status = AttendanceStatus.fromCode(code)
         return status.countsTowardEarnings to status
     }
+
+    private const val INTENSIVE_CHILD_SEP = ";;"
 }
 
 /**
@@ -330,6 +418,7 @@ object SessionParser {
 object SessionFormat {
     const val INTENSIVE_PREFIX = "__INTENSIVE__:"
     const val DIAGNOSTICS_PREFIX = "__DIAGNOSTICS__:"
+    private const val INTENSIVE_CHILD_SEP = ";;"
 
     /** Старый формат (для обратной совместимости). */
     fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
@@ -351,9 +440,15 @@ object SessionFormat {
         name: String,
         status: AttendanceStatus,
         time: String = "",
+        children: List<Session.IntensiveChild> = emptyList(),
     ): String {
         val base = "$INTENSIVE_PREFIX$price|$name|${status.code}"
-        return if (time.isNotBlank()) "$base|$time" else base
+        val withTime = if (time.isNotBlank()) "$base|$time" else base
+        if (children.isEmpty()) return withTime
+        val childrenPart = children.joinToString(INTENSIVE_CHILD_SEP) { child ->
+            "${child.name}|${child.status.code}|${child.phone}|${child.comment}"
+        }
+        return "$withTime|$childrenPart"
     }
 
     fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =

@@ -20,8 +20,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -122,6 +124,17 @@ fun DayScheduleTimeline(
     }
 
     val timelineBody: @Composable () -> Unit = {
+        var selectedIntensive by remember { mutableStateOf<TimelineEntry?>(null) }
+
+        selectedIntensive?.let { entry ->
+            IntensiveDetailsDialog(
+                time = entry.time,
+                children = entry.intensiveChildren,
+                amount = entry.extraAmount,
+                onDismiss = { selectedIntensive = null },
+            )
+        }
+
         if (layout != null) {
             val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
             val timelineHeight = with(density) {
@@ -165,39 +178,38 @@ fun DayScheduleTimeline(
 
                         layout.positioned.forEach { positioned ->
                             val appt = positioned.layoutAppointment
-                            val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
-                            val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
-                            val visualDurationMinutes = when {
-                                durationMinutes in (SESSION_DURATION_MINUTES - 2)..(SESSION_DURATION_MINUTES + 2) ->
-                                    durationMinutes + 8
-                                else -> durationMinutes
-                            }
-                            val slotHeightDp = with(density) {
-                                (visualDurationMinutes * pxPerMinute).toDp() - SlotBottomGap
-                            }.coerceAtLeast(52.dp)
-                            val topOffset = with(density) {
-                                (offsetMinutes * pxPerMinute).toDp()
-                            }
-
-                            val laneCount = positioned.laneCount.coerceAtLeast(1)
-                            val laneWidth = (this@BoxWithConstraints.maxWidth - SlotLaneGap * (laneCount - 1)) / laneCount
-                            val laneX = laneWidth * positioned.lane + SlotLaneGap * positioned.lane
-                            val slotModifier = Modifier
-                                .offset(x = laneX, y = topOffset)
-                                .width(laneWidth)
-                                .height(slotHeightDp)
+                            val slotGeometry = computeSlotGeometry(
+                                positioned = positioned,
+                                layout = layout,
+                                pxPerMinute = pxPerMinute,
+                                maxWidth = maxWidth,
+                                density = density,
+                            )
 
                             val slotHighlighted = highlightSlotKey != null &&
                                 positioned.matchesHighlight(highlightSlotKey, date)
 
                             when (positioned) {
                                 is PositionedTimelineItem.Single -> {
-                                    TimelineScheduleSlot(
-                                        entry = positioned.appointment.entry,
-                                        highlighted = slotHighlighted,
-                                        onStudentStatusChange = onStudentStatusChange,
-                                        modifier = slotModifier,
-                                    )
+                                    val entry = positioned.appointment.entry
+                                    if (entry.isIntensiveWithChildren()) {
+                                        IntensiveTimelineChip(
+                                            title = entry.name,
+                                            amount = entry.extraAmount,
+                                            status = entry.status,
+                                            onClick = { selectedIntensive = entry },
+                                            compactForTimeline = true,
+                                            highlighted = slotHighlighted,
+                                            modifier = slotGeometry.modifier,
+                                        )
+                                    } else {
+                                        TimelineScheduleSlot(
+                                            entry = entry,
+                                            highlighted = slotHighlighted,
+                                            onStudentStatusChange = onStudentStatusChange,
+                                            modifier = slotGeometry.modifier,
+                                        )
+                                    }
                                 }
                                 is PositionedTimelineItem.Replacement -> {
                                     val pair = positioned.pair
@@ -213,7 +225,7 @@ fun DayScheduleTimeline(
                                         },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
-                                        modifier = slotModifier,
+                                        modifier = slotGeometry.modifier,
                                     )
                                 }
                             }
@@ -238,14 +250,28 @@ fun DayScheduleTimeline(
             untimedEntries.forEach { entry ->
                 val entryHighlighted = highlightSlotKey != null &&
                     SessionSlotKey.fromTimelineEntry(entry, date) == highlightSlotKey
-                TimelineScheduleSlot(
-                    entry = entry,
-                    highlighted = entryHighlighted,
-                    onStudentStatusChange = onStudentStatusChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                )
+                if (entry.isIntensiveWithChildren()) {
+                    IntensiveTimelineChip(
+                        title = entry.name,
+                        amount = entry.extraAmount,
+                        status = entry.status,
+                        onClick = { selectedIntensive = entry },
+                        compactForTimeline = true,
+                        highlighted = entryHighlighted,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                    )
+                } else {
+                    TimelineScheduleSlot(
+                        entry = entry,
+                        highlighted = entryHighlighted,
+                        onStudentStatusChange = onStudentStatusChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -391,6 +417,47 @@ private fun PositionedTimelineItem.matchesHighlight(key: String, date: LocalDate
     is PositionedTimelineItem.Replacement ->
         SessionSlotKey.fromTimelineEntry(pair.replacement.entry, date) == key ||
             SessionSlotKey.fromTimelineEntry(pair.removed.entry, date) == key
+}
+
+private fun TimelineEntry.isIntensiveWithChildren(): Boolean =
+    isExtra && extraType == "Интенсив" && intensiveChildren.isNotEmpty()
+
+private data class TimelineSlotGeometry(
+    val topOffset: Dp,
+    val modifier: Modifier,
+)
+
+private fun computeSlotGeometry(
+    positioned: PositionedTimelineItem,
+    layout: DayTimelineLayout,
+    pxPerMinute: Float,
+    maxWidth: Dp,
+    density: androidx.compose.ui.unit.Density,
+): TimelineSlotGeometry {
+    val appt = positioned.layoutAppointment
+    val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
+    val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
+    val visualDurationMinutes = when {
+        durationMinutes in (SESSION_DURATION_MINUTES - 2)..(SESSION_DURATION_MINUTES + 2) ->
+            durationMinutes + 8
+        else -> durationMinutes
+    }
+    val slotHeightDp = with(density) {
+        (visualDurationMinutes * pxPerMinute).toDp() - SlotBottomGap
+    }.coerceAtLeast(52.dp)
+    val topOffset = with(density) {
+        (offsetMinutes * pxPerMinute).toDp()
+    }
+    val laneCount = positioned.laneCount.coerceAtLeast(1)
+    val laneWidth = (maxWidth - SlotLaneGap * (laneCount - 1)) / laneCount
+    val laneX = laneWidth * positioned.lane + SlotLaneGap * positioned.lane
+    return TimelineSlotGeometry(
+        topOffset = topOffset,
+        modifier = Modifier
+            .offset(x = laneX, y = topOffset)
+            .width(laneWidth)
+            .height(slotHeightDp),
+    )
 }
 
 private fun TimelineEntry.displayName(): String =

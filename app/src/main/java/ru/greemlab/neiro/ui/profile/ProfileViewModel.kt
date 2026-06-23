@@ -94,6 +94,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateDiagnosticsPrice(price: Double) = enqueueUpdate { it.copy(pricePerDiagnostics = price) }
 
+    fun updateIntensiveChildPrice(price: Double) = enqueueUpdate { it.copy(pricePerIntensiveChild = price) }
+
     fun updateTaxAmount(tax: Double) = enqueueUpdate { it.copy(monthlyTaxAmount = tax) }
 
     fun updateSalaryAdvanceOnCard(amount: Double) = enqueueUpdate { it.copy(salaryAdvanceOnCard = amount) }

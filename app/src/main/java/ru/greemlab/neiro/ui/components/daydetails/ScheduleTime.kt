@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.components.daydetails
 
 import androidx.compose.runtime.Immutable
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
+import ru.greemlab.neiro.ui.calendar.Session
 import java.time.Duration
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -15,6 +16,7 @@ data class TimelineEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
+    val intensiveChildren: List<Session.IntensiveChild> = emptyList(),
     /** Индекс в сыром списке дня — для правки статуса в архиве. */
     val sourceIndex: Int = -1,
 )

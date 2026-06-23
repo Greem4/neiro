@@ -97,8 +97,6 @@ private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): Cal
  *
  * Профиль реализован через [ModalNavigationDrawer] и [ProfileContent].
  *
- * TODO: Доработка боковой панели (дизайн и функциональность).
- *
  * Панель не открывается сама — только явным действием пользователя:
  * свайп слева направо или тап по логотипу «N» в шапке.
  *
@@ -117,6 +115,7 @@ fun CalendarScreen(
     profileViewModel: ProfileViewModel = viewModel(),
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
+    notificationDeepLinkVersion: Int = 0,
 ) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -161,17 +160,15 @@ fun CalendarScreen(
         }
     }
 
-    var handledNotificationDeepLink by rememberSaveable(openDateFromNotification) {
-        mutableStateOf(false)
-    }
+    var lastHandledDeepLinkVersion by rememberSaveable { mutableIntStateOf(-1) }
 
     LaunchedEffect(
         openDateFromNotification,
         highlightSlotKeyFromNotification,
+        notificationDeepLinkVersion,
         profile.isRegistered,
-        handledNotificationDeepLink,
     ) {
-        if (handledNotificationDeepLink) return@LaunchedEffect
+        if (notificationDeepLinkVersion == lastHandledDeepLinkVersion) return@LaunchedEffect
         val raw = openDateFromNotification ?: return@LaunchedEffect
         runCatching { LocalDate.parse(raw) }.getOrNull()?.let { date ->
             viewModel.navigateToDate(date)
@@ -181,7 +178,7 @@ fun CalendarScreen(
             } else {
                 CalendarOverlay.RegistrationPrompt
             }
-            handledNotificationDeepLink = true
+            lastHandledDeepLinkVersion = notificationDeepLinkVersion
         }
     }
 
@@ -302,7 +299,6 @@ fun CalendarScreen(
             },
         ) {
             CalendarScreenContent(
-                // TODO: Улучшить основной календарь.
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
                 dayData = dayData,
@@ -329,6 +325,7 @@ fun CalendarScreen(
                 isSyncing = syncState.isLoading,
                 pricePerSession = profile.pricePerSession,
                 pricePerDiagnostics = profile.pricePerDiagnostics,
+                pricePerIntensiveChild = profile.pricePerIntensiveChild,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -589,6 +586,7 @@ fun CalendarScreenContent(
     isRegistered: Boolean = true,
     pricePerSession: Double = 0.0,
     pricePerDiagnostics: Double = 0.0,
+    pricePerIntensiveChild: Double = 0.0,
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -605,12 +603,19 @@ fun CalendarScreenContent(
     unreadNotificationCount: Int = 0,
 ) {
     val selectedDaySessions = selectedDate?.let { dayData[it] }
-    val daySummaryStats = remember(selectedDate, selectedDaySessions, pricePerSession, pricePerDiagnostics) {
+    val daySummaryStats = remember(
+        selectedDate,
+        selectedDaySessions,
+        pricePerSession,
+        pricePerDiagnostics,
+        pricePerIntensiveChild,
+    ) {
         if (selectedDate == null) return@remember null
         computeDayStats(
             selectedDaySessions.orEmpty(),
             pricePerSession,
             pricePerDiagnostics,
+            pricePerIntensiveChild,
         )
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }

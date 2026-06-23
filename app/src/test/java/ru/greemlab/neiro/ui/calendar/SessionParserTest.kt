@@ -205,6 +205,27 @@ class SessionParserTest {
     }
 
     @Test
+    fun `SessionFormat round-trips intensive with children`() {
+        val children = listOf(
+            Session.IntensiveChild("Коновалов Ильдар", AttendanceStatus.EXPECTED),
+            Session.IntensiveChild("Караховская Мария", AttendanceStatus.CONFIRMED),
+        )
+        val raw = SessionFormat.serializeIntensive(
+            price = "8000",
+            name = "Интенсив",
+            status = AttendanceStatus.EXPECTED,
+            time = "18:00-19:30",
+            children = children,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(8000.0, parsed.amount, 0.0)
+        assertEquals("18:00-19:30", parsed.time)
+        assertEquals(2, parsed.children.size)
+        assertEquals("Коновалов Ильдар", parsed.children[0].name)
+        assertEquals(AttendanceStatus.CONFIRMED, parsed.children[1].status)
+    }
+
+    @Test
     fun `parses diagnostics with cancelled status code`() {
         val raw = SessionFormat.serializeDiagnostics(
             price = "4500",

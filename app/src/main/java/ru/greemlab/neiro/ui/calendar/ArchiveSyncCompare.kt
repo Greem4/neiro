@@ -40,6 +40,7 @@ object ArchiveSyncCompare {
             name = session.name.trim().ifBlank { "Интенсив" },
             status = session.status,
             time = session.time.trim(),
+            children = session.children,
         )
         is Session.Diagnostics -> SessionFormat.serializeDiagnostics(
             price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),

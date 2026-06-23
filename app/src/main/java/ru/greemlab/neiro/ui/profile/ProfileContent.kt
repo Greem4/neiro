@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -183,7 +184,13 @@ private fun ProfileContentImpl(
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {
-            // TODO: Добавить переход к списку карточек детей (статистика по ученикам).
+            SettingsNavigationRow(
+                title = "Ученики",
+                subtitle = "Скоро: посещаемость и доход по каждому ребёнку",
+                icon = Icons.Rounded.School,
+                onClick = { /* карточки детей — TODO.md */ },
+                enabled = false,
+            )
             SettingsNavigationRow(
                 title = if (profile.isRegistered) "Профиль" else "Создать профиль",
                 subtitle = if (profile.isRegistered) {
@@ -193,6 +200,7 @@ private fun ProfileContentImpl(
                 },
                 icon = Icons.Default.Person,
                 onClick = onOpenSettings,
+                showDivider = true,
             )
             SettingsNavigationRow(
                 title = "Приложение",

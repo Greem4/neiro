@@ -69,6 +69,12 @@ import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
+import ru.greemlab.neiro.ui.calendar.displayStatus
+import ru.greemlab.neiro.ui.calendar.buildIntensiveChildrenByTime
+import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
+import ru.greemlab.neiro.ui.calendar.isStudentCoveredByIntensive
+import ru.greemlab.neiro.ui.calendar.visibleChildren
+import ru.greemlab.neiro.ui.calendar.totalAmount
 import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
 import ru.greemlab.neiro.ui.components.daydetails.EditIntensiveItem
 import ru.greemlab.neiro.ui.components.daydetails.TimelineEntry
@@ -99,14 +105,15 @@ private data class ScheduleEntry(
     val isExtra: Boolean = false,
     val extraType: String = "",
     val extraAmount: Double = 0.0,
+    val intensiveChildren: List<Session.IntensiveChild> = emptyList(),
     val sourceIndex: Int,
 )
 
 /**
- * Диалог просмотра расписания на выбранную дату.
+ * Диалог расписания на выбранную дату: таймлайн, статистика, архив.
  *
- * Отображает список записей в компактном виде без возможности редактирования.
- * Все изменения производятся через синхронизацию с YClients.
+ * Live-календарь обновляется через YClients; в режиме архива доступна
+ * смена статусов учеников и режим планирования (интенсивы).
  */
 @Composable
 fun DayDetailsDialog(
@@ -170,7 +177,7 @@ private fun DayDetailsContent(
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)?,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
-    // Сейчас — только интенсивы; список учеников (StudentItemRow) — для офлайн-правки архива, см. TODO.
+    // Режим планирования — добавление интенсивов; статусы учеников — в таймлайне (архив).
     var isPlanningMode by remember { mutableStateOf(false) }
     var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
@@ -202,8 +209,8 @@ private fun DayDetailsContent(
             }
         }
 
-    val entries = remember(currentNames.toList()) {
-        parseEntries(currentNames)
+    val entries = remember(currentNames.toList(), userProfile) {
+        parseEntries(currentNames, userProfile)
     }
 
     val stats = remember(entries, userProfile, date) {
@@ -305,6 +312,7 @@ private fun DayDetailsContent(
                             isExtra = entry.isExtra,
                             extraType = entry.extraType,
                             extraAmount = entry.extraAmount,
+                            intensiveChildren = entry.intensiveChildren,
                             sourceIndex = entry.sourceIndex,
                         )
                     },
@@ -492,6 +500,7 @@ private fun updateIntensiveAt(
         name = updated.name.ifBlank { "Интенсив" },
         status = updated.status,
         time = normalizeSessionTime(updated.time),
+        children = updated.children,
     )
 }
 
@@ -655,7 +664,11 @@ private data class DayStats(
     val totalMoney: Double,
 )
 
-private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
+private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List<ScheduleEntry> {
+    val intensiveChildrenByTime = buildIntensiveChildrenByTime(
+        rawNames.map(SessionParser::parse),
+    )
+
     return rawNames.mapIndexedNotNull { index, raw ->
         if (raw.isBlank()) return@mapIndexedNotNull null
 
@@ -663,24 +676,42 @@ private fun parseEntries(rawNames: List<String>): List<ScheduleEntry> {
         val isDeleted = session.isEffectivelyDeleted()
 
         when (session) {
-            is Session.Student -> ScheduleEntry(
-                name = session.name,
-                time = normalizeSessionTime(session.time),
-                comment = session.comment,
-                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                sourceIndex = index,
-            )
+            is Session.Student -> {
+                if (isStudentCoveredByIntensive(session, intensiveChildrenByTime)) {
+                    return@mapIndexedNotNull null
+                }
+                ScheduleEntry(
+                    name = session.name,
+                    time = normalizeSessionTime(session.time),
+                    comment = session.comment,
+                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                    sourceIndex = index,
+                )
+            }
 
-            is Session.Intensive -> ScheduleEntry(
-                name = session.name.ifBlank { "Интенсив" },
-                time = normalizeSessionTime(session.time),
-                comment = "",
-                status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
-                isExtra = true,
-                extraType = "Интенсив",
-                extraAmount = session.amount,
-                sourceIndex = index,
-            )
+            is Session.Intensive -> {
+                val visibleChildren = session.children.visibleChildren()
+                val childCount = visibleChildren.size
+                val title = if (childCount > 0) {
+                    "Интенсив · ${intensiveChildrenLabel(childCount)}"
+                } else {
+                    session.name.ifBlank { "Интенсив" }
+                }
+                ScheduleEntry(
+                    name = title,
+                    time = normalizeSessionTime(session.time),
+                    comment = "",
+                    status = if (isDeleted) AttendanceStatus.CANCELLED else session.displayStatus(),
+                    isExtra = true,
+                    extraType = "Интенсив",
+                    extraAmount = session.totalAmount(
+                        userProfile.pricePerIntensiveChild,
+                        onlyArrived = false,
+                    ),
+                    intensiveChildren = visibleChildren,
+                    sourceIndex = index,
+                )
+            }
 
             is Session.Diagnostics -> ScheduleEntry(
                 name = session.name,
