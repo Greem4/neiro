@@ -2,7 +2,6 @@ package ru.greemlab.neiro.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -49,7 +47,6 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -61,7 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
@@ -86,7 +83,6 @@ import ru.greemlab.neiro.ui.components.daydetails.TimelineEntry
 import ru.greemlab.neiro.ui.components.daydetails.buildIntensiveTimeSlotOptions
 import ru.greemlab.neiro.ui.components.daydetails.intensiveDefaultTimeSlot
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
-import androidx.compose.material.icons.rounded.Warning
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
@@ -129,7 +125,6 @@ fun DayDetailsDialog(
     userProfile: UserProfile,
     isArchived: Boolean = false,
     archiveMismatch: Boolean = false,
-    archiveMismatchDetails: List<String> = emptyList(),
     allowStatusEdit: Boolean = false,
     highlightSlotKey: String? = null,
     isRefreshing: Boolean = false,
@@ -154,7 +149,6 @@ fun DayDetailsDialog(
             userProfile = userProfile,
             isArchived = isArchived,
             archiveMismatch = archiveMismatch,
-            archiveMismatchDetails = archiveMismatchDetails,
             allowStatusEdit = allowStatusEdit,
             highlightSlotKey = highlightSlotKey,
             isRefreshing = isRefreshing,
@@ -177,7 +171,6 @@ private fun DayDetailsContent(
     userProfile: UserProfile,
     isArchived: Boolean,
     archiveMismatch: Boolean,
-    archiveMismatchDetails: List<String>,
     allowStatusEdit: Boolean,
     highlightSlotKey: String?,
     isRefreshing: Boolean = false,
@@ -192,7 +185,6 @@ private fun DayDetailsContent(
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
     // Режим планирования — добавление интенсивов; статусы учеников — в таймлайне (архив).
     var isPlanningMode by remember { mutableStateOf(false) }
-    var showArchiveMismatchDetails by remember { mutableStateOf(false) }
     var focusNewIntensive by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -255,15 +247,15 @@ private fun DayDetailsContent(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp)
-                .padding(top = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = dateText,
                     style = MaterialTheme.typography.titleLarge,
@@ -293,161 +285,148 @@ private fun DayDetailsContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (archiveMismatch) {
-                ArchiveMismatchBanner(
-                    onClick = if (archiveMismatchDetails.isNotEmpty()) {
-                        { showArchiveMismatchDetails = true }
-                    } else {
-                        null
-                    },
-                )
+                ArchiveMismatchBanner()
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
             StatsRow(stats = stats, date = date)
 
             Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Список записей
-        if (entries.isEmpty() && !isPlanningMode) {
-            DayDetailsRefreshableSection(
-                isRefreshing = isRefreshing,
-                onRefresh = onRefresh,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) {
-                EmptySchedule()
             }
-        } else if (!isPlanningMode) {
-            DayScheduleTimeline(
-                entries = entries.map { entry ->
-                    TimelineEntry(
-                        name = entry.name,
-                        time = entry.time,
-                        comment = entry.comment,
-                        status = entry.status,
-                        isExtra = entry.isExtra,
-                        extraType = entry.extraType,
-                        extraAmount = entry.extraAmount,
-                        intensiveChildren = entry.intensiveChildren,
-                        coveredEntries = entry.coveredEntries.map { covered ->
-                            TimelineEntry(
-                                name = covered.name,
-                                time = covered.time,
-                                comment = covered.comment,
-                                status = covered.status,
-                                sourceIndex = covered.sourceIndex,
-                            )
-                        },
-                        sourceIndex = entry.sourceIndex,
-                    )
-                },
-                date = date,
-                highlightSlotKey = highlightSlotKey,
-                isRefreshing = isRefreshing,
-                onRefresh = if (allowStatusEdit) null else onRefresh,
-                onStudentStatusChange = handleStudentStatusChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            )
-        } else {
-            val intensiveIndices = remember(currentNames.toList()) {
-                currentNames.mapIndexedNotNull { index, raw ->
-                    if (SessionParser.isIntensive(raw)) index else null
+
+            // Список записей
+            if (entries.isEmpty() && !isPlanningMode) {
+                DayDetailsRefreshableSection(
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    EmptySchedule()
                 }
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-            ) {
-                items(intensiveIndices.size) { listIndex ->
-                    val rawIndex = intensiveIndices[listIndex]
-                    val intensive = SessionParser.parse(currentNames[rawIndex]) as Session.Intensive
-                    val amountText = if (intensive.amount == 0.0) {
-                        ""
-                    } else {
-                        intensive.amount.toLong().toString()
+            } else if (!isPlanningMode) {
+                DayScheduleTimeline(
+                    entries = entries.map { entry ->
+                        TimelineEntry(
+                            name = entry.name,
+                            time = entry.time,
+                            comment = entry.comment,
+                            status = entry.status,
+                            isExtra = entry.isExtra,
+                            extraType = entry.extraType,
+                            extraAmount = entry.extraAmount,
+                            intensiveChildren = entry.intensiveChildren,
+                            coveredEntries = entry.coveredEntries.map { covered ->
+                                TimelineEntry(
+                                    name = covered.name,
+                                    time = covered.time,
+                                    comment = covered.comment,
+                                    status = covered.status,
+                                    sourceIndex = covered.sourceIndex,
+                                )
+                            },
+                            sourceIndex = entry.sourceIndex,
+                        )
+                    },
+                    date = date,
+                    highlightSlotKey = highlightSlotKey,
+                    isRefreshing = isRefreshing,
+                    onRefresh = if (allowStatusEdit) null else onRefresh,
+                    onStudentStatusChange = handleStudentStatusChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                )
+            } else {
+                val intensiveIndices = remember(currentNames.toList()) {
+                    currentNames.mapIndexedNotNull { index, raw ->
+                        if (SessionParser.isIntensive(raw)) index else null
                     }
+                }
 
-                    EditIntensiveItem(
-                        amountText = amountText,
-                        time = normalizeSessionTime(intensive.time),
-                        timeSlotOptions = intensiveTimeSlots,
-                        requestFocus = focusNewIntensive &&
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
+                ) {
+                    items(intensiveIndices.size) { listIndex ->
+                        val rawIndex = intensiveIndices[listIndex]
+                        val intensive = SessionParser.parse(currentNames[rawIndex]) as Session.Intensive
+                        val amountText = if (intensive.amount == 0.0) {
+                            ""
+                        } else {
+                            intensive.amount.toLong().toString()
+                        }
+
+                        EditIntensiveItem(
+                            amountText = amountText,
+                            time = normalizeSessionTime(intensive.time),
+                            timeSlotOptions = intensiveTimeSlots,
+                            requestFocus = focusNewIntensive &&
                                 listIndex == intensiveIndices.lastIndex,
-                        focusRequester = intensiveFocusRequester,
-                        onAmountChange = { newPrice ->
-                            updateIntensiveAt(currentNames, rawIndex) { session ->
-                                session.copy(amount = newPrice.toDoubleOrNull() ?: 0.0)
-                            }
-                        },
-                        onTimeChange = { newTime ->
-                            updateIntensiveAt(currentNames, rawIndex) { session ->
-                                session.copy(time = newTime)
-                            }
-                        },
-                        onDelete = { currentNames.removeAt(rawIndex) },
-                    )
-                }
+                            focusRequester = intensiveFocusRequester,
+                            onAmountChange = { newPrice ->
+                                updateIntensiveAt(currentNames, rawIndex) { session ->
+                                    session.copy(amount = newPrice.toDoubleOrNull() ?: 0.0)
+                                }
+                            },
+                            onTimeChange = { newTime ->
+                                updateIntensiveAt(currentNames, rawIndex) { session ->
+                                    session.copy(time = newTime)
+                                }
+                            },
+                            onDelete = { currentNames.removeAt(rawIndex) },
+                        )
+                    }
 
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            currentNames.add(
-                                SessionFormat.serializeIntensive(
-                                    price = "",
-                                    name = "Интенсив",
-                                    status = AttendanceStatus.ARRIVED,
-                                    time = intensiveDefaultTimeSlot(),
-                                ),
-                            )
-                            focusNewIntensive = true
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Icon(Icons.Rounded.Add, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Добавить интенсив")
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                currentNames.add(
+                                    SessionFormat.serializeIntensive(
+                                        price = "",
+                                        name = "Интенсив",
+                                        status = AttendanceStatus.ARRIVED,
+                                        time = intensiveDefaultTimeSlot(),
+                                    ),
+                                )
+                                focusNewIntensive = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Icon(Icons.Rounded.Add, null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Добавить интенсив")
+                        }
                     }
                 }
             }
+
+            DayDetailsBottomBar(
+                isPlanningMode = isPlanningMode,
+                allowStatusEdit = allowStatusEdit,
+                isArchived = isArchived,
+                showArchiveAction = onStudentStatusChange == null || isArchived,
+                onArchiveClick = {
+                    when {
+                        allowStatusEdit && isArchived -> onUnarchive()
+                        isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                        isArchived -> onUnarchive()
+                        else -> onMoveToArchive()
+                    }
+                },
+                onDismiss = onDismiss,
+                onSave = { onSave(currentNames.toList()) },
+            )
         }
-
-        DayDetailsBottomBar(
-            isPlanningMode = isPlanningMode,
-            allowStatusEdit = allowStatusEdit,
-            isArchived = isArchived,
-            showArchiveAction = onStudentStatusChange == null || isArchived,
-            onArchiveClick = {
-                when {
-                    allowStatusEdit && isArchived -> onUnarchive()
-                    isArchived && archiveMismatch -> onRequestOverwriteArchive()
-                    isArchived -> onUnarchive()
-                    else -> onMoveToArchive()
-                }
-            },
-            onDismiss = onDismiss,
-            onSave = { onSave(currentNames.toList()) },
-        )
-    }
-
-    if (showArchiveMismatchDetails) {
-        ArchiveMismatchDetailsDialog(
-            details = archiveMismatchDetails,
-            onDismiss = { showArchiveMismatchDetails = false },
-        )
-    }
 }
 
 private val DayDetailsBottomBarButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
@@ -535,16 +514,9 @@ private fun DayDetailsBottomBar(
 }
 
 @Composable
-private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
-    val clickableModifier = if (onClick != null) {
-        Modifier.clickable(onClick = onClick)
-    } else {
-        Modifier
-    }
+private fun ArchiveMismatchBanner() {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(clickableModifier),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = ExpectedAmber.copy(alpha = 0.14f),
     ) {
@@ -563,50 +535,9 @@ private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
                 text = stringResource(R.string.archive_sync_mismatch_banner),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
             )
-            if (onClick != null) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = stringResource(R.string.archive_sync_mismatch_banner_cd),
-                    tint = ExpectedAmber,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
         }
     }
-}
-
-@Composable
-private fun ArchiveMismatchDetailsDialog(
-    details: List<String>,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.archive_sync_mismatch_details_title)) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                details.forEach { line ->
-                    Text(
-                        text = "• $line",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.archive_sync_mismatch_details_ok))
-            }
-        },
-    )
 }
 
 private fun updateIntensiveAt(
@@ -907,7 +838,6 @@ private fun calculateStats(
                     money += entry.extraAmount
                 }
             }
-
             AttendanceStatus.CANCELLED -> cancelled++
         }
     }
@@ -939,7 +869,6 @@ private fun DayDetailsLightPreview() {
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = false,
                     archiveMismatch = false,
-                    archiveMismatchDetails = emptyList(),
                     allowStatusEdit = false,
                     highlightSlotKey = null,
                     onDismiss = {},
@@ -969,9 +898,6 @@ private fun DayDetailsDarkPreview() {
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = true,
                     archiveMismatch = true,
-                    archiveMismatchDetails = listOf(
-                        "10:00 — Моторнов Егор, статус: YClients — Пришёл, архив — Ожидает",
-                    ),
                     allowStatusEdit = true,
                     highlightSlotKey = null,
                     onDismiss = {},
@@ -998,9 +924,6 @@ private fun DayDetailsEmptyPreview() {
                     userProfile = UserProfile(pricePerSession = 1400.0),
                     isArchived = true,
                     archiveMismatch = true,
-                    archiveMismatchDetails = listOf(
-                        "10:00 — Моторнов Егор, статус: YClients — Пришёл, архив — Ожидает",
-                    ),
                     allowStatusEdit = true,
                     highlightSlotKey = null,
                     onDismiss = {},

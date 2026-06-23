@@ -411,23 +411,12 @@ fun CalendarScreen(
                 val syncedSessions = syncedDayData[date].orEmpty()
                 val archiveMismatch = isArchived &&
                     ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
-                val archiveMismatchDetails = remember(syncedSessions, savedDayData, date, archiveMismatch) {
-                    if (archiveMismatch) {
-                        ArchiveSyncCompare.describeDiff(
-                            syncedSessions,
-                            savedDayData[date].orEmpty(),
-                        )
-                    } else {
-                        emptyList()
-                    }
-                }
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayData[date].orEmpty(),
                     userProfile = profile,
                     isArchived = isArchived,
                     archiveMismatch = archiveMismatch,
-                    archiveMismatchDetails = archiveMismatchDetails,
                     allowStatusEdit = true,
                     highlightSlotKey = highlightSlotKey,
                     onDismiss = {
