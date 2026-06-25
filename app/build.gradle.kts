@@ -24,11 +24,23 @@ val releaseStoreFile: String = localProps.getProperty("RELEASE_STORE_FILE", "")
 val releaseStorePassword: String = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
 val releaseKeyAlias: String = localProps.getProperty("RELEASE_KEY_ALIAS", "")
 val releaseKeyPassword: String = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+val neiroPushApiBaseUrl: String = localProps.getProperty(
+    "NEIRO_PUSH_API_BASE_URL",
+    "https://medicine.greemlab.ru/neiro-push",
+)
+val neiroPushApiKey: String = localProps.getProperty("NEIRO_PUSH_API_KEY", "")
+val hasGoogleServices = file("google-services.json").exists()
+val pushServerConfigured: Boolean =
+    neiroPushApiBaseUrl.isNotBlank() && neiroPushApiKey.isNotBlank()
 val hasReleaseSigning: Boolean =
     releaseStoreFile.isNotBlank() &&
         releaseStorePassword.isNotBlank() &&
         releaseKeyAlias.isNotBlank() &&
         releaseKeyPassword.isNotBlank()
+
+if (hasGoogleServices) {
+    apply(plugin = "com.google.gms.google-services")
+}
 
 android {
     namespace = "ru.greemlab.neiro"
@@ -39,7 +51,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.6.3"
+        versionName = "0.6.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -49,6 +61,10 @@ android {
         // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
         buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
         buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
+        buildConfigField("String", "NEIRO_PUSH_API_BASE_URL", "\"$neiroPushApiBaseUrl\"")
+        buildConfigField("String", "NEIRO_PUSH_API_KEY", "\"$neiroPushApiKey\"")
+        buildConfigField("boolean", "PUSH_FCM_ENABLED", hasGoogleServices.toString())
+        buildConfigField("boolean", "PUSH_SERVER_CONFIGURED", pushServerConfigured.toString())
     }
 
     // Уменьшаем APK: только нужные локали (актуальный API в AGP 9.x).
@@ -236,6 +252,10 @@ dependencies {
 
     // Core library desugaring (java.time на API < 26)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    // FCM (нужен google-services.json для токена; без файла сборка проходит, push выключен)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     // Test
     testImplementation(libs.junit)

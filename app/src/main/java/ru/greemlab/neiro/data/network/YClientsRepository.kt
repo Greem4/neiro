@@ -32,6 +32,7 @@ class YClientsRepository(context: Context) {
     val staffId: Int? get() = tokenStorage.staffId
     val userName: String? get() = tokenStorage.userName
     val partnerToken: String get() = tokenStorage.partnerToken
+    val userToken: String? get() = tokenStorage.userToken
 
     fun hasPartnerToken(): Boolean = tokenStorage.partnerToken.isNotBlank()
 

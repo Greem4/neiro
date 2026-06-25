@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.push.PushRegistrar
 
 private fun defaultCompanyId(): String {
     val fromBuildConfig = BuildConfig.YCLIENTS_COMPANY_ID
@@ -134,6 +135,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     // Если не нашли — не фатально, расписание просто будет без фильтра по сотруднику.
                     repository.detectAndSaveStaffId()
 
+                    PushRegistrar.onLoginSuccess(getApplication())
+
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoggedIn = true,
@@ -152,6 +155,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
+        PushRegistrar.onLogout(getApplication())
         repository.logout()
         _uiState.value = _uiState.value.copy(
             isLoggedIn = false,

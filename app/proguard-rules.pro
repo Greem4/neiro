@@ -75,6 +75,7 @@
 -keep class ru.greemlab.neiro.notifications.SessionReminderWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionDailyNotificationWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionScheduledDigestWorker { *; }
+-keep class ru.greemlab.neiro.push.** { *; }
 -keep class ru.greemlab.neiro.sync.LiveApiRefreshWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionNotificationBootReceiver { *; }
 # Сохраняем сервисы, чтобы система не теряла связь с UID при запуске Job/Alarm.
