@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.push.PushConfig
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,6 +43,7 @@ object LiveApiCoordinator {
 
         val appContext = context.applicationContext
         val yclientsRepository = YClientsRepository.getInstance(appContext)
+        val serverPushActive = PushConfig.isActive
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
@@ -49,7 +51,9 @@ object LiveApiCoordinator {
                     scope.launch {
                         if (!yclientsRepository.isLoggedIn.first()) return@launch
                         refreshNow(appContext)
-                        startForegroundPolling(appContext)
+                        if (!serverPushActive) {
+                            startForegroundPolling(appContext)
+                        }
                     }
                 }
 
@@ -62,7 +66,9 @@ object LiveApiCoordinator {
         scope.launch {
             yclientsRepository.isLoggedIn.collect { loggedIn ->
                 if (loggedIn) {
-                    scheduleBackgroundRefresh(appContext, delayMs = 0L)
+                    if (!serverPushActive) {
+                        scheduleBackgroundRefresh(appContext, delayMs = 0L)
+                    }
                     refreshNow(appContext)
                 } else {
                     stopForegroundPolling()
@@ -95,6 +101,7 @@ object LiveApiCoordinator {
 
     /** Следующий фоновый запуск; вызывается из [LiveApiRefreshWorker] после каждого опроса. */
     fun scheduleNextBackgroundRefresh(context: Context) {
+        if (PushConfig.isActive) return
         scheduleBackgroundRefresh(context, delayMs = LiveApiPollSchedule.intervalMillis())
     }
 

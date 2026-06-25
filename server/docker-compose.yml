@@ -1,0 +1,22 @@
+services:
+  neiro-push:
+    build: .
+    container_name: neiro-push
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8010:8010"
+    volumes:
+      - neiro_push_data:/data
+      - ./secrets:/secrets:ro
+    networks:
+      - server_web
+
+networks:
+  server_web:
+    external: true
+    name: server_web
+
+volumes:
+  neiro_push_data:

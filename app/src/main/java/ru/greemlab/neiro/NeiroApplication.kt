@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
+import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.LiveApiCoordinator
 
@@ -21,6 +22,7 @@ class NeiroApplication : Application() {
         AutoSyncCoordinator.initialize(this)
         LiveApiCoordinator.initialize(this)
         SessionNotificationCoordinator.initialize(this)
+        PushRegistrar.initialize(this)
 
         // Синхронный SharedPreferences-кэш заполняет снимок прямо в конструкторе репозитория,
         // поэтому UI стартует с данными без блокировки main-потока.
