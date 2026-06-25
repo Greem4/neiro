@@ -63,6 +63,9 @@ object PushRegistrar {
         if (!PushConfig.isActive) return
         val repository = YClientsRepository.getInstance(context)
         if (!repository.isLoggedIn.first()) return
+        if (repository.staffId == null) {
+            repository.detectAndSaveStaffId()
+        }
 
         val token = fetchFcmToken() ?: return
         registerWithToken(context, token)

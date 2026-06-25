@@ -29,8 +29,12 @@ curl -s https://medicine.greemlab.ru/neiro-push/health
 
 ## 2. Firebase (FCM)
 
-1. [Firebase Console](https://console.firebase.google.com/) → Android-приложение `ru.greemlab.neiro`.
-2. Скачать `google-services.json` → `app/google-services.json`.
+1. [Firebase Console](https://console.firebase.google.com/) → три Android-приложения:
+   - `ru.greemlab.neiro` (release)
+   - `ru.greemlab.neiro.debug` (debug-сборка)
+   - `ru.greemlab.neiro.prerelease` (pre-release)
+2. Скачать `google-services.json` (все три client в одном файле) → `app/google-services.json`.
+   Шаблон: `app/google-services.json.example`.
 3. Service Account JSON → `server/secrets/fcm-service-account.json` на Pi.
 4. В `~/neiro-push/.env` на Pi: `FCM_PROJECT_ID=<из json>`.
 

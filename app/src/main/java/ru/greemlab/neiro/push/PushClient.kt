@@ -1,5 +1,8 @@
 package ru.greemlab.neiro.push
 
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import ru.greemlab.neiro.BuildConfig
 import java.util.concurrent.TimeUnit
 
