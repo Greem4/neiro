@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.push.PushConfig
+import ru.greemlab.neiro.push.PushKeepAliveCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 import java.util.concurrent.TimeUnit
 
@@ -70,13 +71,18 @@ object LiveApiCoordinator {
         scope.launch {
             yclientsRepository.isLoggedIn.collect { loggedIn ->
                 if (loggedIn) {
-                    if (!serverPushActive) {
+                    if (serverPushActive) {
+                        PushKeepAliveCoordinator.schedule(appContext)
+                    } else {
                         scheduleBackgroundRefresh(appContext, delayMs = 0L)
                     }
                     refreshNow(appContext)
                 } else {
                     stopForegroundPolling()
                     cancelBackgroundRefresh(appContext)
+                    if (serverPushActive) {
+                        PushKeepAliveCoordinator.cancel(appContext)
+                    }
                 }
             }
         }

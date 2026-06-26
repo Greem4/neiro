@@ -11,3 +11,6 @@
 local.properties
 app/google-services.json
 .signing/
+
+# Локальные утилиты и выгрузки (не в репозитории)
+tools/

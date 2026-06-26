@@ -14,11 +14,15 @@
 
 | Метод | Путь | Auth |
 |-------|------|------|
-| GET | `/health` | — |
-| POST | `/v1/devices/register` | Bearer API_KEY |
-| DELETE | `/v1/devices/{device_id}` | Bearer API_KEY |
+| GET | `/health` | Admin API key |
+| GET | `/v1/admin/overview` | Admin API key |
+| POST | `/v1/admin/test-push` | Admin API key |
+| POST | `/v1/devices/register` | API key (приложение) |
+| DELETE | `/v1/devices/{device_id}` | API key (приложение) |
 
-Публично: `https://push.neiro.greemlab.ru/health`
+Публично: `https://push.neiro.greemlab.ru/health` — только с `Authorization: Bearer <ADMIN_API_KEY>`.
+
+Данные: SQLite `/data/neiro_push.db` в Docker-томе на Pi (`accounts`, `devices`).
 
 ## Опрос YClients
 
@@ -35,3 +39,5 @@
 | `scripts/install-autostart.sh` | @reboot в crontab Pi |
 | `scripts/patch-pi-caddy.py` | vhost `push.neiro.greemlab.ru` в Caddy на Pi |
 | `scripts/patch-vps-nginx.sh` | nginx + TLS на VPS |
+| `scripts/test-push.sh` | Тестовый FCM push — [docs](../docs/push-setup.md) |
+| `scripts/admin-status.sh` | Health и список устройств |

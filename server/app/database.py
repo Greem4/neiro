@@ -221,3 +221,87 @@ class Database:
             accounts = conn.execute("SELECT COUNT(*) AS c FROM accounts").fetchone()["c"]
             devices = conn.execute("SELECT COUNT(*) AS c FROM devices").fetchone()["c"]
         return {"accounts": int(accounts), "devices": int(devices)}
+
+    def get_device(self, device_id: str) -> RegisteredDevice | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, account_id, device_id, fcm_token, label
+                FROM devices
+                WHERE device_id = ?
+                """,
+                (device_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return RegisteredDevice(
+            id=int(row["id"]),
+            account_id=int(row["account_id"]),
+            device_id=row["device_id"],
+            fcm_token=row["fcm_token"],
+            label=row["label"],
+        )
+
+    def list_all_devices(self) -> list[RegisteredDevice]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, account_id, device_id, fcm_token, label
+                FROM devices
+                ORDER BY id
+                """
+            ).fetchall()
+        return [
+            RegisteredDevice(
+                id=int(row["id"]),
+                account_id=int(row["account_id"]),
+                device_id=row["device_id"],
+                fcm_token=row["fcm_token"],
+                label=row["label"],
+            )
+            for row in rows
+        ]
+
+    def list_devices_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    d.device_id,
+                    d.label,
+                    d.app_version,
+                    d.last_seen_at,
+                    d.created_at,
+                    a.id AS account_id,
+                    a.company_id,
+                    a.staff_id,
+                    a.last_polled_at,
+                    a.last_error
+                FROM devices d
+                JOIN accounts a ON a.id = d.account_id
+                ORDER BY d.id
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_accounts_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    a.id,
+                    a.company_id,
+                    a.staff_id,
+                    a.changed_after,
+                    a.last_polled_at,
+                    a.last_error,
+                    a.created_at,
+                    a.updated_at,
+                    COUNT(d.id) AS device_count
+                FROM accounts a
+                LEFT JOIN devices d ON d.account_id = a.id
+                GROUP BY a.id
+                ORDER BY a.id
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]

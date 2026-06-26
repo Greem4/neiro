@@ -26,3 +26,22 @@ class HealthResponse(BaseModel):
     devices: int
     poll_day_seconds: int
     poll_night_seconds: int
+
+
+class TestPushRequest(BaseModel):
+    device_id: str | None = Field(default=None, min_length=8, max_length=128)
+    account_id: int | None = Field(default=None, gt=0)
+
+
+class TestPushResponse(BaseModel):
+    ok: bool = True
+    sent: int
+    failed: int
+    removed: int
+    targets: list[dict]
+
+
+class AdminOverviewResponse(BaseModel):
+    ok: bool = True
+    accounts: list[dict]
+    devices: list[dict]

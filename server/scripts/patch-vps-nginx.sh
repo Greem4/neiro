@@ -49,7 +49,7 @@ fi
 
 nginx -t
 systemctl reload nginx
-curl -fsS "https://\${HOST}/health" && echo || echo "health_check_pending"
+echo "nginx_reloaded"
 REMOTE
 
 echo "Done: https://${NEIRO_PUSH_PUBLIC_HOST}/health"

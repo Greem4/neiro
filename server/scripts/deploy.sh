@@ -24,9 +24,11 @@ mkdir -p secrets data
 
 if [[ ! -f .env ]]; then
   API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+  ADMIN_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
   ENC_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
   cat > .env <<EOF
 API_KEY=${API_KEY}
+ADMIN_API_KEY=${ADMIN_API_KEY}
 TOKEN_ENCRYPTION_KEY=${ENC_KEY}
 POLL_INTERVAL_SECONDS=15
 POLL_NIGHT_INTERVAL_SECONDS=3600
@@ -38,6 +40,11 @@ EOF
   chmod 600 .env
   echo "Created .env"
 else
+  if ! grep -q '^ADMIN_API_KEY=' .env; then
+    ADMIN_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    echo "ADMIN_API_KEY=${ADMIN_API_KEY}" >> .env
+    echo "Added ADMIN_API_KEY to .env"
+  fi
   grep -q '^POLL_INTERVAL_SECONDS=' .env || echo 'POLL_INTERVAL_SECONDS=15' >> .env
   grep -q '^POLL_NIGHT_INTERVAL_SECONDS=' .env || echo 'POLL_NIGHT_INTERVAL_SECONDS=3600' >> .env
   sed -i 's/^POLL_INTERVAL_SECONDS=.*/POLL_INTERVAL_SECONDS=15/' .env
@@ -56,17 +63,23 @@ if [[ -f ~/server/caddy/Caddyfile ]]; then
 fi
 
 sleep 5
-curl -fsS http://127.0.0.1:8010/health
+ADMIN_KEY="$(grep ^ADMIN_API_KEY= .env | cut -d= -f2-)"
+curl -fsS -H "Authorization: Bearer ${ADMIN_KEY}" http://127.0.0.1:8010/health
 echo
-curl -fsS -H "Host: ${NEIRO_PUSH_PUBLIC_HOST}" http://127.0.0.1/health
+curl -fsS -H "Authorization: Bearer ${ADMIN_KEY}" -H "Host: ${NEIRO_PUSH_PUBLIC_HOST}" http://127.0.0.1/health
 echo
 REMOTE
 
+ADMIN_KEY="$(ssh_pi "grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-")"
+
 echo ""
 echo "Public: ${NEIRO_PUSH_PUBLIC_URL}/health"
-curl -fsS "${NEIRO_PUSH_PUBLIC_URL}/health" && echo || echo "(VPS/nginx not ready yet)"
+curl -fsS -H "Authorization: Bearer ${ADMIN_KEY}" "${NEIRO_PUSH_PUBLIC_URL}/health" && echo || echo "(VPS/nginx not ready yet)"
 echo ""
-echo "API_KEY: ssh ${SSH_HOST} \"grep ^API_KEY= ~/neiro-push/.env\""
+echo "API_KEY (приложение): ssh ${SSH_HOST} \"grep ^API_KEY= ~/neiro-push/.env\""
+echo "ADMIN_API_KEY (только ты): ssh ${SSH_HOST} \"grep ^ADMIN_API_KEY= ~/neiro-push/.env\""
 echo "local.properties:"
 echo "  NEIRO_PUSH_API_BASE_URL=${NEIRO_PUSH_PUBLIC_URL}"
 echo "  NEIRO_PUSH_API_KEY=<API_KEY с Pi>"
+echo ""
+echo "Тестовый push: ./server/scripts/test-push.sh"

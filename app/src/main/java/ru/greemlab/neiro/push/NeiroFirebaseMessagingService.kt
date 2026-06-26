@@ -10,7 +10,7 @@ class NeiroFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         if (message.data["action"] == "sync") {
-            PushRegistrar.onSyncPush(applicationContext)
+            PushSyncCoordinator.enqueue(applicationContext)
         }
     }
 
