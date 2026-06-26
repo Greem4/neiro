@@ -18,7 +18,7 @@
 | POST | `/v1/devices/register` | Bearer API_KEY |
 | DELETE | `/v1/devices/{device_id}` | Bearer API_KEY |
 
-Публично (через VPS-туннель): `https://medicine.greemlab.ru/neiro-push/health`
+Публично: `https://push.neiro.greemlab.ru/health`
 
 ## Опрос YClients
 
@@ -33,4 +33,5 @@
 |--------|----------|
 | `scripts/deploy.sh` | Деплой + патч Caddy на Pi |
 | `scripts/install-autostart.sh` | @reboot в crontab Pi |
-| `scripts/patch-pi-caddy.py` | Добавляет `/neiro-push` в ~/server/caddy/Caddyfile |
+| `scripts/patch-pi-caddy.py` | vhost `push.neiro.greemlab.ru` в Caddy на Pi |
+| `scripts/patch-vps-nginx.sh` | nginx + TLS на VPS |

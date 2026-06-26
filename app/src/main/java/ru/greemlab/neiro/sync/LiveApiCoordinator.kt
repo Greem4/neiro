@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.push.PushConfig
+import ru.greemlab.neiro.push.PushRegistrar
 import java.util.concurrent.TimeUnit
 
 /**
@@ -50,6 +51,9 @@ object LiveApiCoordinator {
                 override fun onStart(owner: LifecycleOwner) {
                     scope.launch {
                         if (!yclientsRepository.isLoggedIn.first()) return@launch
+                        if (serverPushActive) {
+                            PushRegistrar.onAppForeground(appContext)
+                        }
                         refreshNow(appContext)
                         if (!serverPushActive) {
                             startForegroundPolling(appContext)

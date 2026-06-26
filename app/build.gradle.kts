@@ -26,7 +26,7 @@ val releaseKeyAlias: String = localProps.getProperty("RELEASE_KEY_ALIAS", "")
 val releaseKeyPassword: String = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
 val neiroPushApiBaseUrl: String = localProps.getProperty(
     "NEIRO_PUSH_API_BASE_URL",
-    "https://medicine.greemlab.ru/neiro-push",
+    "https://push.neiro.greemlab.ru",
 )
 val neiroPushApiKey: String = localProps.getProperty("NEIRO_PUSH_API_KEY", "")
 val hasGoogleServices = file("google-services.json").exists()
@@ -51,7 +51,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.7.0"
+        versionName = "0.6.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

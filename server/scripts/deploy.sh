@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REMOTE_DIR="${NEIRO_PUSH_DIR:-~/neiro-push}"
+NEIRO_PUSH_PUBLIC_HOST="${NEIRO_PUSH_PUBLIC_HOST:-push.neiro.greemlab.ru}"
+NEIRO_PUSH_PUBLIC_URL="https://${NEIRO_PUSH_PUBLIC_HOST}"
 # shellcheck source=./_ssh.sh
 source "${ROOT_DIR}/scripts/_ssh.sh"
 
@@ -15,7 +17,7 @@ rsync -az --delete \
   --exclude '.DS_Store' \
   "${ROOT_DIR}/" "${SSH_HOST}:${REMOTE_DIR}/"
 
-ssh_pi bash -s <<'REMOTE'
+ssh_pi env NEIRO_PUSH_PUBLIC_HOST="${NEIRO_PUSH_PUBLIC_HOST}" bash -s <<'REMOTE'
 set -euo pipefail
 cd ~/neiro-push
 mkdir -p secrets data
@@ -56,15 +58,15 @@ fi
 sleep 5
 curl -fsS http://127.0.0.1:8010/health
 echo
-curl -fsS http://127.0.0.1/neiro-push/health
+curl -fsS -H "Host: ${NEIRO_PUSH_PUBLIC_HOST}" http://127.0.0.1/health
 echo
 REMOTE
 
 echo ""
-echo "Public: https://medicine.greemlab.ru/neiro-push/health"
-curl -fsS "https://medicine.greemlab.ru/neiro-push/health" && echo || echo "(VPS tunnel not ready)"
+echo "Public: ${NEIRO_PUSH_PUBLIC_URL}/health"
+curl -fsS "${NEIRO_PUSH_PUBLIC_URL}/health" && echo || echo "(VPS/nginx not ready yet)"
 echo ""
 echo "API_KEY: ssh ${SSH_HOST} \"grep ^API_KEY= ~/neiro-push/.env\""
 echo "local.properties:"
-echo "  NEIRO_PUSH_API_BASE_URL=https://medicine.greemlab.ru/neiro-push"
+echo "  NEIRO_PUSH_API_BASE_URL=${NEIRO_PUSH_PUBLIC_URL}"
 echo "  NEIRO_PUSH_API_KEY=<API_KEY с Pi>"

@@ -137,12 +137,25 @@ class PollService:
             sent = 0
             for device in devices:
                 try:
-                    await self._fcm.send_sync_push(
+                    result = await self._fcm.send_sync_push(
                         token=device.fcm_token,
                         company_id=account.company_id,
                         staff_id=account.staff_id,
                         reason=reason,
                     )
+                    if result.token_invalid:
+                        removed = self._db.delete_device(device.device_id)
+                        logger.warning(
+                            "removed stale device %s (%s): invalid FCM token",
+                            device.device_id,
+                            device.label or "no label",
+                        )
+                        if not removed:
+                            logger.warning(
+                                "failed to delete stale device %s",
+                                device.device_id,
+                            )
+                        continue
                     sent += 1
                 except Exception as exc:
                     logger.warning(

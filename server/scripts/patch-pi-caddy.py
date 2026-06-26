@@ -1,41 +1,76 @@
 #!/usr/bin/env python3
-"""Добавляет маршрут /neiro-push в Caddyfile на Pi (~/server/caddy/Caddyfile)."""
+"""Добавляет отдельный vhost для neiro-push в Caddyfile на Pi (~/server/caddy/Caddyfile)."""
 from __future__ import annotations
 
-from pathlib import Path
+import os
+import re
 import sys
+from pathlib import Path
 
 CADDYFILE = Path("/home/greem4/server/caddy/Caddyfile")
-MARKER = "handle /neiro-push/*"
-BLOCK = """\thandle /neiro-push/* {
-\t\turi strip_prefix /neiro-push
-\t\treverse_proxy neiro-push:8010
-\t}
+DEFAULT_HOST = "push.neiro.greemlab.ru"
+OLD_PATH_MARKER = "handle /neiro-push/*"
 
+
+def host() -> str:
+    return os.environ.get("NEIRO_PUSH_PUBLIC_HOST", DEFAULT_HOST).strip() or DEFAULT_HOST
+
+
+def site_marker(domain: str) -> str:
+    return f"http://{domain} {{"
+
+
+def site_block(domain: str) -> str:
+    return f"""http://{domain} {{
+\treverse_proxy neiro-push:8010
+}}
 """
 
 
+def remove_legacy_path_block(text: str) -> str:
+    pattern = re.compile(
+        r"\n?\thandle /neiro-push/\* \{[^}]*\}\n?",
+        re.MULTILINE,
+    )
+    return pattern.sub("\n", text)
+
+
+def remove_legacy_site_block(text: str, domain: str) -> str:
+    for prefix in (f"http://{domain}", domain):
+        pattern = re.compile(
+            rf"\n?{re.escape(prefix)} \{{[^}}]*\}}\n?",
+            re.MULTILINE | re.DOTALL,
+        )
+        text = pattern.sub("\n", text)
+    return text
+
+
 def main() -> int:
+    domain = host()
     if not CADDYFILE.is_file():
         print(f"Нет {CADDYFILE}", file=sys.stderr)
         return 1
 
     text = CADDYFILE.read_text(encoding="utf-8")
-    if MARKER in text:
-        print("already_patched")
-        return 0
+    changed = False
 
-    needle = "\thandle /api/* {"
-    if needle not in text:
-        print("pattern /api/* not found in Caddyfile", file=sys.stderr)
-        return 1
+    if OLD_PATH_MARKER in text:
+        text = remove_legacy_path_block(text)
+        changed = True
+        print("removed_legacy_path_route")
 
-    # Вставляем сразу после блока /api/* (после закрывающей скобки handle).
-    api_start = text.index(needle)
-    api_end = text.index("\n\t}", api_start) + len("\n\t}")
-    updated = text[:api_end] + "\n\n" + BLOCK.rstrip("\n") + text[api_end:]
-    CADDYFILE.write_text(updated, encoding="utf-8")
-    print("patched_ok")
+    marker = site_marker(domain)
+    if marker not in text:
+        text = remove_legacy_site_block(text, domain)
+        text = text.rstrip() + "\n\n" + site_block(domain) + "\n"
+        changed = True
+        print(f"added_site:{domain}")
+    else:
+        print(f"already_patched:{domain}")
+
+    if changed:
+        CADDYFILE.write_text(text, encoding="utf-8")
+
     return 0
 
 

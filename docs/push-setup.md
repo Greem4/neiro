@@ -11,14 +11,14 @@ chmod +x server/scripts/*.sh
 
 Скрипт:
 - копирует `~/neiro-push` на Pi;
-- патчит **Caddy на Pi** (маршрут `/neiro-push`, без правок Roster);
+- патчит **Caddy на Pi** (vhost `push.neiro.greemlab.ru`);
 - опрос YClients: **15 с** днём (09:00–21:00 МСК), **1 ч** ночью (21:00–09:00);
-- публичный URL: `https://medicine.greemlab.ru/neiro-push` (через существующий VPS-туннель → Caddy :80).
+- публичный URL: `https://push.neiro.greemlab.ru` (DNS → VPS → SSH-туннель → Caddy на Pi).
 
 Проверка:
 
 ```bash
-curl -s https://medicine.greemlab.ru/neiro-push/health
+curl -s https://push.neiro.greemlab.ru/health
 ```
 
 Автозапуск после перезагрузки Pi (опционально):
@@ -41,7 +41,7 @@ curl -s https://medicine.greemlab.ru/neiro-push/health
 ## 3. local.properties (Mac)
 
 ```properties
-NEIRO_PUSH_API_BASE_URL=https://medicine.greemlab.ru/neiro-push
+NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru
 NEIRO_PUSH_API_KEY=<API_KEY из ~/neiro-push/.env на Pi>
 ```
 
@@ -70,5 +70,6 @@ YClients ←── опрос 15с/1ч ── Pi (neiro-push)
 |------|------------|
 | `server/app/` | FastAPI, опрос, FCM |
 | `server/scripts/deploy.sh` | Деплой на Pi |
-| `server/scripts/patch-pi-caddy.py` | Маршрут в Caddy на Pi |
+| `server/scripts/patch-pi-caddy.py` | vhost в Caddy на Pi |
+| `server/scripts/patch-vps-nginx.sh` | nginx + certbot на VPS |
 | `app/.../push/` | Регистрация устройства, FCM service |

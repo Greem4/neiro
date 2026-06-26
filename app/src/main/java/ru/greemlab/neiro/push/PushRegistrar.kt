@@ -49,6 +49,14 @@ object PushRegistrar {
         }
     }
 
+    /** Повторная регистрация при возврате в приложение — актуальный FCM-токен на сервере. */
+    fun onAppForeground(context: Context) {
+        if (!PushConfig.isActive) return
+        scope.launch {
+            registerIfLoggedIn(context.applicationContext)
+        }
+    }
+
     fun onSyncPush(context: Context) {
         if (!PushConfig.isServerConfigured) return
         scope.launch {

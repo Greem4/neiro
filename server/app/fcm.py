@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import google.auth.transport.requests
 from google.oauth2 import service_account
 
 from app.config import Settings
+
+
+@dataclass(frozen=True)
+class FcmSendResult:
+    token_invalid: bool = False
 
 
 class FcmSender:
@@ -37,7 +43,7 @@ class FcmSender:
         company_id: int,
         staff_id: int,
         reason: str,
-    ) -> None:
+    ) -> FcmSendResult:
         if not self.is_configured:
             raise RuntimeError("FCM is not configured on the server")
 
@@ -72,9 +78,29 @@ class FcmSender:
                 json=body,
             )
             if response.status_code >= 400:
+                token_invalid = self._is_invalid_token_error(response)
+                if token_invalid:
+                    return FcmSendResult(token_invalid=True)
                 raise RuntimeError(
                     f"FCM error {response.status_code}: {response.text[:300]}"
                 )
+        return FcmSendResult()
+
+    def _is_invalid_token_error(self, response) -> bool:
+        try:
+            payload = response.json()
+        except json.JSONDecodeError:
+            return response.status_code in {404, 410}
+        error = payload.get("error", {})
+        status = str(error.get("status", "")).upper()
+        if status in {"NOT_FOUND", "UNREGISTERED", "INVALID_ARGUMENT"}:
+            return True
+        details = error.get("details", [])
+        for item in details:
+            error_code = str(item.get("errorCode", "")).upper()
+            if error_code in {"UNREGISTERED", "INVALID_ARGUMENT"}:
+                return True
+        return response.status_code in {404, 410}
 
     def _access_token(self) -> str:
         assert self._credentials is not None
