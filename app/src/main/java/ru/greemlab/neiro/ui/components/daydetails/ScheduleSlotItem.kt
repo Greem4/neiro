@@ -154,7 +154,7 @@ private fun SlotIndicatorBars(
         colors.forEachIndexed { index, color ->
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(if (colors.size > 1) 3.dp else 4.dp)
                     .fillMaxHeight()
                     .then(
                         if (index == 0) {
@@ -165,6 +165,9 @@ private fun SlotIndicatorBars(
                     )
                     .background(color),
             )
+            if (index < colors.lastIndex) {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
         }
     }
 }
@@ -221,14 +224,6 @@ fun IntensiveTimelineChip(
     )
 }
 
-/** Красная и зелёная полоски слева — маркер слота с заменой (сняли → встал). */
-val ReplacementCollapsedIndicators: List<Color> =
-    listOf(CancelledIndicatorRed, ScheduleHeaderGreen)
-
-/** Красная и зелёная полоски — интенсив скрывает отменённые занятия в слоте. */
-val IntensiveCoverCollapsedIndicators: List<Color> =
-    listOf(CancelledIndicatorRed, ScheduleHeaderGreen)
-
 /**
  * Слот замены: свёрнуто — одна плашка с полосками красная→зелёная;
  * по нажатию слева отменённый, справа кто встал на место.
@@ -236,12 +231,13 @@ val IntensiveCoverCollapsedIndicators: List<Color> =
 @Composable
 fun ExpandableReplacementSlot(
     replacement: ScheduleSlotContent,
-    removed: ScheduleSlotContent,
+    removed: List<ScheduleSlotContent>,
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
+    onRemovedStatusChange: ((index: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
     val gap = if (compactForTimeline) 4.dp else 6.dp
     val slotModifier = Modifier.fillMaxHeight()
@@ -263,17 +259,22 @@ fun ExpandableReplacementSlot(
         horizontalArrangement = Arrangement.spacedBy(if (expanded) gap else 0.dp),
     ) {
         if (expanded) {
-            ScheduleSlotItem(
-                time = removed.time,
-                name = removed.name,
-                comment = removed.comment,
-                status = removed.status,
-                isDiagnostics = removed.isDiagnostics,
-                showTime = removed.showTime,
-                compactForTimeline = compactForTimeline,
-                highlighted = highlighted,
-                modifier = slotModifier.weight(1f),
-            )
+            removed.forEachIndexed { index, entry ->
+                ScheduleSlotItem(
+                    time = entry.time,
+                    name = entry.name,
+                    comment = entry.comment,
+                    status = entry.status,
+                    isDiagnostics = entry.isDiagnostics,
+                    showTime = entry.showTime,
+                    compactForTimeline = compactForTimeline,
+                    highlighted = highlighted,
+                    onStatusChange = onRemovedStatusChange?.let { handler ->
+                        { status -> handler(index, status) }
+                    },
+                    modifier = slotModifier.weight(1f),
+                )
+            }
             ScheduleSlotItem(
                 time = replacement.time,
                 name = replacement.name,
@@ -286,6 +287,9 @@ fun ExpandableReplacementSlot(
                 modifier = slotModifier.weight(1f),
             )
         } else {
+            val indicators = remember(removed.size) {
+                List(removed.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+            }
             ScheduleSlotItem(
                 time = replacement.time,
                 name = replacement.name,
@@ -294,7 +298,7 @@ fun ExpandableReplacementSlot(
                 isDiagnostics = replacement.isDiagnostics,
                 showTime = replacement.showTime,
                 compactForTimeline = compactForTimeline,
-                indicatorColors = ReplacementCollapsedIndicators,
+                indicatorColors = indicators,
                 highlighted = highlighted,
                 modifier = slotModifier.fillMaxWidth(),
             )
@@ -373,6 +377,11 @@ fun ExpandableIntensiveCoverSlot(
                 modifier = slotModifier.weight(1f),
             )
         } else {
+            val indicators = remember(covered.size) {
+                if (hasCovered) {
+                    List(covered.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+                } else null
+            }
             IntensiveTimelineChip(
                 title = intensiveTitle,
                 amount = intensiveAmount,
@@ -380,7 +389,7 @@ fun ExpandableIntensiveCoverSlot(
                 onClick = if (hasCovered) null else onIntensiveDetails,
                 compactForTimeline = compactForTimeline,
                 highlighted = highlighted,
-                indicatorColors = if (hasCovered) IntensiveCoverCollapsedIndicators else null,
+                indicatorColors = indicators,
                 onDetailsClick = if (hasCovered) onIntensiveDetails else null,
                 modifier = slotModifier.fillMaxWidth(),
             )
@@ -410,12 +419,14 @@ private fun ExpandableReplacementSlotPreview() {
                 status = AttendanceStatus.ARRIVED,
                 showTime = false,
             ),
-            removed = ScheduleSlotContent(
-                time = "16:00-16:50",
-                name = "Пирогов Лев",
-                comment = "Нейрокоррекция",
-                status = AttendanceStatus.CANCELLED,
-                showTime = false,
+            removed = listOf(
+                ScheduleSlotContent(
+                    time = "16:00-16:50",
+                    name = "Пирогов Лев",
+                    comment = "Нейрокоррекция",
+                    status = AttendanceStatus.CANCELLED,
+                    showTime = false,
+                ),
             ),
             expanded = expanded,
             onToggle = { expanded = !expanded },

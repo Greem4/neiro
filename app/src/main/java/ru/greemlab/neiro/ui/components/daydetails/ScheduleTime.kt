@@ -49,7 +49,7 @@ data class PositionedAppointment(
 @Immutable
 data class ReplacementPair(
     val replacement: TimedAppointment,
-    val removed: TimedAppointment,
+    val removed: List<TimedAppointment>,
 )
 
 /** Интенсив в слоте: отменённые занятия скрыты под ним до раскрытия. */
@@ -147,9 +147,9 @@ fun buildDayTimelineLayout(entries: List<TimelineEntry>): DayTimelineLayout? {
 
 /** Пара «замена + отмена» в одном временном слоте. */
 fun findReplacementPair(appointments: List<TimedAppointment>): ReplacementPair? {
-    val replacement = appointments.firstOrNull { it.entry.status.isReplacementTop() }
-    val removed = appointments.firstOrNull { it.entry.status == AttendanceStatus.CANCELLED }
-    return if (replacement != null && removed != null && replacement != removed) {
+    val replacement = appointments.firstOrNull { it.entry.status.isReplacementTop() } ?: return null
+    val removed = appointments.filter { it != replacement && it.entry.status == AttendanceStatus.CANCELLED }
+    return if (removed.isNotEmpty()) {
         ReplacementPair(replacement = replacement, removed = removed)
     } else {
         null
@@ -201,7 +201,7 @@ fun computePositionedTimelineItems(appointments: List<TimedAppointment>): List<P
         if (replacement != null) {
             groups.add(replacement.replacement to SlotGroup.Replacement(replacement))
             used.add(replacement.replacement)
-            used.add(replacement.removed)
+            used.addAll(replacement.removed)
             continue
         }
         val intensiveCover = findIntensiveCoverPair(sameSlot)

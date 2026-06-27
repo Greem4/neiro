@@ -232,15 +232,39 @@ fun DayScheduleTimeline(
                                 }
                                 is PositionedTimelineItem.Replacement -> {
                                     val pair = positioned.pair
-                                    val slotKey = "${appt.start}-${appt.end}-${pair.replacement.entry.name}-${pair.removed.entry.name}"
+                                    val slotKey = buildString {
+                                        append(appt.start)
+                                        append('-')
+                                        append(appt.end)
+                                        append('-')
+                                        append(pair.replacement.entry.name)
+                                        pair.removed.forEach { removed ->
+                                            append('-')
+                                            append(removed.entry.name)
+                                        }
+                                    }
                                     val expanded = expandedReplacements[slotKey] == true
 
                                     ExpandableReplacementSlot(
                                         replacement = pair.replacement.entry.toSlotContent(),
-                                        removed = pair.removed.entry.toSlotContent(),
+                                        removed = pair.removed.map { it.entry.toSlotContent() },
                                         expanded = expanded,
                                         onToggle = {
                                             expandedReplacements[slotKey] = !expanded
+                                        },
+                                        onRemovedStatusChange = if (onStudentStatusChange != null) {
+                                            { index, status ->
+                                                val sourceIndex = pair.removed
+                                                    .getOrNull(index)
+                                                    ?.entry
+                                                    ?.sourceIndex
+                                                    ?: return@ExpandableReplacementSlot
+                                                if (sourceIndex >= 0) {
+                                                    onStudentStatusChange(sourceIndex, status)
+                                                }
+                                            }
+                                        } else {
+                                            null
                                         },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
@@ -460,7 +484,7 @@ private fun PositionedTimelineItem.matchesHighlight(key: String, date: LocalDate
         SessionSlotKey.fromTimelineEntry(appointment.entry, date) == key
     is PositionedTimelineItem.Replacement ->
         SessionSlotKey.fromTimelineEntry(pair.replacement.entry, date) == key ||
-            SessionSlotKey.fromTimelineEntry(pair.removed.entry, date) == key
+            pair.removed.any { SessionSlotKey.fromTimelineEntry(it.entry, date) == key }
     is PositionedTimelineItem.IntensiveCover ->
         SessionSlotKey.fromTimelineEntry(pair.intensive.entry, date) == key ||
             pair.covered.any { SessionSlotKey.fromTimelineEntry(it.entry, date) == key }
