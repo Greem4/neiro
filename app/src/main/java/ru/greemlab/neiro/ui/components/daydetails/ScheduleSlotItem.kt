@@ -1,37 +1,40 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
-import ru.greemlab.neiro.ui.calendar.Session
 
 private val CancelledIndicatorRed = Color(0xFFF44336)
+private const val SWIPE_THRESHOLD_FRACTION = 0.35f
 
 /**
  * Элемент расписания: фон стандартный, цвет меняется только у имени.
@@ -52,6 +55,8 @@ fun ScheduleSlotItem(
     highlighted: Boolean = false,
     onStatusChange: ((AttendanceStatus) -> Unit)? = null,
     onStatusIconClick: (() -> Unit)? = null,
+    onIndicatorClick: (() -> Unit)? = null,
+    onContentClick: (() -> Unit)? = null,
 ) {
     val nameColor = AttendanceStatusVisuals.nameColor(status)
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
@@ -80,48 +85,69 @@ fun ScheduleSlotItem(
                 .fillMaxHeight(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SlotIndicatorBars(colors = indicatorBars)
+            SlotIndicatorBars(
+                colors = indicatorBars,
+                onClick = onIndicatorClick,
+            )
 
-            if (showTime && time.isNotEmpty()) {
-                Text(
-                    text = time.substringBefore("-"),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            } else if (!compactForTimeline) {
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            // Имя (ЦВЕТ МЕНЯЕТСЯ) и комментарий
-            Column(
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = if (compactForTimeline) 6.dp else 0.dp)
-                    .padding(vertical = if (compactForTimeline) 2.dp else 6.dp),
+                    .fillMaxHeight()
+                    .then(
+                        if (onContentClick != null) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onContentClick,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = name.ifEmpty { "Без имени" },
-                    style = if (compactForTimeline) {
-                        MaterialTheme.typography.bodySmall
-                    } else {
-                        MaterialTheme.typography.bodyMedium
-                    },
-                    fontWeight = FontWeight.Bold,
-                    color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (comment.isNotEmpty()) {
+                if (showTime && time.isNotEmpty()) {
                     Text(
-                        text = comment,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = time.substringBefore("-"),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else if (!compactForTimeline) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // Имя (ЦВЕТ МЕНЯЕТСЯ) и комментарий
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = if (compactForTimeline) 6.dp else 0.dp)
+                        .padding(vertical = if (compactForTimeline) 2.dp else 6.dp),
+                ) {
+                    Text(
+                        text = name.ifEmpty { "Без имени" },
+                        style = if (compactForTimeline) {
+                            MaterialTheme.typography.bodySmall
+                        } else {
+                            MaterialTheme.typography.bodyMedium
+                        },
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (comment.isNotEmpty()) {
+                        Text(
+                            text = comment,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
 
@@ -147,10 +173,25 @@ fun ScheduleSlotItem(
 @Composable
 private fun SlotIndicatorBars(
     colors: List<Color>,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val barShape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-    Row(modifier = modifier.fillMaxHeight()) {
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
         colors.forEachIndexed { index, color ->
             Box(
                 modifier = Modifier
@@ -186,6 +227,7 @@ fun IntensiveTimelineChip(
     highlighted: Boolean = false,
     indicatorColors: List<Color>? = null,
     onDetailsClick: (() -> Unit)? = null,
+    onIndicatorClick: (() -> Unit)? = null,
 ) {
     val amountLabel = if (amount > 0.0) {
         ru.greemlab.neiro.ui.util.formatRubles(amount)
@@ -200,7 +242,7 @@ fun IntensiveTimelineChip(
     ScheduleSlotItem(
         time = "",
         name = collapsedName,
-        comment = if (onClick != null) "Нажмите, чтобы открыть" else "",
+        comment = if (onClick != null || onIndicatorClick != null) "Нажмите, чтобы открыть" else "",
         status = status,
         showTime = false,
         compactForTimeline = compactForTimeline,
@@ -208,25 +250,15 @@ fun IntensiveTimelineChip(
         highlighted = highlighted,
         onStatusChange = null,
         onStatusIconClick = onDetailsClick,
-        modifier = modifier
-            .fillMaxSize()
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick,
-                    )
-                } else {
-                    Modifier
-                },
-            ),
+        onIndicatorClick = onIndicatorClick,
+        onContentClick = onClick,
+        modifier = modifier.fillMaxSize(),
     )
 }
 
 /**
- * Слот замены: свёрнуто — одна плашка с полосками красная→зелёная;
- * по нажатию слева отменённый, справа кто встал на место.
+ * Слот замены: свёрнуто — одна плашка с полосками красная→зелёная.
+ * Открывается свайпом вправо (тянем карточку вправо — раскрываем отмены слева).
  */
 @Composable
 fun ExpandableReplacementSlot(
@@ -234,62 +266,81 @@ fun ExpandableReplacementSlot(
     removed: List<ScheduleSlotContent>,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onContentClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
     onRemovedStatusChange: ((index: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
+    val scope = rememberCoroutineScope()
     val gap = if (compactForTimeline) 4.dp else 6.dp
     val slotModifier = Modifier.fillMaxHeight()
 
-    Row(
+    val expansion = remember { Animatable(if (expanded) 1f else 0f) }
+
+    LaunchedEffect(expanded) {
+        expansion.animateTo(if (expanded) 1f else 0f)
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onToggle,
-            )
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium,
-                ),
-            ),
-        horizontalArrangement = Arrangement.spacedBy(if (expanded) gap else 0.dp),
-    ) {
-        if (expanded) {
-            removed.forEachIndexed { index, entry ->
-                ScheduleSlotItem(
-                    time = entry.time,
-                    name = entry.name,
-                    comment = entry.comment,
-                    status = entry.status,
-                    isDiagnostics = entry.isDiagnostics,
-                    showTime = entry.showTime,
-                    compactForTimeline = compactForTimeline,
-                    highlighted = highlighted,
-                    onStatusChange = onRemovedStatusChange?.let { handler ->
-                        { status -> handler(index, status) }
+            .pointerInput(removed.size) {
+                val maxWidthPx = size.width.toFloat()
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        // Свайп вправо (dragAmount > 0) увеличивает expansion
+                        val delta = dragAmount / (maxWidthPx * 0.7f)
+                        scope.launch {
+                            expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
+                        }
                     },
-                    modifier = slotModifier.weight(1f),
+                    onDragEnd = {
+                        val target = if (expansion.value > SWIPE_THRESHOLD_FRACTION) 1f else 0f
+                        scope.launch {
+                            expansion.animateTo(target)
+                            if ((target == 1f) != expanded) onToggle()
+                        }
+                    },
                 )
+            },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(gap * expansion.value),
+        ) {
+            val currentExpansion = expansion.value
+            if (currentExpansion > 0.01f) {
+                removed.forEachIndexed { index, entry ->
+                    ScheduleSlotItem(
+                        time = entry.time,
+                        name = entry.name,
+                        comment = entry.comment,
+                        status = entry.status,
+                        isDiagnostics = entry.isDiagnostics,
+                        showTime = entry.showTime,
+                        compactForTimeline = compactForTimeline,
+                        highlighted = highlighted,
+                        onContentClick = onContentClick,
+                        onStatusChange = onRemovedStatusChange?.let { handler ->
+                            { status -> handler(index, status) }
+                        },
+                        modifier = slotModifier.weight(currentExpansion),
+                    )
+                }
             }
-            ScheduleSlotItem(
-                time = replacement.time,
-                name = replacement.name,
-                comment = replacement.comment,
-                status = replacement.status,
-                isDiagnostics = replacement.isDiagnostics,
-                showTime = replacement.showTime,
-                compactForTimeline = compactForTimeline,
-                highlighted = highlighted,
-                modifier = slotModifier.weight(1f),
-            )
-        } else {
+            
             val indicators = remember(removed.size) {
                 List(removed.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
             }
+
+            val currentIndicators = when {
+                currentExpansion < 0.01f -> indicators
+                currentExpansion > 0.99f -> null
+                else -> listOf(ScheduleHeaderGreen)
+            }
+
             ScheduleSlotItem(
                 time = replacement.time,
                 name = replacement.name,
@@ -298,16 +349,18 @@ fun ExpandableReplacementSlot(
                 isDiagnostics = replacement.isDiagnostics,
                 showTime = replacement.showTime,
                 compactForTimeline = compactForTimeline,
-                indicatorColors = indicators,
+                indicatorColors = currentIndicators,
                 highlighted = highlighted,
-                modifier = slotModifier.fillMaxWidth(),
+                onContentClick = onContentClick,
+                modifier = slotModifier.weight(1f),
             )
         }
     }
 }
 
 /**
- * Интенсив в слоте: свёрнуто — одна плашка; по нажатию слева отменённые, справа интенсив.
+ * Интенсив в слоте: свёрнуто — одна плашка.
+ * Открывается свайпом вправо (тянем карточку вправо — раскрываем отмены слева).
  */
 @Composable
 fun ExpandableIntensiveCoverSlot(
@@ -318,80 +371,99 @@ fun ExpandableIntensiveCoverSlot(
     expanded: Boolean,
     onToggle: () -> Unit,
     onIntensiveDetails: () -> Unit,
+    onCoveredContentClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
     onCoveredStatusChange: ((index: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
+    val scope = rememberCoroutineScope()
     val gap = if (compactForTimeline) 4.dp else 6.dp
     val slotModifier = Modifier.fillMaxHeight()
     val hasCovered = covered.isNotEmpty()
 
-    Row(
+    val expansion = remember { Animatable(if (expanded) 1f else 0f) }
+
+    LaunchedEffect(expanded) {
+        expansion.animateTo(if (expanded) 1f else 0f)
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .then(
                 if (hasCovered) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onToggle,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium,
-                ),
+                    Modifier.pointerInput(covered.size) {
+                        val maxWidthPx = size.width.toFloat()
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                // Свайп вправо (dragAmount > 0) увеличивает expansion
+                                val delta = dragAmount / (maxWidthPx * 0.7f)
+                                scope.launch {
+                                    expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
+                                }
+                            },
+                            onDragEnd = {
+                                val target = if (expansion.value > SWIPE_THRESHOLD_FRACTION) 1f else 0f
+                                scope.launch {
+                                    expansion.animateTo(target)
+                                    if ((target == 1f) != expanded) onToggle()
+                                }
+                            },
+                        )
+                    }
+                } else Modifier
             ),
-        horizontalArrangement = Arrangement.spacedBy(if (expanded) gap else 0.dp),
     ) {
-        if (expanded && hasCovered) {
-            covered.forEachIndexed { index, entry ->
-                ScheduleSlotItem(
-                    time = entry.time,
-                    name = entry.name,
-                    comment = entry.comment,
-                    status = entry.status,
-                    isDiagnostics = entry.isDiagnostics,
-                    showTime = entry.showTime,
-                    compactForTimeline = compactForTimeline,
-                    highlighted = highlighted,
-                    onStatusChange = onCoveredStatusChange?.let { handler ->
-                        { status -> handler(index, status) }
-                    },
-                    modifier = slotModifier.weight(1f),
-                )
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(gap * expansion.value),
+        ) {
+            val currentExpansion = expansion.value
+            if (currentExpansion > 0.01f && hasCovered) {
+                covered.forEachIndexed { index, entry ->
+                    ScheduleSlotItem(
+                        time = entry.time,
+                        name = entry.name,
+                        comment = entry.comment,
+                        status = entry.status,
+                        isDiagnostics = entry.isDiagnostics,
+                        showTime = entry.showTime,
+                        compactForTimeline = compactForTimeline,
+                        highlighted = highlighted,
+                        onContentClick = onCoveredContentClick,
+                        onStatusChange = onCoveredStatusChange?.let { handler ->
+                            { status -> handler(index, status) }
+                        },
+                        modifier = slotModifier.weight(currentExpansion),
+                    )
+                }
             }
-            IntensiveTimelineChip(
-                title = intensiveTitle,
-                amount = intensiveAmount,
-                status = intensiveStatus,
-                onClick = null,
-                compactForTimeline = compactForTimeline,
-                highlighted = highlighted,
-                onDetailsClick = onIntensiveDetails,
-                modifier = slotModifier.weight(1f),
-            )
-        } else {
+            
             val indicators = remember(covered.size) {
                 if (hasCovered) {
                     List(covered.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
                 } else null
             }
+
+            val currentIndicators = when {
+                !hasCovered -> null
+                currentExpansion < 0.01f -> indicators
+                currentExpansion > 0.99f -> null
+                else -> listOf(ScheduleHeaderGreen)
+            }
+
             IntensiveTimelineChip(
                 title = intensiveTitle,
                 amount = intensiveAmount,
                 status = intensiveStatus,
-                onClick = if (hasCovered) null else onIntensiveDetails,
+                onClick = onIntensiveDetails,
                 compactForTimeline = compactForTimeline,
                 highlighted = highlighted,
-                indicatorColors = indicators,
-                onDetailsClick = if (hasCovered) onIntensiveDetails else null,
-                modifier = slotModifier.fillMaxWidth(),
+                indicatorColors = currentIndicators,
+                onDetailsClick = onIntensiveDetails,
+                modifier = slotModifier.weight(1f),
             )
         }
     }
@@ -430,6 +502,7 @@ private fun ExpandableReplacementSlotPreview() {
             ),
             expanded = expanded,
             onToggle = { expanded = !expanded },
+            onContentClick = { },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp)

@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -27,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -77,6 +79,13 @@ fun DayScheduleTimeline(
     val currentTime by rememberCurrentTime()
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
+    val context = LocalContext.current
+
+    val onStudentClick = remember(context) {
+        { name: String ->
+            Toast.makeText(context, "Карточка: $name (в разработке)", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LaunchedEffect(highlightSlotKey, layout, date) {
         val key = highlightSlotKey ?: return@LaunchedEffect
@@ -225,6 +234,7 @@ fun DayScheduleTimeline(
                                         TimelineScheduleSlot(
                                             entry = entry,
                                             highlighted = slotHighlighted,
+                                            onContentClick = { onStudentClick(entry.name) },
                                             onStudentStatusChange = onStudentStatusChange,
                                             modifier = slotGeometry.modifier,
                                         )
@@ -251,6 +261,9 @@ fun DayScheduleTimeline(
                                         expanded = expanded,
                                         onToggle = {
                                             expandedReplacements[slotKey] = !expanded
+                                        },
+                                        onContentClick = {
+                                            onStudentClick(pair.replacement.entry.name)
                                         },
                                         onRemovedStatusChange = if (onStudentStatusChange != null) {
                                             { index, status ->
@@ -297,6 +310,10 @@ fun DayScheduleTimeline(
                                             expandedIntensiveCovers[slotKey] = !expanded
                                         },
                                         onIntensiveDetails = { selectedIntensive = intensiveEntry },
+                                        onCoveredContentClick = {
+                                            // Если это отмена ученика под интенсивом
+                                            onStudentClick("Запись под интенсивом")
+                                        },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
                                         onCoveredStatusChange = if (onStudentStatusChange != null) {
@@ -363,6 +380,7 @@ fun DayScheduleTimeline(
                     TimelineScheduleSlot(
                         entry = entry,
                         highlighted = entryHighlighted,
+                        onContentClick = { onStudentClick(entry.name) },
                         onStudentStatusChange = onStudentStatusChange,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -453,6 +471,7 @@ private fun CurrentTimeIndicator(
 @Composable
 private fun TimelineScheduleSlot(
     entry: TimelineEntry,
+    onContentClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
@@ -475,6 +494,7 @@ private fun TimelineScheduleSlot(
         } else {
             null
         },
+        onContentClick = onContentClick,
         modifier = modifier,
     )
 }
