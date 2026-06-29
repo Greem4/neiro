@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -23,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -31,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.R
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
@@ -48,24 +45,18 @@ private val ShortDateFormat: DateTimeFormatter =
 /** Фиксированная высота слота — календарь не прыгает при смене даты. */
 val DaySummarySlotHeight: Dp = 166.dp
 
-/** Высота строки даты + «Сегодня» — не даёт кнопке раздувать карточку. */
+/** Высота строки даты — не даёт контенту раздувать карточку. */
 private val DaySummaryHeaderRowHeight: Dp = 26.dp
 
 @Composable
 fun DaySummarySlot(
     date: LocalDate,
     stats: DaySummaryStats,
-    onTodayClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isRegistered: Boolean = true,
-    onRegistrationRequired: () -> Unit = {},
 ) {
     DaySummaryCard(
         date = date,
         stats = stats,
-        onTodayClick = onTodayClick,
-        isRegistered = isRegistered,
-        onRegistrationRequired = onRegistrationRequired,
         modifier = modifier
             .fillMaxWidth()
             .height(DaySummarySlotHeight),
@@ -76,9 +67,6 @@ fun DaySummarySlot(
 private fun DaySummaryCard(
     date: LocalDate,
     stats: DaySummaryStats,
-    onTodayClick: () -> Unit,
-    isRegistered: Boolean,
-    onRegistrationRequired: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dateLabel = remember(date) {
@@ -88,10 +76,10 @@ private fun DaySummaryCard(
     }
     val earnedText = remember(stats.earned) { formatRubles(stats.earned) }
     val expectedText = remember(stats.expected) { formatRubles(stats.expected) }
-    val intensiveConductedText = remember(stats.attendedIntensiveChildren, stats.totalIntensiveChildren) {
-        formatIntensiveConductedLabel(stats.attendedIntensiveChildren, stats.totalIntensiveChildren)
+    val intensiveConductedText = remember(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren) {
+        formatIntensiveConductedLabel(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren)
     }
-    val showIntensiveMetric = stats.totalIntensiveChildren > 0
+    val showIntensiveMetric = stats.hasIntensive
 
     val lessonsValue = remember(stats) {
         if (stats.pendingLessons > 0) {
@@ -119,7 +107,6 @@ private fun DaySummaryCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(DaySummaryHeaderRowHeight),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -129,14 +116,7 @@ private fun DaySummaryCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 4.dp),
-                )
-                DaySummaryTodayButton(
-                    onClick = {
-                        if (isRegistered) onTodayClick() else onRegistrationRequired()
-                    },
+                    modifier = Modifier.weight(1f),
                 )
             }
 
@@ -234,40 +214,6 @@ private fun DayMoneyCard(
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DaySummaryTodayButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val label = stringResource(R.string.calendar_go_to_today)
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(DaySummaryHeaderRowHeight),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = 1.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Today,
-                contentDescription = label,
-                modifier = Modifier.size(15.dp),
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
             )
         }
     }

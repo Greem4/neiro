@@ -46,11 +46,21 @@ fun Session.Intensive.totalAmount(
     return if (!onlyArrived || countsTowardEarnings()) unit else 0.0
 }
 
-/** Сколько детей ожидается на интенсиве (без отменённых). */
-fun Session.Intensive.expectedChildCount(): Int = when {
-    children.isNotEmpty() -> children.visibleChildren().size
+/** Сколько детей подтвердились или уже пришли на интенсив. */
+fun Session.Intensive.confirmedChildCount(): Int = when {
+    children.isNotEmpty() -> children.count {
+        it.status == AttendanceStatus.CONFIRMED || it.status == AttendanceStatus.ARRIVED
+    }
     isEffectivelyDeleted() -> 0
-    else -> 1
+    status == AttendanceStatus.CONFIRMED || status == AttendanceStatus.ARRIVED -> 1
+    else -> 0
+}
+
+/** Сколько детей всё ещё в статусе ожидания. */
+fun Session.Intensive.pendingChildCount(): Int = when {
+    children.isNotEmpty() -> children.count { it.status == AttendanceStatus.EXPECTED }
+    status == AttendanceStatus.EXPECTED && !isEffectivelyDeleted() -> 1
+    else -> 0
 }
 
 /** Сколько детей пришло на интенсив. */
@@ -60,11 +70,10 @@ fun Session.Intensive.arrivedChildCount(): Int = when {
     else -> 0
 }
 
-/** Подпись «0/1» или «1», когда все пришли. */
-fun formatIntensiveConductedLabel(attended: Int, total: Int): String = when {
-    total == 0 -> "0"
-    attended >= total -> attended.toString()
-    else -> "$attended/$total"
+/** Подпись для интенсива: «Подтверждено / Ожидают» или просто «Подтверждено», если ожидающих нет. */
+fun formatIntensiveConductedLabel(confirmed: Int, pending: Int): String = when {
+    pending > 0 -> "$confirmed/$pending"
+    else -> confirmed.toString()
 }
 
 fun intensiveChildrenLabel(count: Int): String = when {

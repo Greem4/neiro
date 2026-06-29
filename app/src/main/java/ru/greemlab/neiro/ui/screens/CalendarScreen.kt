@@ -2,11 +2,8 @@ package ru.greemlab.neiro.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +12,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -354,7 +352,6 @@ fun CalendarScreen(
                         CalendarOverlay.RegistrationPrompt
                     }
                 },
-                onRegistrationRequired = { overlay = CalendarOverlay.RegistrationPrompt },
                 onNotificationsClick = { overlay = CalendarOverlay.Notifications },
                 unreadNotificationCount = unreadNotificationCount,
             )
@@ -612,7 +609,6 @@ fun CalendarScreenContent(
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
-    onRegistrationRequired: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
@@ -697,9 +693,6 @@ fun CalendarScreenContent(
                                     DaySummarySlot(
                                         date = selectedDate,
                                         stats = daySummaryStats,
-                                        onTodayClick = onTodayClick,
-                                        isRegistered = isRegistered,
-                                        onRegistrationRequired = onRegistrationRequired,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                 }
@@ -724,6 +717,8 @@ fun CalendarScreenContent(
                         }
                     },
                 )
+                // Отступ снизу, чтобы кнопка "Сегодня" не перекрывала дни при прокрутке до конца
+                Spacer(modifier = Modifier.navigationBarsPadding().height(80.dp))
             }
 
             MonthPickerOverlay(
@@ -732,6 +727,29 @@ fun CalendarScreenContent(
                 onMonthSelected = onMonthSelected,
                 onDismiss = { monthPickerVisible = false },
             )
+
+            val isShowingToday = remember(selectedDate, currentMonth) {
+                selectedDate == LocalDate.now() && currentMonth == YearMonth.now()
+            }
+            AnimatedVisibility(
+                visible = !isShowingToday,
+                enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 16.dp, end = 16.dp)
+                    .navigationBarsPadding(),
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = onTodayClick,
+                    modifier = Modifier.height(40.dp),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    icon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    text = { Text(stringResource(R.string.calendar_go_to_today), style = MaterialTheme.typography.labelLarge) },
+                )
+            }
         }
     }
 }

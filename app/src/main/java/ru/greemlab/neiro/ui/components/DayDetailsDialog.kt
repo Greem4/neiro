@@ -45,7 +45,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Storage
@@ -68,7 +67,6 @@ import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.StatusExpectedMint
-import ru.greemlab.neiro.theme.StatusRedBody
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -121,7 +119,7 @@ private data class ScheduleEntry(
 /**
  * Полноэкранный список занятий на выбранную дату: таймлайн, статистика, архив.
  *
- * Рисуется overlay в том же окне, что и календарь — без отдельного [Dialog],
+ * Рисуется overlay в том же окне, что и календарь — без отдельного [androidx.compose.ui.window.Dialog],
  * чтобы фон был ровным от статус-бара до низа экрана.
  */
 @Composable
@@ -199,7 +197,7 @@ private fun DayDetailsContent(
     val hasManualIntensives = remember(currentNames.toList()) {
         currentNames.any { SessionParser.isIntensive(it) }
     }
-    val showPlanningMode = allowStatusEdit && (MANUAL_INTENSIVES_ENABLED || hasManualIntensives)
+    val showPlanningMode = allowStatusEdit && hasManualIntensives
 
     LaunchedEffect(allowStatusEdit, showPlanningMode) {
         if (!allowStatusEdit || !showPlanningMode) isPlanningMode = false
@@ -874,7 +872,7 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
             }
         }
         .sortedBy { entry ->
-            if (entry.time.isEmpty()) "99:99" else entry.time
+            entry.time.ifEmpty { "99:99" }
         }
 }
 
@@ -891,21 +889,23 @@ private fun calculateStats(
     var money = 0.0
 
     for (entry in entries) {
+        val isIntensive = entry.isExtra && entry.extraType == "Интенсив"
+
         when (entry.status) {
-            AttendanceStatus.EXPECTED -> expected++
-            AttendanceStatus.CONFIRMED -> confirmed++
+            AttendanceStatus.EXPECTED -> if (!isIntensive) expected++
+            AttendanceStatus.CONFIRMED -> if (!isIntensive) confirmed++
             AttendanceStatus.ARRIVED -> {
-                arrived++
-                if (!entry.isExtra) {
-                    money += pricePerSession
+                if (!isIntensive) arrived++
+                money += if (!entry.isExtra) {
+                    pricePerSession
                 } else if (entry.extraType == "Диагностика") {
-                    money += if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
+                    if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
                 } else {
-                    money += entry.extraAmount
+                    entry.extraAmount
                 }
             }
 
-            AttendanceStatus.CANCELLED -> cancelled++
+            AttendanceStatus.CANCELLED -> if (!isIntensive) cancelled++
         }
     }
 
