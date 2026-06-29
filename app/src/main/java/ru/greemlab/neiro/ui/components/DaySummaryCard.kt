@@ -76,10 +76,10 @@ private fun DaySummaryCard(
     }
     val earnedText = remember(stats.earned) { formatRubles(stats.earned) }
     val expectedText = remember(stats.expected) { formatRubles(stats.expected) }
-    val intensiveConductedText = remember(stats.attendedIntensiveChildren, stats.totalIntensiveChildren) {
-        formatIntensiveConductedLabel(stats.attendedIntensiveChildren, stats.totalIntensiveChildren)
+    val intensiveConductedText = remember(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren) {
+        formatIntensiveConductedLabel(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren)
     }
-    val showIntensiveMetric = stats.totalIntensiveChildren > 0
+    val showIntensiveMetric = stats.hasIntensive
 
     val lessonsValue = remember(stats) {
         if (stats.pendingLessons > 0) {

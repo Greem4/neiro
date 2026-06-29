@@ -9,8 +9,9 @@ data class DaySummaryStats(
     val attendedLessons: Int = 0,
     val confirmedLessons: Int = 0,
     val pendingLessons: Int = 0,
-    val totalIntensiveChildren: Int = 0,
-    val attendedIntensiveChildren: Int = 0,
+    val confirmedIntensiveChildren: Int = 0,
+    val pendingIntensiveChildren: Int = 0,
+    val hasIntensive: Boolean = false,
     val earned: Double = 0.0,
     val expected: Double = 0.0,
     val lost: Double = 0.0,
@@ -26,8 +27,9 @@ internal fun computeDayStats(
     var attendedLessons = 0
     var confirmedLessons = 0
     var pendingLessons = 0
-    var totalIntensiveChildren = 0
-    var attendedIntensiveChildren = 0
+    var confirmedIntensiveChildren = 0
+    var pendingIntensiveChildren = 0
+    var hasIntensive = false
     var earned = 0.0
     var expected = 0.0
     var lost = 0.0
@@ -39,6 +41,7 @@ internal fun computeDayStats(
         val session = SessionParser.parse(raw)
 
         if (session.isEffectivelyDeleted()) {
+            if (session is Session.Intensive) hasIntensive = true
             val price = when (session) {
                 is Session.Intensive -> session.totalAmount(pricePerIntensiveChild, onlyArrived = false)
                 is Session.Diagnostics -> if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
@@ -50,8 +53,9 @@ internal fun computeDayStats(
 
         when (session) {
             is Session.Intensive -> {
-                totalIntensiveChildren += session.expectedChildCount()
-                attendedIntensiveChildren += session.arrivedChildCount()
+                hasIntensive = true
+                confirmedIntensiveChildren += session.confirmedChildCount()
+                pendingIntensiveChildren += session.pendingChildCount()
                 val actual = session.totalAmount(pricePerIntensiveChild, onlyArrived = true)
                 val planned = session.totalAmount(pricePerIntensiveChild, onlyArrived = false)
                 earned += actual
@@ -98,8 +102,9 @@ internal fun computeDayStats(
         attendedLessons = attendedLessons,
         confirmedLessons = confirmedLessons,
         pendingLessons = pendingLessons,
-        totalIntensiveChildren = totalIntensiveChildren,
-        attendedIntensiveChildren = attendedIntensiveChildren,
+        confirmedIntensiveChildren = confirmedIntensiveChildren,
+        pendingIntensiveChildren = pendingIntensiveChildren,
+        hasIntensive = hasIntensive,
         earned = earned,
         expected = expected,
         lost = lost,
