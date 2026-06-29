@@ -11,6 +11,7 @@
 local.properties
 app/google-services.json
 .signing/
+ruStoreApi.txt
 
 # Локальные утилиты и выгрузки (не в репозитории)
 tools/
