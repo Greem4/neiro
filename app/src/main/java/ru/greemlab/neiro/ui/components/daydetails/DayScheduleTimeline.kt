@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.ui.components.daydetails
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -27,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +45,7 @@ import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.time.Duration.Companion.milliseconds
 
 private val NowLineRed = Color(0xFFE53935)
 private val HourLabelColor = Color(0xFF9E9E9E)
@@ -77,12 +81,19 @@ fun DayScheduleTimeline(
     val currentTime by rememberCurrentTime()
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
+    val context = LocalContext.current
+
+    val onStudentClick = remember(context) {
+        { name: String ->
+            Toast.makeText(context, "Карточка: $name (в разработке)", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LaunchedEffect(highlightSlotKey, layout, date) {
         val key = highlightSlotKey ?: return@LaunchedEffect
         val currentLayout = layout ?: return@LaunchedEffect
         val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
-        delay(80)
+        delay(80.milliseconds)
         val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
         val offsetMinutes = minutesFromAxisStart(currentLayout.axisStart, target.layoutAppointment.start)
         val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
@@ -100,10 +111,10 @@ fun DayScheduleTimeline(
         if (date != LocalDate.now()) return@LaunchedEffect
         val now = LocalTime.now()
         if (now.isBefore(currentLayout.axisStart) || !now.isBefore(currentLayout.axisEnd)) return@LaunchedEffect
-        delay(80)
+        delay(80.milliseconds)
         var layoutAttempts = 0
         while (scrollState.viewportSize == 0 && layoutAttempts < 30) {
-            delay(16)
+            delay(16.milliseconds)
             layoutAttempts++
         }
         val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
@@ -187,21 +198,25 @@ fun DayScheduleTimeline(
                         timelineHeight = timelineHeight,
                     )
 
-                    BoxWithConstraints(
+                    val expandedReplacements = remember { mutableStateMapOf<String, Boolean>() }
+                    val expandedIntensiveCovers = remember { mutableStateMapOf<String, Boolean>() }
+                    var columnWidth by remember { mutableStateOf(0.dp) }
+
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(timelineHeight),
+                            .height(timelineHeight)
+                            .onSizeChanged { size ->
+                                columnWidth = with(density) { size.width.toDp() }
+                            },
                     ) {
-                        val expandedReplacements = remember { mutableStateMapOf<String, Boolean>() }
-                        val expandedIntensiveCovers = remember { mutableStateMapOf<String, Boolean>() }
-
                         layout.positioned.forEach { positioned ->
                             val appt = positioned.layoutAppointment
                             val slotGeometry = computeSlotGeometry(
                                 positioned = positioned,
                                 layout = layout,
                                 pxPerMinute = pxPerMinute,
-                                maxWidth = maxWidth,
+                                maxWidth = columnWidth,
                                 density = density,
                             )
 
@@ -225,6 +240,7 @@ fun DayScheduleTimeline(
                                         TimelineScheduleSlot(
                                             entry = entry,
                                             highlighted = slotHighlighted,
+                                            onContentClick = { onStudentClick(entry.name) },
                                             onStudentStatusChange = onStudentStatusChange,
                                             modifier = slotGeometry.modifier,
                                         )
@@ -232,15 +248,28 @@ fun DayScheduleTimeline(
                                 }
                                 is PositionedTimelineItem.Replacement -> {
                                     val pair = positioned.pair
-                                    val slotKey = "${appt.start}-${appt.end}-${pair.replacement.entry.name}-${pair.removed.entry.name}"
+                                    val slotKey = buildString {
+                                        append(appt.start)
+                                        append('-')
+                                        append(appt.end)
+                                        append('-')
+                                        append(pair.replacement.entry.name)
+                                        pair.removed.forEach { removed ->
+                                            append('-')
+                                            append(removed.entry.name)
+                                        }
+                                    }
                                     val expanded = expandedReplacements[slotKey] == true
 
                                     ExpandableReplacementSlot(
                                         replacement = pair.replacement.entry.toSlotContent(),
-                                        removed = pair.removed.entry.toSlotContent(),
+                                        removed = pair.removed.map { it.entry.toSlotContent() },
                                         expanded = expanded,
                                         onToggle = {
                                             expandedReplacements[slotKey] = !expanded
+                                        },
+                                        onContentClick = { content ->
+                                            onStudentClick(content.name)
                                         },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
@@ -273,22 +302,11 @@ fun DayScheduleTimeline(
                                             expandedIntensiveCovers[slotKey] = !expanded
                                         },
                                         onIntensiveDetails = { selectedIntensive = intensiveEntry },
+                                        onCoveredContentClick = { content ->
+                                            onStudentClick(content.name)
+                                        },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
-                                        onCoveredStatusChange = if (onStudentStatusChange != null) {
-                                            { index, status ->
-                                                val sourceIndex = pair.covered
-                                                    .getOrNull(index)
-                                                    ?.entry
-                                                    ?.sourceIndex
-                                                    ?: return@ExpandableIntensiveCoverSlot
-                                                if (sourceIndex >= 0) {
-                                                    onStudentStatusChange(sourceIndex, status)
-                                                }
-                                            }
-                                        } else {
-                                            null
-                                        },
                                         modifier = slotGeometry.modifier,
                                     )
                                 }
@@ -339,6 +357,7 @@ fun DayScheduleTimeline(
                     TimelineScheduleSlot(
                         entry = entry,
                         highlighted = entryHighlighted,
+                        onContentClick = { onStudentClick(entry.name) },
                         onStudentStatusChange = onStudentStatusChange,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -429,6 +448,7 @@ private fun CurrentTimeIndicator(
 @Composable
 private fun TimelineScheduleSlot(
     entry: TimelineEntry,
+    onContentClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
@@ -451,6 +471,7 @@ private fun TimelineScheduleSlot(
         } else {
             null
         },
+        onContentClick = onContentClick,
         modifier = modifier,
     )
 }
@@ -460,7 +481,7 @@ private fun PositionedTimelineItem.matchesHighlight(key: String, date: LocalDate
         SessionSlotKey.fromTimelineEntry(appointment.entry, date) == key
     is PositionedTimelineItem.Replacement ->
         SessionSlotKey.fromTimelineEntry(pair.replacement.entry, date) == key ||
-            SessionSlotKey.fromTimelineEntry(pair.removed.entry, date) == key
+            pair.removed.any { SessionSlotKey.fromTimelineEntry(it.entry, date) == key }
     is PositionedTimelineItem.IntensiveCover ->
         SessionSlotKey.fromTimelineEntry(pair.intensive.entry, date) == key ||
             pair.covered.any { SessionSlotKey.fromTimelineEntry(it.entry, date) == key }
@@ -531,7 +552,7 @@ private fun rememberCurrentTime(): State<LocalTime> =
             val now = LocalTime.now()
             val nextTick = now.plusMinutes(1).withSecond(0).withNano(0)
             val delayMs = Duration.between(now, nextTick).toMillis().coerceAtLeast(1_000)
-            delay(delayMs + 500)
+            delay((delayMs + 500).milliseconds)
             value = LocalTime.now()
         }
     }
@@ -543,9 +564,9 @@ private fun DayScheduleTimelinePreview() {
         DayScheduleTimeline(
             date = LocalDate.now(),
             entries = listOf(
-                TimelineEntry("Ерженинов Владислав", "16:00-16:50", "7.6(Юля)", AttendanceStatus.ARRIVED),
-                TimelineEntry("Пирогов Лев", "16:00-16:50", "Нейрокоррекция", AttendanceStatus.CANCELLED),
-                TimelineEntry("Шабанова Василиса", "11:00-11:50", "Нейрокоррекция", AttendanceStatus.ARRIVED),
+                TimelineEntry("Иванов Иван", "16:00-16:50", "Занятие", AttendanceStatus.ARRIVED),
+                TimelineEntry("Пирогов Лев", "16:00-16:50", "Коррекция", AttendanceStatus.CANCELLED),
+                TimelineEntry("Шабанова Василиса", "11:00-11:50", "Коррекция", AttendanceStatus.ARRIVED),
                 TimelineEntry("Дубль", "11:00-11:50", "", AttendanceStatus.CANCELLED),
                 TimelineEntry("Егорченкова Эмилия", "15:00-15:50", "2,1г", AttendanceStatus.EXPECTED),
             ),

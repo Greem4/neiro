@@ -68,7 +68,9 @@ fun CalendarGrid(
                         )
                     } else {
                         val sessions = dayData[date]
-                        val studentsCount = sessions?.let(SessionParser::countCalendarLessons) ?: 0
+                        val namesLabel = sessions?.let {
+                            SessionParser.formatCalendarCounts(it, date, today)
+                        } ?: ""
                         val hasIntensive = sessions?.any(SessionParser::isVisibleIntensive) ?: false
 
                         DayCard(
@@ -76,7 +78,7 @@ fun CalendarGrid(
                             today = today,
                             isCurrentMonth = true,
                             isSelected = date == selectedDate,
-                            namesCount = studentsCount,
+                            namesLabel = namesLabel,
                             hasIntensive = hasIntensive,
                             isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
                             archiveMismatch = date in archiveMismatchDates,

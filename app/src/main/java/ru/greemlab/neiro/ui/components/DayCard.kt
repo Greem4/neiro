@@ -35,7 +35,7 @@ import java.time.LocalDate
  * @param today Текущая дата (передаётся снаружи, чтобы не пересчитывать в каждой ячейке).
  * @param isCurrentMonth Принадлежит ли дата текущему отображаемому месяцу.
  * @param isSelected Выбрана ли эта дата пользователем.
- * @param namesCount Количество записей на этот день.
+ * @param namesLabel Текстовая метка количества записей (например, "8/1" или "9").
  * @param isWorkingDay Подсвечивать ли как рабочий день.
  * @param onDateClick Обработчик нажатия.
  */
@@ -45,7 +45,7 @@ fun DayCard(
     today: LocalDate,
     isCurrentMonth: Boolean,
     isSelected: Boolean,
-    namesCount: Int = 0,
+    namesLabel: String = "",
     hasIntensive: Boolean = false,
     isWorkingDay: Boolean = true,
     archiveMismatch: Boolean = false,
@@ -105,28 +105,29 @@ fun DayCard(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            if (namesCount > 0 || hasIntensive) {
+            if (namesLabel.isNotEmpty() || hasIntensive) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 2.dp),
                 ) {
-                    if (namesCount in 1..3) {
+                    val count = namesLabel.toIntOrNull()
+                    if (count != null && count in 1..3) {
                         val dotColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         }
-                        repeat(namesCount) {
+                        repeat(count) {
                             Box(
                                 modifier = Modifier
                                     .size(4.dp)
                                     .background(color = dotColor, shape = CircleShape),
                             )
                         }
-                    } else if (namesCount > 3) {
+                    } else if (namesLabel.isNotEmpty() && namesLabel != "0") {
                         Text(
-                            text = namesCount.toString(),
+                            text = namesLabel,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
@@ -157,7 +158,7 @@ private fun DayCardIntensivePreview() {
             today = LocalDate.now(),
             isCurrentMonth = true,
             isSelected = false,
-            namesCount = 1,
+            namesLabel = "1",
             hasIntensive = true,
             onDateClick = {},
         )

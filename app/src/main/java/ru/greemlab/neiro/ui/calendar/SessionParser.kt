@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
+import java.time.LocalDate
 
 /**
  * Статус записи (синхронизация с YClients и локальное хранение).
@@ -232,6 +233,43 @@ object SessionParser {
                 is Session.Diagnostics -> !session.isEffectivelyDeleted()
                 else -> false
             }
+        }
+    }
+
+    /**
+     * Возвращает строку для сетки календаря.
+     *
+     * Правила отображения:
+     * 1. Если до дня > 1 дня (далёкое будущее) — общее число потенциальных занятий (кроме отмен).
+     * 2. Если сегодня, завтра или в прошлом — только подтверждённые/проведённые занятия.
+     */
+    fun formatCalendarCounts(sessions: List<String>, date: LocalDate, today: LocalDate): String {
+        val parsed = sessions.map(::parse)
+        val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
+        var confirmed = 0
+        var pending = 0
+        parsed.forEach { session ->
+            val isLesson = when (session) {
+                is Session.Student -> !session.isEffectivelyDeleted() &&
+                    !isStudentCoveredByIntensive(session, intensiveChildrenByTime)
+                is Session.Diagnostics -> !session.isEffectivelyDeleted()
+                else -> false
+            }
+            if (isLesson) {
+                if (session.status == AttendanceStatus.EXPECTED) {
+                    pending++
+                } else {
+                    confirmed++
+                }
+            }
+        }
+
+        val isFutureFar = date.isAfter(today.plusDays(1))
+
+        return if (isFutureFar) {
+            (confirmed + pending).toString()
+        } else {
+            confirmed.toString()
         }
     }
 

@@ -7,6 +7,8 @@ import androidx.compose.runtime.Immutable
 data class DaySummaryStats(
     val totalLessons: Int = 0,
     val attendedLessons: Int = 0,
+    val confirmedLessons: Int = 0,
+    val pendingLessons: Int = 0,
     val totalIntensiveChildren: Int = 0,
     val attendedIntensiveChildren: Int = 0,
     val earned: Double = 0.0,
@@ -22,6 +24,8 @@ internal fun computeDayStats(
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
+    var confirmedLessons = 0
+    var pendingLessons = 0
     var totalIntensiveChildren = 0
     var attendedIntensiveChildren = 0
     var earned = 0.0
@@ -62,6 +66,11 @@ internal fun computeDayStats(
                     earned += price
                 } else {
                     expected += price
+                    if (session.status == AttendanceStatus.CONFIRMED) {
+                        confirmedLessons++
+                    } else if (session.status == AttendanceStatus.EXPECTED) {
+                        pendingLessons++
+                    }
                 }
             }
 
@@ -74,6 +83,11 @@ internal fun computeDayStats(
                     earned += pay
                 } else {
                     expected += pay
+                    if (session.status == AttendanceStatus.CONFIRMED) {
+                        confirmedLessons++
+                    } else if (session.status == AttendanceStatus.EXPECTED) {
+                        pendingLessons++
+                    }
                 }
             }
         }
@@ -82,6 +96,8 @@ internal fun computeDayStats(
     return DaySummaryStats(
         totalLessons = totalLessons,
         attendedLessons = attendedLessons,
+        confirmedLessons = confirmedLessons,
+        pendingLessons = pendingLessons,
         totalIntensiveChildren = totalIntensiveChildren,
         attendedIntensiveChildren = attendedIntensiveChildren,
         earned = earned,

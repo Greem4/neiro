@@ -49,7 +49,7 @@ data class PositionedAppointment(
 @Immutable
 data class ReplacementPair(
     val replacement: TimedAppointment,
-    val removed: TimedAppointment,
+    val removed: List<TimedAppointment>,
 )
 
 /** Интенсив в слоте: отменённые занятия скрыты под ним до раскрытия. */
@@ -145,22 +145,8 @@ fun buildDayTimelineLayout(entries: List<TimelineEntry>): DayTimelineLayout? {
     )
 }
 
-/** Пара «замена + отмена» в одном временном слоте. */
-fun findReplacementPair(appointments: List<TimedAppointment>): ReplacementPair? {
-    val replacement = appointments.firstOrNull { it.entry.status.isReplacementTop() }
-    val removed = appointments.firstOrNull { it.entry.status == AttendanceStatus.CANCELLED }
-    return if (replacement != null && removed != null && replacement != removed) {
-        ReplacementPair(replacement = replacement, removed = removed)
-    } else {
-        null
-    }
-}
-
 private fun TimedAppointment.isIntensiveEntry(): Boolean =
     entry.isExtra && entry.extraType == "Интенсив"
-
-private fun TimedAppointment.isCancelledStudent(): Boolean =
-    !entry.isExtra && entry.status == AttendanceStatus.CANCELLED
 
 private fun entryToTimedAppointment(entry: TimelineEntry): TimedAppointment? {
     val start = parseTimeRangeStart(entry.time) ?: return null
@@ -168,56 +154,58 @@ private fun entryToTimedAppointment(entry: TimelineEntry): TimedAppointment? {
     return TimedAppointment(entry = entry, start = start, end = end)
 }
 
-/** Интенсив + отменённые в том же слоте (в т.ч. ученики, скрытые в списке дня). */
-fun findIntensiveCoverPair(appointments: List<TimedAppointment>): IntensiveCoverPair? {
-    val intensive = appointments.firstOrNull { it.isIntensiveEntry() } ?: return null
-    val coveredFromEntry = intensive.entry.coveredEntries.mapNotNull(::entryToTimedAppointment)
-    val cancelledInSlot = appointments.filter { appt ->
-        appt != intensive && appt.isCancelledStudent()
-    }
-    val covered = (coveredFromEntry + cancelledInSlot)
-        .distinctBy { it.entry.sourceIndex.takeIf { index -> index >= 0 } ?: it.entry.name.hashCode() }
-    return if (covered.isNotEmpty()) {
-        IntensiveCoverPair(intensive = intensive, covered = covered)
-    } else {
-        null
-    }
-}
-
 private fun AttendanceStatus.isReplacementTop(): Boolean =
-    this == AttendanceStatus.ARRIVED || this == AttendanceStatus.CONFIRMED
+    this == AttendanceStatus.ARRIVED || this == AttendanceStatus.CONFIRMED || this == AttendanceStatus.EXPECTED
 
 fun computePositionedTimelineItems(appointments: List<TimedAppointment>): List<PositionedTimelineItem> {
     val sorted = appointments.sortedWith(compareBy({ it.start }, { it.entry.name }))
     val used = mutableSetOf<TimedAppointment>()
-    val groups = mutableListOf<Pair<TimedAppointment, SlotGroup?>>()
+    val resultGroups = mutableListOf<Pair<TimedAppointment, SlotGroup?>>()
 
+    // 1. Сначала даем шанс Интенсивам поглотить все пересекающиеся отмены
+    val activeIntensives = sorted.filter { it.isIntensiveEntry() && it.entry.status.isReplacementTop() }
+    for (intensive in activeIntensives) {
+        if (intensive in used) continue
+        val overlappingCancelled = sorted.filter { other ->
+            other !in used && other.entry.status == AttendanceStatus.CANCELLED && intervalsOverlap(intensive, other)
+        }
+        val coveredFromEntry = intensive.entry.coveredEntries.mapNotNull(::entryToTimedAppointment)
+        val allCovered = (coveredFromEntry + overlappingCancelled)
+            .distinctBy { it.entry.sourceIndex.takeIf { index -> index >= 0 } ?: it.entry.name.hashCode() }
+
+        if (allCovered.isNotEmpty()) {
+            resultGroups.add(intensive to SlotGroup.IntensiveCover(IntensiveCoverPair(intensive, allCovered)))
+            used.add(intensive)
+            used.addAll(overlappingCancelled)
+        }
+    }
+
+    // 2. Затем обычные замены (активные ученики поглощают пересекающиеся отмены)
+    val activeStudents = sorted.filter { !it.entry.isExtra && it.entry.status.isReplacementTop() }
+    for (student in activeStudents) {
+        if (student in used) continue
+        val overlappingCancelled = sorted.filter { other ->
+            other !in used && other.entry.status == AttendanceStatus.CANCELLED && intervalsOverlap(student, other)
+        }
+        if (overlappingCancelled.isNotEmpty()) {
+            resultGroups.add(student to SlotGroup.Replacement(ReplacementPair(student, overlappingCancelled)))
+            used.add(student)
+            used.addAll(overlappingCancelled)
+        }
+    }
+
+    // 3. Все остальное (активные без отмен, диагностики, непокрытые отмены)
     for (appt in sorted) {
         if (appt in used) continue
-        val sameSlot = sorted.filter { other ->
-            other !in used && other.start == appt.start && other.end == appt.end
-        }
-        val replacement = findReplacementPair(sameSlot)
-        if (replacement != null) {
-            groups.add(replacement.replacement to SlotGroup.Replacement(replacement))
-            used.add(replacement.replacement)
-            used.add(replacement.removed)
-            continue
-        }
-        val intensiveCover = findIntensiveCoverPair(sameSlot)
-        if (intensiveCover != null) {
-            groups.add(intensiveCover.intensive to SlotGroup.IntensiveCover(intensiveCover))
-            used.add(intensiveCover.intensive)
-            used.addAll(intensiveCover.covered)
-            continue
-        }
-        groups.add(appt to null)
+        resultGroups.add(appt to null)
         used.add(appt)
     }
 
-    val positioned = computePositionedAppointments(groups.map { it.first })
+    // 4. Сортируем группы по времени начала основного занятия для правильного позиционирования
+    val finalSortedGroups = resultGroups.sortedWith(compareBy({ it.first.start }, { it.first.entry.name }))
+    val positioned = computePositionedAppointments(finalSortedGroups.map { it.first })
 
-    return groups.zip(positioned) { (layoutAppt, group), pos ->
+    return finalSortedGroups.zip(positioned) { (layoutAppt, group), pos ->
         require(pos.appointment == layoutAppt)
         when (group) {
             is SlotGroup.Replacement -> PositionedTimelineItem.Replacement(
