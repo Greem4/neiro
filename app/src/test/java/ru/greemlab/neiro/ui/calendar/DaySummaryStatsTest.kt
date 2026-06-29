@@ -115,4 +115,21 @@ class DaySummaryStatsTest {
         assertEquals(1, stats.totalLessons)
         assertEquals(2000.0, stats.earned, 0.0)
     }
+
+    @Test
+    fun `computeDayStats counts confirmed and pending lessons`() {
+        val stats = computeDayStats(
+            listOf(
+                "Иванов|1", // CONFIRMED
+                "Петров|0", // EXPECTED
+                "Сидоров|3", // ARRIVED
+            ),
+            pricePerSession = 1000.0,
+            pricePerDiagnostics = 0.0,
+        )
+        assertEquals(3, stats.totalLessons)
+        assertEquals(1, stats.attendedLessons)
+        assertEquals(1, stats.confirmedLessons)
+        assertEquals(1, stats.pendingLessons)
+    }
 }

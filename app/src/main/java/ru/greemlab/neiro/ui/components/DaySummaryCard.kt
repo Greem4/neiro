@@ -93,6 +93,14 @@ private fun DaySummaryCard(
     }
     val showIntensiveMetric = stats.totalIntensiveChildren > 0
 
+    val lessonsValue = remember(stats) {
+        if (stats.pendingLessons > 0) {
+            "${stats.confirmedLessons + stats.attendedLessons}/${stats.pendingLessons}"
+        } else {
+            stats.totalLessons.toString()
+        }
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -139,7 +147,7 @@ private fun DaySummaryCard(
                 DaySummaryMetric(
                     icon = Icons.Rounded.School,
                     tint = MaterialTheme.colorScheme.primary,
-                    value = stats.totalLessons.toString(),
+                    value = lessonsValue,
                     label = "занятий",
                     modifier = Modifier.weight(1f),
                 )
