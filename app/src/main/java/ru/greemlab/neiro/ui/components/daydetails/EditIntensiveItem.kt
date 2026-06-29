@@ -8,7 +8,8 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -277,12 +278,18 @@ private fun IntensiveTimeScrollPicker(
             }
     }
 
-    BoxWithConstraints(
+    val density = LocalDensity.current
+    var pickerWidth by remember { mutableStateOf(0.dp) }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(52.dp)
+            .onSizeChanged { size ->
+                pickerWidth = with(density) { size.width.toDp() }
+            },
     ) {
-        val sidePadding = ((maxWidth - hourItemWidth) / 2 - edgePeekWidth).coerceAtLeast(8.dp)
+        val sidePadding = ((pickerWidth - hourItemWidth) / 2 - edgePeekWidth).coerceAtLeast(8.dp)
         val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
 
         LazyRow(
