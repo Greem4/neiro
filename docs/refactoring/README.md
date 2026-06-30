@@ -21,7 +21,7 @@
 | 3 | [ETAP_3_notifications.md](ETAP_3_notifications.md) ✅ | Reminder window, claim, permission, stable hash | Средний | 2 (LogoutCoordinator) |
 | 4 | [ETAP_4_ui.md](ETAP_4_ui.md) | WebView destroy, SyncVM mutex, LazyColumn keys, a11y | Низкий | — |
 | 5 | [ETAP_5_data.md](ETAP_5_data.md) ✅ | 401, pagination, MIN_NAME_MATCH=2, nullable JSON, логи | Средний | — |
-| 6 | [ETAP_6_core.md](ETAP_6_core.md) | Async init, edge-to-edge dedup, deep-link state | Низкий | 1 (backup rules) |
+| 6 | [ETAP_6_core.md](ETAP_6_core.md) ✅ | Async init, edge-to-edge dedup, deep-link state | Низкий | 1 (backup rules) |
 | — | [OUT_OF_SCOPE.md](OUT_OF_SCOPE.md) | Что НЕ делаем и почему | — | — |
 
 ## Рекомендуемый порядок
@@ -53,7 +53,7 @@ ETAP_1 → ETAP_5 → ETAP_2 → ETAP_3 → ETAP_4 → ETAP_6
 - [ ] **Sync VM** игнорирует повторные вызовы, пока `isLoading == true`.
 - [x] **HTTP 401** → автоматический `tokenStorage.clear()` + сообщение «Сессия истекла».
 - [x] **`MIN_NAME_MATCH_SCORE = 2`** или объяснённый комментарий, почему 1.
-- [ ] **Async init** в `NeiroApplication.onCreate`.
+- [x] **Async init** в `NeiroApplication.onCreate`.
 - [ ] **Lints без новых ошибок** в IDE (`ReadLints` чистый).
 
 ## Что НЕ менять в поведении

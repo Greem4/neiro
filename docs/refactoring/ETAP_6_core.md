@@ -3,11 +3,11 @@
 **Уровень риска:** Низкий. Правки ядра приложения. После выполнения проще всего проверить cold-start и deep-link из push.
 **Зависимости:** Этап 1 (backup rules) — для `data_extraction_rules.xml`. Этап 2 (`LogoutCoordinator`) — для logout flow на уровне приложения.
 **Acceptance:**
-- [ ] `NeiroApplication.onCreate` не блокирует main thread — все coordinator init вызовы либо безопасны (synchronous), либо обёрнуты в `appScope.launch`.
-- [ ] `MainActivity` не дублирует `enableEdgeToEdge` + `applyWindowSystemBars` — оставлен один механизм.
-- [ ] Deep-link state (`openDate`, `highlightSlotKey`, `notificationDeepLinkVersion`) переживает rotation (`rememberSaveable` или сохранение в `savedInstanceState`).
-- [ ] `RequestNotificationPermissionIfNeeded` показывает rationale, если пользователь ранее отклонил permission.
-- [ ] `applyNotificationExtras` идемпотентен (не инкрементит `notificationDeepLinkVersion` если extras не изменились).
+- [x] `NeiroApplication.onCreate` не блокирует main thread — все coordinator init вызовы либо безопасны (synchronous), либо обёрнуты в `appScope.launch`.
+- [x] `MainActivity` не дублирует `enableEdgeToEdge` + `applyWindowSystemBars` — оставлен один механизм.
+- [x] Deep-link state (`openDate`, `highlightSlotKey`, `notificationDeepLinkVersion`) переживает rotation (`rememberSaveable` или сохранение в `savedInstanceState`).
+- [x] `RequestNotificationPermissionIfNeeded` показывает rationale, если пользователь ранее отклонил permission.
+- [x] `applyNotificationExtras` идемпотентен (не инкрементит `notificationDeepLinkVersion` если extras не изменились).
 
 ---
 
