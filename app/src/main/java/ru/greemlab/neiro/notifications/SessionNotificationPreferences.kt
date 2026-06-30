@@ -104,29 +104,41 @@ class SessionNotificationPreferences(context: Context) {
     }
 
     fun wasEventNotified(dedupeKey: String): Boolean =
-        prefs.getStringSet(KEY_NOTIFIED_EVENT_KEYS, emptySet()).orEmpty().contains(dedupeKey)
+        readOrderedKeys(KEY_NOTIFIED_EVENT_KEYS_LIST, legacy = KEY_NOTIFIED_EVENT_KEYS).contains(dedupeKey)
 
+    @Synchronized
     fun markEventNotified(dedupeKey: String) {
-        val updated = prefs.getStringSet(KEY_NOTIFIED_EVENT_KEYS, emptySet()).orEmpty().toMutableSet()
+        val updated = readOrderedKeys(KEY_NOTIFIED_EVENT_KEYS_LIST, legacy = KEY_NOTIFIED_EVENT_KEYS)
+        updated.remove(dedupeKey)
         updated.add(dedupeKey)
-        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
-        prefs.edit().putStringSet(KEY_NOTIFIED_EVENT_KEYS, updated).apply()
+        while (updated.size > MAX_NOTIFIED_KEYS) {
+            val first = updated.iterator().next()
+            updated.remove(first)
+        }
+        prefs.edit().putString(KEY_NOTIFIED_EVENT_KEYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
     fun wasReminderNotified(dedupeKey: String): Boolean =
-        prefs.getStringSet(KEY_NOTIFIED_REMINDER_KEYS, emptySet()).orEmpty().contains(dedupeKey)
+        readOrderedKeys(KEY_NOTIFIED_REMINDER_KEYS_LIST, legacy = KEY_NOTIFIED_REMINDER_KEYS).contains(dedupeKey)
 
+    @Synchronized
     fun markReminderNotified(dedupeKey: String) {
-        val updated = prefs.getStringSet(KEY_NOTIFIED_REMINDER_KEYS, emptySet()).orEmpty().toMutableSet()
+        val updated = readOrderedKeys(KEY_NOTIFIED_REMINDER_KEYS_LIST, legacy = KEY_NOTIFIED_REMINDER_KEYS)
+        updated.remove(dedupeKey)
         updated.add(dedupeKey)
-        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
-        prefs.edit().putStringSet(KEY_NOTIFIED_REMINDER_KEYS, updated).apply()
+        while (updated.size > MAX_NOTIFIED_KEYS) {
+            val first = updated.iterator().next()
+            updated.remove(first)
+        }
+        prefs.edit().putString(KEY_NOTIFIED_REMINDER_KEYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
     fun clearNotifiedKeys() {
         prefs.edit()
             .remove(KEY_NOTIFIED_EVENT_KEYS)
             .remove(KEY_NOTIFIED_REMINDER_KEYS)
+            .remove(KEY_NOTIFIED_EVENT_KEYS_LIST)
+            .remove(KEY_NOTIFIED_REMINDER_KEYS_LIST)
             .apply()
     }
 
@@ -171,6 +183,31 @@ class SessionNotificationPreferences(context: Context) {
         prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
     }
 
+    /**
+     * Атомарный claim: возвращает true, если digest за этот день ещё не показан.
+     * После true вызывающий обязан показать push. После false — пропустить.
+     */
+    @Synchronized
+    fun claimTodayDigest(epochDay: Long): Boolean {
+        if (prefs.getLong(KEY_TODAY_DIGEST_DAY, 0L) == epochDay) return false
+        return prefs.edit().putLong(KEY_TODAY_DIGEST_DAY, epochDay).commit()
+    }
+
+    @Synchronized
+    fun claimTomorrowDigest(targetEpochDay: Long): Boolean {
+        if (prefs.getLong(KEY_TOMORROW_DIGEST_TARGET_DAY, 0L) == targetEpochDay) return false
+        return prefs.edit().putLong(KEY_TOMORROW_DIGEST_TARGET_DAY, targetEpochDay).commit()
+    }
+
+    @Synchronized
+    fun claimArchiveReminder(pastDayEpochDay: Long): Boolean {
+        if (wasArchiveReminderShown(pastDayEpochDay)) return false
+        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        updated.add(pastDayEpochDay.toString())
+        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        return prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).commit()
+    }
+
     fun clearArchiveReminderShown(epochDay: Long = LocalDate.now().toEpochDay()) {
         val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
         updated.remove(epochDay.toString())
@@ -196,6 +233,15 @@ class SessionNotificationPreferences(context: Context) {
     fun establishBaseline(sessions: List<TrackedSession>) {
         saveSnapshot(sessions)
         hasBaselineSnapshot = true
+    }
+
+    private fun readOrderedKeys(currentKey: String, legacy: String): java.util.LinkedHashSet<String> {
+        val raw = prefs.getString(currentKey, null)
+        if (raw != null) {
+            return raw.split(SEPARATOR).filter { it.isNotEmpty() }.toCollection(java.util.LinkedHashSet())
+        }
+        val legacySet = prefs.getStringSet(legacy, emptySet()).orEmpty()
+        return java.util.LinkedHashSet(legacySet)
     }
 
     private data class SnapshotDto(
@@ -248,6 +294,9 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_ARCHIVE_REMINDER_TIME = "archive_reminder_time_minutes"
         private const val KEY_NOTIFIED_EVENT_KEYS = "notified_event_keys"
         private const val KEY_NOTIFIED_REMINDER_KEYS = "notified_reminder_keys"
+        private const val KEY_NOTIFIED_EVENT_KEYS_LIST = "notified_event_keys_v2"
+        private const val KEY_NOTIFIED_REMINDER_KEYS_LIST = "notified_reminder_keys_v2"
+        private const val SEPARATOR = "\u0001"
         private const val KEY_TODAY_DIGEST_DAY = "today_digest_epoch_day"
         private const val KEY_TOMORROW_DIGEST_TARGET_DAY = "tomorrow_digest_target_epoch_day"
         private const val KEY_ARCHIVE_REMINDER_DAYS = "archive_reminder_epoch_days"

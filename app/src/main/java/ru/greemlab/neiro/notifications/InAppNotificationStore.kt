@@ -38,6 +38,7 @@ class InAppNotificationStore private constructor(context: Context) {
         _items.value = pruned
     }
 
+    @Synchronized
     fun append(
         title: String,
         body: String,
@@ -64,14 +65,17 @@ class InAppNotificationStore private constructor(context: Context) {
         persist(listOf(entry) + current)
     }
 
+    @Synchronized
     fun markAllRead() {
         persist(_items.value.map { it.copy(read = true) })
     }
 
+    @Synchronized
     fun clearAll() {
         persist(emptyList())
     }
 
+    @Synchronized
     fun remove(id: String) {
         persist(_items.value.filter { it.id != id })
     }

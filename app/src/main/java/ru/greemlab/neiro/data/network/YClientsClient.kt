@@ -70,7 +70,10 @@ object YClientsClient {
         if (BuildConfig.DEBUG) {
             okHttpClientBuilder.addInterceptor(
                 HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
+                    level = HttpLoggingInterceptor.Level.HEADERS
+                    redactHeader("Authorization")
+                    redactHeader("Cookie")
+                    redactHeader("Set-Cookie")
                 },
             )
         }

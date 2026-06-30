@@ -12,7 +12,7 @@ import java.util.Locale
 object SessionNotificationTexts {
 
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    private val dateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+    private val dateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"))
 
     fun eventTitle(context: Context, event: SessionEvent): String = when (event.type) {
         SessionEventType.NEW_BOOKING ->

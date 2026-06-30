@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.SyncOutcome
 import ru.greemlab.neiro.sync.SyncPreferences
@@ -63,10 +66,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val yclientsUserName: String? get() = yclientsRepository.userName
 
     fun logoutYClients() {
-        yclientsRepository.logout()
-        syncPreferences.clearSyncState()
-        AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
-        _uiState.value = SyncUiState()
+        viewModelScope.launch {
+            LogoutCoordinator.logout(getApplication())
+            _uiState.value = SyncUiState()
+        }
     }
 
     fun devLogin(autoSync: Boolean = false) {
@@ -97,7 +100,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     fun devFullSetup() {
         viewModelScope.launch {
             calendarRepository.clearAllData()
-            yclientsRepository.logout()
+            LogoutCoordinator.logout(getApplication())
 
             calendarRepository.updateProfile { profile ->
                 profile.copy(
@@ -200,34 +203,41 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val syncMutex = Mutex()
+
     private suspend fun runSync(showUi: Boolean, block: suspend () -> SyncOutcome): SyncOutcome {
-        if (showUi) {
-            _uiState.value = _uiState.value.copy(
-                isLoading = true,
-                error = null,
-                showSuccess = false,
-            )
-        }
-
-        val outcome = block()
-        when (outcome) {
-            is SyncOutcome.Success -> {
+        // Если sync уже идёт — НЕ блокируем UI новой spinner-сменой, тихо ждём результат.
+        // Можно сделать `tryLock`, тогда повторный вызов мгновенно вернёт прошлый outcome —
+        // но в реальном UI пользователь ожидает завершения текущей операции.
+        return syncMutex.withLock {
+            if (showUi) {
                 _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    syncedCount = outcome.newlyAdded,
-                    lastSyncDate = syncPreferences.lastSyncLocalDate() ?: LocalDate.now(),
-                    showSuccess = showUi,
+                    isLoading = true,
+                    error = null,
+                    showSuccess = false,
                 )
             }
 
-            is SyncOutcome.Failure -> {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = outcome.message,
-                )
+            val outcome = block()
+            when (outcome) {
+                is SyncOutcome.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        syncedCount = outcome.newlyAdded,
+                        lastSyncDate = syncPreferences.lastSyncLocalDate() ?: LocalDate.now(),
+                        showSuccess = showUi,
+                    )
+                }
+
+                is SyncOutcome.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = outcome.message,
+                    )
+                }
             }
+            outcome
         }
-        return outcome
     }
 
     fun clearError() {

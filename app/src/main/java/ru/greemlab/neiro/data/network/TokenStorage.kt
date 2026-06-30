@@ -64,8 +64,7 @@ class TokenStorage(context: Context) {
         get() {
             val fromPrefs = prefs.getInt(KEY_COMPANY_ID, -1)
             if (fromPrefs > 0) return fromPrefs
-            val fromBuildConfig = BuildConfig.YCLIENTS_COMPANY_ID
-            return if (fromBuildConfig > 0) fromBuildConfig else DEFAULT_COMPANY_ID
+            return BuildConfig.YCLIENTS_COMPANY_ID.takeIf { it > 0 } ?: 0
         }
         set(value) {
             if (value > 0) {
@@ -124,7 +123,13 @@ class TokenStorage(context: Context) {
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            android.util.Log.e(
+                "TokenStorage",
+                "EncryptedSharedPreferences failed, falling back to plain prefs. " +
+                    "Токены YClients будут храниться нешифрованно на этом устройстве.",
+                t,
+            )
             fallback
         }
     }
@@ -142,6 +147,5 @@ class TokenStorage(context: Context) {
         private const val KEY_STAFF_ID = "staff_id"
         private const val KEY_STAFF_ID_COMPANY = "staff_id_company"
 
-        private const val DEFAULT_COMPANY_ID = 520135
     }
 }

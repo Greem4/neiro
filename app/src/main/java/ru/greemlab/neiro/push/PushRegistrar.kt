@@ -107,12 +107,19 @@ object PushRegistrar {
 
         return withContext(Dispatchers.IO) {
             repeat(REGISTER_RETRY_COUNT) { attempt ->
-                val ok = runCatching {
-                    api.registerDevice(PushClient.authHeader(), body).isSuccessful
-                }.getOrDefault(false)
-                if (ok) return@withContext true
-                if (attempt < REGISTER_RETRY_COUNT - 1) {
-                    delay(1_000L * (attempt + 1))
+                val outcome = runCatching {
+                    api.registerDevice(PushClient.authHeader(), body)
+                }
+                val response = outcome.getOrNull()
+                when {
+                    response != null && response.isSuccessful -> return@withContext true
+                    response != null && response.code() in 400..499 -> {
+                        // 4xx: невалидный токен/payload — retry бесполезен.
+                        return@withContext false
+                    }
+                    attempt < REGISTER_RETRY_COUNT - 1 -> {
+                        delay(1_000L * (1 shl attempt))
+                    }
                 }
             }
             false
@@ -132,9 +139,16 @@ object PushRegistrar {
     private suspend fun fetchFcmToken(): String? {
         if (!PushConfig.isFcmEnabled) return null
         return suspendCancellableCoroutine { cont ->
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { cont.resume(it) }
-                .addOnFailureListener { cont.resume(null) }
+            val task = com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+            task.addOnSuccessListener { value ->
+                if (cont.isActive) cont.resume(value)
+            }
+            task.addOnFailureListener {
+                if (cont.isActive) cont.resume(null)
+            }
+            cont.invokeOnCancellation {
+                // Firebase Task нельзя отменить, но мы перестаём слушать.
+            }
         }
     }
 }

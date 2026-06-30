@@ -127,7 +127,7 @@ object LiveApiCoordinator {
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             BACKGROUND_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }

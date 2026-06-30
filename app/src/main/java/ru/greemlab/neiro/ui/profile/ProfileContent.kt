@@ -710,7 +710,7 @@ private fun isSyncStale(lastSyncDate: LocalDate?): Boolean {
 }
 
 private val LAST_SYNC_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+    DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"))
 
 @Preview(showBackground = true, name = "Profile Light")
 @Composable

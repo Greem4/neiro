@@ -12,11 +12,10 @@ import android.graphics.Color
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,6 +44,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_DATE = "open_date"
         const val EXTRA_HIGHLIGHT_SLOT_KEY = "highlight_slot_key"
+        private const val STATE_OPEN_DATE = "neiro.state.open_date"
+        private const val STATE_HIGHLIGHT_SLOT_KEY = "neiro.state.highlight_slot_key"
+        private const val STATE_DEEP_LINK_VERSION = "neiro.state.deep_link_version"
     }
 
     private var openDate by mutableStateOf<String?>(null)
@@ -59,7 +61,13 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
 
-        applyNotificationExtras(intent)
+        if (savedInstanceState != null) {
+            openDate = savedInstanceState.getString(STATE_OPEN_DATE)
+            highlightSlotKey = savedInstanceState.getString(STATE_HIGHLIGHT_SLOT_KEY)
+            notificationDeepLinkVersion = savedInstanceState.getInt(STATE_DEEP_LINK_VERSION, 0)
+        } else {
+            applyNotificationExtras(intent)
+        }
 
         setContent {
             val deepLinkVersion = notificationDeepLinkVersion
@@ -72,6 +80,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        openDate?.let { outState.putString(STATE_OPEN_DATE, it) }
+        highlightSlotKey?.let { outState.putString(STATE_HIGHLIGHT_SLOT_KEY, it) }
+        outState.putInt(STATE_DEEP_LINK_VERSION, notificationDeepLinkVersion)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -79,9 +94,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyNotificationExtras(source: Intent?) {
-        openDate = source?.getStringExtra(EXTRA_OPEN_DATE)
-        highlightSlotKey = source?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
-        notificationDeepLinkVersion++
+        val newOpenDate = source?.getStringExtra(EXTRA_OPEN_DATE)
+        val newHighlight = source?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
+        val changed = newOpenDate != openDate || newHighlight != highlightSlotKey
+        openDate = newOpenDate
+        highlightSlotKey = newHighlight
+        if (changed) notificationDeepLinkVersion++
     }
 }
 
@@ -111,7 +129,7 @@ private fun RequestNotificationPermissionIfNeeded() {
         }
     }
 
-    LaunchedEffect(granted) {
+    LaunchedEffect(Unit) {
         if (!granted) {
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
@@ -147,10 +165,9 @@ private fun NeiroApp(
 
     NeiroTheme(darkTheme = isDarkTheme) {
         ApplySystemBars(darkTheme = isDarkTheme)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
             CalendarScreen(
                 profileViewModel = profileViewModel,

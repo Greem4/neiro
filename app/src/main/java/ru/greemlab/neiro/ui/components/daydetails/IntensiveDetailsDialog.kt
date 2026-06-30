@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -128,7 +128,10 @@ private fun IntensiveDetailsCard(
                     .heightIn(max = 320.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(children, key = { it.name }) { child ->
+                itemsIndexed(
+                    items = children,
+                    key = { index, child -> "${index}-${child.name}" },
+                ) { _, child ->
                     ScheduleSlotItem(
                         time = "",
                         name = child.name,

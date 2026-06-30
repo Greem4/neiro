@@ -33,7 +33,7 @@ fun SessionNotificationSettingsScreen(
     onBack: () -> Unit,
     viewModel: SessionNotificationSettingsViewModel = viewModel(),
 ) {
-    val settings by remember { derivedStateOf { viewModel.state } }
+    val settings by viewModel.state.collectAsState()
     var reminderExpanded by remember { mutableStateOf(false) }
 
     Scaffold(

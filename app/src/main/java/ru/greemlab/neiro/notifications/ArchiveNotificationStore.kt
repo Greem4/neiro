@@ -38,6 +38,7 @@ class ArchiveNotificationStore private constructor(context: Context) {
         _items.value = pruned
     }
 
+    @Synchronized
     fun append(
         title: String,
         body: String,
@@ -64,6 +65,7 @@ class ArchiveNotificationStore private constructor(context: Context) {
         persist(listOf(entry) + current)
     }
 
+    @Synchronized
     fun markAllRead() {
         persist(_items.value.map { it.copy(read = true) })
     }
@@ -76,6 +78,7 @@ class ArchiveNotificationStore private constructor(context: Context) {
      *
      * @return `true`, если данные применены.
      */
+    @Synchronized
     fun importJson(json: String): Boolean {
         if (json.isBlank()) return false
         return runCatching {

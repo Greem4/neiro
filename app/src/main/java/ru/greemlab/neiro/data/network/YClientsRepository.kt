@@ -157,8 +157,13 @@ class YClientsRepository(context: Context) {
                 )
 
                 if (!response.isSuccessful) {
+                    handleUnauthorized(response.code())
                     return ApiResult.Error(
-                        message = "Ошибка загрузки записей",
+                        message = if (response.code() == 401) {
+                            "Сессия истекла. Войдите ещё раз."
+                        } else {
+                            "Ошибка загрузки записей"
+                        },
                         code = response.code(),
                     )
                 }
@@ -184,6 +189,12 @@ class YClientsRepository(context: Context) {
             return ApiResult.Success(all)
         } catch (e: Exception) {
             return ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+        }
+    }
+
+    private fun handleUnauthorized(code: Int?) {
+        if (code == 401) {
+            tokenStorage.clear()
         }
     }
 
@@ -220,12 +231,16 @@ class YClientsRepository(context: Context) {
             val needleTokens = userName.normalizeNameTokens()
             if (needleTokens.isEmpty()) return@withContext null
 
+            // Если у пользователя в профиле YClients только 1 токен (например, "Светлана"),
+            // понизим требование, иначе совсем не найдём.
+            val minScore = MIN_NAME_MATCH_SCORE.coerceAtMost(needleTokens.size)
+
             val match = staffList
                 .mapNotNull { staff ->
                     val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
                     if (staffTokens.isEmpty()) return@mapNotNull null
                     val score = (staffTokens intersect needleTokens).size
-                    if (score < MIN_NAME_MATCH_SCORE) null else staff to score
+                    if (score < minScore) null else staff to score
                 }
                 .sortedWith(
                     compareByDescending<Pair<StaffData, Int>> { (it.first.fired ?: 0) == 0 }
@@ -245,23 +260,48 @@ class YClientsRepository(context: Context) {
      */
     suspend fun getClients(): ApiResult<List<ClientData>> = withContext(Dispatchers.IO) {
         try {
-            val response = api.getClients(
-                companyId = tokenStorage.companyId,
-            )
+            val all = mutableListOf<ClientData>()
+            var page = 1
+            var lastPageSize = 0
 
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body?.success == true) {
-                    ApiResult.Success(body.data.orEmpty())
-                } else {
-                    ApiResult.Error("Не удалось получить клиентов")
+            while (page <= MAX_PAGES) {
+                val response = api.getClients(
+                    companyId = tokenStorage.companyId,
+                    page = page,
+                    count = PAGE_SIZE,
+                )
+
+                if (!response.isSuccessful) {
+                    handleUnauthorized(response.code())
+                    return@withContext ApiResult.Error(
+                        message = if (response.code() == 401) {
+                            "Сессия истекла. Войдите ещё раз."
+                        } else {
+                            "Ошибка загрузки клиентов"
+                        },
+                        code = response.code(),
+                    )
                 }
-            } else {
-                ApiResult.Error(
-                    message = "Ошибка загрузки клиентов",
-                    code = response.code(),
+
+                val body = response.body()
+                if (body?.success != true) {
+                    return@withContext ApiResult.Error("Не удалось получить клиентов")
+                }
+
+                val pageData = body.data.orEmpty()
+                lastPageSize = pageData.size
+                all += pageData
+                if (pageData.size < PAGE_SIZE) break
+                page++
+            }
+
+            if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
+                return@withContext ApiResult.Error(
+                    "Слишком много клиентов — список обрезан",
                 )
             }
+
+            ApiResult.Success(all)
         } catch (e: Exception) {
             ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
@@ -292,6 +332,7 @@ class YClientsRepository(context: Context) {
             val error = gson.fromJson(errorBody, ApiError::class.java)
             error.meta?.message
         } catch (e: Exception) {
+            android.util.Log.w("YClientsRepository", "Cannot parse error body: $errorBody", e)
             null
         }
     }
@@ -305,10 +346,10 @@ class YClientsRepository(context: Context) {
 
         /**
          * Минимальное число совпавших токенов имени для матча сотрудника.
-         * Берём 1 — этого достаточно для поиска, если имя в профиле короткое.
-         * Приоритет всё равно у тех, у кого совпадений больше.
+         * 2 — нужны минимум 2 общих токена (имя+фамилия), чтобы исключить
+         * ложный матч по одному имени, когда в филиале несколько тёзок.
          */
-        private const val MIN_NAME_MATCH_SCORE = 1
+        private const val MIN_NAME_MATCH_SCORE = 2
 
         @Volatile
         private var instance: YClientsRepository? = null

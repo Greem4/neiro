@@ -53,7 +53,7 @@ android {
         //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.7.5.1"
+        versionName = "0.6.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -124,7 +124,11 @@ android {
                 if (hasReleaseSigning) {
                     signingConfigs.getByName("release")
                 } else {
-                    signingConfigs.getByName("debug")
+                    throw GradleException(
+                        "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
+                            "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
+                            "Соберите debug или prerelease для локальной отладки."
+                    )
                 }
         }
     }

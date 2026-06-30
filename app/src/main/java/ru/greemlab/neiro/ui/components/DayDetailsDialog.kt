@@ -362,7 +362,10 @@ private fun DayDetailsContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 4.dp),
             ) {
-                items(intensiveIndices.size) { listIndex ->
+                items(
+                    count = intensiveIndices.size,
+                    key = { listIndex -> "intensive-${intensiveIndices[listIndex]}-${currentNames.getOrNull(intensiveIndices[listIndex]) ?: ""}" },
+                ) { listIndex ->
                     val rawIndex = intensiveIndices[listIndex]
                     val intensive = SessionParser.parse(currentNames[rawIndex]) as Session.Intensive
                     val amountText = if (intensive.amount == 0.0) {

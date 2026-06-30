@@ -15,13 +15,17 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Neiro">
+        android:enableOnBackInvokedCallback="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.Neiro"
+        tools:targetApi="tiramisu">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Neiro">
+            android:theme="@style/Theme.Neiro"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|locale|layoutDirection|uiMode|fontScale|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

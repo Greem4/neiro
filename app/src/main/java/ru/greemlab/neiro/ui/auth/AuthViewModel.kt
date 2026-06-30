@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 
 private fun defaultCompanyId(): String {
@@ -155,13 +156,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
-        PushRegistrar.onLogout(getApplication())
-        repository.logout()
-        _uiState.value = _uiState.value.copy(
-            isLoggedIn = false,
-            userName = null,
-            password = "",
-        )
+        viewModelScope.launch {
+            LogoutCoordinator.logout(getApplication())
+            _uiState.value = _uiState.value.copy(
+                isLoggedIn = false,
+                userName = null,
+                password = "",
+            )
+        }
     }
 
     fun clearError() {
