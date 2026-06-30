@@ -171,6 +171,31 @@ class SessionNotificationPreferences(context: Context) {
         prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
     }
 
+    /**
+     * Атомарный claim: возвращает true, если digest за этот день ещё не показан.
+     * После true вызывающий обязан показать push. После false — пропустить.
+     */
+    @Synchronized
+    fun claimTodayDigest(epochDay: Long): Boolean {
+        if (prefs.getLong(KEY_TODAY_DIGEST_DAY, 0L) == epochDay) return false
+        return prefs.edit().putLong(KEY_TODAY_DIGEST_DAY, epochDay).commit()
+    }
+
+    @Synchronized
+    fun claimTomorrowDigest(targetEpochDay: Long): Boolean {
+        if (prefs.getLong(KEY_TOMORROW_DIGEST_TARGET_DAY, 0L) == targetEpochDay) return false
+        return prefs.edit().putLong(KEY_TOMORROW_DIGEST_TARGET_DAY, targetEpochDay).commit()
+    }
+
+    @Synchronized
+    fun claimArchiveReminder(pastDayEpochDay: Long): Boolean {
+        if (wasArchiveReminderShown(pastDayEpochDay)) return false
+        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        updated.add(pastDayEpochDay.toString())
+        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
+        return prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).commit()
+    }
+
     fun clearArchiveReminderShown(epochDay: Long = LocalDate.now().toEpochDay()) {
         val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
         updated.remove(epochDay.toString())

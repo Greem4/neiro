@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.notifications
 
 import android.content.Context
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -130,8 +131,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            SessionNotificationDisplay.showEvents(appContext, events)
-            events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            if (NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
+                SessionNotificationDisplay.showEvents(appContext, events)
+                events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            }
         }
 
         prefs.saveSnapshot(after)
@@ -190,8 +193,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            SessionNotificationDisplay.showEvents(context, events)
-            events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                SessionNotificationDisplay.showEvents(context, events)
+                events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            }
         }
 
         prefs.saveSnapshot(after)
@@ -494,11 +499,10 @@ object SessionNotificationCoordinator {
         val todayList = UpcomingSessionsCollector.todaySessions(upcoming, today)
         if (todayList.isEmpty()) return
 
-        val epochDay = today.toEpochDay()
-        if (prefs.lastTodayDigestEpochDay() == epochDay) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        if (!prefs.claimTodayDigest(today.toEpochDay())) return
 
         SessionNotificationDisplay.showTodayDigest(context, todayList)
-        prefs.markTodayDigestShown(epochDay)
     }
 
     private fun maybeShowTomorrowDigest(
@@ -511,11 +515,10 @@ object SessionNotificationCoordinator {
         val tomorrowList = UpcomingSessionsCollector.tomorrowSessions(upcoming, today)
         if (tomorrowList.isEmpty()) return
 
-        val targetEpochDay = tomorrow.toEpochDay()
-        if (prefs.lastTomorrowDigestTargetEpochDay() == targetEpochDay) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        if (!prefs.claimTomorrowDigest(tomorrow.toEpochDay())) return
 
         SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)
-        prefs.markTomorrowDigestShown(targetEpochDay)
     }
 
     private fun maybeShowArchiveReminder(
@@ -532,10 +535,11 @@ object SessionNotificationCoordinator {
             profile = profile,
             today = today,
         ) ?: return
-        if (prefs.wasArchiveReminderShown(date.toEpochDay())) return
+
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        if (!prefs.claimArchiveReminder(date.toEpochDay())) return
 
         SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
-        prefs.markArchiveReminderShown(date.toEpochDay())
     }
 
     fun onLoggedOut(context: Context) {
