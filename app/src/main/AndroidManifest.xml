@@ -24,7 +24,8 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Neiro">
+            android:theme="@style/Theme.Neiro"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|locale|layoutDirection|uiMode|fontScale|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
