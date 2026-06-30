@@ -25,7 +25,7 @@ class SyncPreferences(context: Context) {
     }
 
     fun recordSuccessfulSync(atMillis: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_SYNC_EPOCH, atMillis).apply()
+        prefs.edit().putLong(KEY_LAST_SYNC_EPOCH, atMillis).commit()
     }
 
     fun clearLastSync() {
@@ -54,14 +54,14 @@ class SyncPreferences(context: Context) {
     fun lastLivePollEpochMillis(): Long = prefs.getLong(KEY_LAST_LIVE_POLL_EPOCH, 0L)
 
     fun recordLivePoll(atMillis: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_LIVE_POLL_EPOCH, atMillis).apply()
+        prefs.edit().putLong(KEY_LAST_LIVE_POLL_EPOCH, atMillis).commit()
     }
 
     /** Метка последней полной подтяжки диапазона live-опроса (страховка от «призраков»). */
     fun lastFullLiveSyncEpochMillis(): Long = prefs.getLong(KEY_LAST_FULL_LIVE_SYNC_EPOCH, 0L)
 
     fun recordFullLiveSync(atMillis: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_FULL_LIVE_SYNC_EPOCH, atMillis).apply()
+        prefs.edit().putLong(KEY_LAST_FULL_LIVE_SYNC_EPOCH, atMillis).commit()
     }
 
     fun clearLivePollState() {
