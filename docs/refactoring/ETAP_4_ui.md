@@ -3,14 +3,14 @@
 **Уровень риска:** Низкий. UI-патчи без изменения навигации и бизнес-логики.
 **Зависимости:** —
 **Acceptance:**
-- [ ] WebView корректно `destroy()` в `DisposableEffect.onDispose`.
-- [ ] `SyncViewModel` игнорирует повторные `syncMonth`/`syncDateRange` при `isLoading == true`.
-- [ ] `LazyColumn(items(intensiveIndices.size))` в `DayDetailsDialog` использует stable key (uuid/raw value).
-- [ ] `LazyColumn(items(children, key = { it.name }))` в `IntensiveDetailsDialog` — key с индексом для деда против коллизий.
-- [ ] `AttendanceStatusPickerIcon` имеет touch target ≥ 48dp.
-- [ ] `SessionNotificationSettingsViewModel` отдаёт `StateFlow`, не `mutableStateOf`.
-- [ ] `DayScheduleTimeline` не recomposит на каждый scroll (`snapshotFlow { scrollState.value }`).
-- [ ] `ScheduleSlotItem` drag не делает `scope.launch { snapTo }` на каждом frame.
+- [x] WebView корректно `destroy()` в `DisposableEffect.onDispose`.
+- [x] `SyncViewModel` игнорирует повторные `syncMonth`/`syncDateRange` при `isLoading == true`.
+- [x] `LazyColumn(items(intensiveIndices.size))` в `DayDetailsDialog` использует stable key (uuid/raw value).
+- [x] `LazyColumn(items(children, key = { it.name }))` в `IntensiveDetailsDialog` — key с индексом для деда против коллизий.
+- [x] `AttendanceStatusPickerIcon` имеет touch target ≥ 48dp.
+- [x] `SessionNotificationSettingsViewModel` отдаёт `StateFlow`, не `mutableStateOf`.
+- [x] `DayScheduleTimeline` не recomposит на каждый scroll (`snapshotFlow { scrollState.value }`).
+- [x] `ScheduleSlotItem` drag не делает `scope.launch { snapTo }` на каждом frame.
 - [ ] `Build.MODEL` в `PushDeviceId` уже sanitize (сделано в Этапе 2 — не дублировать).
 
 ---

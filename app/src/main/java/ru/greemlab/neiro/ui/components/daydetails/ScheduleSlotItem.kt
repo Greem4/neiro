@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -277,6 +278,13 @@ fun ExpandableReplacementSlot(
 
     val expansion = remember { Animatable(if (expanded) 0.5f else 0f) }
 
+    val dragChannel = remember { Channel<Float>(Channel.CONFLATED) }
+    LaunchedEffect(dragChannel) {
+        for (delta in dragChannel) {
+            expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
+        }
+    }
+
     LaunchedEffect(expanded) {
         val target = if (expanded) 0.5f else 0f
         if (expansion.value != target) {
@@ -293,9 +301,7 @@ fun ExpandableReplacementSlot(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         val delta = dragAmount / (maxWidthPx * 0.8f)
-                        scope.launch {
-                            expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
-                        }
+                        dragChannel.trySend(delta)
                     },
                     onDragEnd = {
                         val v = expansion.value
@@ -407,6 +413,13 @@ fun ExpandableIntensiveCoverSlot(
 
     val expansion = remember { Animatable(if (expanded) 0.5f else 0f) }
 
+    val dragChannel = remember { Channel<Float>(Channel.CONFLATED) }
+    LaunchedEffect(dragChannel) {
+        for (delta in dragChannel) {
+            expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
+        }
+    }
+
     LaunchedEffect(expanded) {
         val target = if (expanded) 0.5f else 0f
         if (expansion.value != target) {
@@ -425,9 +438,7 @@ fun ExpandableIntensiveCoverSlot(
                             onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
                                 val delta = dragAmount / (maxWidthPx * 0.8f)
-                                scope.launch {
-                                    expansion.snapTo((expansion.value + delta).coerceIn(0f, 1f))
-                                }
+                                dragChannel.trySend(delta)
                             },
                             onDragEnd = {
                                 val v = expansion.value
