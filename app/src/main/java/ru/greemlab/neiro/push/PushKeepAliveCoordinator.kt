@@ -30,7 +30,7 @@ object PushKeepAliveCoordinator {
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }
