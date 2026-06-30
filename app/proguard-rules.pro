@@ -17,11 +17,15 @@
   @com.google.gson.annotations.SerializedName <fields>;
 }
 
-# --- Доменные модели (сериализуются Gson через рефлексию) ---
+# --- Модели, сериализуемые Gson через рефлексию ---
 -keep class ru.greemlab.neiro.domain.models.** { *; }
 -keep class ru.greemlab.neiro.data.UserProfileJson { *; }
 -keep class ru.greemlab.neiro.data.StoreSnapshot { *; }
 -keep class ru.greemlab.neiro.data.network.** { *; }
+-keep class ru.greemlab.neiro.notifications.InAppNotification { *; }
+-keep class ru.greemlab.neiro.notifications.TrackedSession { *; }
+-keep class ru.greemlab.neiro.notifications.SessionNotificationPreferences$SnapshotDto { *; }
+-keep class ru.greemlab.neiro.notifications.SessionNotificationPreferences$* { *; }
 
 # --- Retrofit ---
 -dontwarn retrofit2.**
@@ -63,12 +67,9 @@
 -dontwarn kotlinx.coroutines.flow.**
 -dontwarn kotlinx.coroutines.debug.**
 
-# --- WorkManager & Room (R8 full mode fix) ---
+# --- WorkManager (R8 full mode fix) ---
 # WorkManager использует рефлексию для создания БД и воркеров.
 -keep class androidx.work.impl.WorkDatabase_Impl { <init>(...); }
--keep class * extends androidx.room.RoomDatabase {
-    <init>(...);
-}
 -keep class * extends androidx.work.ListenableWorker {
     <init>(android.content.Context, androidx.work.WorkerParameters);
 }
