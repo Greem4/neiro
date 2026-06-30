@@ -4,6 +4,7 @@ import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionParser
+import ru.greemlab.neiro.ui.calendar.isEffectivelyDeleted
 import ru.greemlab.neiro.ui.components.daydetails.SESSION_DURATION_MINUTES
 import ru.greemlab.neiro.ui.components.daydetails.parseTimeRangeEnd
 import ru.greemlab.neiro.ui.components.daydetails.parseTimeRangeStart
@@ -28,15 +29,6 @@ data class TrackedSession(
 
     /** Ключ клиента для сопоставления переносов. */
     val clientKey: String = clientName.normalizeForKey()
-
-    fun toUpcoming(): UpcomingSession = UpcomingSession(
-        date = date,
-        startTime = startTime,
-        endTime = endTime,
-        clientName = clientName,
-        kind = kind,
-        status = status,
-    )
 
     fun formatLine(): String {
         val timeRange = "${startTime.format(TIME_FMT)}–${endTime.format(TIME_FMT)}"
@@ -83,7 +75,7 @@ object CalendarSessionSnapshot {
 
         return dayData.flatMap { (date, entries) ->
             if (!isDateWithinHorizon(date, today, horizonDays)) return@flatMap emptyList()
-            entries.mapNotNull { raw -> parseEntry(date, raw) }
+            entries.flatMap { raw -> parseEntries(date, raw) }
         }
     }
 
@@ -101,19 +93,42 @@ object CalendarSessionSnapshot {
         return !date.isAfter(today.plusDays(horizonDays.toLong()))
     }
 
-    private fun parseEntry(date: LocalDate, raw: String): TrackedSession? {
+    private fun parseEntries(date: LocalDate, raw: String): List<TrackedSession> {
         val session = SessionParser.parse(raw)
+
+        // Для интенсива отслеживаем каждого ребёнка как отдельное занятие,
+        // чтобы получать уведомления об их отмене/подтверждении.
+        if (session is Session.Intensive && session.children.isNotEmpty()) {
+            val time = session.time
+            val start = time.takeIf { it.isNotBlank() }?.let { parseTimeRangeStart(it) }
+            val end = time.takeIf { it.isNotBlank() }?.let { parseTimeRangeEnd(it) }
+                ?: start?.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+
+            return session.children.mapNotNull { child ->
+                if (child.name.isBlank()) return@mapNotNull null
+                TrackedSession(
+                    date = date,
+                    startTime = start ?: LocalTime.MIDNIGHT,
+                    endTime = end ?: LocalTime.MIDNIGHT,
+                    clientName = child.name.trim(),
+                    kind = UpcomingSessionKind.LESSON,
+                    status = child.status,
+                    isMarkedDeleted = child.isEffectivelyDeleted(),
+                )
+            }
+        }
+
         val name = when (session) {
             is Session.Student -> session.name.trim()
             is Session.Diagnostics -> session.name.trim()
             is Session.Extra -> session.name.trim()
         }
-        if (name.isBlank()) return null
+        if (name.isBlank()) return emptyList()
 
         val time = when (session) {
             is Session.Student -> session.time
             is Session.Diagnostics -> session.time
-            else -> ""
+            is Session.Intensive -> session.time
         }
 
         val start = time.takeIf { it.isNotBlank() }?.let { parseTimeRangeStart(it) }
@@ -125,14 +140,16 @@ object CalendarSessionSnapshot {
             else -> UpcomingSessionKind.LESSON
         }
 
-        return TrackedSession(
-            date = date,
-            startTime = start ?: LocalTime.MIDNIGHT,
-            endTime = end ?: LocalTime.MIDNIGHT,
-            clientName = name,
-            kind = kind,
-            status = session.status,
-            isMarkedDeleted = session.isEffectivelyDeleted(),
+        return listOf(
+            TrackedSession(
+                date = date,
+                startTime = start ?: LocalTime.MIDNIGHT,
+                endTime = end ?: LocalTime.MIDNIGHT,
+                clientName = name,
+                kind = kind,
+                status = session.status,
+                isMarkedDeleted = session.isEffectivelyDeleted(),
+            )
         )
     }
 }

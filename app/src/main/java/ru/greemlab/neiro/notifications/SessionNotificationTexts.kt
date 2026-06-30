@@ -52,9 +52,6 @@ object SessionNotificationTexts {
     fun groupedEventsTitle(context: Context, count: Int): String =
         context.getString(R.string.notification_events_group_title, count)
 
-    fun groupedEventsBody(context: Context, events: List<SessionEvent>): String =
-        events.joinToString("\n") { eventContent(context, it) }
-
     fun todayDigestTitle(context: Context, count: Int): String =
         context.resources.getQuantityString(R.plurals.notification_today_title, count, count)
 
@@ -67,28 +64,34 @@ object SessionNotificationTexts {
     fun reminderTitle(context: Context, session: UpcomingSession): String =
         context.getString(R.string.notification_reminder_title, session.clientName)
 
-    fun groupedRemindersTitle(context: Context, count: Int): String =
-        context.getString(R.string.notification_reminder_group_title, count)
-
     fun archiveTitle(context: Context): String =
         context.getString(R.string.notification_archive_title)
 
     fun archiveBody(context: Context, count: Int): String =
         context.resources.getQuantityString(R.plurals.notification_archive_body, count, count)
 
-    fun groupedArchiveTitle(context: Context, days: Int): String =
-        context.getString(R.string.notification_archive_group_title, days)
+    fun archiveGroupTitle(context: Context, count: Int): String =
+        context.getString(R.string.notification_archive_group_title, count)
 
-    fun groupedArchiveBody(context: Context, dates: List<LocalDate>, dayData: Map<LocalDate, List<String>>): String =
-        dates.joinToString("\n") { date ->
-            val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
-            context.resources.getQuantityString(
-                R.plurals.notification_archive_line,
-                count,
-                formatArchiveDateLabel(context, date),
-                count,
-            )
-        }
+    fun archiveGroupSummary(context: Context): String =
+        context.getString(R.string.notification_archive_group_summary)
+
+    fun archiveLine(context: Context, count: Int, date: LocalDate): String =
+        context.resources.getQuantityString(
+            R.plurals.notification_archive_line,
+            count,
+            formatArchiveDateLabel(context, date),
+            count,
+        )
+
+    fun reminderGroupTitle(context: Context, count: Int): String =
+        context.getString(R.string.notification_reminder_group_title, count)
+
+    fun reminderSubText(context: Context, minutesUntil: Long, startTime: java.time.LocalTime): String = when {
+        minutesUntil <= 1L -> context.getString(R.string.notification_reminder_soon)
+        minutesUntil < 60L -> context.getString(R.string.notification_reminder_in_minutes, minutesUntil)
+        else -> context.getString(R.string.notification_reminder_at, startTime.format(timeFormatter))
+    }
 
     fun formatUpcomingLine(session: UpcomingSession): String {
         val timeRange = "${session.startTime.format(timeFormatter)}–${session.endTime.format(timeFormatter)}"
@@ -101,10 +104,15 @@ object SessionNotificationTexts {
         } else {
             ""
         }
-        return "$datePrefix$timeRange · ${session.clientName} · $kind"
+        val statusSuffix = when (session.status) {
+            ru.greemlab.neiro.ui.calendar.AttendanceStatus.CANCELLED -> " (Отмена)"
+            ru.greemlab.neiro.ui.calendar.AttendanceStatus.CONFIRMED -> " (Подтверждено)"
+            else -> ""
+        }
+        return "$datePrefix$timeRange · ${session.clientName} · $kind$statusSuffix"
     }
 
-    private fun formatArchiveDateLabel(context: Context, date: LocalDate): String =
+    fun formatArchiveDateLabel(context: Context, date: LocalDate): String =
         if (date == LocalDate.now()) {
             context.getString(R.string.notification_archive_date_today)
         } else {

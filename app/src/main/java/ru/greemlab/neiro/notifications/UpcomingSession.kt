@@ -10,7 +10,6 @@ import ru.greemlab.neiro.ui.components.daydetails.parseTimeRangeStart
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
 
 enum class UpcomingSessionKind {
     LESSON,
@@ -31,11 +30,11 @@ data class UpcomingSession(
     val dedupeKey: String =
         "${date}|${startTime}|${clientName.normalizeForKey()}|${kind.name}"
 
-    fun startsAt(zoneId: ZoneId = ZoneId.systemDefault()): LocalDateTime =
+    fun startsAt(): LocalDateTime =
         LocalDateTime.of(date, startTime)
 
-    fun reminderAt(minutesBefore: Int, zoneId: ZoneId = ZoneId.systemDefault()): LocalDateTime =
-        startsAt(zoneId).minusMinutes(minutesBefore.toLong())
+    fun reminderAt(minutesBefore: Int): LocalDateTime =
+        startsAt().minusMinutes(minutesBefore.toLong())
 }
 
 object UpcomingSessionsCollector {
@@ -61,14 +60,16 @@ object UpcomingSessionsCollector {
 
             for (raw in entries) {
                 val session = SessionParser.parse(raw)
+                // Если сессия удалена целиком (или все дети в интенсиве), пропускаем.
                 if (session.isEffectivelyDeleted()) continue
                 if (session.status == AttendanceStatus.CANCELLED) continue
 
-                val upcoming = session.toUpcoming(date) ?: continue
-                if (date.isBefore(today)) continue
-                if (date == today && !upcoming.startTime.isAfter(now)) continue
+                val upcomingList = session.toUpcomingList(date)
+                for (upcoming in upcomingList) {
+                    if (date == today && !upcoming.startTime.isAfter(now)) continue
 
-                result += upcoming
+                    result += upcoming
+                }
             }
         }
 
@@ -102,40 +103,76 @@ object UpcomingSessionsCollector {
         today: LocalDate = LocalDate.now(),
     ): List<UpcomingSession> = sessions.filter { it.date == today.plusDays(1) }
 
-    private fun Session.toUpcoming(date: LocalDate): UpcomingSession? {
+    private fun Session.toUpcomingList(date: LocalDate): List<UpcomingSession> {
         return when (this) {
             is Session.Student -> {
-                if (name.isBlank() || time.isBlank()) return null
-                val start = parseTimeRangeStart(time) ?: return null
+                if (name.isBlank() || time.isBlank()) return emptyList()
+                val start = parseTimeRangeStart(time) ?: return emptyList()
                 val end =
                     parseTimeRangeEnd(time) ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
-                UpcomingSession(
-                    date = date,
-                    startTime = start,
-                    endTime = end,
-                    clientName = name.trim(),
-                    kind = UpcomingSessionKind.LESSON,
-                    status = status,
+                listOf(
+                    UpcomingSession(
+                        date = date,
+                        startTime = start,
+                        endTime = end,
+                        clientName = name.trim(),
+                        kind = UpcomingSessionKind.LESSON,
+                        status = status,
+                    ),
                 )
             }
 
             is Session.Diagnostics -> {
-                if (name.isBlank()) return null
-                if (time.isBlank()) return null
-                val start = parseTimeRangeStart(time) ?: return null
+                if (name.isBlank() || time.isBlank()) return emptyList()
+                val start = parseTimeRangeStart(time) ?: return emptyList()
                 val end =
                     parseTimeRangeEnd(time) ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
-                UpcomingSession(
-                    date = date,
-                    startTime = start,
-                    endTime = end,
-                    clientName = name.trim(),
-                    kind = UpcomingSessionKind.DIAGNOSTICS,
-                    status = status,
+                listOf(
+                    UpcomingSession(
+                        date = date,
+                        startTime = start,
+                        endTime = end,
+                        clientName = name.trim(),
+                        kind = UpcomingSessionKind.DIAGNOSTICS,
+                        status = status,
+                    ),
                 )
             }
 
-            is Session.Intensive -> null
+            is Session.Intensive -> {
+                if (children.isEmpty()) {
+                    if (name.isBlank() || time.isBlank()) return emptyList()
+                    val start = parseTimeRangeStart(time) ?: return emptyList()
+                    val end = parseTimeRangeEnd(time)
+                        ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+                    return listOf(
+                        UpcomingSession(
+                            date = date,
+                            startTime = start,
+                            endTime = end,
+                            clientName = name.trim(),
+                            kind = UpcomingSessionKind.LESSON,
+                            status = status,
+                        ),
+                    )
+                }
+
+                val start = parseTimeRangeStart(time) ?: return emptyList()
+                val end = parseTimeRangeEnd(time)
+                    ?: start.plusMinutes(SESSION_DURATION_MINUTES.toLong())
+
+                children.mapNotNull { child ->
+                    if (child.name.isBlank()) return@mapNotNull null
+                    UpcomingSession(
+                        date = date,
+                        startTime = start,
+                        endTime = end,
+                        clientName = child.name.trim(),
+                        kind = UpcomingSessionKind.LESSON,
+                        status = child.status,
+                    )
+                }
+            }
         }
     }
 }

@@ -39,19 +39,21 @@ val hasReleaseSigning: Boolean =
         releaseKeyPassword.isNotBlank()
 
 if (hasGoogleServices) {
-    apply(plugin = "com.google.gms.google-services")
+    plugins.apply("com.google.gms.google-services")
 }
 
 android {
     namespace = "ru.greemlab.neiro"
+    //noinspection GradleDependency
     compileSdk = 35
 
     defaultConfig {
         applicationId = "ru.greemlab.neiro"
         minSdk = 24
+        //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.7.5"
+        versionName = "0.6.7.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -67,7 +69,7 @@ android {
         buildConfigField("boolean", "PUSH_SERVER_CONFIGURED", pushServerConfigured.toString())
     }
 
-    // Уменьшаем APK: только нужные локали (актуальный API в AGP 9.x).
+    @Suppress("UnstableApiUsage")
     androidResources {
         localeFilters += listOf("ru", "en")
     }
@@ -88,7 +90,6 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isMinifyEnabled = false
-            isShrinkResources = false
             // Отключаем регистрацию профилировщика в debug — быстрее холодный старт при разработке.
             isDebuggable = true
             buildConfigField("String", "DEV_LOGIN", "\"$devLogin\"")
@@ -111,6 +112,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = true
+            @Suppress("UnstableApiUsage")
             installation {
                 enableBaselineProfile = false
             }
@@ -172,6 +174,7 @@ android {
 }
 
 // Настройка имени выходного APK файла + подключение baseline-profile к release-варианту.
+@Suppress("UnstableApiUsage")
 androidComponents {
     onVariants { variant ->
         val vName = android.defaultConfig.versionName ?: "unknown"

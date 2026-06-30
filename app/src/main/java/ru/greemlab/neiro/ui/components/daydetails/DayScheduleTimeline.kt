@@ -139,6 +139,7 @@ fun DayScheduleTimeline(
 
     selectedIntensive?.let { entry ->
         IntensiveDetailsDialog(
+            date = date,
             time = entry.time,
             children = entry.intensiveChildren,
             amount = entry.extraAmount,
@@ -229,7 +230,6 @@ fun DayScheduleTimeline(
                                     if (entry.isIntensiveWithChildren()) {
                                         IntensiveTimelineChip(
                                             title = entry.name,
-                                            amount = entry.extraAmount,
                                             status = entry.status,
                                             onClick = { selectedIntensive = entry },
                                             compactForTimeline = true,
@@ -294,7 +294,6 @@ fun DayScheduleTimeline(
 
                                     ExpandableIntensiveCoverSlot(
                                         intensiveTitle = intensiveEntry.name,
-                                        intensiveAmount = intensiveEntry.extraAmount,
                                         intensiveStatus = intensiveEntry.status,
                                         covered = pair.covered.map { it.entry.toSlotContent() },
                                         expanded = expanded,
@@ -344,7 +343,6 @@ fun DayScheduleTimeline(
                 if (entry.isIntensiveWithChildren()) {
                     IntensiveTimelineChip(
                         title = entry.name,
-                        amount = entry.extraAmount,
                         status = entry.status,
                         onClick = { selectedIntensive = entry },
                         compactForTimeline = true,
