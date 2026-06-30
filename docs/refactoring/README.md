@@ -16,11 +16,11 @@
 
 | # | Файл | Что делаем | Уровень риска | Зависимости |
 |---|------|-----------|---------------|-------------|
-| 1 | [ETAP_1_security_configs.md](ETAP_1_security_configs.md) | Логи/ProGuard/Manifest/backup/конфиги | Низкий | — |
+| 1 | [ETAP_1_security_configs.md](ETAP_1_security_configs.md) ✅ | Логи/ProGuard/Manifest/backup/конфиги | Низкий | — |
 | 2 | [ETAP_2_sync_push.md](ETAP_2_sync_push.md) | Watermark, REPLACE→KEEP, retry, polling, LogoutCoordinator | **Высокий** | 1 (для ProGuard keep + logging) |
 | 3 | [ETAP_3_notifications.md](ETAP_3_notifications.md) | Reminder window, claim, permission, stable hash | Средний | 2 (LogoutCoordinator) |
 | 4 | [ETAP_4_ui.md](ETAP_4_ui.md) | WebView destroy, SyncVM mutex, LazyColumn keys, a11y | Низкий | — |
-| 5 | [ETAP_5_data.md](ETAP_5_data.md) | 401, pagination, MIN_NAME_MATCH=2, nullable JSON, логи | Средний | — |
+| 5 | [ETAP_5_data.md](ETAP_5_data.md) ✅ | 401, pagination, MIN_NAME_MATCH=2, nullable JSON, логи | Средний | — |
 | 6 | [ETAP_6_core.md](ETAP_6_core.md) | Async init, edge-to-edge dedup, deep-link state | Низкий | 1 (backup rules) |
 | — | [OUT_OF_SCOPE.md](OUT_OF_SCOPE.md) | Что НЕ делаем и почему | — | — |
 
