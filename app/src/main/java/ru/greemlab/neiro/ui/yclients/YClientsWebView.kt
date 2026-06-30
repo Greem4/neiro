@@ -146,6 +146,23 @@ private fun YClientsWebView(
     onProgressChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            webViewRef?.apply {
+                stopLoading()
+                loadUrl("about:blank")
+                clearHistory()
+                clearCache(false)
+                onPause()
+                removeAllViews()
+                destroy()
+            }
+            webViewRef = null
+        }
+    }
+
     AndroidView(
         factory = { context ->
             WebView(context).apply webView@ {
@@ -193,6 +210,7 @@ private fun YClientsWebView(
                 }
 
                 loadUrl(url)
+                webViewRef = this
                 onWebViewCreated(this)
             }
         },
