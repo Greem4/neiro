@@ -1,11 +1,12 @@
 package ru.greemlab.neiro.ui.settings
 
 import android.app.Application
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.notifications.ScheduledDigestKind
 import ru.greemlab.neiro.notifications.ScheduledNotificationTime
@@ -34,12 +35,12 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
 
     private val prefs = SessionNotificationPreferences.get(application)
 
-    var state by mutableStateOf(loadState())
-        private set
+    private val _state = MutableStateFlow(loadState())
+    val state: StateFlow<SessionNotificationSettingsState> = _state.asStateFlow()
 
     fun setEnabled(value: Boolean) {
         prefs.isEnabled = value
-        state = state.copy(isEnabled = value)
+        _state.update { it.copy(isEnabled = value) }
         viewModelScope.launch {
             SessionNotificationCoordinator.onNotificationsToggled(getApplication(), value)
         }
@@ -92,7 +93,7 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
     fun setTodayDigestTime(time: ScheduledNotificationTime) {
         prefs.todayDigestTime = time
         prefs.clearTodayDigestShown()
-        state = state.copy(todayDigestTime = time)
+        _state.update { it.copy(todayDigestTime = time) }
         viewModelScope.launch {
             SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.TODAY)
         }
@@ -101,7 +102,7 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
     fun setTomorrowDigestTime(time: ScheduledNotificationTime) {
         prefs.tomorrowDigestTime = time
         prefs.clearTomorrowDigestShown()
-        state = state.copy(tomorrowDigestTime = time)
+        _state.update { it.copy(tomorrowDigestTime = time) }
         viewModelScope.launch {
             SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.TOMORROW)
         }
@@ -110,18 +111,18 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
     fun setArchiveReminderTime(time: ScheduledNotificationTime) {
         prefs.archiveReminderTime = time
         prefs.clearArchiveReminderShown()
-        state = state.copy(archiveReminderTime = time)
+        _state.update { it.copy(archiveReminderTime = time) }
         viewModelScope.launch {
             SessionNotificationCoordinator.onDigestTimeChanged(getApplication(), ScheduledDigestKind.ARCHIVE)
         }
     }
 
     private inline fun update(
-        stateTransform: SessionNotificationSettingsState.() -> SessionNotificationSettingsState,
+        crossinline stateTransform: SessionNotificationSettingsState.() -> SessionNotificationSettingsState,
         persist: () -> Unit,
     ) {
         persist()
-        state = state.stateTransform()
+        _state.update { it.stateTransform() }
         viewModelScope.launch {
             SessionNotificationCoordinator.onSettingsChanged(getApplication())
         }
