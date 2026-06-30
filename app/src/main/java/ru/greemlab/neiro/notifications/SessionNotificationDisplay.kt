@@ -128,7 +128,7 @@ object SessionNotificationDisplay {
             .setContentIntent(openCalendarIntent(context, date))
             .build()
 
-        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER + date.hashCode(), notification)
+        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER + stableHash(date.toString()), notification)
     }
 
     private fun showGroupedArchiveReminder(
@@ -271,7 +271,7 @@ object SessionNotificationDisplay {
             putExtra(MainActivity.EXTRA_OPEN_DATE, date.toString())
             highlightSlotKey?.let { putExtra(MainActivity.EXTRA_HIGHLIGHT_SLOT_KEY, it) }
         }
-        val requestCode = date.hashCode() xor (highlightSlotKey?.hashCode() ?: 0)
+        val requestCode = stableHash("${date}|${highlightSlotKey.orEmpty()}")
         return PendingIntent.getActivity(
             context,
             requestCode,
@@ -279,6 +279,8 @@ object SessionNotificationDisplay {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    private fun stableHash(value: String): Int = value.hashCode()
 
     private fun notify(context: Context, id: Int, notification: android.app.Notification) {
         try {
