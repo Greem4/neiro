@@ -22,7 +22,7 @@ import ru.greemlab.neiro.sync.SyncPreferences
  */
 object LogoutCoordinator {
 
-    fun logout(context: Context) {
+    suspend fun logout(context: Context) {
         val appContext = context.applicationContext
 
         AutoSyncCoordinator.cancelLegacyPeriodicSync(appContext)

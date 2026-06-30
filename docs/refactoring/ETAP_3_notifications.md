@@ -3,15 +3,15 @@
 **Уровень риска:** Средний. Меняем логику dedupe, окно reminder, claim digest — могут проявиться расхождения с предыдущим поведением.
 **Зависимости:** Этап 2 (`LogoutCoordinator` должен существовать или быть закомментирован в `LogoutCoordinator.kt`).
 **Acceptance:**
-- [ ] `collectDueForReminder` использует «минуты до начала сессии», а не absolute `reminderAt`.
-- [ ] `claimTodayDigest`/`claimTomorrowDigest`/`claimArchiveReminder` — атомарный compare-and-set через `@Synchronized` + `commit()`.
-- [ ] Перед `prefs.markEventNotified` проверяется `areNotificationsEnabled()`.
-- [ ] `notificationId` и `requestCode` — стабильный hash на основе `String.hashCode()`, не `Object.hashCode()` + xor.
-- [ ] `InAppNotificationStore.append`, `ArchiveNotificationStore.append` thread-safe (`@Synchronized`).
-- [ ] LRU для `notifiedEventKeys`/`notifiedReminderKeys` — `LinkedHashSet`, удаляется самый старый.
-- [ ] `ScheduledNotificationTime` валидирует входные значения в `init`.
-- [ ] `SessionNotificationCoordinator.onLoggedOut(context)` существует и используется в `LogoutCoordinator`.
-- [ ] `enqueueDigestWork` использует `KEEP` (а `rescheduleDigest` явно `cancel` перед enqueue).
+- [x] `collectDueForReminder` использует «минуты до начала сессии», а не absolute `reminderAt`.
+- [x] `claimTodayDigest`/`claimTomorrowDigest`/`claimArchiveReminder` — атомарный compare-and-set через `@Synchronized` + `commit()`.
+- [x] Перед `prefs.markEventNotified` проверяется `areNotificationsEnabled()`.
+- [x] `notificationId` и `requestCode` — стабильный hash на основе `String.hashCode()`, не `Object.hashCode()` + xor.
+- [x] `InAppNotificationStore.append`, `ArchiveNotificationStore.append` thread-safe (`@Synchronized`).
+- [x] LRU для `notifiedEventKeys`/`notifiedReminderKeys` — `LinkedHashSet`, удаляется самый старый.
+- [x] `ScheduledNotificationTime` валидирует входные значения в `init`.
+- [x] `SessionNotificationCoordinator.onLoggedOut(context)` существует и используется в `LogoutCoordinator`.
+- [x] `enqueueDigestWork` использует `KEEP` (а `rescheduleDigest` явно `cancel` перед enqueue).
 
 ---
 
@@ -418,13 +418,13 @@ rg 'prefs\.markReminderNotified|prefs\.markEventNotified' app/src/main
 
 ```kotlin
     @Synchronized
-    fun append(...) { ... }
+    fun append() {  }
 
     @Synchronized
-    fun markAllRead() { ... }
+    fun markAllRead() {  }
 
     @Synchronized
-    fun importJson(json: String): Boolean { ... }
+    fun importJson(json: String): Boolean {  }
 ```
 
 > `exportJson()` не мутирует — `@Synchronized` не нужен (но допускается для консистентности чтения с записью).
