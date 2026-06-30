@@ -13,6 +13,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,7 +39,9 @@ fun AttendanceStatusPickerIcon(
 
     Box(modifier = modifier) {
         Surface(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .size(24.dp),
             shape = CircleShape,
             color = Color.White,
             onClick = { expanded = true },
