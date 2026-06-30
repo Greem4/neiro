@@ -256,23 +256,48 @@ class YClientsRepository(context: Context) {
      */
     suspend fun getClients(): ApiResult<List<ClientData>> = withContext(Dispatchers.IO) {
         try {
-            val response = api.getClients(
-                companyId = tokenStorage.companyId,
-            )
+            val all = mutableListOf<ClientData>()
+            var page = 1
+            var lastPageSize = 0
 
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body?.success == true) {
-                    ApiResult.Success(body.data.orEmpty())
-                } else {
-                    ApiResult.Error("Не удалось получить клиентов")
+            while (page <= MAX_PAGES) {
+                val response = api.getClients(
+                    companyId = tokenStorage.companyId,
+                    page = page,
+                    count = PAGE_SIZE,
+                )
+
+                if (!response.isSuccessful) {
+                    handleUnauthorized(response.code())
+                    return@withContext ApiResult.Error(
+                        message = if (response.code() == 401) {
+                            "Сессия истекла. Войдите ещё раз."
+                        } else {
+                            "Ошибка загрузки клиентов"
+                        },
+                        code = response.code(),
+                    )
                 }
-            } else {
-                ApiResult.Error(
-                    message = "Ошибка загрузки клиентов",
-                    code = response.code(),
+
+                val body = response.body()
+                if (body?.success != true) {
+                    return@withContext ApiResult.Error("Не удалось получить клиентов")
+                }
+
+                val pageData = body.data.orEmpty()
+                lastPageSize = pageData.size
+                all += pageData
+                if (pageData.size < PAGE_SIZE) break
+                page++
+            }
+
+            if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
+                return@withContext ApiResult.Error(
+                    "Слишком много клиентов — список обрезан",
                 )
             }
+
+            ApiResult.Success(all)
         } catch (e: Exception) {
             ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
