@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.notifications
 
 import android.content.Context
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
@@ -40,8 +41,10 @@ class SessionReminderWorker(
 
         if (toNotify.isEmpty()) return Result.success()
 
-        SessionNotificationDisplay.showReminder(applicationContext, toNotify)
-        toNotify.forEach { prefs.markReminderNotified(it.dedupeKey) }
+        if (NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
+            SessionNotificationDisplay.showReminder(applicationContext, toNotify)
+            toNotify.forEach { prefs.markReminderNotified(it.dedupeKey) }
+        }
 
         return Result.success()
     }
