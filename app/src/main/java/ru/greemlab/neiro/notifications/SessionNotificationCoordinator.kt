@@ -267,6 +267,7 @@ object SessionNotificationCoordinator {
                     cancelDigestWork(appContext, kind)
                     return
                 }
+                cancelDigestWork(appContext, kind) // принудительно сбрасываем старый
                 enqueueDigestWork(appContext, WORK_TODAY_DIGEST, prefs.todayDigestTime, kind)
             }
             ScheduledDigestKind.TOMORROW -> {
@@ -274,6 +275,7 @@ object SessionNotificationCoordinator {
                     cancelDigestWork(appContext, kind)
                     return
                 }
+                cancelDigestWork(appContext, kind)
                 enqueueDigestWork(appContext, WORK_TOMORROW_DIGEST, prefs.tomorrowDigestTime, kind)
             }
             ScheduledDigestKind.ARCHIVE -> {
@@ -281,6 +283,7 @@ object SessionNotificationCoordinator {
                     cancelDigestWork(appContext, kind)
                     return
                 }
+                cancelDigestWork(appContext, kind)
                 enqueueDigestWork(appContext, WORK_ARCHIVE_DIGEST, prefs.archiveReminderTime, kind)
             }
         }
