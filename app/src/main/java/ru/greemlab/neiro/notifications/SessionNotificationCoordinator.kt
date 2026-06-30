@@ -542,9 +542,12 @@ object SessionNotificationCoordinator {
         SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
     }
 
-    fun onLoggedOut(context: Context) {
-        cancelAll(context)
-        SessionNotificationPreferences.get(context).resetSyncNotificationState()
+    suspend fun onLoggedOut(context: Context) {
+        val appContext = context.applicationContext
+        cancelAll(appContext)
+        SessionNotificationPreferences.get(appContext).resetSyncNotificationState()
+        SessionNotificationPreferences.get(appContext).clearTodayDigestShown()
+        SessionNotificationPreferences.get(appContext).clearTomorrowDigestShown()
     }
 
     private fun cancelAll(context: Context) {
