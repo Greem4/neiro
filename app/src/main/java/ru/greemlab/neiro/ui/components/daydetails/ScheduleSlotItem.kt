@@ -230,7 +230,6 @@ private fun SlotIndicatorBars(
 @Composable
 fun IntensiveTimelineChip(
     title: String,
-    amount: Double,
     status: AttendanceStatus,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -240,20 +239,10 @@ fun IntensiveTimelineChip(
     onDetailsClick: (() -> Unit)? = null,
     onIndicatorClick: (() -> Unit)? = null,
 ) {
-    val amountLabel = if (amount > 0.0) {
-        ru.greemlab.neiro.ui.util.formatRubles(amount)
-    } else {
-        ""
-    }
-    val collapsedName = buildString {
-        append(title)
-        if (amountLabel.isNotEmpty()) append(" · $amountLabel")
-    }
-
     ScheduleSlotItem(
         time = "",
-        name = collapsedName,
-        comment = if (onClick != null || onIndicatorClick != null) "Нажмите, чтобы открыть" else "",
+        name = title,
+        comment = "",
         status = status,
         showTime = false,
         compactForTimeline = compactForTimeline,
@@ -401,7 +390,6 @@ fun ExpandableReplacementSlot(
 @Composable
 fun ExpandableIntensiveCoverSlot(
     intensiveTitle: String,
-    intensiveAmount: Double,
     intensiveStatus: AttendanceStatus,
     covered: List<ScheduleSlotContent>,
     expanded: Boolean,
@@ -510,7 +498,6 @@ fun ExpandableIntensiveCoverSlot(
 
                 IntensiveTimelineChip(
                     title = intensiveTitle,
-                    amount = intensiveAmount,
                     status = intensiveStatus,
                     onClick = onIntensiveDetails,
                     compactForTimeline = compactForTimeline,

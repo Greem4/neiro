@@ -73,9 +73,7 @@ import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import ru.greemlab.neiro.ui.calendar.displayStatus
 import ru.greemlab.neiro.ui.calendar.buildIntensiveChildrenByTime
-import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
 import ru.greemlab.neiro.ui.calendar.isStudentCoveredByIntensive
-import ru.greemlab.neiro.ui.calendar.visibleChildren
 import ru.greemlab.neiro.ui.calendar.totalAmount
 import ru.greemlab.neiro.ui.components.daydetails.DayScheduleTimeline
 import ru.greemlab.neiro.ui.components.daydetails.EditIntensiveItem
@@ -225,7 +223,7 @@ private fun DayDetailsContent(
             }
         }
 
-    val entries = remember(currentNames.toList(), userProfile) {
+    val entries = remember(currentNames.toList(), userProfile, date) {
         parseEntries(currentNames, userProfile)
     }
 
@@ -783,7 +781,10 @@ private data class DayStats(
     val totalMoney: Double,
 )
 
-private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List<ScheduleEntry> {
+private fun parseEntries(
+    rawNames: List<String>,
+    userProfile: UserProfile,
+): List<ScheduleEntry> {
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(
         rawNames.map(SessionParser::parse),
     )
@@ -823,13 +824,8 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
             }
 
             is Session.Intensive -> {
-                val visibleChildren = session.children.visibleChildren()
-                val childCount = visibleChildren.size
-                val title = if (childCount > 0) {
-                    "Интенсив · ${intensiveChildrenLabel(childCount)}"
-                } else {
-                    session.name.ifBlank { "Интенсив" }
-                }
+                val title = session.name.ifBlank { "Интенсив" }
+
                 entries.add(
                     ScheduleEntry(
                         name = title,
@@ -842,7 +838,7 @@ private fun parseEntries(rawNames: List<String>, userProfile: UserProfile): List
                             userProfile.pricePerIntensiveChild,
                             onlyArrived = false,
                         ),
-                        intensiveChildren = visibleChildren,
+                        intensiveChildren = session.children,
                         sourceIndex = index,
                     ),
                 )

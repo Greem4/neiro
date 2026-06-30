@@ -84,8 +84,8 @@ object SessionNotificationCoordinator {
      */
     suspend fun onCalendarUpdatedFromApi(
         context: Context,
-        dayDataBefore: Map<java.time.LocalDate, List<String>>,
-        dayDataAfter: Map<java.time.LocalDate, List<String>>,
+        dayDataBefore: Map<LocalDate, List<String>>,
+        dayDataAfter: Map<LocalDate, List<String>>,
     ) {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)
@@ -135,7 +135,7 @@ object SessionNotificationCoordinator {
         }
 
         prefs.saveSnapshot(after)
-        scheduleAfterBaseline(appContext, profile, after, prefs)
+        scheduleAfterBaseline(appContext, profile, prefs)
     }
 
     suspend fun refreshFromCalendar(context: Context) {
@@ -175,15 +175,13 @@ object SessionNotificationCoordinator {
     ) {
         if (!prefs.hasBaselineSnapshot) {
             prefs.establishBaseline(after)
-            scheduleAfterBaseline(context, profile, after, prefs)
+            scheduleAfterBaseline(context, profile, prefs)
             return
         }
 
         val today = LocalDate.now()
         val storedBefore = CalendarSessionSnapshot.withinHorizon(prefs.loadSnapshot(), today)
-        val effectiveBefore = if (storedBefore.isNotEmpty()) {
-            storedBefore
-        } else {
+        val effectiveBefore = storedBefore.ifEmpty {
             CalendarSessionSnapshot.withinHorizon(before, today)
         }
 
@@ -197,13 +195,12 @@ object SessionNotificationCoordinator {
         }
 
         prefs.saveSnapshot(after)
-        scheduleAfterBaseline(context, profile, after, prefs)
+        scheduleAfterBaseline(context, profile, prefs)
     }
 
     private suspend fun scheduleAfterBaseline(
         context: Context,
         profile: UserProfile,
-        after: List<TrackedSession>,
         prefs: SessionNotificationPreferences,
     ) {
         val calendarRepository = CalendarDataStoreProvider.get(context)
@@ -470,7 +467,7 @@ object SessionNotificationCoordinator {
         val now = java.time.Instant.now()
 
         for (session in sessions) {
-            val trigger = session.reminderAt(reminderMinutesBefore, zone).atZone(zone).toInstant()
+            val trigger = session.reminderAt(reminderMinutesBefore).atZone(zone).toInstant()
             val delayMs = Duration.between(now, trigger).toMillis()
             if (delayMs <= 0L || delayMs > TimeUnit.DAYS.toMillis(MAX_SCHEDULE_DAYS)) continue
 

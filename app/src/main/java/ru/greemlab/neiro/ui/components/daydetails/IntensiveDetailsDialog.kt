@@ -27,11 +27,13 @@ import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
-import ru.greemlab.neiro.ui.calendar.visibleChildren
 import ru.greemlab.neiro.ui.util.formatRubles
+
+import java.time.LocalDate
 
 @Composable
 fun IntensiveDetailsDialog(
+    date: LocalDate,
     time: String,
     children: List<Session.IntensiveChild>,
     amount: Double,
@@ -42,6 +44,7 @@ fun IntensiveDetailsDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         IntensiveDetailsCard(
+            date = date,
             time = time,
             children = children,
             amount = amount,
@@ -52,15 +55,29 @@ fun IntensiveDetailsDialog(
 
 @Composable
 private fun IntensiveDetailsCard(
+    date: LocalDate,
     time: String,
     children: List<Session.IntensiveChild>,
     amount: Double,
     onDismiss: () -> Unit,
 ) {
+    val today = LocalDate.now()
+    val isFutureFar = date.isAfter(today.plusDays(1))
+
     val timeLabel = formatIntensiveTimeLabel(time)
-    val visibleChildren = children.visibleChildren()
-    val arrivedCount = visibleChildren.count { it.status == AttendanceStatus.ARRIVED }
+    val arrivedCount = children.count { it.status == AttendanceStatus.ARRIVED }
+    val confirmedCount = children.count {
+        it.status == AttendanceStatus.CONFIRMED || it.status == AttendanceStatus.ARRIVED
+    }
     val amountLabel = if (amount > 0.0) formatRubles(amount) else null
+
+    val countLabel = if (isFutureFar) {
+        intensiveChildrenLabel(children.size)
+    } else {
+        "$confirmedCount подтверждено"
+    }
+
+    val totalToReport = if (isFutureFar) children.size else confirmedCount
 
     Card(
         modifier = Modifier
@@ -86,7 +103,7 @@ private fun IntensiveDetailsCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Интенсив · ${intensiveChildrenLabel(visibleChildren.size)}",
+                text = "Интенсив · $countLabel",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -95,7 +112,7 @@ private fun IntensiveDetailsCard(
 
             Text(
                 text = buildString {
-                    append("Пришли: $arrivedCount из ${visibleChildren.size}")
+                    append("Пришли: $arrivedCount из $totalToReport")
                     amountLabel?.let { append(" · $it") }
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -111,7 +128,7 @@ private fun IntensiveDetailsCard(
                     .heightIn(max = 320.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(visibleChildren, key = { it.name }) { child ->
+                items(children, key = { it.name }) { child ->
                     ScheduleSlotItem(
                         time = "",
                         name = child.name,
@@ -145,6 +162,7 @@ private fun formatIntensiveTimeLabel(time: String): String {
 private fun IntensiveDetailsCardPreview() {
     NeiroTheme {
         IntensiveDetailsCard(
+            date = LocalDate.now(),
             time = "18:00-19:30",
             amount = 8000.0,
             children = listOf(

@@ -4,13 +4,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import ru.greemlab.neiro.MainActivity
 import ru.greemlab.neiro.R
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Канал и показ push-уведомлений о занятиях.
@@ -20,10 +19,8 @@ object SessionNotificationDisplay {
     const val CHANNEL_ID = "neiro_sessions"
     private const val GROUP_KEY = "neiro_sessions_group"
 
-    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    private val dateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
-
     fun ensureChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val appContext = context.applicationContext
         val manager = appContext.getSystemService(NotificationManager::class.java) ?: return
         try {
@@ -72,10 +69,10 @@ object SessionNotificationDisplay {
 
         val sorted = sessions.sortedBy { it.startTime }
         val title = SessionNotificationTexts.todayDigestTitle(context, sorted.size)
-        val lines = sorted.map { SessionNotificationTexts.formatUpcomingLine(it) }
-        val bigText = lines.joinToString("\n")
+        val bigText = SessionNotificationTexts.upcomingDigestBody(sorted)
+        val content = SessionNotificationTexts.formatUpcomingLine(sorted.first())
 
-        val notification = baseBuilder(context, title, lines.first())
+        val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
@@ -92,11 +89,11 @@ object SessionNotificationDisplay {
 
         val sorted = sessions.sortedBy { it.startTime }
         val title = SessionNotificationTexts.tomorrowDigestTitle(context, sorted.size)
-        val lines = sorted.map { SessionNotificationTexts.formatUpcomingLine(it) }
-        val bigText = lines.joinToString("\n")
+        val bigText = SessionNotificationTexts.upcomingDigestBody(sorted)
+        val content = SessionNotificationTexts.formatUpcomingLine(sorted.first())
         val tomorrow = sorted.first().date
 
-        val notification = baseBuilder(context, title, lines.first())
+        val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
@@ -123,12 +120,8 @@ object SessionNotificationDisplay {
         dayData: Map<LocalDate, List<String>>,
     ) {
         val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
-        val title = context.getString(R.string.notification_archive_title)
-        val content = context.resources.getQuantityString(
-            R.plurals.notification_archive_body,
-            count,
-            count,
-        )
+        val title = SessionNotificationTexts.archiveTitle(context)
+        val content = SessionNotificationTexts.archiveBody(context, count)
 
         val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
@@ -143,22 +136,15 @@ object SessionNotificationDisplay {
         dates: List<LocalDate>,
         dayData: Map<LocalDate, List<String>>,
     ) {
-        val title = context.getString(R.string.notification_archive_group_title, dates.size)
+        val title = SessionNotificationTexts.archiveGroupTitle(context, dates.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
         dates.forEach { date ->
             val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
-            inbox.addLine(
-                context.resources.getQuantityString(
-                    R.plurals.notification_archive_line,
-                    count,
-                    formatArchiveDateLabel(context, date),
-                    count,
-                ),
-            )
+            inbox.addLine(SessionNotificationTexts.archiveLine(context, count, date))
         }
 
         val firstDate = dates.first()
-        val summary = baseBuilder(context, title, context.getString(R.string.notification_archive_group_summary))
+        val summary = baseBuilder(context, title, SessionNotificationTexts.archiveGroupSummary(context))
             .setStyle(inbox)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
@@ -171,10 +157,9 @@ object SessionNotificationDisplay {
     private fun showSingleEvent(context: Context, event: SessionEvent) {
         val title = SessionNotificationTexts.eventTitle(context, event)
         val content = SessionNotificationTexts.eventContent(context, event)
-        val bigText = content
 
         val notification = baseBuilder(context, title, content)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
             .build()
 
@@ -214,16 +199,9 @@ object SessionNotificationDisplay {
             session.startsAt(),
         ).toMinutes().coerceAtLeast(0)
 
-        val title = context.getString(R.string.notification_reminder_title, session.clientName)
+        val title = SessionNotificationTexts.reminderTitle(context, session)
         val content = SessionNotificationTexts.formatUpcomingLine(session)
-        val subText = when {
-            minutesUntil <= 1L -> context.getString(R.string.notification_reminder_soon)
-            minutesUntil < 60L -> context.getString(R.string.notification_reminder_in_minutes, minutesUntil)
-            else -> context.getString(
-                R.string.notification_reminder_at,
-                session.startTime.format(timeFormatter),
-            )
-        }
+        val subText = SessionNotificationTexts.reminderSubText(context, minutesUntil, session.startTime)
 
         val notification = baseBuilder(context, title, content)
             .setSubText(subText)
@@ -242,7 +220,7 @@ object SessionNotificationDisplay {
 
     private fun showGroupedReminders(context: Context, sessions: List<UpcomingSession>) {
         val sorted = sessions.sortedBy { it.startTime }
-        val title = context.getString(R.string.notification_reminder_group_title, sorted.size)
+        val title = SessionNotificationTexts.reminderGroupTitle(context, sorted.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
         sorted.forEach { inbox.addLine(SessionNotificationTexts.formatUpcomingLine(it)) }
 
@@ -282,13 +260,6 @@ object SessionNotificationDisplay {
                 .setShowWhen(true),
             context,
         )
-
-    private fun formatArchiveDateLabel(context: Context, date: LocalDate): String =
-        if (date == LocalDate.now()) {
-            context.getString(R.string.notification_archive_date_today)
-        } else {
-            date.format(dateFormatter)
-        }
 
     private fun openCalendarIntent(
         context: Context,
