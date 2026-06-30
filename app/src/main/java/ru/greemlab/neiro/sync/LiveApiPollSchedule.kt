@@ -17,7 +17,7 @@ object LiveApiPollSchedule {
     private val dayStart = LocalTime.of(9, 0)
     private val quietStart = LocalTime.of(21, 0)
 
-    const val DAY_INTERVAL_MINUTES = 1L
+    const val DAY_INTERVAL_MINUTES = 5L
     const val NIGHT_INTERVAL_MINUTES = 60L
 
     fun isQuietHours(
