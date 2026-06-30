@@ -18,9 +18,8 @@ internal fun applyWindowSystemBars(
     backgroundColor: Color,
     darkTheme: Boolean,
 ) {
-    WindowCompat.setDecorFitsSystemWindows(window, false)
-    window.statusBarColor = Color.Transparent.toArgb()
-    window.navigationBarColor = Color.Transparent.toArgb()
+    // enableEdgeToEdge() в MainActivity уже выставил setDecorFitsSystemWindows(false)
+    // и сделал статус/навбары прозрачными — здесь только подстраиваем иконки и цвет фона окна.
     window.setBackgroundDrawable(ColorDrawable(backgroundColor.toArgb()))
     WindowCompat.getInsetsController(window, view).apply {
         isAppearanceLightStatusBars = !darkTheme
