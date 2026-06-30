@@ -124,7 +124,13 @@ class TokenStorage(context: Context) {
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            android.util.Log.e(
+                "TokenStorage",
+                "EncryptedSharedPreferences failed, falling back to plain prefs. " +
+                    "Токены YClients будут храниться нешифрованно на этом устройстве.",
+                t,
+            )
             fallback
         }
     }
