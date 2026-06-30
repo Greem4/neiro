@@ -3,13 +3,13 @@
 **Уровень риска:** Низкий (правки сборки и ProGuard могут проявиться только в release).
 **Зависимости:** —
 **Acceptance:**
-- [ ] OkHttp в release **не пишет** Authorization в логи и не пишет тела (`Level.HEADERS` + `redactHeader`).
-- [ ] Release сборка без `RELEASE_STORE_FILE` падает с `GradleException`, а не подписывается debug-ключом.
-- [ ] Cloud backup **не содержит** `datastore/` (или явно ограничен только архивом, по выбору пользователя).
-- [ ] ProGuard `-keep` есть для всех Gson-моделей вне `domain/`/`data/network/` (notifications, sync, push).
-- [ ] Манифест содержит `enableOnBackInvokedCallback="true"` и `tools:targetApi="tiramisu"`.
-- [ ] `android.usesCleartextTraffic` явно `false` (через `network_security_config.xml`).
-- [ ] `versions.toml`: явный pinning `foundation = 1.7.0` удалён, foundation тянется через BOM.
+- [x] OkHttp в release **не пишет** Authorization в логи и не пишет тела (`Level.HEADERS` + `redactHeader`).
+- [x] Release сборка без `RELEASE_STORE_FILE` падает с `GradleException`, а не подписывается debug-ключом.
+- [x] Cloud backup **не содержит** `datastore/` (или явно ограничен только архивом, по выбору пользователя).
+- [x] ProGuard `-keep` есть для всех Gson-моделей вне `domain/`/`data/network/` (notifications, sync, push).
+- [x] Манифест содержит `enableOnBackInvokedCallback="true"` и `tools:targetApi="tiramisu"`.
+- [x] `android.usesCleartextTraffic` явно `false` (через `network_security_config.xml`).
+- [x] `versions.toml`: явный pinning `foundation = 1.7.0` удалён, foundation тянется через BOM.
 
 ---
 

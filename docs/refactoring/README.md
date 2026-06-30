@@ -40,9 +40,9 @@ ETAP_1 → ETAP_5 → ETAP_2 → ETAP_3 → ETAP_4 → ETAP_6
 
 После всех 6 этапов должно быть:
 
-- [ ] **Нет утечки токенов в logcat** (`HttpLoggingInterceptor.Level.HEADERS` + `redactHeader("Authorization")`).
-- [ ] **Release с отсутствующим keystore падает** на этапе сборки, не подписывается debug-ключом.
-- [ ] **Backup облака не содержит `datastore/`** (или `allowBackup="false"`).
+- [x] **Нет утечки токенов в logcat** (`HttpLoggingInterceptor.Level.HEADERS` + `redactHeader("Authorization")`).
+- [x] **Release с отсутствующим keystore падает** на этапе сборки, не подписывается debug-ключом.
+- [x] **Backup облака не содержит `datastore/`** (или `allowBackup="false"`).
 - [ ] **Logout (Auth, Settings) делает полную очистку**: push unregister + sync state + repository (через `LogoutCoordinator`).
 - [ ] **`recordLivePoll`/`recordFullLiveSync`** срабатывают **после** merge + save.
 - [ ] **`ExistingWorkPolicy.KEEP`** для всех unique sync/keepalive workers.
