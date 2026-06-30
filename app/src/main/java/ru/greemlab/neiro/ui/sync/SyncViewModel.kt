@@ -98,7 +98,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     fun devFullSetup() {
         viewModelScope.launch {
             calendarRepository.clearAllData()
-            yclientsRepository.logout()
+            LogoutCoordinator.logout(getApplication())
 
             calendarRepository.updateProfile { profile ->
                 profile.copy(

@@ -22,17 +22,14 @@ import ru.greemlab.neiro.sync.SyncPreferences
  */
 object LogoutCoordinator {
 
-    suspend fun logout(context: Context) {
+    fun logout(context: Context) {
         val appContext = context.applicationContext
 
         AutoSyncCoordinator.cancelLegacyPeriodicSync(appContext)
         cancelLiveApiWorker(appContext)
         PushKeepAliveCoordinator.cancel(appContext)
-        
-        // TODO: реализовать в ETAP_3
-        // SessionNotificationCoordinator.onLoggedOut(appContext)
-        // Временно вызываем существующий метод для отмены уведомлений
-        SessionNotificationCoordinator.onNotificationsToggled(appContext, false)
+
+        SessionNotificationCoordinator.onLoggedOut(appContext)
 
         PushRegistrar.onLogout(appContext)
 

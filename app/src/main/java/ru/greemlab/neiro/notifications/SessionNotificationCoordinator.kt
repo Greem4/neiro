@@ -365,7 +365,7 @@ object SessionNotificationCoordinator {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             uniqueName,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }
@@ -479,7 +479,7 @@ object SessionNotificationCoordinator {
 
             workManager.enqueueUniqueWork(
                 WORK_PREFIX + session.dedupeKey,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 request,
             )
         }
@@ -536,6 +536,11 @@ object SessionNotificationCoordinator {
 
         SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
         prefs.markArchiveReminderShown(date.toEpochDay())
+    }
+
+    fun onLoggedOut(context: Context) {
+        cancelAll(context)
+        SessionNotificationPreferences.get(context).resetSyncNotificationState()
     }
 
     private fun cancelAll(context: Context) {
