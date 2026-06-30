@@ -3,15 +3,15 @@
 **Уровень риска:** **Высокий**. Меняем поведение фоновой синхронизации и push. Тестируется на реальном устройстве: вход/выход YClients, перезагрузка телефона, переход в фон/обратно, отсутствие интернета на 5–10 минут.
 **Зависимости:** Этап 1 (ProGuard `-keep` для push моделей).
 **Acceptance:**
-- [ ] `recordLivePoll`/`recordFullLiveSync` вызываются **после** удачного merge + save.
-- [ ] Все unique workers используют `ExistingWorkPolicy.KEEP` (`PushSyncCoordinator`, `PushKeepAliveCoordinator`, `LiveApiCoordinator`).
-- [ ] `LiveApiRefreshWorker` всегда планирует следующий запуск (`try/finally`), независимо от exception.
-- [ ] `LiveApiPollSchedule.DAY_INTERVAL_MINUTES = 5L` (или объяснено почему 1).
-- [ ] `LogoutCoordinator` — единственная точка логаута; `AuthViewModel.logout` и `SyncViewModel.logoutYClients` вызывают только его.
-- [ ] `PushDeviceId.get` thread-safe (`@Synchronized` + `commit()`).
-- [ ] `PushRegistrar.registerWithToken` различает 4xx/5xx, retry только на 5xx и сетевых ошибках.
-- [ ] `fetchFcmToken` корректно реагирует на cancellation (`invokeOnCancellation`).
-- [ ] `SyncPreferences.recordLivePoll`/`recordFullLiveSync`/`recordSuccessfulSync` используют `commit()`.
+- [x] `recordLivePoll`/`recordFullLiveSync` вызываются **после** удачного merge + save.
+- [x] Все unique workers используют `ExistingWorkPolicy.KEEP` (`PushSyncCoordinator`, `PushKeepAliveCoordinator`, `LiveApiCoordinator`).
+- [x] `LiveApiRefreshWorker` всегда планирует следующий запуск (`try/finally`), независимо от exception.
+- [x] `LiveApiPollSchedule.DAY_INTERVAL_MINUTES = 5L` (или объяснено почему 1).
+- [x] `LogoutCoordinator` — единственная точка логаута; `AuthViewModel.logout` и `SyncViewModel.logoutYClients` вызывают только его.
+- [x] `PushDeviceId.get` thread-safe (`@Synchronized` + `commit()`).
+- [x] `PushRegistrar.registerWithToken` различает 4xx/5xx, retry только на 5xx и сетевых ошибках.
+- [x] `fetchFcmToken` корректно реагирует на cancellation (`invokeOnCancellation`).
+- [x] `SyncPreferences.recordLivePoll`/`recordFullLiveSync`/`recordSuccessfulSync` используют `commit()`.
 
 ---
 
