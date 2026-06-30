@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import ru.greemlab.neiro.notifications.SessionSlotKey
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
@@ -130,8 +131,10 @@ fun DayScheduleTimeline(
         )
     }
 
-    LaunchedEffect(scrollState.value) {
-        onTopReachedChanged(scrollState.value == 0)
+    LaunchedEffect(scrollState) {
+        androidx.compose.runtime.snapshotFlow { scrollState.value == 0 }
+            .distinctUntilChanged()
+            .collect { onTopReachedChanged(it) }
     }
 
     var selectedIntensive by remember { mutableStateOf<TimelineEntry?>(null) }
