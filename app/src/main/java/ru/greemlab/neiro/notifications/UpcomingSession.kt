@@ -84,14 +84,16 @@ object UpcomingSessionsCollector {
         reminderMinutesBefore: Int,
         now: LocalDateTime = LocalDateTime.now(),
     ): List<UpcomingSession> {
-        val windowStart = now.plusMinutes((reminderMinutesBefore - 7).toLong())
-        val windowEnd = now.plusMinutes((reminderMinutesBefore + 7).toLong())
+        val minMinutesUntilStart = (reminderMinutesBefore - REMINDER_WINDOW_HALF).toLong().coerceAtLeast(0)
+        val maxMinutesUntilStart = (reminderMinutesBefore + REMINDER_WINDOW_HALF).toLong()
 
         return sessions.filter { session ->
-            val reminderAt = session.reminderAt(reminderMinutesBefore)
-            !reminderAt.isBefore(windowStart) && !reminderAt.isAfter(windowEnd)
+            val minutesUntilStart = java.time.Duration.between(now, session.startsAt()).toMinutes()
+            minutesUntilStart in minMinutesUntilStart..maxMinutesUntilStart
         }
     }
+
+    private const val REMINDER_WINDOW_HALF = 7
 
     fun todaySessions(
         sessions: List<UpcomingSession>,
