@@ -487,7 +487,7 @@ object SessionNotificationCoordinator {
 
             workManager.enqueueUniqueWork(
                 WORK_PREFIX + session.dedupeKey,
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.REPLACE,
                 request,
             )
         }
