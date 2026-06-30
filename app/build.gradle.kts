@@ -124,7 +124,11 @@ android {
                 if (hasReleaseSigning) {
                     signingConfigs.getByName("release")
                 } else {
-                    signingConfigs.getByName("debug")
+                    throw GradleException(
+                        "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
+                            "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
+                            "Соберите debug или prerelease для локальной отладки."
+                    )
                 }
         }
     }
