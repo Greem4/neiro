@@ -19,17 +19,20 @@ class NeiroApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        AutoSyncCoordinator.initialize(this)
-        LiveApiCoordinator.initialize(this)
-        SessionNotificationCoordinator.initialize(this)
-        PushRegistrar.initialize(this)
-
         // Синхронный SharedPreferences-кэш заполняет снимок прямо в конструкторе репозитория,
         // поэтому UI стартует с данными без блокировки main-потока.
         val repository = CalendarDataStoreProvider.get(this)
 
+        // ProcessLifecycleOwner.addObserver обязан быть на main thread — оставляем здесь.
+        AutoSyncCoordinator.initialize(this)
+        LiveApiCoordinator.initialize(this)
+
         // Фоновая гидратация из DataStore + миграции — параллельно со стартом UI.
         appScope.launch {
+            // Эти init делают disk I/O (WorkManager.enqueue, FCM token) — не блокируем main.
+            SessionNotificationCoordinator.initialize(this@NeiroApplication)
+            PushRegistrar.initialize(this@NeiroApplication)
+
             repository.warmUp()
             repository.migrateProfileIfNeeded()
             SessionNotificationCoordinator.refreshFromCalendar(this@NeiroApplication)
