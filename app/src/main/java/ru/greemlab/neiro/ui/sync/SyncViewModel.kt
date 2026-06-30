@@ -13,6 +13,7 @@ import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.SyncOutcome
 import ru.greemlab.neiro.sync.SyncPreferences
@@ -63,10 +64,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val yclientsUserName: String? get() = yclientsRepository.userName
 
     fun logoutYClients() {
-        yclientsRepository.logout()
-        syncPreferences.clearSyncState()
-        AutoSyncCoordinator.cancelLegacyPeriodicSync(getApplication())
-        _uiState.value = SyncUiState()
+        viewModelScope.launch {
+            LogoutCoordinator.logout(getApplication())
+            _uiState.value = SyncUiState()
+        }
     }
 
     fun devLogin(autoSync: Boolean = false) {
