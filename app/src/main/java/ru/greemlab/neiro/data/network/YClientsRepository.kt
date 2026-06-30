@@ -231,12 +231,16 @@ class YClientsRepository(context: Context) {
             val needleTokens = userName.normalizeNameTokens()
             if (needleTokens.isEmpty()) return@withContext null
 
+            // Если у пользователя в профиле YClients только 1 токен (например, "Светлана"),
+            // понизим требование, иначе совсем не найдём.
+            val minScore = MIN_NAME_MATCH_SCORE.coerceAtMost(needleTokens.size)
+
             val match = staffList
                 .mapNotNull { staff ->
                     val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
                     if (staffTokens.isEmpty()) return@mapNotNull null
                     val score = (staffTokens intersect needleTokens).size
-                    if (score < MIN_NAME_MATCH_SCORE) null else staff to score
+                    if (score < minScore) null else staff to score
                 }
                 .sortedWith(
                     compareByDescending<Pair<StaffData, Int>> { (it.first.fired ?: 0) == 0 }
@@ -341,10 +345,10 @@ class YClientsRepository(context: Context) {
 
         /**
          * Минимальное число совпавших токенов имени для матча сотрудника.
-         * Берём 1 — этого достаточно для поиска, если имя в профиле короткое.
-         * Приоритет всё равно у тех, у кого совпадений больше.
+         * 2 — нужны минимум 2 общих токена (имя+фамилия), чтобы исключить
+         * ложный матч по одному имени, когда в филиале несколько тёзок.
          */
-        private const val MIN_NAME_MATCH_SCORE = 1
+        private const val MIN_NAME_MATCH_SCORE = 2
 
         @Volatile
         private var instance: YClientsRepository? = null
