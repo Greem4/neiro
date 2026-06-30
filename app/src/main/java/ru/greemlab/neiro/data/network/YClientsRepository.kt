@@ -332,6 +332,7 @@ class YClientsRepository(context: Context) {
             val error = gson.fromJson(errorBody, ApiError::class.java)
             error.meta?.message
         } catch (e: Exception) {
+            android.util.Log.w("YClientsRepository", "Cannot parse error body: $errorBody", e)
             null
         }
     }
