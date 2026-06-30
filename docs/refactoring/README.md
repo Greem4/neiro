@@ -51,8 +51,8 @@ ETAP_1 → ETAP_5 → ETAP_2 → ETAP_3 → ETAP_4 → ETAP_6
 - [ ] **`collectDueForReminder`** работает на «минутах до начала», а не на абсолютном времени напоминания.
 - [ ] **WebView destroyed** в `DisposableEffect.onDispose`.
 - [ ] **Sync VM** игнорирует повторные вызовы, пока `isLoading == true`.
-- [ ] **HTTP 401** → автоматический `tokenStorage.clear()` + сообщение «Сессия истекла».
-- [ ] **`MIN_NAME_MATCH_SCORE = 2`** или объяснённый комментарий, почему 1.
+- [x] **HTTP 401** → автоматический `tokenStorage.clear()` + сообщение «Сессия истекла».
+- [x] **`MIN_NAME_MATCH_SCORE = 2`** или объяснённый комментарий, почему 1.
 - [ ] **Async init** в `NeiroApplication.onCreate`.
 - [ ] **Lints без новых ошибок** в IDE (`ReadLints` чистый).
 

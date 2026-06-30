@@ -3,12 +3,12 @@
 **Уровень риска:** Средний. Меняем поведение пагинации, обработку 401 и поиск staff. Тестируется на реальном входе/выходе и большом календаре.
 **Зависимости:** —
 **Acceptance:**
-- [ ] HTTP 401 в `login()`/`fetchRecords`/`getClients` → автоматический `tokenStorage.clear()` + понятное сообщение пользователю.
-- [ ] `MIN_NAME_MATCH_SCORE = 2` (или 1 с явным fallback на 1 при коротком имени).
-- [ ] `getClients()` использует пагинацию (как `fetchRecords`).
-- [ ] `TokenStorage.createSecurePrefs` fallback логирует ошибку.
-- [ ] `DEFAULT_COMPANY_ID = 0` (или удалить совсем).
-- [ ] `parseErrorMessage` не съедает все exceptions молча — лог.
+- [x] HTTP 401 в `login()`/`fetchRecords`/`getClients` → автоматический `tokenStorage.clear()` + понятное сообщение пользователю.
+- [x] `MIN_NAME_MATCH_SCORE = 2` (или 1 с явным fallback на 1 при коротком имени).
+- [x] `getClients()` использует пагинацию (как `fetchRecords`).
+- [x] `TokenStorage.createSecurePrefs` fallback логирует ошибку.
+- [x] `DEFAULT_COMPANY_ID = 0` (или удалить совсем).
+- [x] `parseErrorMessage` не съедает все exceptions молча — лог.
 
 ---
 
