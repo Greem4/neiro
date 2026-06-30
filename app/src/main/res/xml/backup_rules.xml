@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- DataStore: профиль, календарь, тема -->
-    <include domain="file" path="datastore/" />
-    <!-- sharedpref не включён — токены YClients (neiro_yclients_*) не попадают в бэкап -->
+    <!-- Бэкап выключен полностью: персональные данные, токены и кеш не покидают устройство. -->
+    <exclude domain="root" path="." />
 </full-backup-content>
