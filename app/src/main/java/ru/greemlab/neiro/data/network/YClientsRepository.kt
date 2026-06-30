@@ -157,8 +157,13 @@ class YClientsRepository(context: Context) {
                 )
 
                 if (!response.isSuccessful) {
+                    handleUnauthorized(response.code())
                     return ApiResult.Error(
-                        message = "Ошибка загрузки записей",
+                        message = if (response.code() == 401) {
+                            "Сессия истекла. Войдите ещё раз."
+                        } else {
+                            "Ошибка загрузки записей"
+                        },
                         code = response.code(),
                     )
                 }
@@ -184,6 +189,12 @@ class YClientsRepository(context: Context) {
             return ApiResult.Success(all)
         } catch (e: Exception) {
             return ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+        }
+    }
+
+    private fun handleUnauthorized(code: Int?) {
+        if (code == 401) {
+            tokenStorage.clear()
         }
     }
 
