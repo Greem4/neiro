@@ -101,9 +101,9 @@ class YClientsCalendarSync(
             )
         ) {
             is ApiResult.Success -> {
-                syncPreferences.recordLivePoll()
                 val records = result.data
                 if (records.isEmpty()) {
+                    syncPreferences.recordLivePoll()
                     return SyncOutcome.Success(0)
                 }
 
@@ -118,6 +118,7 @@ class YClientsCalendarSync(
                     return outcome
                 }
                 val syncedCount = (outcome as SyncOutcome.Success).newlyAdded
+                syncPreferences.recordLivePoll()
                 val dayDataAfter = calendarRepository.dayDataFlow.first()
                 SessionNotificationCoordinator.onCalendarUpdatedFromApi(
                     appContext,
