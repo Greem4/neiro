@@ -22,8 +22,12 @@ fun Session.Intensive.displayStatus(): AttendanceStatus {
 
 /** Ставка за одного ребёнка: из профиля или из суммы записи. */
 fun Session.Intensive.unitPrice(pricePerChild: Double): Double {
-    if (pricePerChild > 0.0) return pricePerChild
     val visible = children.visibleChildren()
+    if (amountFixed || visible.isEmpty()) {
+        if (amount > 0.0 && visible.isNotEmpty()) return amount / visible.size
+        return amount
+    }
+    if (pricePerChild > 0.0) return pricePerChild
     if (amount > 0.0 && visible.isNotEmpty()) return amount / visible.size
     return amount
 }
@@ -33,17 +37,23 @@ fun Session.Intensive.totalAmount(
     pricePerChild: Double,
     onlyArrived: Boolean,
 ): Double {
-    val unit = unitPrice(pricePerChild)
     val visible = children.visibleChildren()
-    if (visible.isNotEmpty()) {
-        val count = if (onlyArrived) {
-            visible.count { it.status.countsTowardEarnings }
-        } else {
-            visible.size
-        }
-        return unit * count
+    if (amountFixed || visible.isEmpty()) {
+        return if (!onlyArrived || countsTowardEarnings()) amount else 0.0
     }
-    return if (!onlyArrived || countsTowardEarnings()) unit else 0.0
+    val unit = if (pricePerChild > 0.0) {
+        pricePerChild
+    } else if (amount > 0.0) {
+        amount / visible.size
+    } else {
+        0.0
+    }
+    val count = if (onlyArrived) {
+        visible.count { it.status.countsTowardEarnings }
+    } else {
+        visible.size
+    }
+    return unit * count
 }
 
 /** Сколько детей подтвердились или уже пришли на интенсив. */

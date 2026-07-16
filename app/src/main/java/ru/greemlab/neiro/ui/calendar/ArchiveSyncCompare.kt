@@ -196,11 +196,12 @@ object ArchiveSyncCompare {
             comment = session.comment.trim(),
         )
         is Session.Intensive -> SessionFormat.serializeIntensive(
-            price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+            price = SessionFormat.intensivePriceField(session.amount, session.amountFixed),
             name = session.name.trim().ifBlank { "Интенсив" },
             status = session.status,
             time = session.time.trim(),
             children = session.children,
+            amountFixed = session.amountFixed,
         )
         is Session.Diagnostics -> SessionFormat.serializeDiagnostics(
             price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),

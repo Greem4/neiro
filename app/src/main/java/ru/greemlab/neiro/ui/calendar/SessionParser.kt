@@ -70,6 +70,7 @@ enum class AttendanceStatus(val code: Int) {
  * Сериализованный формат (обратно-совместимый со старыми данными):
  *  - Обычное занятие: `name|attended` или расширенный `name|status|time|phone|comment`
  *  - Интенсив:        `__INTENSIVE__:amount|name|status|time|children`
+ *                       amount: `5600` или `=5600` (фиксированная сумма вручную)
  *                       children: `имя|код;;имя2|код` (опционально)
  *  - Диагностика:     `__DIAGNOSTICS__:amount|name|attended`
  */
@@ -129,6 +130,8 @@ sealed interface Session {
         val time: String = "",
         val children: List<IntensiveChild> = emptyList(),
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
+        /** true — сумма задана вручную целиком; false — считать по ставке × дети (API). */
+        val amountFixed: Boolean = false,
     ) : Extra {
         override fun isEffectivelyDeleted(): Boolean {
             if (children.isNotEmpty()) {
@@ -193,7 +196,7 @@ object SessionParser {
         if (colon < 0) return 0.0
         val sep = raw.indexOf('|', startIndex = colon + 1)
         val end = if (sep == -1) raw.length else sep
-        return raw.substring(colon + 1, end).toDoubleOrNull() ?: 0.0
+        return SessionFormat.parseIntensivePriceField(raw.substring(colon + 1, end)).first
     }
 
     /**
@@ -286,11 +289,12 @@ object SessionParser {
             comment = session.comment,
         )
         is Session.Intensive -> SessionFormat.serializeIntensive(
-            price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
+            price = SessionFormat.intensivePriceField(session.amount, session.amountFixed),
             name = session.name.ifBlank { "Интенсив" },
             status = status,
             time = session.time,
             children = session.children,
+            amountFixed = session.amountFixed,
         )
         is Session.Diagnostics -> SessionFormat.serializeDiagnostics(
             price = if (session.amount == 0.0) "" else session.amount.toLong().toString(),
@@ -357,7 +361,7 @@ object SessionParser {
 
     private fun parseIntensivePayload(payload: String): Session.Intensive {
         val segments = payload.split("|", limit = 5)
-        val amount = segments.getOrNull(0)?.toDoubleOrNull() ?: 0.0
+        val (amount, amountFixed) = SessionFormat.parseIntensivePriceField(segments.getOrNull(0).orEmpty())
         val name = segments.getOrNull(1).orEmpty()
         val statusField = segments.getOrNull(2).orEmpty()
         val time = segments.getOrNull(3).orEmpty()
@@ -371,7 +375,7 @@ object SessionParser {
                 }
         }
         val children = parseIntensiveChildren(childrenRaw)
-        return Session.Intensive(amount, name, attended, time, children, status)
+        return Session.Intensive(amount, name, attended, time, children, status, amountFixed)
     }
 
     private fun parseIntensiveChildren(raw: String): List<Session.IntensiveChild> {
@@ -479,8 +483,14 @@ object SessionFormat {
         status: AttendanceStatus,
         time: String = "",
         children: List<Session.IntensiveChild> = emptyList(),
+        amountFixed: Boolean = false,
     ): String {
-        val base = "$INTENSIVE_PREFIX$price|$name|${status.code}"
+        val priceField = when {
+            price.startsWith(AMOUNT_FIXED_PREFIX) -> price
+            amountFixed -> "$AMOUNT_FIXED_PREFIX${price.removePrefix(AMOUNT_FIXED_PREFIX)}"
+            else -> price
+        }
+        val base = "$INTENSIVE_PREFIX$priceField|$name|${status.code}"
         val withTime = if (time.isNotBlank()) "$base|$time" else base
         if (children.isEmpty()) return withTime
         val childrenPart = children.joinToString(INTENSIVE_CHILD_SEP) { child ->
@@ -488,6 +498,21 @@ object SessionFormat {
         }
         return "$withTime|$childrenPart"
     }
+
+    /** Поле суммы: `5600` или `=5600` (фиксированная вручную). */
+    fun intensivePriceField(amount: Double, amountFixed: Boolean): String {
+        val digits = if (amount == 0.0) "" else amount.toLong().toString()
+        return if (amountFixed) "$AMOUNT_FIXED_PREFIX$digits" else digits
+    }
+
+    /** Разбор поля суммы интенсива → (amount, amountFixed). */
+    fun parseIntensivePriceField(raw: String): Pair<Double, Boolean> {
+        val fixed = raw.startsWith(AMOUNT_FIXED_PREFIX)
+        val digits = if (fixed) raw.substring(AMOUNT_FIXED_PREFIX.length) else raw
+        return (digits.toDoubleOrNull() ?: 0.0) to fixed
+    }
+
+    private const val AMOUNT_FIXED_PREFIX = "="
 
     fun serializeDiagnostics(price: String, name: String, attended: Boolean, time: String = ""): String =
         serializeDiagnostics(price, name, AttendanceStatus.fromBoolean(attended), time)

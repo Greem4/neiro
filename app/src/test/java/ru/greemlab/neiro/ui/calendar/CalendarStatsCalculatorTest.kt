@@ -79,6 +79,40 @@ class CalendarStatsCalculatorTest {
     }
 
     @Test
+    fun `month stats use per-child rate for api intensives and fixed amount for manual`() {
+        val apiIntensive = SessionFormat.serializeIntensive(
+            price = "",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "18:00-18:50",
+            children = listOf(
+                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+            ),
+        )
+        val manual = SessionFormat.serializeIntensive(
+            price = "5600",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "19:00-19:50",
+            amountFixed = true,
+        )
+        val dayData = mapOf(
+            LocalDate.of(2025, 5, 1) to listOf(apiIntensive, manual),
+        )
+        val stats = computeMonthStats(
+            currentMonth = month,
+            dayData = dayData,
+            pricePerSession = 0.0,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 0.0,
+            pricePerIntensiveChild = 1400.0,
+        )
+        assertEquals(2800.0 + 5600.0, stats.intensiveEarnings, 0.0)
+        assertEquals(2800.0 + 5600.0, stats.totalEarned, 0.0)
+    }
+
+    @Test
     fun `diagnostics uses global price`() {
         val dayData = mapOf(
             LocalDate.of(2025, 5, 1) to listOf(

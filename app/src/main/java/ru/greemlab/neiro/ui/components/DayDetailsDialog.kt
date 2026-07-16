@@ -90,8 +90,8 @@ import java.time.format.DateTimeFormatter
 private val DATE_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", RU_LOCALE)
 
-/** Временно отключено добавление ручных интенсивов в диалоге дня. */
-private const val MANUAL_INTENSIVES_ENABLED = false
+/** Добавление ручных интенсивов в диалоге дня. */
+private const val MANUAL_INTENSIVES_ENABLED = true
 
 /** Порог жеста «потянуть вниз» — ниже стандартного, чтобы проще обновить день. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,10 +192,7 @@ private fun DayDetailsContent(
     var isPlanningMode by remember { mutableStateOf(false) }
     var showArchiveMismatchDetails by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }
-    val hasManualIntensives = remember(currentNames.toList()) {
-        currentNames.any { SessionParser.isIntensive(it) }
-    }
-    val showPlanningMode = allowStatusEdit && hasManualIntensives
+    val showPlanningMode = allowStatusEdit
 
     LaunchedEffect(allowStatusEdit, showPlanningMode) {
         if (!allowStatusEdit || !showPlanningMode) isPlanningMode = false
@@ -364,7 +361,8 @@ private fun DayDetailsContent(
             ) {
                 items(
                     count = intensiveIndices.size,
-                    key = { listIndex -> "intensive-${intensiveIndices[listIndex]}-${currentNames.getOrNull(intensiveIndices[listIndex]) ?: ""}" },
+                    // Стабильный ключ: иначе смена суммы/времени пересоздаёт пикер и лента «бесится».
+                    key = { listIndex -> "intensive-edit-${intensiveIndices[listIndex]}" },
                 ) { listIndex ->
                     val rawIndex = intensiveIndices[listIndex]
                     val intensive = SessionParser.parse(currentNames[rawIndex]) as Session.Intensive
@@ -382,7 +380,10 @@ private fun DayDetailsContent(
                         focusRequester = intensiveFocusRequester,
                         onAmountChange = { newPrice ->
                             updateIntensiveAt(currentNames, rawIndex) { session ->
-                                session.copy(amount = newPrice.toDoubleOrNull() ?: 0.0)
+                                session.copy(
+                                    amount = newPrice.toDoubleOrNull() ?: 0.0,
+                                    amountFixed = true,
+                                )
                             }
                         },
                         onTimeChange = { newTime ->
@@ -405,6 +406,7 @@ private fun DayDetailsContent(
                                         name = "Интенсив",
                                         status = AttendanceStatus.ARRIVED,
                                         time = intensiveDefaultTimeSlot(),
+                                        amountFixed = true,
                                     ),
                                 )
                             },
@@ -614,13 +616,13 @@ private fun updateIntensiveAt(
     val parsed = SessionParser.parse(names[rawIndex])
     if (parsed !is Session.Intensive) return
     val updated = transform(parsed)
-    val priceStr = if (updated.amount == 0.0) "" else updated.amount.toLong().toString()
     names[rawIndex] = SessionFormat.serializeIntensive(
-        price = priceStr,
+        price = SessionFormat.intensivePriceField(updated.amount, updated.amountFixed),
         name = updated.name.ifBlank { "Интенсив" },
         status = updated.status,
         time = normalizeSessionTime(updated.time),
         children = updated.children,
+        amountFixed = updated.amountFixed,
     )
 }
 

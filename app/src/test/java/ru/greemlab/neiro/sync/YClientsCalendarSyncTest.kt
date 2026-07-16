@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -167,6 +168,56 @@ class YClientsCalendarSyncTest {
                 month = month,
             ),
         )
+    }
+
+    @Test
+    fun `resolveIntensiveSyncAmount keeps fixed local amount`() {
+        val local = Session.Intensive(
+            amount = 5600.0,
+            name = "Интенсив",
+            attended = true,
+            amountFixed = true,
+        )
+        val (amount, fixed) = YClientsCalendarSync.resolveIntensiveSyncAmount(
+            localMatch = local,
+            unitPrice = 1400.0,
+            billableChildCount = 4,
+        )
+        assertEquals(5600.0, amount, 0.0)
+        assertTrue(fixed)
+    }
+
+    @Test
+    fun `resolveIntensiveSyncAmount uses rate times children when not fixed`() {
+        val (amount, fixed) = YClientsCalendarSync.resolveIntensiveSyncAmount(
+            localMatch = null,
+            unitPrice = 1400.0,
+            billableChildCount = 4,
+        )
+        assertEquals(5600.0, amount, 0.0)
+        assertFalse(fixed)
+    }
+
+    @Test
+    fun `unmatchedLocalIntensives keeps manual slots outside API times`() {
+        val manual = SessionFormat.serializeIntensive(
+            price = "5600",
+            name = "Интенсив",
+            status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.ARRIVED,
+            time = "19:00-19:50",
+            amountFixed = true,
+        )
+        val apiSlot = SessionFormat.serializeIntensive(
+            price = "2800",
+            name = "Интенсив",
+            status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.EXPECTED,
+            time = "18:00-18:50",
+        )
+        val retained = YClientsCalendarSync.unmatchedLocalIntensives(
+            existingLocal = listOf(manual, apiSlot, "Иванов|1"),
+            apiIntensiveTimes = setOf("18:00-18:50"),
+        )
+        assertEquals(listOf(manual), retained)
     }
 
     private fun fakeRecord() = ru.greemlab.neiro.data.network.RecordData(

@@ -27,8 +27,8 @@ class DaySummaryStatsTest {
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)
-        assertEquals(1, stats.totalIntensiveChildren)
-        assertEquals(1, stats.attendedIntensiveChildren)
+        assertEquals(1, stats.confirmedIntensiveChildren)
+        assertEquals(0, stats.pendingIntensiveChildren)
         assertEquals(1000.0 + 1500.0, stats.earned, 0.0)
         assertEquals(0.0, stats.expected, 0.0)
     }
@@ -51,8 +51,8 @@ class DaySummaryStatsTest {
             pricePerDiagnostics = 0.0,
             pricePerIntensiveChild = 1000.0,
         )
-        assertEquals(2, stats.totalIntensiveChildren)
-        assertEquals(1, stats.attendedIntensiveChildren)
+        assertEquals(1, stats.confirmedIntensiveChildren)
+        assertEquals(1, stats.pendingIntensiveChildren)
         assertEquals(1000.0, stats.earned, 0.0)
         assertEquals(1000.0, stats.expected, 0.0)
     }
@@ -75,9 +75,28 @@ class DaySummaryStatsTest {
             pricePerIntensiveChild = 800.0,
         )
         assertEquals(0, stats.totalLessons)
-        assertEquals(1, stats.totalIntensiveChildren)
-        assertEquals(1, stats.attendedIntensiveChildren)
+        assertEquals(1, stats.confirmedIntensiveChildren)
+        assertEquals(0, stats.pendingIntensiveChildren)
         assertEquals(800.0, stats.earned, 0.0)
+    }
+
+    @Test
+    fun `fixed intensive amount is not overridden by per-child rate`() {
+        val intensive = SessionFormat.serializeIntensive(
+            price = "5600",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "19:00-19:50",
+            amountFixed = true,
+        )
+        val stats = computeDayStats(
+            listOf(intensive),
+            pricePerSession = 0.0,
+            pricePerDiagnostics = 0.0,
+            pricePerIntensiveChild = 1400.0,
+        )
+        assertEquals(5600.0, stats.earned, 0.0)
+        assertEquals(0.0, stats.expected, 0.0)
     }
 
     @Test
