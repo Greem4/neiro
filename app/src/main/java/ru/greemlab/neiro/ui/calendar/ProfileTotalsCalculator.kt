@@ -43,6 +43,7 @@ internal fun computeProfileTotals(
     pricePerDiagnostics: Double,
     today: LocalDate,
     monthlyTaxAmount: Double = 0.0,
+    pricePerIntensiveChild: Double = 0.0,
 ): ProfileTotals {
     var pastSessions = 0
     var futureSessions = 0
@@ -72,10 +73,17 @@ internal fun computeProfileTotals(
 
                 is Session.Intensive -> {
                     if (session.countsTowardEarnings()) {
-                        earned += session.amount
-                        addGross(grossByMonth, date, session.amount)
+                        val intensiveAmount = session.totalAmount(
+                            pricePerIntensiveChild,
+                            onlyArrived = true,
+                        )
+                        earned += intensiveAmount
+                        addGross(grossByMonth, date, intensiveAmount)
                     } else if (isFuture) {
-                        expectedFuture += session.amount
+                        expectedFuture += session.totalAmount(
+                            pricePerIntensiveChild,
+                            onlyArrived = false,
+                        )
                     }
                 }
 

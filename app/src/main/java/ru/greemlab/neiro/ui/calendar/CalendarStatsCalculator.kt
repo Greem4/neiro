@@ -61,12 +61,14 @@ fun rememberCalendarMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
+    pricePerIntensiveChild: Double = 0.0,
 ): CalendarMonthStats = remember(
     currentMonth,
     dayData,
     pricePerSession,
     pricePerDiagnostics,
     monthlyTaxAmount,
+    pricePerIntensiveChild,
 ) {
     computeMonthStats(
         currentMonth,
@@ -74,6 +76,7 @@ fun rememberCalendarMonthStats(
         pricePerSession,
         pricePerDiagnostics,
         monthlyTaxAmount,
+        pricePerIntensiveChild,
     )
 }
 
@@ -83,6 +86,7 @@ internal fun computeMonthStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
+    pricePerIntensiveChild: Double = 0.0,
 ): CalendarMonthStats {
     var completed = 0
     var completedSessions = 0
@@ -110,18 +114,25 @@ internal fun computeMonthStats(
             when (session) {
                 is Session.Intensive -> {
                     if (session.countsTowardEarnings()) {
+                        val intensiveAmount = session.totalAmount(
+                            pricePerIntensiveChild,
+                            onlyArrived = true,
+                        )
                         completedIntensives++
-                        intensiveEarnings += session.amount
-                        grossEarned += session.amount
+                        intensiveEarnings += intensiveAmount
+                        grossEarned += intensiveAmount
                         completedIntensivesList.add(
                             ru.greemlab.neiro.domain.models.IntensiveSession(
                                 name = session.name.ifBlank { "Интенсив" },
                                 date = date,
-                                amount = session.amount
+                                amount = intensiveAmount
                             )
                         )
                     } else {
-                        expectedIncome += session.amount
+                        expectedIncome += session.totalAmount(
+                            pricePerIntensiveChild,
+                            onlyArrived = false,
+                        )
                     }
                 }
 

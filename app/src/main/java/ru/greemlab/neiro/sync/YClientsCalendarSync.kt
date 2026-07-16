@@ -14,7 +14,6 @@ import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.ui.calendar.SessionParser
-import ru.greemlab.neiro.ui.calendar.totalAmount
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -298,7 +297,11 @@ class YClientsCalendarSync(
 
         for ((date, dayRecords) in recordsByDate) {
             if (isInCurrentMonth(date)) {
-                val merged = buildAuthoritativeDayFromApi(dayRecords, userProfile)
+                val merged = buildAuthoritativeDayFromApi(
+                    dayRecords = dayRecords,
+                    userProfile = userProfile,
+                    existingLocal = currentDayData[date].orEmpty(),
+                )
                 if (merged != currentDayData[date].orEmpty()) {
                     if (merged.isEmpty()) {
                         currentDayData.remove(date)
@@ -367,8 +370,18 @@ class YClientsCalendarSync(
             while (!date.isAfter(endDate)) {
                 if (date !in recordsByDate) {
                     if (isInCurrentMonth(date)) {
-                        if (currentDayData.remove(date) != null) {
-                            changedDays++
+                        val existingRaw = currentDayData[date]
+                        if (existingRaw != null) {
+                            val retained = retainManualLocalEntries(
+                                existingRaw.map { it to SessionParser.parse(it) },
+                            )
+                            if (retained.isEmpty()) {
+                                currentDayData.remove(date)
+                                changedDays++
+                            } else if (retained != existingRaw) {
+                                currentDayData[date] = retained
+                                changedDays++
+                            }
                         }
                     } else {
                         val existingRaw = currentDayData[date] ?: run {
@@ -441,12 +454,16 @@ class YClientsCalendarSync(
         return SyncOutcome.Success(syncedCount)
     }
 
-    /** День текущего месяца целиком из ответа API — без локальных «хвостов». */
+    /** День текущего месяца из API + сохранённые ручные интенсивы / фиксированные суммы. */
     private fun buildAuthoritativeDayFromApi(
         dayRecords: List<RecordData>,
         userProfile: UserProfile,
+        existingLocal: List<String> = emptyList(),
     ): List<String> {
-        val pool = mutableListOf<Pair<String, Session>>()
+        val pool = existingLocal
+            .map { it to SessionParser.parse(it) }
+            .filter { it.second is Session.Intensive }
+            .toMutableList()
         val activeRecords = dayRecords.filter { it.deleted != true }
         val (intensiveDayRecords, regularDayRecords) = activeRecords.partition { isIntensiveRecord(it) }
         purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
@@ -457,7 +474,7 @@ class YClientsCalendarSync(
         }
 
         mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
-        return syncedEntries
+        return syncedEntries + retainManualLocalEntries(pool)
     }
 
     private fun removeMatchingSessions(
@@ -527,18 +544,22 @@ class YClientsCalendarSync(
             }
             val status = children.maxByOrNull { it.status.mergePriority }?.status
                 ?: AttendanceStatus.EXPECTED
-            val unitPrice = userProfile.pricePerIntensiveChild
-            val amount = if (unitPrice > 0.0) {
-                unitPrice * children.count { it.status != AttendanceStatus.CANCELLED }
-            } else {
-                0.0
-            }
+            val localMatch = pool.firstOrNull { (_, session) ->
+                session is Session.Intensive && extractSessionTime(session) == time
+            }?.second as? Session.Intensive
+            val billableChildren = children.count { it.status != AttendanceStatus.CANCELLED }
+            val (amount, amountFixed) = resolveIntensiveSyncAmount(
+                localMatch = localMatch,
+                unitPrice = userProfile.pricePerIntensiveChild,
+                billableChildCount = billableChildren,
+            )
             val entry = SessionFormat.serializeIntensive(
-                price = if (amount > 0.0) amount.toLong().toString() else "",
+                price = SessionFormat.intensivePriceField(amount, amountFixed),
                 name = "Интенсив",
                 status = status,
                 time = time,
                 children = children,
+                amountFixed = amountFixed,
             )
             pool.removeAll { (_, session) ->
                 session is Session.Intensive && extractSessionTime(session) == time
@@ -806,11 +827,36 @@ class YClientsCalendarSync(
             return month.atDay(1) to month.atEndOfMonth()
         }
 
-        /** Текущий календарный месяц — источник правды YClients, локаль не сохраняется. */
+        /** Текущий календарный месяц — API для учеников; ручные интенсивы сохраняются. */
         internal fun isInCurrentMonth(
             date: LocalDate,
             month: YearMonth = YearMonth.now(),
         ): Boolean = !date.isBefore(month.atDay(1)) && !date.isAfter(month.atEndOfMonth())
+
+        /**
+         * Сумма интенсива при синке: локальный amountFixed сохраняется,
+         * иначе ставка × число неоменённых детей.
+         */
+        internal fun resolveIntensiveSyncAmount(
+            localMatch: Session.Intensive?,
+            unitPrice: Double,
+            billableChildCount: Int,
+        ): Pair<Double, Boolean> {
+            if (localMatch?.amountFixed == true) {
+                return localMatch.amount to true
+            }
+            val amount = if (unitPrice > 0.0) unitPrice * billableChildCount else 0.0
+            return amount to false
+        }
+
+        /** Локальные интенсивы, чей слот времени не пришёл из API. */
+        internal fun unmatchedLocalIntensives(
+            existingLocal: List<String>,
+            apiIntensiveTimes: Set<String>,
+        ): List<String> = existingLocal.filter { raw ->
+            val session = SessionParser.parse(raw) as? Session.Intensive ?: return@filter false
+            session.time !in apiIntensiveTimes
+        }
 
         @Volatile
         private var instance: YClientsCalendarSync? = null

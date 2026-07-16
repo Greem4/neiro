@@ -223,6 +223,31 @@ class SessionParserTest {
         assertEquals(2, parsed.children.size)
         assertEquals("Коновалов Ильдар", parsed.children[0].name)
         assertEquals(AttendanceStatus.CONFIRMED, parsed.children[1].status)
+        assertFalse(parsed.amountFixed)
+    }
+
+    @Test
+    fun `SessionFormat round-trips fixed intensive amount`() {
+        val raw = SessionFormat.serializeIntensive(
+            price = "5600",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "18:00-18:50",
+            amountFixed = true,
+        )
+        assertTrue(raw.startsWith("__INTENSIVE__:="))
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(5600.0, parsed.amount, 0.0)
+        assertTrue(parsed.amountFixed)
+        assertEquals(5600.0, SessionParser.getExtraAmount(raw), 0.0)
+    }
+
+    @Test
+    fun `parses legacy intensive without amountFixed flag`() {
+        val raw = "__INTENSIVE__:1500|Петров|true"
+        val result = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(1500.0, result.amount, 0.0)
+        assertFalse(result.amountFixed)
     }
 
     @Test

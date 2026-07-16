@@ -43,12 +43,14 @@ fun rememberProfileYearStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
+    pricePerIntensiveChild: Double = 0.0,
 ): ProfileYearStats = remember(
     year,
     dayData,
     pricePerSession,
     pricePerDiagnostics,
     monthlyTaxAmount,
+    pricePerIntensiveChild,
 ) {
     computeProfileYearStats(
         year = year,
@@ -56,6 +58,7 @@ fun rememberProfileYearStats(
         pricePerSession = pricePerSession,
         pricePerDiagnostics = pricePerDiagnostics,
         monthlyTaxAmount = monthlyTaxAmount,
+        pricePerIntensiveChild = pricePerIntensiveChild,
     )
 }
 
@@ -75,6 +78,7 @@ internal fun computeProfileYearStats(
     pricePerSession: Double,
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
+    pricePerIntensiveChild: Double = 0.0,
 ): ProfileYearStats {
     var completedSessions = 0
     var totalNetEarned = 0.0
@@ -94,6 +98,7 @@ internal fun computeProfileYearStats(
             pricePerSession = pricePerSession,
             pricePerDiagnostics = pricePerDiagnostics,
             monthlyTaxAmount = monthlyTaxAmount,
+            pricePerIntensiveChild = pricePerIntensiveChild,
         )
         completedSessions += monthStats.completedCount
         monthlyNet[month - 1] = monthStats.netProfit

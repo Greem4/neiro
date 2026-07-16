@@ -237,11 +237,12 @@ private fun IntensiveTimeScrollPicker(
 
     val hourItemWidth = 72.dp
     val edgePeekWidth = 20.dp
-    val defaultIndex = remember(slots) { intensiveDefaultSlotIndex(slots) }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = defaultIndex)
+    val listState = rememberLazyListState()
     val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
     var manualPickerOpen by remember { mutableStateOf(false) }
     var skipScrollSync by remember { mutableStateOf(false) }
+    var centeredOnce by remember { mutableStateOf(false) }
+    val scrollGate = remember { object { var suppressLayoutSync = false } }
 
     val selectedNormalized = remember(selectedSlot) {
         normalizeSessionTime(selectedSlot.ifEmpty { intensiveDefaultTimeSlot() })
@@ -256,20 +257,31 @@ private fun IntensiveTimeScrollPicker(
     }
     val displayLabel = centeredLabel ?: formatTimeSlotLabel(selectedNormalized)
 
-    LaunchedEffect(selectedNormalized, slots) {
+    val density = LocalDensity.current
+    var pickerWidth by remember { mutableStateOf(0.dp) }
+
+    LaunchedEffect(selectedNormalized, slots, pickerWidth) {
         if (skipScrollSync) {
             skipScrollSync = false
             return@LaunchedEffect
         }
+        if (pickerWidth <= 0.dp) return@LaunchedEffect
         val targetIndex = slots.indexOfFirst { normalizeSessionTime(it) == selectedNormalized }
         if (targetIndex >= 0) {
-            listState.scrollToCenteredItem(targetIndex)
+            scrollGate.suppressLayoutSync = true
+            try {
+                listState.scrollToCenteredItem(targetIndex)
+            } finally {
+                scrollGate.suppressLayoutSync = false
+                centeredOnce = true
+            }
         }
     }
 
     LaunchedEffect(listState, slots) {
         snapshotFlow { listState.layoutInfo }
             .collect {
+                if (!centeredOnce || scrollGate.suppressLayoutSync) return@collect
                 val index = listState.centerItemIndex() ?: return@collect
                 val slot = slots.getOrNull(index) ?: return@collect
                 if (normalizeSessionTime(slot) == currentSelected.value) return@collect
@@ -277,9 +289,6 @@ private fun IntensiveTimeScrollPicker(
                 onSlotSelected(slot)
             }
     }
-
-    val density = LocalDensity.current
-    var pickerWidth by remember { mutableStateOf(0.dp) }
 
     Box(
         modifier = Modifier
