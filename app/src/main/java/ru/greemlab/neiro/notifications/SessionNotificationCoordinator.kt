@@ -82,6 +82,8 @@ object SessionNotificationCoordinator {
     /**
      * После обновления календаря с API (live-опрос или ручная синхронизация):
      * сравнить снимок до/после и уведомить об изменениях.
+     *
+     * Если [dayDataBefore] == [dayDataAfter] — быстрый выход (без перепланирования WorkManager).
      */
     suspend fun onCalendarUpdatedFromApi(
         context: Context,
@@ -96,6 +98,14 @@ object SessionNotificationCoordinator {
         val calendarRepository = CalendarDataStoreProvider.get(appContext)
         val profile = calendarRepository.userProfileFlow.first()
         if (!profile.isRegistered) return
+
+        if (dayDataBefore == dayDataAfter) {
+            if (!prefs.hasBaselineSnapshot) {
+                prefs.establishBaseline(CalendarSessionSnapshot.from(dayDataAfter, profile))
+                scheduleAfterBaseline(appContext, profile, prefs)
+            }
+            return
+        }
 
         val before = CalendarSessionSnapshot.from(dayDataBefore, profile)
         val after = CalendarSessionSnapshot.from(dayDataAfter, profile)
@@ -182,13 +192,18 @@ object SessionNotificationCoordinator {
             return
         }
 
+        // Diff только по факту этого sync (dayData до/после), не по prefs-snapshot:
+        // иначе локальные правки интенсивов выглядят как NEW_BOOKING/DELETED.
         val today = LocalDate.now()
-        val storedBefore = CalendarSessionSnapshot.withinHorizon(prefs.loadSnapshot(), today)
-        val effectiveBefore = storedBefore.ifEmpty {
-            CalendarSessionSnapshot.withinHorizon(before, today)
+        val effectiveBefore = CalendarSessionSnapshot.withinHorizon(before, today)
+        val effectiveAfter = CalendarSessionSnapshot.withinHorizon(after, today)
+
+        if (effectiveBefore == effectiveAfter) {
+            prefs.saveSnapshot(effectiveAfter)
+            return
         }
 
-        val events = SessionChangeDetector.detect(effectiveBefore, after)
+        val events = SessionChangeDetector.detect(effectiveBefore, effectiveAfter)
             .filter { prefs.isTypeEnabled(it.type) }
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
@@ -199,7 +214,7 @@ object SessionNotificationCoordinator {
             }
         }
 
-        prefs.saveSnapshot(after)
+        prefs.saveSnapshot(effectiveAfter)
         scheduleAfterBaseline(context, profile, prefs)
     }
 

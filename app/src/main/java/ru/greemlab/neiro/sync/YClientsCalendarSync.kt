@@ -20,6 +20,12 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
+/** Результат слияния: сколько новых записей и сколько дней реально изменилось. */
+private data class DayMergeStats(
+    val newlyAdded: Int,
+    val daysChanged: Int,
+)
+
 /**
  * Слияние записей YClients с локальным календарём.
  * Используется из UI ([ru.greemlab.neiro.ui.sync.SyncViewModel]) и фоновой автосинхронизации.
@@ -119,11 +125,13 @@ class YClientsCalendarSync(
                 val syncedCount = (outcome as SyncOutcome.Success).newlyAdded
                 syncPreferences.recordLivePoll()
                 val dayDataAfter = calendarRepository.dayDataFlow.first()
-                SessionNotificationCoordinator.onCalendarUpdatedFromApi(
-                    appContext,
-                    dayDataBefore,
-                    dayDataAfter,
-                )
+                if (dayDataBefore != dayDataAfter) {
+                    SessionNotificationCoordinator.onCalendarUpdatedFromApi(
+                        appContext,
+                        dayDataBefore,
+                        dayDataAfter,
+                    )
+                }
                 return SyncOutcome.Success(syncedCount)
             }
 
@@ -155,17 +163,23 @@ class YClientsCalendarSync(
                     )
                 }
                 autoFillProfile(records)
-                val syncedCount = mergeRecordsToCalendar(records, startDate, endDate)
-                val dayDataAfter = calendarRepository.dayDataFlow.first()
+                val merge = mergeRecordsToCalendar(records, startDate, endDate)
                 if (recordSuccessfulSync) {
                     syncPreferences.recordSuccessfulSync()
                 }
+                val dayDataAfter = if (merge.daysChanged > 0) {
+                    calendarRepository.dayDataFlow.first()
+                } else {
+                    dayDataBefore
+                }
+                // При daysChanged == 0 карты равны → coordinator сразу выходит
+                // (или один раз ставит baseline).
                 SessionNotificationCoordinator.onCalendarUpdatedFromApi(
                     appContext,
                     dayDataBefore,
                     dayDataAfter,
                 )
-                return SyncOutcome.Success(syncedCount)
+                return SyncOutcome.Success(merge.newlyAdded)
             }
 
             is ApiResult.Error -> return SyncOutcome.Failure(result.message)
@@ -282,7 +296,7 @@ class YClientsCalendarSync(
         startDate: LocalDate,
         endDate: LocalDate,
         clearMissingDaysInRange: Boolean = true,
-    ): Int {
+    ): DayMergeStats {
         val userProfile = calendarRepository.userProfileFlow.first()
         val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var newlyAdded = 0
@@ -409,7 +423,7 @@ class YClientsCalendarSync(
             calendarRepository.saveDayData(currentDayData)
         }
 
-        return newlyAdded
+        return DayMergeStats(newlyAdded = newlyAdded, daysChanged = changedDays)
     }
 
     /**
@@ -435,7 +449,7 @@ class YClientsCalendarSync(
                         startDate = monthStart,
                         endDate = monthEnd,
                         clearMissingDaysInRange = true,
-                    )
+                    ).newlyAdded
                 }
 
                 is ApiResult.Error -> return applyFullLiveSync(rangeStart, rangeEnd)
@@ -448,7 +462,7 @@ class YClientsCalendarSync(
                 startDate = rangeStart,
                 endDate = rangeEnd,
                 clearMissingDaysInRange = false,
-            )
+            ).newlyAdded
         }
 
         return SyncOutcome.Success(syncedCount)

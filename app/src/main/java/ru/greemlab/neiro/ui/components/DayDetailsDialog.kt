@@ -188,7 +188,7 @@ private fun DayDetailsContent(
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)?,
 ) {
     val currentNames = remember { mutableStateListOf<String>().apply { addAll(initialNames) } }
-    // Режим планирования — добавление интенсивов; статусы учеников — в таймлайне (архив).
+    // Режим планирования — только интенсивы; статусы учеников — в таймлайне (архив).
     var isPlanningMode by remember { mutableStateOf(false) }
     var showArchiveMismatchDetails by remember { mutableStateOf(false) }
     val intensiveFocusRequester = remember { FocusRequester() }

@@ -169,16 +169,20 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Удаляет запись (ученика или доп. доход) из списка на дату. */
+    /**
+     * Удаляет запись из списка на дату.
+     * В SYNCED можно удалять только интенсивы — остальные записи идут из YClients.
+     */
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
             val mode = calendarMode.value
             val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
             val list = currentMap[date] ?: return@launch
             if (index !in list.indices) return@launch
+            if (mode == CalendarMode.SYNCED && !SessionParser.isIntensive(list[index])) return@launch
 
             val updated = list.toMutableList().apply { removeAt(index) }
-            
+
             if (mode == CalendarMode.SYNCED) {
                 val newData = currentMap.toMutableMap().apply {
                     if (updated.isEmpty()) remove(date) else put(date, updated)
@@ -197,76 +201,44 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     /**
      * Сохранение списка записей для указанной даты.
      *
+     * В SYNCED меняются только интенсивы; ученики и диагностика из YClients не перезаписываются.
+     * В архиве ([CalendarMode.PERSONAL]) сохраняется полный список как есть.
+     *
      * @param date Дата сохранения.
      * @param names Список записей в формате "Имя|attended" или с префиксами экстра-сессий.
-     * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
-     * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
      */
     fun saveNamesForDate(
         date: LocalDate,
         names: List<String>,
-        repeatUntilMonthEnd: Boolean = false,
-        repeatNextMonth: Boolean = false,
     ) {
         viewModelScope.launch {
             if (calendarMode.value == CalendarMode.PERSONAL) {
-                // В режиме архива сохраняем только локально
                 repository.saveDayToArchive(date, names)
                 return@launch
             }
 
+            val existing = dayData.value[date].orEmpty()
+            val merged = mergeSyncedDayPreservingNonIntensives(existing, names)
             val newData = dayData.value.toMutableMap()
-            // ... (rest of the logic for SYNCED mode)
-
-            if (repeatUntilMonthEnd) {
-                val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
-                var cursor = date
-                while (!cursor.isAfter(lastDayOfMonth)) {
-                    updateDateData(newData, cursor, date, names)
-                    cursor = cursor.plusWeeks(1)
-                }
+            if (merged.isEmpty()) {
+                newData.remove(date)
             } else {
-                updateDateData(newData, date, date, names)
+                newData[date] = merged
             }
-
-            if (repeatNextMonth) {
-                val nextMonth = YearMonth.from(date).plusMonths(1)
-                val lastDayOfNextMonth = nextMonth.atEndOfMonth()
-                var cursor = nextMonth.atDay(1)
-                while (cursor.dayOfWeek != date.dayOfWeek) {
-                    cursor = cursor.plusDays(1)
-                }
-                while (!cursor.isAfter(lastDayOfNextMonth)) {
-                    updateDateData(newData, cursor, date, names)
-                    cursor = cursor.plusWeeks(1)
-                }
-            }
-
             repository.saveDayData(newData)
         }
     }
+}
 
-    private fun updateDateData(
-        data: MutableMap<LocalDate, List<String>>,
-        targetDate: LocalDate,
-        originalDate: LocalDate,
-        names: List<String>,
-    ) {
-        if (names.isEmpty()) {
-            data.remove(targetDate)
-            return
-        }
-        val processed = if (targetDate.isAfter(originalDate)) resetAttendance(names) else names
-        data[targetDate] = processed
-    }
-
-    private fun resetAttendance(names: List<String>): List<String> = names.map { raw ->
-        if (SessionParser.isExtra(raw)) {
-            raw
-        } else {
-            val sep = raw.indexOf('|')
-            val name = if (sep < 0) raw else raw.substring(0, sep)
-            "$name|false"
-        }
-    }
+/**
+ * В synced-календаре локально правятся только интенсивы:
+ * записи YClients (ученики, диагностика) берём из [existing], интенсивы — из [incoming].
+ */
+internal fun mergeSyncedDayPreservingNonIntensives(
+    existing: List<String>,
+    incoming: List<String>,
+): List<String> {
+    val fromYClients = existing.filterNot { SessionParser.isIntensive(it) }
+    val intensives = incoming.filter { SessionParser.isIntensive(it) }
+    return fromYClients + intensives
 }
