@@ -29,6 +29,13 @@ private data class DayMergeStats(
 /**
  * Слияние записей YClients с локальным календарём.
  * Используется из UI ([ru.greemlab.neiro.ui.sync.SyncViewModel]) и фоновой автосинхронизации.
+ *
+ * Принцип (by design, не менять): приложение существует ради отображения записей
+ * из YClients, поэтому API — источник истины. Текущий месяц перезаписывается
+ * авторитативно: локальные ученики/диагностика без пары в API удаляются
+ * (см. [mergeRecordsToCalendar]). Локально живут только ручные интенсивы и
+ * фиксированные суммы — их API не знает. Для локальной истории есть архив,
+ * его sync не трогает.
  */
 class YClientsCalendarSync(
     private val appContext: Context,
@@ -291,6 +298,17 @@ class YClientsCalendarSync(
         return result.replaceFirstChar { it.uppercase() }
     }
 
+    /**
+     * Два режима слияния (осознанное решение, не баг):
+     *
+     * - **Текущий месяц** — авторитативный снимок API: день пересобирается
+     *   заново из записей YClients ([buildAuthoritativeDayFromApi]); локальные
+     *   ученики/диагностика без пары в API удаляются, выживают только ручные
+     *   интенсивы. Так снятая в YClients запись не висит «призраком» в статусе
+     *   «ожидание».
+     * - **Остальные месяцы** — мягкое слияние: совпавшие записи обновляются
+     *   на месте, локальные правки сохраняются.
+     */
     private suspend fun mergeRecordsToCalendar(
         records: List<RecordData>,
         startDate: LocalDate,
@@ -317,6 +335,8 @@ class YClientsCalendarSync(
 
             for ((date, dayRecords) in recordsByDate) {
                 if (isInCurrentMonth(date)) {
+                    // Authoritative wipe by design: API — источник истины для
+                    // текущего месяца, локальные записи без пары в API удаляются.
                     val merged = buildAuthoritativeDayFromApi(
                         dayRecords = dayRecords,
                         userProfile = userProfile,
@@ -477,7 +497,12 @@ class YClientsCalendarSync(
         return SyncOutcome.Success(syncedCount)
     }
 
-    /** День текущего месяца из API + сохранённые ручные интенсивы / фиксированные суммы. */
+    /**
+     * День текущего месяца из API + сохранённые ручные интенсивы / фиксированные суммы.
+     *
+     * День строится с нуля по ответу YClients: локальные ученики/диагностика в пул
+     * выживших не попадают — это и есть authoritative wipe (by design).
+     */
     private fun buildAuthoritativeDayFromApi(
         dayRecords: List<RecordData>,
         userProfile: UserProfile,
@@ -846,7 +871,11 @@ class YClientsCalendarSync(
             return nowMillis - lastFullLiveSyncEpochMillis >= FULL_LIVE_SYNC_INTERVAL_MS
         }
 
-        /** Текущий календарный месяц — API для учеников; ручные интенсивы сохраняются. */
+        /**
+         * Текущий календарный месяц — API для учеников; ручные интенсивы сохраняются.
+         * Граница авторитативного режима слияния: внутри месяца день перезаписывается
+         * снимком YClients (by design), вне — мягкий merge с сохранением локальных правок.
+         */
         internal fun isInCurrentMonth(
             date: LocalDate,
             month: YearMonth = YearMonth.now(),

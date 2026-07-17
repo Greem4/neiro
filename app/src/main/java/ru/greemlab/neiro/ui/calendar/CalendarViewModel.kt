@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
+import ru.greemlab.neiro.notifications.PastSessionsArchiveCollector
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -168,6 +169,30 @@ class CalendarViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptySet(),
+        )
+
+    /**
+     * Прошлые дни с занятиями, забытые вне архива, — счётчик для бейджа
+     * на вкладке «Архив». Сегодняшний день не считается (для него есть
+     * вечернее напоминание); считается вне Main.
+     */
+    val daysNeedingArchiveCount: StateFlow<Int> = combine(
+        dayData,
+        savedDayData,
+        repository.userProfileFlow,
+    ) { synced, saved, profile ->
+        PastSessionsArchiveCollector.daysNeedingArchive(
+            dayData = synced,
+            archivedDates = saved.keys,
+            profile = profile,
+        ).size
+    }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0,
         )
 
     /** Контекст выбранного дня — экран не подписывается на полные карты. */

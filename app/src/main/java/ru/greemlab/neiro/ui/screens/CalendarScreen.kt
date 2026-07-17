@@ -124,6 +124,7 @@ fun CalendarScreen(
     // Полные карты dayData/savedDayData сюда не подписываем: корню экрана
     // достаточно текущего месяца и контекста выбранного дня (см. C3 аудита).
     val archiveMismatchDates by viewModel.archiveMismatchDates.collectAsStateWithLifecycle()
+    val daysNeedingArchiveCount by viewModel.daysNeedingArchiveCount.collectAsStateWithLifecycle()
     val selectedDayContext by viewModel.selectedDayContext.collectAsStateWithLifecycle()
     val profile by profileViewModel.userProfile.collectAsStateWithLifecycle()
 
@@ -309,6 +310,7 @@ fun CalendarScreen(
                 selectedDaySessions = selectedDayContext?.effective.orEmpty(),
                 monthDayData = currentMonthDayData,
                 archiveMismatchDates = archiveMismatchDates,
+                daysNeedingArchiveCount = daysNeedingArchiveCount,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -597,6 +599,7 @@ fun CalendarScreenContent(
     selectedDaySessions: List<String> = emptyList(),
     monthDayData: Map<LocalDate, List<String>> = emptyMap(),
     archiveMismatchDates: Set<LocalDate> = emptySet(),
+    daysNeedingArchiveCount: Int = 0,
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -693,6 +696,7 @@ fun CalendarScreenContent(
                                 CalendarToolbar(
                                     calendarMode = calendarMode,
                                     onModeChange = onModeChange,
+                                    archiveBadgeCount = daysNeedingArchiveCount,
                                 )
 
                                 if (isRegistered && selectedDate != null && daySummaryStats != null) {

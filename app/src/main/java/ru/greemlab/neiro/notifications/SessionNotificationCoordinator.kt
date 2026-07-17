@@ -602,6 +602,12 @@ object SessionNotificationCoordinator {
         }
     }
 
+    /**
+     * Вечернее напоминание об архиве: сегодняшний день + забытые прошлые дни
+     * (например, сегодня 17-е, а 14-е так и не перенесено). Каждая дата
+     * напоминается один раз (claim); в UI забытые дни дальше видны бейджем
+     * на вкладке «Архив».
+     */
     private fun maybeShowArchiveReminder(
         context: Context,
         dayData: Map<LocalDate, List<String>>,
@@ -610,18 +616,27 @@ object SessionNotificationCoordinator {
         prefs: SessionNotificationPreferences,
     ) {
         val today = LocalDate.now()
-        val date = PastSessionsArchiveCollector.todayNeedingArchive(
+        val pastDates = PastSessionsArchiveCollector.daysNeedingArchive(
             dayData = dayData,
             archivedDates = savedDayData.keys,
             profile = profile,
             today = today,
-        ) ?: return
+        )
+        val todayDate = PastSessionsArchiveCollector.todayNeedingArchive(
+            dayData = dayData,
+            archivedDates = savedDayData.keys,
+            profile = profile,
+            today = today,
+        )
+        val candidates = pastDates + listOfNotNull(todayDate)
+        if (candidates.isEmpty()) return
 
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-        if (!prefs.claimArchiveReminder(date.toEpochDay())) return
+        val claimed = candidates.filter { prefs.claimArchiveReminder(it.toEpochDay()) }
+        if (claimed.isEmpty()) return
 
-        if (!SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)) {
-            prefs.clearArchiveReminderShown(date.toEpochDay())
+        if (!SessionNotificationDisplay.showArchiveReminder(context, claimed, dayData)) {
+            claimed.forEach { prefs.clearArchiveReminderShown(it.toEpochDay()) }
         }
     }
 

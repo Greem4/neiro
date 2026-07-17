@@ -10,16 +10,25 @@ import java.time.LocalDate
  */
 object PastSessionsArchiveCollector {
 
+    /** Дальше этого окна прошлые дни «забытыми» не считаем — старая история не нервирует. */
+    const val DEFAULT_LOOKBACK_DAYS = 30L
+
+    /**
+     * Прошлые дни с занятиями, забытые вне архива: бейдж на вкладке «Архив»
+     * и вечернее напоминание вместе с сегодняшним днём.
+     */
     fun daysNeedingArchive(
         dayData: Map<LocalDate, List<String>>,
         archivedDates: Set<LocalDate>,
         profile: UserProfile,
         today: LocalDate = LocalDate.now(),
+        lookbackDays: Long = DEFAULT_LOOKBACK_DAYS,
     ): List<LocalDate> {
         if (!profile.isRegistered) return emptyList()
+        val oldest = today.minusDays(lookbackDays)
 
         return dayData.keys
-            .filter { it.isBefore(today) }
+            .filter { it.isBefore(today) && !it.isBefore(oldest) }
             .filter { it !in archivedDates }
             .filter { sessionCount(dayData[it].orEmpty()) > 0 }
             .sorted()

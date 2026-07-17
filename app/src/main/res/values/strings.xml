@@ -29,9 +29,16 @@
     </plurals>
 
     <string name="notification_archive_title">Перенести занятия за сегодня в архив</string>
+    <string name="notification_archive_title_date">Перенести занятия за %1$s в архив</string>
     <string name="notification_archive_date_today">Сегодня</string>
-    <string name="notification_archive_group_title">%1$d дня без архива</string>
     <string name="notification_archive_group_summary">Откройте календарь и сохраните прошедшие дни</string>
+
+    <plurals name="notification_archive_group_title">
+        <item quantity="one">%d день без архива</item>
+        <item quantity="few">%d дня без архива</item>
+        <item quantity="many">%d дней без архива</item>
+        <item quantity="other">%d дней без архива</item>
+    </plurals>
 
     <plurals name="notification_archive_body">
         <item quantity="one">%d занятие</item>

@@ -127,7 +127,7 @@ object SessionNotificationDisplay {
         dayData: Map<LocalDate, List<String>>,
     ): Boolean {
         val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
-        val title = SessionNotificationTexts.archiveTitle(context)
+        val title = SessionNotificationTexts.archiveTitleForDate(context, date)
         val content = SessionNotificationTexts.archiveBody(context, count)
 
         val notification = baseBuilder(context, title, content)
