@@ -211,11 +211,23 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
-    override suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
+    override suspend fun updateDayData(
+        transform: (Map<LocalDate, List<String>>) -> Map<LocalDate, List<String>>,
+    ) {
         writeMutex.withLock {
-            val serialized = serializeDayData(data)
-            appContext.dataStore.edit { prefs -> prefs[dataKey] = serialized }
-            cachedState.value = cachedState.value.copy(dayData = data)
+            var updated: Map<LocalDate, List<String>>? = null
+            var serialized: String? = null
+            appContext.dataStore.edit { prefs ->
+                val current = parseDayData(prefs[dataKey])
+                val next = transform(current)
+                if (next == current) return@edit
+                val json = serializeDayData(next)
+                prefs[dataKey] = json
+                updated = next
+                serialized = json
+            }
+            val next = updated ?: return@withLock
+            cachedState.value = cachedState.value.copy(dayData = next)
             writeSyncCache(dayJson = serialized)
         }
     }

@@ -36,7 +36,14 @@ interface CalendarRepository {
     /** Меняет текущую ставку за занятие в профиле. */
     suspend fun applySessionPriceChange(newPrice: Double)
 
-    suspend fun saveDayData(data: Map<LocalDate, List<String>>)
+    /**
+     * Атомарно обновляет карту дней через [transform]: чтение актуального значения
+     * и запись происходят под общим writer-локом. Единственный способ записи dayData —
+     * паттерн «прочитал snapshot → правка → save» терял бы параллельные изменения.
+     */
+    suspend fun updateDayData(
+        transform: (Map<LocalDate, List<String>>) -> Map<LocalDate, List<String>>,
+    )
 
     /** Сохраняет данные конкретного дня в "архивный" (второй) календарь. */
     suspend fun saveDayToArchive(date: LocalDate, data: List<String>)

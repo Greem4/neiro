@@ -298,136 +298,143 @@ class YClientsCalendarSync(
         clearMissingDaysInRange: Boolean = true,
     ): DayMergeStats {
         val userProfile = calendarRepository.userProfileFlow.first()
-        val currentDayData = calendarRepository.dayDataFlow.first().toMutableMap()
         var newlyAdded = 0
         var changedDays = 0
 
-        val recordsByDate = records
-            .mapNotNull { record ->
-                val date = parseRecordDate(record.date) ?: return@mapNotNull null
-                date to record
-            }
-            .groupBy({ it.first }, { it.second })
+        // Всё read-modify-write — атомарно под writer-локом репозитория:
+        // параллельная правка дня из UI не перезатирается результатом sync.
+        calendarRepository.updateDayData { snapshot ->
+            newlyAdded = 0
+            changedDays = 0
+            val currentDayData = snapshot.toMutableMap()
 
-        for ((date, dayRecords) in recordsByDate) {
-            if (isInCurrentMonth(date)) {
-                val merged = buildAuthoritativeDayFromApi(
-                    dayRecords = dayRecords,
-                    userProfile = userProfile,
-                    existingLocal = currentDayData[date].orEmpty(),
-                )
-                if (merged != currentDayData[date].orEmpty()) {
-                    if (merged.isEmpty()) {
-                        currentDayData.remove(date)
-                    } else {
-                        currentDayData[date] = merged
+            val recordsByDate = records
+                .mapNotNull { record ->
+                    val date = parseRecordDate(record.date) ?: return@mapNotNull null
+                    date to record
+                }
+                .groupBy({ it.first }, { it.second })
+
+            for ((date, dayRecords) in recordsByDate) {
+                if (isInCurrentMonth(date)) {
+                    val merged = buildAuthoritativeDayFromApi(
+                        dayRecords = dayRecords,
+                        userProfile = userProfile,
+                        existingLocal = currentDayData[date].orEmpty(),
+                    )
+                    if (merged != currentDayData[date].orEmpty()) {
+                        if (merged.isEmpty()) {
+                            currentDayData.remove(date)
+                        } else {
+                            currentDayData[date] = merged
+                        }
+                        changedDays++
                     }
+                    continue
+                }
+
+                val existingRaw = currentDayData[date].orEmpty()
+                val pool = existingRaw.map { it to SessionParser.parse(it) }.toMutableList()
+                val (deletedDayRecords, remainingDayRecords) = dayRecords.partition { it.deleted == true }
+                for (record in deletedDayRecords) {
+                    removeMatchingSessions(pool, record)
+                }
+                val (intensiveDayRecords, regularDayRecords) = remainingDayRecords.partition { isIntensiveRecord(it) }
+                purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
+                val collapsedRecords = collapseDuplicateRecords(regularDayRecords)
+                val syncedEntries = mutableListOf<String>()
+
+                for ((_, record) in collapsedRecords) {
+                    val recordName = extractClientName(record)
+                    val recordTime = formatRecordTime(record)
+                    val normalizedRecordName = recordName.normalizeForDedup()
+
+                    var matchIndex = pool.indexOfFirst { (_, session) ->
+                        extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
+                            extractSessionTime(session) == recordTime
+                    }
+
+                    if (matchIndex == -1) {
+                        matchIndex = pool.indexOfFirst { (_, session) ->
+                            extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
+                                extractSessionTime(session).isEmpty()
+                        }
+                    }
+
+                    if (matchIndex == -1) {
+                        matchIndex = pool.indexOfFirst { (_, session) ->
+                            extractSessionName(session).normalizeForDedup() == normalizedRecordName
+                        }
+                    }
+
+                    if (matchIndex != -1) {
+                        val (existingRawEntry, _) = pool.removeAt(matchIndex)
+                        syncedEntries += updateEntryFromRecord(existingRawEntry, record, userProfile)
+                    } else {
+                        syncedEntries += createEntryFromRecord(record, userProfile)
+                        newlyAdded++
+                    }
+                }
+
+                newlyAdded += mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
+
+                val merged = syncedEntries + retainManualLocalEntries(pool)
+                if (merged != existingRaw) {
+                    currentDayData[date] = merged
                     changedDays++
                 }
-                continue
             }
 
-            val existingRaw = currentDayData[date].orEmpty()
-            val pool = existingRaw.map { it to SessionParser.parse(it) }.toMutableList()
-            val (deletedDayRecords, remainingDayRecords) = dayRecords.partition { it.deleted == true }
-            for (record in deletedDayRecords) {
-                removeMatchingSessions(pool, record)
-            }
-            val (intensiveDayRecords, regularDayRecords) = remainingDayRecords.partition { isIntensiveRecord(it) }
-            purgeIntensiveStudentsFromPool(pool, intensiveDayRecords)
-            val collapsedRecords = collapseDuplicateRecords(regularDayRecords)
-            val syncedEntries = mutableListOf<String>()
-
-            for ((_, record) in collapsedRecords) {
-                val recordName = extractClientName(record)
-                val recordTime = formatRecordTime(record)
-                val normalizedRecordName = recordName.normalizeForDedup()
-
-                var matchIndex = pool.indexOfFirst { (_, session) ->
-                    extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
-                        extractSessionTime(session) == recordTime
-                }
-
-                if (matchIndex == -1) {
-                    matchIndex = pool.indexOfFirst { (_, session) ->
-                        extractSessionName(session).normalizeForDedup() == normalizedRecordName &&
-                            extractSessionTime(session).isEmpty()
-                    }
-                }
-
-                if (matchIndex == -1) {
-                    matchIndex = pool.indexOfFirst { (_, session) ->
-                        extractSessionName(session).normalizeForDedup() == normalizedRecordName
-                    }
-                }
-
-                if (matchIndex != -1) {
-                    val (existingRawEntry, _) = pool.removeAt(matchIndex)
-                    syncedEntries += updateEntryFromRecord(existingRawEntry, record, userProfile)
-                } else {
-                    syncedEntries += createEntryFromRecord(record, userProfile)
-                    newlyAdded++
-                }
-            }
-
-            newlyAdded += mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
-
-            val merged = syncedEntries + retainManualLocalEntries(pool)
-            if (merged != existingRaw) {
-                currentDayData[date] = merged
-                changedDays++
-            }
-        }
-
-        if (clearMissingDaysInRange) {
-            var date = startDate
-            while (!date.isAfter(endDate)) {
-                if (date !in recordsByDate) {
-                    if (isInCurrentMonth(date)) {
-                        val existingRaw = currentDayData[date]
-                        if (existingRaw != null) {
-                            val retained = retainManualLocalEntries(
+            if (clearMissingDaysInRange) {
+                var date = startDate
+                while (!date.isAfter(endDate)) {
+                    if (date !in recordsByDate) {
+                        if (isInCurrentMonth(date)) {
+                            val existingRaw = currentDayData[date]
+                            if (existingRaw != null) {
+                                val retained = retainManualLocalEntries(
+                                    existingRaw.map { it to SessionParser.parse(it) },
+                                )
+                                if (retained.isEmpty()) {
+                                    currentDayData.remove(date)
+                                    changedDays++
+                                } else if (retained != existingRaw) {
+                                    currentDayData[date] = retained
+                                    changedDays++
+                                }
+                            }
+                        } else {
+                            val existingRaw = currentDayData[date] ?: run {
+                                date = date.plusDays(1)
+                                continue
+                            }
+                            val merged = retainManualLocalEntries(
                                 existingRaw.map { it to SessionParser.parse(it) },
                             )
-                            if (retained.isEmpty()) {
-                                currentDayData.remove(date)
-                                changedDays++
-                            } else if (retained != existingRaw) {
-                                currentDayData[date] = retained
+                            if (merged != existingRaw) {
+                                if (merged.isEmpty()) {
+                                    currentDayData.remove(date)
+                                } else {
+                                    currentDayData[date] = merged
+                                }
                                 changedDays++
                             }
-                        }
-                    } else {
-                        val existingRaw = currentDayData[date] ?: run {
-                            date = date.plusDays(1)
-                            continue
-                        }
-                        val merged = retainManualLocalEntries(
-                            existingRaw.map { it to SessionParser.parse(it) },
-                        )
-                        if (merged != existingRaw) {
-                            if (merged.isEmpty()) {
-                                currentDayData.remove(date)
-                            } else {
-                                currentDayData[date] = merged
-                            }
-                            changedDays++
                         }
                     }
+                    date = date.plusDays(1)
                 }
-                date = date.plusDays(1)
             }
-        }
 
-        if (changedDays > 0) {
-            calendarRepository.saveDayData(currentDayData)
+            if (changedDays > 0) currentDayData else snapshot
         }
 
         return DayMergeStats(newlyAdded = newlyAdded, daysChanged = changedDays)
     }
 
     /**
-     * Инкрементальный live-опрос: текущий месяц подтягиваем целиком и перезаписываем,
+     * Инкрементальный live-опрос: затронутые дни текущего месяца перечитываем
+     * авторитативно (только окно изменившихся дат, не весь месяц — обычно это
+     * один день и одна страница вместо многостраничного месяца),
      * остальной диапазон — точечное слияние по changed_after.
      */
     private suspend fun mergeIncrementalRecords(
@@ -441,13 +448,15 @@ class YClientsCalendarSync(
 
         var syncedCount = 0
         if (currentMonthTouching.isNotEmpty()) {
-            val (monthStart, monthEnd) = currentCalendarMonthRange()
-            when (val fullMonth = yclientsRepository.getRecords(monthStart, monthEnd)) {
+            val changedDates = currentMonthTouching.mapNotNull { parseRecordDate(it.date) }
+            val subStart = changedDates.min()
+            val subEnd = changedDates.max()
+            when (val fullDays = yclientsRepository.getRecords(subStart, subEnd)) {
                 is ApiResult.Success -> {
                     syncedCount += mergeRecordsToCalendar(
-                        records = fullMonth.data,
-                        startDate = monthStart,
-                        endDate = monthEnd,
+                        records = fullDays.data,
+                        startDate = subStart,
+                        endDate = subEnd,
                         clearMissingDaysInRange = true,
                     ).newlyAdded
                 }
@@ -597,7 +606,7 @@ class YClientsCalendarSync(
         dayRecords: List<RecordData>,
     ): List<Pair<String, RecordData>> {
         val ordered = LinkedHashMap<String, RecordData>()
-        for (record in dayRecords.sortedBy { it.datetime ?: it.date }) {
+        for (record in dayRecords.sortedBy { it.datetime ?: it.date.orEmpty() }) {
             val name = extractClientName(record)
             if (name.isBlank()) continue
             val time = formatRecordTime(record)
@@ -641,7 +650,8 @@ class YClientsCalendarSync(
             .sorted()
             .joinToString(" ")
 
-    private fun parseRecordDate(dateString: String): LocalDate? {
+    private fun parseRecordDate(dateString: String?): LocalDate? {
+        if (dateString.isNullOrBlank()) return null
         return try {
             if (dateString.contains("T")) {
                 LocalDate.parse(dateString.substringBefore("T"))
@@ -834,11 +844,6 @@ class YClientsCalendarSync(
         ): Boolean {
             if (lastFullLiveSyncEpochMillis <= 0L) return true
             return nowMillis - lastFullLiveSyncEpochMillis >= FULL_LIVE_SYNC_INTERVAL_MS
-        }
-
-        fun currentCalendarMonthRange(): Pair<LocalDate, LocalDate> {
-            val month = YearMonth.now()
-            return month.atDay(1) to month.atEndOfMonth()
         }
 
         /** Текущий календарный месяц — API для учеников; ручные интенсивы сохраняются. */

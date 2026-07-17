@@ -176,19 +176,20 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
             val mode = calendarMode.value
-            val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
-            val list = currentMap[date] ?: return@launch
-            if (index !in list.indices) return@launch
-            if (mode == CalendarMode.SYNCED && !SessionParser.isIntensive(list[index])) return@launch
-
-            val updated = list.toMutableList().apply { removeAt(index) }
-
             if (mode == CalendarMode.SYNCED) {
-                val newData = currentMap.toMutableMap().apply {
-                    if (updated.isEmpty()) remove(date) else put(date, updated)
+                repository.updateDayData { current ->
+                    val list = current[date] ?: return@updateDayData current
+                    if (index !in list.indices) return@updateDayData current
+                    if (!SessionParser.isIntensive(list[index])) return@updateDayData current
+                    val updated = list.toMutableList().apply { removeAt(index) }
+                    current.toMutableMap().apply {
+                        if (updated.isEmpty()) remove(date) else put(date, updated)
+                    }
                 }
-                repository.saveDayData(newData)
             } else {
+                val list = savedDayData.value[date] ?: return@launch
+                if (index !in list.indices) return@launch
+                val updated = list.toMutableList().apply { removeAt(index) }
                 if (updated.isEmpty()) {
                     repository.deleteDayFromArchive(date)
                 } else {
@@ -217,15 +218,13 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 return@launch
             }
 
-            val existing = dayData.value[date].orEmpty()
-            val merged = mergeSyncedDayPreservingNonIntensives(existing, names)
-            val newData = dayData.value.toMutableMap()
-            if (merged.isEmpty()) {
-                newData.remove(date)
-            } else {
-                newData[date] = merged
+            repository.updateDayData { current ->
+                val existing = current[date].orEmpty()
+                val merged = mergeSyncedDayPreservingNonIntensives(existing, names)
+                current.toMutableMap().apply {
+                    if (merged.isEmpty()) remove(date) else put(date, merged)
+                }
             }
-            repository.saveDayData(newData)
         }
     }
 }
