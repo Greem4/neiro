@@ -1,13 +1,14 @@
 package ru.greemlab.neiro.data.network
 
 import android.content.Context
-import com.google.gson.GsonBuilder
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import ru.greemlab.neiro.BuildConfig
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -63,9 +64,11 @@ object YClientsClient {
 
         val okHttpClientBuilder = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(RetryInterceptor())
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
 
         if (BuildConfig.DEBUG) {
             okHttpClientBuilder.addInterceptor(
@@ -80,16 +83,50 @@ object YClientsClient {
 
         val okHttpClient = okHttpClientBuilder.build()
 
-        val gson = GsonBuilder()
-            .setLenient()
-            .create()
-
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create(gson))
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(YClientsApi::class.java)
+    }
+
+    /**
+     * Retry с экспоненциальным backoff на transient-сбои: 408/429/5xx и [IOException].
+     * `callTimeout` (60 с) ограничивает суммарное время вместе с ретраями.
+     */
+    private class RetryInterceptor : Interceptor {
+
+        override fun intercept(chain: Interceptor.Chain): Response {
+            var lastException: IOException? = null
+            var response: Response? = null
+
+            repeat(MAX_ATTEMPTS) { attempt ->
+                response?.close()
+                response = try {
+                    chain.proceed(chain.request())
+                } catch (e: IOException) {
+                    lastException = e
+                    null
+                }
+
+                val current = response
+                if (current != null && current.code !in RETRYABLE_CODES) {
+                    return current
+                }
+                if (attempt < MAX_ATTEMPTS - 1) {
+                    Thread.sleep(RETRY_BASE_DELAY_MS shl attempt)
+                }
+            }
+
+            return response ?: throw (lastException ?: IOException("Request failed"))
+        }
+
+        private companion object {
+            const val MAX_ATTEMPTS = 3
+            const val RETRY_BASE_DELAY_MS = 500L
+            val RETRYABLE_CODES = setOf(408, 429) + (500..599)
+        }
     }
 
     private fun buildAuthHeader(storage: TokenStorage, isAuthRequest: Boolean): String {

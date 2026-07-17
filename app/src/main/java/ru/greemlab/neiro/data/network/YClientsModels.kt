@@ -21,7 +21,8 @@ data class AuthResponse(
 
 data class AuthData(
     @SerializedName("id") val userId: Int,
-    @SerializedName("user_token") val userToken: String,
+    // Nullable: Gson не проверяет Kotlin nullability, пропавшее поле = null.
+    @SerializedName("user_token") val userToken: String?,
     val name: String?,
     val phone: String?,
     val login: String?,
@@ -49,7 +50,8 @@ data class RecordData(
     val id: Long,
     @SerializedName("company_id") val companyId: Int,
     @SerializedName("staff_id") val staffId: Int,
-    val date: String,
+    // Nullable: Gson может оставить null в non-null поле; валидация — в репозитории.
+    val date: String?,
     val datetime: String?,
     @SerializedName("create_date") val createDate: String?,
     val comment: String?,
