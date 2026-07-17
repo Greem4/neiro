@@ -6,8 +6,10 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,17 +42,21 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { repository.saveTheme(theme) }
     }
 
-    fun isAutoSyncEnabled(): Boolean = syncPreferences.isAutoSyncEnabled
+    private val _autoSyncEnabled = MutableStateFlow(syncPreferences.isAutoSyncEnabled)
+    val autoSyncEnabled: StateFlow<Boolean> = _autoSyncEnabled.asStateFlow()
+
+    private val _sessionNotificationsEnabled = MutableStateFlow(notificationPreferences.isEnabled)
+    val sessionNotificationsEnabled: StateFlow<Boolean> = _sessionNotificationsEnabled.asStateFlow()
 
     fun setAutoSyncEnabled(enabled: Boolean) {
         syncPreferences.isAutoSyncEnabled = enabled
+        _autoSyncEnabled.value = enabled
         AutoSyncCoordinator.onAutoSyncToggled(getApplication(), enabled)
     }
 
-    fun isSessionNotificationsEnabled(): Boolean = notificationPreferences.isEnabled
-
     fun setSessionNotificationsEnabled(enabled: Boolean) {
         notificationPreferences.isEnabled = enabled
+        _sessionNotificationsEnabled.value = enabled
         viewModelScope.launch {
             SessionNotificationCoordinator.onNotificationsToggled(getApplication(), enabled)
         }
