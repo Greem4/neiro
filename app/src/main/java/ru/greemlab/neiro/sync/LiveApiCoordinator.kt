@@ -112,10 +112,20 @@ object LiveApiCoordinator {
     /** Следующий фоновый запуск; вызывается из [LiveApiRefreshWorker] после каждого опроса. */
     fun scheduleNextBackgroundRefresh(context: Context) {
         if (PushConfig.isActive) return
-        scheduleBackgroundRefresh(context, delayMs = LiveApiPollSchedule.intervalMillis())
+        // Self-reschedule происходит из finally работающего worker'а: он ещё RUNNING,
+        // и KEEP молча отбросил бы новый запрос, обрывая цепочку опросов.
+        scheduleBackgroundRefresh(
+            context,
+            delayMs = LiveApiPollSchedule.intervalMillis(),
+            policy = ExistingWorkPolicy.APPEND_OR_REPLACE,
+        )
     }
 
-    private fun scheduleBackgroundRefresh(context: Context, delayMs: Long) {
+    private fun scheduleBackgroundRefresh(
+        context: Context,
+        delayMs: Long,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+    ) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -127,7 +137,7 @@ object LiveApiCoordinator {
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             BACKGROUND_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            policy,
             request,
         )
     }
