@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
@@ -116,19 +117,17 @@ fun CalendarScreen(
     highlightSlotKeyFromNotification: String? = null,
     notificationDeepLinkVersion: Int = 0,
 ) {
-    val currentMonth by viewModel.currentMonth.collectAsState()
-    val selectedDate by viewModel.selectedDate.collectAsState()
-    val dayData by viewModel.effectiveDayData.collectAsState()
-    val syncedDayData by viewModel.dayData.collectAsState()
-    val savedDayData by viewModel.savedDayData.collectAsState()
-    val currentMonthDayData by viewModel.currentMonthDayData.collectAsState()
-    val calendarMode by viewModel.calendarMode.collectAsState()
-    val archiveMismatchDates = remember(syncedDayData, savedDayData) {
-        ArchiveSyncCompare.mismatchDates(syncedDayData, savedDayData)
-    }
-    val profile by profileViewModel.userProfile.collectAsState()
+    val currentMonth by viewModel.currentMonth.collectAsStateWithLifecycle()
+    val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
+    val currentMonthDayData by viewModel.currentMonthDayData.collectAsStateWithLifecycle()
+    val calendarMode by viewModel.calendarMode.collectAsStateWithLifecycle()
+    // Полные карты dayData/savedDayData сюда не подписываем: корню экрана
+    // достаточно текущего месяца и контекста выбранного дня (см. C3 аудита).
+    val archiveMismatchDates by viewModel.archiveMismatchDates.collectAsStateWithLifecycle()
+    val selectedDayContext by viewModel.selectedDayContext.collectAsStateWithLifecycle()
+    val profile by profileViewModel.userProfile.collectAsStateWithLifecycle()
 
-    var highlightSlotKey by remember { mutableStateOf<String?>(null) }
+    var highlightSlotKey by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -199,8 +198,8 @@ fun CalendarScreen(
     val context = LocalContext.current
     val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
     val archiveNotificationStore = remember(context) { ArchiveNotificationStore.get(context) }
-    val activeNotifications by activeNotificationStore.items.collectAsState()
-    val archiveNotifications by archiveNotificationStore.items.collectAsState()
+    val activeNotifications by activeNotificationStore.items.collectAsStateWithLifecycle()
+    val archiveNotifications by archiveNotificationStore.items.collectAsStateWithLifecycle()
     val isArchiveCalendarMode = calendarMode == CalendarMode.PERSONAL
     val visibleNotifications = if (isArchiveCalendarMode) archiveNotifications else activeNotifications
     val unreadNotificationCount = remember(isArchiveCalendarMode, activeNotifications, archiveNotifications) {
@@ -218,8 +217,8 @@ fun CalendarScreen(
     val drawerGesturesEnabled = overlay is CalendarOverlay.None
 
     val syncViewModel: SyncViewModel = viewModel()
-    val syncState by syncViewModel.uiState.collectAsState()
-    val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsState()
+    val syncState by syncViewModel.uiState.collectAsStateWithLifecycle()
+    val isYClientsLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, syncViewModel) {
@@ -276,34 +275,38 @@ fun CalendarScreen(
             gesturesEnabled = drawerGesturesEnabled,
             drawerContent = {
                 ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
-                    ProfileContent(
-                        profileViewModel = profileViewModel,
-                        calendarViewModel = viewModel,
-                        syncViewModel = syncViewModel,
-                        onOpenSettings = {
-                            scope.launch { drawerState.close() }
-                            returnToDrawerOnOverlayClose = true
-                            overlay = CalendarOverlay.Settings
-                        },
-                        onOpenAppSettings = {
-                            scope.launch { drawerState.close() }
-                            returnToDrawerOnOverlayClose = true
-                            overlay = CalendarOverlay.AppSettings
-                        },
-                        onOpenYClients = {
-                            scope.launch { drawerState.close() }
-                            returnToDrawerOnOverlayClose = true
-                            yClientsReturnOverlay = CalendarOverlay.None
-                            overlay = CalendarOverlay.YClients
-                        },
-                    )
+                    // drawerContent всегда в composition — не считаем годовую
+                    // статистику профиля, пока панель закрыта.
+                    if (drawerState.isOpen || drawerState.isAnimationRunning) {
+                        ProfileContent(
+                            profileViewModel = profileViewModel,
+                            calendarViewModel = viewModel,
+                            syncViewModel = syncViewModel,
+                            onOpenSettings = {
+                                scope.launch { drawerState.close() }
+                                returnToDrawerOnOverlayClose = true
+                                overlay = CalendarOverlay.Settings
+                            },
+                            onOpenAppSettings = {
+                                scope.launch { drawerState.close() }
+                                returnToDrawerOnOverlayClose = true
+                                overlay = CalendarOverlay.AppSettings
+                            },
+                            onOpenYClients = {
+                                scope.launch { drawerState.close() }
+                                returnToDrawerOnOverlayClose = true
+                                yClientsReturnOverlay = CalendarOverlay.None
+                                overlay = CalendarOverlay.YClients
+                            },
+                        )
+                    }
                 }
             },
         ) {
             CalendarScreenContent(
                 currentMonth = currentMonth,
                 selectedDate = selectedDate,
-                dayData = dayData,
+                selectedDaySessions = selectedDayContext?.effective.orEmpty(),
                 monthDayData = currentMonthDayData,
                 archiveMismatchDates = archiveMismatchDates,
                 calendarMode = calendarMode,
@@ -402,19 +405,21 @@ fun CalendarScreen(
         }
 
         if (overlay is CalendarOverlay.DayDetails) {
-            val date = selectedDate
-            if (date == null) {
+            val dayContext = selectedDayContext
+            if (dayContext == null) {
                 LaunchedEffect(Unit) { overlay = CalendarOverlay.None }
             } else {
-                val isArchived = savedDayData.containsKey(date)
-                val syncedSessions = syncedDayData[date].orEmpty()
+                val date = dayContext.date
+                val archivedSessions = dayContext.archived
+                val isArchived = archivedSessions != null
+                val syncedSessions = dayContext.synced
                 val archiveMismatch = isArchived &&
-                    ArchiveSyncCompare.differs(syncedSessions, savedDayData[date].orEmpty())
-                val archiveMismatchDetails = remember(syncedSessions, savedDayData, date, archiveMismatch) {
+                    ArchiveSyncCompare.differs(syncedSessions, archivedSessions.orEmpty())
+                val archiveMismatchDetails = remember(syncedSessions, archivedSessions, archiveMismatch) {
                     if (archiveMismatch) {
                         ArchiveSyncCompare.describeDiff(
                             syncedSessions,
-                            savedDayData[date].orEmpty(),
+                            archivedSessions.orEmpty(),
                         )
                     } else {
                         emptyList()
@@ -422,7 +427,7 @@ fun CalendarScreen(
                 }
                 DayDetailsDialog(
                     date = date,
-                    initialNames = dayData[date].orEmpty(),
+                    initialNames = dayContext.effective,
                     userProfile = profile,
                     isArchived = isArchived,
                     archiveMismatch = archiveMismatch,
@@ -512,8 +517,8 @@ fun CalendarScreen(
         }
 
         is CalendarOverlay.DayDetails -> {
-            val date = selectedDate
-            if (showArchiveOverwriteConfirm && date != null) {
+            val dayContext = selectedDayContext
+            if (showArchiveOverwriteConfirm && dayContext != null) {
                 AlertDialog(
                     onDismissRequest = { showArchiveOverwriteConfirm = false },
                     title = { Text(stringResource(R.string.archive_sync_overwrite_title)) },
@@ -521,7 +526,7 @@ fun CalendarScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                viewModel.archiveDay(date, syncedDayData[date].orEmpty())
+                                viewModel.archiveDay(dayContext.date, dayContext.synced)
                                 showArchiveOverwriteConfirm = false
                             },
                         ) {
@@ -589,8 +594,8 @@ fun CalendarScreenContent(
     modifier: Modifier = Modifier,
     currentMonth: YearMonth,
     selectedDate: LocalDate?,
-    dayData: Map<LocalDate, List<String>>,
-    monthDayData: Map<LocalDate, List<String>> = dayData,
+    selectedDaySessions: List<String> = emptyList(),
+    monthDayData: Map<LocalDate, List<String>> = emptyMap(),
     archiveMismatchDates: Set<LocalDate> = emptySet(),
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
@@ -614,7 +619,6 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val selectedDaySessions = selectedDate?.let { dayData[it] }
     val daySummaryStats = remember(
         selectedDate,
         selectedDaySessions,
@@ -624,7 +628,7 @@ fun CalendarScreenContent(
     ) {
         if (selectedDate == null) return@remember null
         computeDayStats(
-            selectedDaySessions.orEmpty(),
+            selectedDaySessions,
             pricePerSession,
             pricePerDiagnostics,
             pricePerIntensiveChild,
@@ -975,7 +979,6 @@ private fun CalendarPreviewDark() {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
-            dayData = emptyMap(),
             calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,
@@ -996,7 +999,6 @@ private fun CalendarPreviewLight() {
         CalendarScreenContent(
             currentMonth = YearMonth.now(),
             selectedDate = LocalDate.now(),
-            dayData = emptyMap(),
             calendarMode = CalendarMode.SYNCED,
             stats = previewStats(),
             isRegistered = true,

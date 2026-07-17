@@ -2,13 +2,16 @@ package ru.greemlab.neiro.ui.calendar
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -21,24 +24,66 @@ enum class CalendarMode {
     SYNCED, PERSONAL
 }
 
+/** Всё, что нужно экранам про выбранный день, — без подписки на полные карты. */
+data class SelectedDayContext(
+    val date: LocalDate,
+    /** Записи дня в текущем режиме календаря (synced или архив). */
+    val effective: List<String>,
+    /** Записи дня в основном (YClients) календаре. */
+    val synced: List<String>,
+    /** Записи дня в архиве; null — день не архивирован. */
+    val archived: List<String>?,
+)
+
 /**
  * ViewModel для управления состоянием календаря.
  *
  * Чтение через Flow, запись — через единый [CalendarRepository], который
  * сам сериализует параллельные записи через mutex.
+ *
+ * Месяц/выбранная дата/режим переживают process death через [SavedStateHandle].
  */
-class CalendarViewModel(application: Application) : AndroidViewModel(application) {
+class CalendarViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle,
+) : AndroidViewModel(application) {
 
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
 
-    private val _currentMonth = MutableStateFlow(YearMonth.now())
+    private val _currentMonth = MutableStateFlow(restoredMonth())
     val currentMonth: StateFlow<YearMonth> = _currentMonth.asStateFlow()
 
-    private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
+    private val _selectedDate = MutableStateFlow(restoredSelectedDate())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
-    private val _calendarMode = MutableStateFlow(CalendarMode.SYNCED)
+    private val _calendarMode = MutableStateFlow(restoredMode())
     val calendarMode: StateFlow<CalendarMode> = _calendarMode.asStateFlow()
+
+    private fun restoredMonth(): YearMonth =
+        savedStateHandle.get<String>(KEY_MONTH)
+            ?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+            ?: YearMonth.now()
+
+    private fun restoredSelectedDate(): LocalDate? {
+        val raw = savedStateHandle.get<String>(KEY_SELECTED_DATE) ?: return LocalDate.now()
+        if (raw.isEmpty()) return null
+        return runCatching { LocalDate.parse(raw) }.getOrNull() ?: LocalDate.now()
+    }
+
+    private fun restoredMode(): CalendarMode =
+        savedStateHandle.get<String>(KEY_MODE)
+            ?.let { runCatching { CalendarMode.valueOf(it) }.getOrNull() }
+            ?: CalendarMode.SYNCED
+
+    private fun updateMonth(month: YearMonth) {
+        _currentMonth.value = month
+        savedStateHandle[KEY_MONTH] = month.toString()
+    }
+
+    private fun updateSelectedDate(date: LocalDate?) {
+        _selectedDate.value = date
+        savedStateHandle[KEY_SELECTED_DATE] = date?.toString() ?: ""
+    }
 
     /** Данные о людях для каждой даты (дата → список записей). */
     val dayData: StateFlow<Map<LocalDate, List<String>>> = repository.dayDataFlow
@@ -104,37 +149,89 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             ),
         )
 
+    /** Даты текущего месяца с расхождением архива и синхронизации; считается вне Main. */
+    val archiveMismatchDates: StateFlow<Set<LocalDate>> = combine(
+        dayData,
+        savedDayData,
+        currentMonth,
+    ) { synced, saved, month ->
+        val savedInMonth = saved.filterKeys { YearMonth.from(it) == month }
+        if (savedInMonth.isEmpty()) {
+            emptySet()
+        } else {
+            ArchiveSyncCompare.mismatchDates(synced, savedInMonth)
+        }
+    }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet(),
+        )
+
+    /** Контекст выбранного дня — экран не подписывается на полные карты. */
+    val selectedDayContext: StateFlow<SelectedDayContext?> = combine(
+        selectedDate,
+        dayData,
+        savedDayData,
+        calendarMode,
+    ) { date, synced, saved, mode ->
+        if (date == null) {
+            null
+        } else {
+            val archived = saved[date]
+            SelectedDayContext(
+                date = date,
+                effective = if (mode == CalendarMode.SYNCED) {
+                    synced[date].orEmpty()
+                } else {
+                    archived.orEmpty()
+                },
+                synced = synced[date].orEmpty(),
+                archived = archived,
+            )
+        }
+    }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null,
+        )
+
     // Карточки детей — см. TODO.md «Карточки детей».
 
     fun nextMonth() {
-        _currentMonth.value = _currentMonth.value.plusMonths(1)
+        updateMonth(_currentMonth.value.plusMonths(1))
     }
 
     fun previousMonth() {
-        _currentMonth.value = _currentMonth.value.minusMonths(1)
+        updateMonth(_currentMonth.value.minusMonths(1))
     }
 
     fun setMonth(yearMonth: YearMonth) {
-        _currentMonth.value = yearMonth
+        updateMonth(yearMonth)
     }
 
     fun goToToday() {
         val today = LocalDate.now()
-        _currentMonth.value = YearMonth.from(today)
-        _selectedDate.value = today
+        updateMonth(YearMonth.from(today))
+        updateSelectedDate(today)
     }
 
     fun selectDate(date: LocalDate) {
-        _selectedDate.value = date
+        updateSelectedDate(date)
     }
 
     fun navigateToDate(date: LocalDate) {
-        _currentMonth.value = YearMonth.from(date)
-        _selectedDate.value = date
+        updateMonth(YearMonth.from(date))
+        updateSelectedDate(date)
     }
 
     fun setCalendarMode(mode: CalendarMode) {
         _calendarMode.value = mode
+        savedStateHandle[KEY_MODE] = mode.name
     }
 
     /** Сохраняет данные дня в архивный календарь. */
@@ -226,6 +323,12 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 }
             }
         }
+    }
+
+    private companion object {
+        const val KEY_MONTH = "calendar_month"
+        const val KEY_SELECTED_DATE = "calendar_selected_date"
+        const val KEY_MODE = "calendar_mode"
     }
 }
 
