@@ -229,6 +229,8 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // collectAsStateWithLifecycle — подписки Compose не будят UI в STOPPED
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
 
     // Фоновая автосинхронизация YClients

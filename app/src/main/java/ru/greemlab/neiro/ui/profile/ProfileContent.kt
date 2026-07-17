@@ -31,6 +31,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
@@ -74,11 +75,11 @@ fun ProfileContent(
     onOpenYClients: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val profile by profileViewModel.userProfile.collectAsState()
-    val dayData by calendarViewModel.effectiveDayData.collectAsState()
-    val syncState by syncViewModel.uiState.collectAsState()
-    val isLoggedIn by syncViewModel.isLoggedIn.collectAsState()
-    val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsState()
+    val profile by profileViewModel.userProfile.collectAsStateWithLifecycle()
+    val dayData by calendarViewModel.effectiveDayData.collectAsStateWithLifecycle()
+    val syncState by syncViewModel.uiState.collectAsStateWithLifecycle()
+    val isLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
     val currentYear = YearMonth.now().year
     val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }

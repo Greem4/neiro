@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.notifications.ScheduledNotificationTime
@@ -33,7 +34,7 @@ fun SessionNotificationSettingsScreen(
     onBack: () -> Unit,
     viewModel: SessionNotificationSettingsViewModel = viewModel(),
 ) {
-    val settings by viewModel.state.collectAsState()
+    val settings by viewModel.state.collectAsStateWithLifecycle()
     var reminderExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
