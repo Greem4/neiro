@@ -22,12 +22,14 @@ class PushKeepAliveWorker(
         val repository = YClientsRepository.getInstance(applicationContext)
         if (!repository.isLoggedIn.first()) return Result.success()
 
-        PushRegistrar.registerNow(applicationContext)
-        runCatching {
-            YClientsCalendarSync.get(applicationContext).refreshLiveRange()
+        try {
+            runCatching { PushRegistrar.registerNow(applicationContext) }
+            runCatching {
+                YClientsCalendarSync.get(applicationContext).refreshLiveRange()
+            }
+        } finally {
+            PushKeepAliveCoordinator.scheduleNext(applicationContext)
         }
-
-        PushKeepAliveCoordinator.scheduleNext(applicationContext)
         return Result.success()
     }
 }

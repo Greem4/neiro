@@ -16,7 +16,11 @@ object PushKeepAliveCoordinator {
     private const val DAY_INTERVAL_MINUTES = 30L
     private const val NIGHT_INTERVAL_MINUTES = 60L
 
-    fun schedule(context: Context, delayMs: Long = 0L) {
+    fun schedule(
+        context: Context,
+        delayMs: Long = 0L,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+    ) {
         if (!PushConfig.isActive) return
 
         val constraints = Constraints.Builder()
@@ -30,13 +34,14 @@ object PushKeepAliveCoordinator {
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            policy,
             request,
         )
     }
 
+    /** Self-reschedule из работающего worker'а: KEEP отбросил бы запрос (worker ещё RUNNING). */
     fun scheduleNext(context: Context) {
-        schedule(context, delayMs = intervalMillis())
+        schedule(context, delayMs = intervalMillis(), policy = ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 
     fun cancel(context: Context) {
