@@ -124,7 +124,7 @@ fun CalendarScreen(
     // Полные карты dayData/savedDayData сюда не подписываем: корню экрана
     // достаточно текущего месяца и контекста выбранного дня (см. C3 аудита).
     val archiveMismatchDates by viewModel.archiveMismatchDates.collectAsStateWithLifecycle()
-    val daysNeedingArchiveCount by viewModel.daysNeedingArchiveCount.collectAsStateWithLifecycle()
+    val daysNeedingArchive by viewModel.daysNeedingArchive.collectAsStateWithLifecycle()
     val selectedDayContext by viewModel.selectedDayContext.collectAsStateWithLifecycle()
     val profile by profileViewModel.userProfile.collectAsStateWithLifecycle()
 
@@ -310,7 +310,7 @@ fun CalendarScreen(
                 selectedDaySessions = selectedDayContext?.effective.orEmpty(),
                 monthDayData = currentMonthDayData,
                 archiveMismatchDates = archiveMismatchDates,
-                daysNeedingArchiveCount = daysNeedingArchiveCount,
+                daysNeedingArchive = daysNeedingArchive,
                 calendarMode = calendarMode,
                 onModeChange = viewModel::setCalendarMode,
                 stats = stats,
@@ -599,7 +599,7 @@ fun CalendarScreenContent(
     selectedDaySessions: List<String> = emptyList(),
     monthDayData: Map<LocalDate, List<String>> = emptyMap(),
     archiveMismatchDates: Set<LocalDate> = emptySet(),
-    daysNeedingArchiveCount: Int = 0,
+    daysNeedingArchive: Set<LocalDate> = emptySet(),
     calendarMode: CalendarMode = CalendarMode.SYNCED,
     onModeChange: (CalendarMode) -> Unit = {},
     stats: CalendarMonthStats,
@@ -696,7 +696,7 @@ fun CalendarScreenContent(
                                 CalendarToolbar(
                                     calendarMode = calendarMode,
                                     onModeChange = onModeChange,
-                                    archiveBadgeCount = daysNeedingArchiveCount,
+                                    archiveBadgeCount = daysNeedingArchive.size,
                                 )
 
                                 if (isRegistered && selectedDate != null && daySummaryStats != null) {
@@ -720,6 +720,7 @@ fun CalendarScreenContent(
                                         selectedDate = selectedDate,
                                         dayData = monthDayData,
                                         archiveMismatchDates = archiveMismatchDates,
+                                        daysNeedingArchive = daysNeedingArchive,
                                         workingDays = workingDays,
                                         onDateClick = onDateClick,
                                     )

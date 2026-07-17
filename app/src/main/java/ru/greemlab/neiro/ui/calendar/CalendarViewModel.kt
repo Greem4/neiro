@@ -172,11 +172,12 @@ class CalendarViewModel(
         )
 
     /**
-     * Прошлые дни с занятиями, забытые вне архива, — счётчик для бейджа
-     * на вкладке «Архив». Сегодняшний день не считается (для него есть
-     * вечернее напоминание); считается вне Main.
+     * Прошлые дни с занятиями, забытые вне архива: размер набора — бейдж
+     * на вкладке «Архив», сами даты — маркеры на ячейках сетки, чтобы было
+     * видно, какой именно день не перенесён. Сегодняшний день не считается
+     * (для него есть вечернее напоминание); считается вне Main.
      */
-    val daysNeedingArchiveCount: StateFlow<Int> = combine(
+    val daysNeedingArchive: StateFlow<Set<LocalDate>> = combine(
         dayData,
         savedDayData,
         repository.userProfileFlow,
@@ -185,14 +186,14 @@ class CalendarViewModel(
             dayData = synced,
             archivedDates = saved.keys,
             profile = profile,
-        ).size
+        ).toSet()
     }
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 0,
+            initialValue = emptySet(),
         )
 
     /** Контекст выбранного дня — экран не подписывается на полные карты. */
