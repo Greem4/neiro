@@ -17,6 +17,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,9 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -292,6 +295,13 @@ fun ExpandableReplacementSlot(
         }
     }
 
+    // Пороговые состояния через derivedStateOf: рекомпозиция только при пересечении
+    // порога, а не на каждом кадре drag/анимации (значение читается в layout-фазе).
+    val showExpandedPart by remember { derivedStateOf { expansion.value > 0.01f } }
+    val showCollapsedPart by remember { derivedStateOf { expansion.value < 0.99f } }
+    val showRightIndicators by remember { derivedStateOf { expansion.value > 0.95f } }
+    val collapsedShowsAllIndicators by remember { derivedStateOf { expansion.value < 0.05f } }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -319,72 +329,142 @@ fun ExpandableReplacementSlot(
                 )
             },
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(gap * expansion.value.coerceAtMost(0.5f) * 2f),
-        ) {
-            val currentExpansion = expansion.value
-            val indicators = remember(removed.size) {
-                List(removed.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
-            }
+        val indicators = remember(removed.size) {
+            List(removed.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+        }
 
-            if (currentExpansion > 0.01f) {
-                removed.forEach { entry ->
+        ExpansionSplitLayout(
+            expansion = { expansion.value },
+            leftCount = removed.size,
+            gap = gap,
+            modifier = Modifier.fillMaxSize(),
+            leftContent = {
+                if (showExpandedPart) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                    ) {
+                        removed.forEach { entry ->
+                            ScheduleSlotItem(
+                                time = entry.time,
+                                name = entry.name,
+                                comment = entry.comment,
+                                status = entry.status,
+                                isDiagnostics = entry.isDiagnostics,
+                                showTime = entry.showTime,
+                                compactForTimeline = compactForTimeline,
+                                highlighted = highlighted,
+                                onContentClick = onContentClick?.let { { it(entry) } },
+                                indicatorColors = listOf(CancelledIndicatorRed),
+                                rightIndicatorColors = if (showRightIndicators) listOf(ScheduleHeaderGreen) else null,
+                                onRightIndicatorClick = {
+                                    scope.launch {
+                                        expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                                        if (expanded) onToggle()
+                                    }
+                                },
+                                onIndicatorClick = {
+                                    scope.launch {
+                                        expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                                        if (expanded) onToggle()
+                                    }
+                                },
+                                modifier = slotModifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            },
+            rightContent = {
+                if (showCollapsedPart) {
+                    val currentIndicators = when {
+                        collapsedShowsAllIndicators -> indicators
+                        else -> listOf(ScheduleHeaderGreen)
+                    }
+
                     ScheduleSlotItem(
-                        time = entry.time,
-                        name = entry.name,
-                        comment = entry.comment,
-                        status = entry.status,
-                        isDiagnostics = entry.isDiagnostics,
-                        showTime = entry.showTime,
+                        time = replacement.time,
+                        name = replacement.name,
+                        comment = replacement.comment,
+                        status = replacement.status,
+                        isDiagnostics = replacement.isDiagnostics,
+                        showTime = replacement.showTime,
                         compactForTimeline = compactForTimeline,
+                        indicatorColors = currentIndicators,
                         highlighted = highlighted,
-                        onContentClick = onContentClick?.let { { it(entry) } },
-                        indicatorColors = listOf(CancelledIndicatorRed),
-                        rightIndicatorColors = if (currentExpansion > 0.95f) listOf(ScheduleHeaderGreen) else null,
-                        onRightIndicatorClick = {
-                            scope.launch {
-                                expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
-                                if (expanded) onToggle()
-                            }
-                        },
+                        onContentClick = onContentClick?.let { { it(replacement) } },
                         onIndicatorClick = {
                             scope.launch {
-                                expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
-                                if (expanded) onToggle()
+                                expansion.animateTo(0.5f, spring(stiffness = Spring.StiffnessLow))
+                                if (!expanded) onToggle()
                             }
                         },
-                        modifier = slotModifier.weight(currentExpansion.coerceAtLeast(0.01f)),
+                        modifier = slotModifier.fillMaxWidth(),
                     )
                 }
-            }
-            
-            if (currentExpansion < 0.99f) {
-                val currentIndicators = when {
-                    currentExpansion < 0.05f -> indicators
-                    else -> listOf(ScheduleHeaderGreen)
-                }
+            },
+        )
+    }
+}
 
-                ScheduleSlotItem(
-                    time = replacement.time,
-                    name = replacement.name,
-                    comment = replacement.comment,
-                    status = replacement.status,
-                    isDiagnostics = replacement.isDiagnostics,
-                    showTime = replacement.showTime,
-                    compactForTimeline = compactForTimeline,
-                    indicatorColors = currentIndicators,
-                    highlighted = highlighted,
-                    onContentClick = onContentClick?.let { { it(replacement) } },
-                    onIndicatorClick = {
-                        scope.launch {
-                            expansion.animateTo(0.5f, spring(stiffness = Spring.StiffnessLow))
-                            if (!expanded) onToggle()
-                        }
-                    },
-                    modifier = slotModifier.weight((1f - currentExpansion).coerceAtLeast(0.01f)),
-                )
+/**
+ * Делит ширину между «раскрытой» (слева) и «свёрнутой» (справа) частями слота
+ * по значению [expansion], читая его только в layout-фазе — drag и анимация
+ * не рекомпозируют содержимое, а лишь перемеряют его.
+ *
+ * Пропорции повторяют прежнюю weight-раскладку: каждый раскрытый элемент
+ * имеет вес `expansion`, свёрнутая часть — `1 - expansion`.
+ */
+@Composable
+private fun ExpansionSplitLayout(
+    expansion: () -> Float,
+    leftCount: Int,
+    gap: Dp,
+    modifier: Modifier = Modifier,
+    leftContent: @Composable () -> Unit,
+    rightContent: @Composable () -> Unit,
+) {
+    Layout(
+        content = {
+            Box { leftContent() }
+            Box { rightContent() }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val fraction = expansion().coerceIn(0f, 1f)
+        val width = constraints.maxWidth
+        val gapPx = (gap.toPx() * (fraction.coerceAtMost(0.5f) * 2f)).toInt()
+        val showLeft = fraction > 0.01f && leftCount > 0
+        val showRight = fraction < 0.99f
+
+        val leftWidth: Int
+        val rightWidth: Int
+        when {
+            showLeft && showRight -> {
+                val available = (width - gapPx).coerceAtLeast(0)
+                val totalWeight = leftCount * fraction + (1f - fraction)
+                leftWidth = (available * (leftCount * fraction / totalWeight)).toInt()
+                rightWidth = available - leftWidth
             }
+            showLeft -> {
+                leftWidth = width
+                rightWidth = 0
+            }
+            else -> {
+                leftWidth = 0
+                rightWidth = width
+            }
+        }
+
+        val left = measurables[0].measure(
+            constraints.copy(minWidth = leftWidth, maxWidth = leftWidth),
+        )
+        val right = measurables[1].measure(
+            constraints.copy(minWidth = rightWidth, maxWidth = rightWidth),
+        )
+        layout(width, maxOf(left.height, right.height)) {
+            left.placeRelative(0, 0)
+            right.placeRelative(leftWidth + (if (showLeft && showRight) gapPx else 0), 0)
         }
     }
 }
@@ -427,6 +507,11 @@ fun ExpandableIntensiveCoverSlot(
         }
     }
 
+    val showExpandedPart by remember { derivedStateOf { expansion.value > 0.01f } }
+    val showCollapsedPart by remember { derivedStateOf { expansion.value < 0.99f } }
+    val showRightIndicators by remember { derivedStateOf { expansion.value > 0.95f } }
+    val collapsedShowsAllIndicators by remember { derivedStateOf { expansion.value < 0.05f } }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -458,73 +543,81 @@ fun ExpandableIntensiveCoverSlot(
                 } else Modifier
             ),
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(gap * expansion.value.coerceAtMost(0.5f) * 2f),
-        ) {
-            val currentExpansion = expansion.value
-            val indicators = remember(covered.size) {
-                if (hasCovered) {
-                    List(covered.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
-                } else null
-            }
+        val indicators = remember(covered.size) {
+            if (hasCovered) {
+                List(covered.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+            } else null
+        }
 
-            if (currentExpansion > 0.01f && hasCovered) {
-                covered.forEach { entry ->
-                    ScheduleSlotItem(
-                        time = entry.time,
-                        name = entry.name,
-                        comment = entry.comment,
-                        status = entry.status,
-                        isDiagnostics = entry.isDiagnostics,
-                        showTime = entry.showTime,
+        ExpansionSplitLayout(
+            expansion = { expansion.value },
+            leftCount = covered.size,
+            gap = gap,
+            modifier = Modifier.fillMaxSize(),
+            leftContent = {
+                if (showExpandedPart && hasCovered) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                    ) {
+                        covered.forEach { entry ->
+                            ScheduleSlotItem(
+                                time = entry.time,
+                                name = entry.name,
+                                comment = entry.comment,
+                                status = entry.status,
+                                isDiagnostics = entry.isDiagnostics,
+                                showTime = entry.showTime,
+                                compactForTimeline = compactForTimeline,
+                                highlighted = highlighted,
+                                onContentClick = onCoveredContentClick?.let { { it(entry) } },
+                                indicatorColors = listOf(CancelledIndicatorRed),
+                                rightIndicatorColors = if (showRightIndicators) listOf(ScheduleHeaderGreen) else null,
+                                onRightIndicatorClick = {
+                                    scope.launch {
+                                        expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                                        if (expanded) onToggle()
+                                    }
+                                },
+                                onIndicatorClick = {
+                                    scope.launch {
+                                        expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                                        if (expanded) onToggle()
+                                    }
+                                },
+                                modifier = slotModifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            },
+            rightContent = {
+                if (showCollapsedPart) {
+                    val currentIndicators = when {
+                        !hasCovered -> null
+                        collapsedShowsAllIndicators -> indicators
+                        else -> listOf(ScheduleHeaderGreen)
+                    }
+
+                    IntensiveTimelineChip(
+                        title = intensiveTitle,
+                        status = intensiveStatus,
+                        onClick = onIntensiveDetails,
                         compactForTimeline = compactForTimeline,
                         highlighted = highlighted,
-                        onContentClick = onCoveredContentClick?.let { { it(entry) } },
-                        indicatorColors = listOf(CancelledIndicatorRed),
-                        rightIndicatorColors = if (currentExpansion > 0.95f) listOf(ScheduleHeaderGreen) else null,
-                        onRightIndicatorClick = {
-                            scope.launch {
-                                expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
-                                if (expanded) onToggle()
-                            }
-                        },
+                        indicatorColors = currentIndicators,
+                        onDetailsClick = onIntensiveDetails,
                         onIndicatorClick = {
                             scope.launch {
-                                expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
-                                if (expanded) onToggle()
+                                expansion.animateTo(0.5f, spring(stiffness = Spring.StiffnessLow))
+                                if (!expanded) onToggle()
                             }
                         },
-                        modifier = slotModifier.weight(currentExpansion.coerceAtLeast(0.01f)),
+                        modifier = slotModifier.fillMaxWidth(),
                     )
                 }
-            }
-            
-            if (currentExpansion < 0.99f) {
-                val currentIndicators = when {
-                    !hasCovered -> null
-                    currentExpansion < 0.05f -> indicators
-                    else -> listOf(ScheduleHeaderGreen)
-                }
-
-                IntensiveTimelineChip(
-                    title = intensiveTitle,
-                    status = intensiveStatus,
-                    onClick = onIntensiveDetails,
-                    compactForTimeline = compactForTimeline,
-                    highlighted = highlighted,
-                    indicatorColors = currentIndicators,
-                    onDetailsClick = onIntensiveDetails,
-                    onIndicatorClick = {
-                        scope.launch {
-                            expansion.animateTo(0.5f, spring(stiffness = Spring.StiffnessLow))
-                            if (!expanded) onToggle()
-                        }
-                    },
-                    modifier = slotModifier.weight((1f - currentExpansion).coerceAtLeast(0.01f)),
-                )
-            }
-        }
+            },
+        )
     }
 }
 
