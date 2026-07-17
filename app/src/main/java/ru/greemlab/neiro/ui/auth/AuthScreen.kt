@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +74,11 @@ fun AuthScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+
+    // Пароль не должен оставаться в StateFlow после ухода с экрана (E7).
+    DisposableEffect(Unit) {
+        onDispose { viewModel.clearPassword() }
+    }
 
     // Отслеживаем переход «не авторизован → авторизован», чтобы автоматически
     // закрыть экран и запустить синхронизацию. Это и есть «возврат в приложение
