@@ -53,6 +53,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -220,8 +221,10 @@ private fun DayDetailsContent(
             }
         }
 
-    val entries = remember(currentNames.toList(), userProfile, date) {
-        parseEntries(currentNames, userProfile)
+    // derivedStateOf вместо key = currentNames.toList(): без аллокации списка
+    // на каждый рекомпоз, пересчёт только при реальном изменении содержимого (E9).
+    val entries by remember(userProfile, date) {
+        derivedStateOf { parseEntries(currentNames.toList(), userProfile) }
     }
 
     val stats = remember(entries, userProfile, date) {
@@ -345,9 +348,11 @@ private fun DayDetailsContent(
                     .padding(horizontal = 16.dp),
             )
         } else {
-            val intensiveIndices = remember(currentNames.toList()) {
-                currentNames.mapIndexedNotNull { index, raw ->
-                    if (SessionParser.isIntensive(raw)) index else null
+            val intensiveIndices by remember {
+                derivedStateOf {
+                    currentNames.mapIndexedNotNull { index, raw ->
+                        if (SessionParser.isIntensive(raw)) index else null
+                    }
                 }
             }
 
