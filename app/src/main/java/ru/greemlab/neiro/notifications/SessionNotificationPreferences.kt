@@ -173,14 +173,19 @@ class SessionNotificationPreferences(context: Context) {
     }
 
     fun wasArchiveReminderShown(pastDayEpochDay: Long): Boolean =
-        prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty()
+        readOrderedKeys(KEY_ARCHIVE_REMINDER_DAYS_LIST, legacy = KEY_ARCHIVE_REMINDER_DAYS)
             .contains(pastDayEpochDay.toString())
 
+    @Synchronized
     fun markArchiveReminderShown(pastDayEpochDay: Long) {
-        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        // Ordered-LRU как у notified_event_keys_v2: HashSet.first() удалял случайный ключ.
+        val updated = readOrderedKeys(KEY_ARCHIVE_REMINDER_DAYS_LIST, legacy = KEY_ARCHIVE_REMINDER_DAYS)
+        updated.remove(pastDayEpochDay.toString())
         updated.add(pastDayEpochDay.toString())
-        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
-        prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
+        while (updated.size > MAX_NOTIFIED_KEYS) {
+            updated.remove(updated.iterator().next())
+        }
+        prefs.edit().putString(KEY_ARCHIVE_REMINDER_DAYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
     /**
@@ -202,16 +207,19 @@ class SessionNotificationPreferences(context: Context) {
     @Synchronized
     fun claimArchiveReminder(pastDayEpochDay: Long): Boolean {
         if (wasArchiveReminderShown(pastDayEpochDay)) return false
-        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        val updated = readOrderedKeys(KEY_ARCHIVE_REMINDER_DAYS_LIST, legacy = KEY_ARCHIVE_REMINDER_DAYS)
         updated.add(pastDayEpochDay.toString())
-        if (updated.size > MAX_NOTIFIED_KEYS) updated.remove(updated.first())
-        return prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).commit()
+        while (updated.size > MAX_NOTIFIED_KEYS) {
+            updated.remove(updated.iterator().next())
+        }
+        return prefs.edit().putString(KEY_ARCHIVE_REMINDER_DAYS_LIST, updated.joinToString(SEPARATOR)).commit()
     }
 
+    @Synchronized
     fun clearArchiveReminderShown(epochDay: Long = LocalDate.now().toEpochDay()) {
-        val updated = prefs.getStringSet(KEY_ARCHIVE_REMINDER_DAYS, emptySet()).orEmpty().toMutableSet()
+        val updated = readOrderedKeys(KEY_ARCHIVE_REMINDER_DAYS_LIST, legacy = KEY_ARCHIVE_REMINDER_DAYS)
         updated.remove(epochDay.toString())
-        prefs.edit().putStringSet(KEY_ARCHIVE_REMINDER_DAYS, updated).apply()
+        prefs.edit().putString(KEY_ARCHIVE_REMINDER_DAYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
     fun saveSnapshot(sessions: List<TrackedSession>) {
@@ -300,6 +308,7 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_TODAY_DIGEST_DAY = "today_digest_epoch_day"
         private const val KEY_TOMORROW_DIGEST_TARGET_DAY = "tomorrow_digest_target_epoch_day"
         private const val KEY_ARCHIVE_REMINDER_DAYS = "archive_reminder_epoch_days"
+        private const val KEY_ARCHIVE_REMINDER_DAYS_LIST = "archive_reminder_epoch_days_v2"
         private const val KEY_SNAPSHOT = "calendar_snapshot"
         private const val KEY_HAS_BASELINE = "has_baseline_snapshot"
         private const val DEFAULT_REMINDER_MINUTES = 30

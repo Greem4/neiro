@@ -93,7 +93,7 @@ object SessionNotificationCoordinator {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)
         if (!prefs.isEnabled) return
-        if (!YClientsRepository.getInstance(appContext).isLoggedIn.value) return
+        if (!YClientsRepository.getInstance(appContext).isLoggedIn.first()) return
 
         val calendarRepository = CalendarDataStoreProvider.get(appContext)
         val profile = calendarRepository.userProfileFlow.first()
@@ -578,7 +578,10 @@ object SessionNotificationCoordinator {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTodayDigest(today.toEpochDay())) return
 
-        SessionNotificationDisplay.showTodayDigest(context, todayList)
+        if (!SessionNotificationDisplay.showTodayDigest(context, todayList)) {
+            // Показ не удался — откатываем claim, иначе сводка потеряна на весь день.
+            prefs.clearTodayDigestShown()
+        }
     }
 
     private fun maybeShowTomorrowDigest(
@@ -594,7 +597,9 @@ object SessionNotificationCoordinator {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTomorrowDigest(tomorrow.toEpochDay())) return
 
-        SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)
+        if (!SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)) {
+            prefs.clearTomorrowDigestShown()
+        }
     }
 
     private fun maybeShowArchiveReminder(
@@ -615,7 +620,9 @@ object SessionNotificationCoordinator {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimArchiveReminder(date.toEpochDay())) return
 
-        SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
+        if (!SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)) {
+            prefs.clearArchiveReminderShown(date.toEpochDay())
+        }
     }
 
     suspend fun onLoggedOut(context: Context) {
