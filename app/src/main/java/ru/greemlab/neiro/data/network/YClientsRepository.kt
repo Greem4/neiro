@@ -1,12 +1,19 @@
 package ru.greemlab.neiro.data.network
 
 import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
+import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.sync.YClientsLiveSyncFormat
 
 /**
@@ -22,8 +29,12 @@ sealed interface ApiResult<out T> {
  */
 class YClientsRepository(context: Context) {
 
+    private val appContext = context.applicationContext
     private val api = YClientsClient.getApi(context)
     private val tokenStorage = YClientsClient.getTokenStorage(context)
+
+    private val logoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val logoutOn401InProgress = AtomicBoolean(false)
 
     val isLoggedIn: StateFlow<Boolean> = tokenStorage.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = tokenStorage.userAvatarUrlFlow
@@ -55,8 +66,9 @@ class YClientsRepository(context: Context) {
 
                 if (response.isSuccessful) {
                     val body = response.body()
-                    if (body?.success == true && body.data != null) {
-                        tokenStorage.userToken = body.data.userToken
+                    val userToken = body?.data?.userToken
+                    if (body?.success == true && body.data != null && !userToken.isNullOrBlank()) {
+                        tokenStorage.userToken = userToken
                         tokenStorage.userLogin = login
                         tokenStorage.userName = body.data.name
                         tokenStorage.userAvatarUrl =
@@ -72,6 +84,8 @@ class YClientsRepository(context: Context) {
                         code = response.code(),
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
             }
@@ -143,7 +157,9 @@ class YClientsRepository(context: Context) {
             val all = mutableListOf<RecordData>()
 
             var page = 1
-            var lastPageSize = 0
+            var fetchedCount = 0
+            var totalCount: Int? = null
+            var complete = false
             while (page <= MAX_PAGES) {
                 val response = api.getRecords(
                     companyId = tokenStorage.companyId,
@@ -174,27 +190,61 @@ class YClientsRepository(context: Context) {
                 }
 
                 val pageData = body.data.orEmpty()
-                lastPageSize = pageData.size
-                all += pageData.filter { it.staffId == effectiveStaffId }
-                if (pageData.size < PAGE_SIZE) break
+                fetchedCount += pageData.size
+                body.meta?.totalCount?.let { totalCount = it }
+                all += pageData.filter { it.staffId == effectiveStaffId && isValidRecord(it) }
+                if (pageData.size < PAGE_SIZE ||
+                    totalCount?.let { fetchedCount >= it } == true
+                ) {
+                    complete = true
+                    break
+                }
                 page++
             }
 
-            if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
+            if (!complete) {
                 return ApiResult.Error(
                     "Слишком много записей за период — загрузка обрезана, календарь не изменён",
                 )
             }
 
             return ApiResult.Success(all)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
     }
 
+    /** Gson не проверяет Kotlin nullability — отбрасываем записи без обязательных полей. */
+    private fun isValidRecord(record: RecordData): Boolean {
+        @Suppress("SENSELESS_COMPARISON")
+        val valid = record.date != null && record.id != 0L
+        if (!valid) {
+            Log.w(TAG, "Пропущена запись без id/date (id=${record.id})")
+        }
+        return valid
+    }
+
+    /**
+     * 401 — полный logout через [LogoutCoordinator]: отзыв push-регистрации,
+     * остановка воркеров, сброс watermark'ов и состояния уведомлений.
+     */
     private fun handleUnauthorized(code: Int?) {
-        if (code == 401) {
-            tokenStorage.clear()
+        if (code != 401) return
+        tokenStorage.clear()
+        if (logoutOn401InProgress.compareAndSet(false, true)) {
+            logoutScope.launch {
+                try {
+                    LogoutCoordinator.logout(appContext)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Logout после 401 завершился с ошибкой", e)
+                } finally {
+                    logoutOn401InProgress.set(false)
+                }
+            }
         }
     }
 
@@ -226,7 +276,16 @@ class YClientsRepository(context: Context) {
 
         try {
             val response = api.getBookStaff(tokenStorage.companyId)
-            val staffList = response.body()?.takeIf { it.success }?.data ?: return@withContext null
+            if (!response.isSuccessful) {
+                handleUnauthorized(response.code())
+                Log.w(TAG, "book_staff вернул HTTP ${response.code()}")
+                return@withContext null
+            }
+            val staffList = response.body()?.takeIf { it.success }?.data
+            if (staffList == null) {
+                Log.w(TAG, "book_staff: пустой или неуспешный ответ")
+                return@withContext null
+            }
 
             val needleTokens = userName.normalizeNameTokens()
             if (needleTokens.isEmpty()) return@withContext null
@@ -250,7 +309,10 @@ class YClientsRepository(context: Context) {
                 ?.first
 
             match?.id?.also { tokenStorage.staffId = it }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            Log.w(TAG, "Не удалось определить сотрудника", e)
             null
         }
     }
@@ -262,7 +324,8 @@ class YClientsRepository(context: Context) {
         try {
             val all = mutableListOf<ClientData>()
             var page = 1
-            var lastPageSize = 0
+            var totalCount: Int? = null
+            var complete = false
 
             while (page <= MAX_PAGES) {
                 val response = api.getClients(
@@ -289,19 +352,26 @@ class YClientsRepository(context: Context) {
                 }
 
                 val pageData = body.data.orEmpty()
-                lastPageSize = pageData.size
+                body.meta?.totalCount?.let { totalCount = it }
                 all += pageData
-                if (pageData.size < PAGE_SIZE) break
+                if (pageData.size < PAGE_SIZE ||
+                    totalCount?.let { all.size >= it } == true
+                ) {
+                    complete = true
+                    break
+                }
                 page++
             }
 
-            if (lastPageSize >= PAGE_SIZE && page > MAX_PAGES) {
+            if (!complete) {
                 return@withContext ApiResult.Error(
                     "Слишком много клиентов — список обрезан",
                 )
             }
 
             ApiResult.Success(all)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
         }
@@ -332,12 +402,15 @@ class YClientsRepository(context: Context) {
             val error = gson.fromJson(errorBody, ApiError::class.java)
             error.meta?.message
         } catch (e: Exception) {
-            android.util.Log.w("YClientsRepository", "Cannot parse error body: $errorBody", e)
+            // Тело ответа не логируем: может содержать детали сессии.
+            Log.w(TAG, "Cannot parse error body: ${e.message}")
             null
         }
     }
 
     companion object {
+        private const val TAG = "YClientsRepository"
+
         /** Размер страницы для запроса /records. */
         private const val PAGE_SIZE = 200
 
