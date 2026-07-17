@@ -121,7 +121,7 @@ object InAppNotificationRecorder {
             record(
                 context,
                 Payload(
-                    title = SessionNotificationTexts.archiveTitle(appContext),
+                    title = SessionNotificationTexts.archiveTitleForDate(appContext, date),
                     body = SessionNotificationTexts.archiveBody(appContext, count),
                     relatedDate = date,
                     dedupeKey = "inapp|archive|${date.toEpochDay()}",

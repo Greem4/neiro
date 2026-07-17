@@ -67,11 +67,19 @@ object SessionNotificationTexts {
     fun archiveTitle(context: Context): String =
         context.getString(R.string.notification_archive_title)
 
+    /** «За сегодня» или с конкретной датой — для забытых прошлых дней. */
+    fun archiveTitleForDate(context: Context, date: LocalDate): String =
+        if (date == LocalDate.now()) {
+            archiveTitle(context)
+        } else {
+            context.getString(R.string.notification_archive_title_date, date.format(dateFormatter))
+        }
+
     fun archiveBody(context: Context, count: Int): String =
         context.resources.getQuantityString(R.plurals.notification_archive_body, count, count)
 
     fun archiveGroupTitle(context: Context, count: Int): String =
-        context.getString(R.string.notification_archive_group_title, count)
+        context.resources.getQuantityString(R.plurals.notification_archive_group_title, count, count)
 
     fun archiveGroupSummary(context: Context): String =
         context.getString(R.string.notification_archive_group_summary)

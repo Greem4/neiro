@@ -26,6 +26,8 @@ object PushClient {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
+            // Верхняя граница на весь вызов, включая retry/redirect (E8).
+            .callTimeout(60, TimeUnit.SECONDS)
             .build()
 
         return Retrofit.Builder()

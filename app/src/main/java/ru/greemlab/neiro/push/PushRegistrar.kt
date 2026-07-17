@@ -43,13 +43,13 @@ object PushRegistrar {
         }
     }
 
-    fun onLogout(context: Context) {
+    /** Suspend, чтобы logout мог дождаться unregister — иначе при быстром
+     *  завершении процесса устройство остаётся на push-сервере. */
+    suspend fun onLogout(context: Context) {
         val appContext = context.applicationContext
         PushKeepAliveCoordinator.cancel(appContext)
         if (!PushConfig.isServerConfigured) return
-        scope.launch {
-            unregister(appContext)
-        }
+        unregister(appContext)
     }
 
     fun onFcmTokenRefresh(context: Context, token: String) {

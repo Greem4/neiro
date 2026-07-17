@@ -170,6 +170,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    /** Пароль не должен переживать уход с экрана (E7). */
+    fun clearPassword() {
+        _uiState.value = _uiState.value.copy(password = "")
+    }
+
+    override fun onCleared() {
+        clearPassword()
+    }
+
     private fun normalizeLoginForRequest(raw: String): String {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return ""

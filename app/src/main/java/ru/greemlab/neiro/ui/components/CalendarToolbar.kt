@@ -31,12 +31,15 @@ private val ToolbarHeight = 40.dp
 
 /**
  * Панель над сеткой: переключатель источника данных (YClients / архив).
+ *
+ * @param archiveBadgeCount Число забытых вне архива прошлых дней — бейдж на вкладке «Архив».
  */
 @Composable
 fun CalendarToolbar(
     calendarMode: CalendarMode,
     onModeChange: (CalendarMode) -> Unit,
     modifier: Modifier = Modifier,
+    archiveBadgeCount: Int = 0,
 ) {
     Row(
         modifier = modifier
@@ -49,6 +52,7 @@ fun CalendarToolbar(
         CalendarSourceSwitcher(
             calendarMode = calendarMode,
             onModeChange = onModeChange,
+            archiveBadgeCount = archiveBadgeCount,
             modifier = Modifier.weight(1f),
         )
     }
@@ -58,6 +62,7 @@ fun CalendarToolbar(
 private fun CalendarSourceSwitcher(
     calendarMode: CalendarMode,
     onModeChange: (CalendarMode) -> Unit,
+    archiveBadgeCount: Int,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -85,6 +90,7 @@ private fun CalendarSourceSwitcher(
                 icon = Icons.Rounded.Storage,
                 selected = calendarMode == CalendarMode.PERSONAL,
                 brandSelected = false,
+                badgeCount = archiveBadgeCount,
                 onClick = { onModeChange(CalendarMode.PERSONAL) },
                 modifier = Modifier.weight(1f),
             )
@@ -100,6 +106,7 @@ private fun SourceTab(
     brandSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badgeCount: Int = 0,
 ) {
     val bg: Color
     val contentColor: Color
@@ -147,6 +154,34 @@ private fun SourceTab(
                 maxLines = 1,
                 modifier = Modifier.padding(start = 5.dp),
             )
+            if (badgeCount > 0) {
+                TabBadge(
+                    count = badgeCount,
+                    modifier = Modifier.padding(start = 5.dp),
+                )
+            }
         }
+    }
+}
+
+/** Пилюля-счётчик на вкладке: «сколько прошлых дней ждёт переноса в архив». */
+@Composable
+private fun TabBadge(
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.error,
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onError,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+        )
     }
 }

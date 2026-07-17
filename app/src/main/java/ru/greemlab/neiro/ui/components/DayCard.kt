@@ -37,6 +37,8 @@ import java.time.LocalDate
  * @param isSelected Выбрана ли эта дата пользователем.
  * @param namesLabel Текстовая метка количества записей (например, "8/1" или "9").
  * @param isWorkingDay Подсвечивать ли как рабочий день.
+ * @param archiveMismatch Архив дня расходится с синхронизацией (янтарная точка справа сверху).
+ * @param needsArchive Прошедший день с занятиями ещё не перенесён в архив (красная точка слева сверху).
  * @param onDateClick Обработчик нажатия.
  */
 @Composable
@@ -49,6 +51,7 @@ fun DayCard(
     hasIntensive: Boolean = false,
     isWorkingDay: Boolean = true,
     archiveMismatch: Boolean = false,
+    needsArchive: Boolean = false,
     onDateClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -85,6 +88,19 @@ fun DayCard(
                     .padding(5.dp)
                     .size(7.dp)
                     .background(color = ExpectedAmber, shape = CircleShape),
+            )
+        }
+
+        if (needsArchive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .size(7.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.error,
+                        shape = CircleShape,
+                    ),
             )
         }
 

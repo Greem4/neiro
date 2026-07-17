@@ -2,18 +2,22 @@ package ru.greemlab.neiro.ui.calendar
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
+import ru.greemlab.neiro.notifications.PastSessionsArchiveCollector
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -21,24 +25,66 @@ enum class CalendarMode {
     SYNCED, PERSONAL
 }
 
+/** Всё, что нужно экранам про выбранный день, — без подписки на полные карты. */
+data class SelectedDayContext(
+    val date: LocalDate,
+    /** Записи дня в текущем режиме календаря (synced или архив). */
+    val effective: List<String>,
+    /** Записи дня в основном (YClients) календаре. */
+    val synced: List<String>,
+    /** Записи дня в архиве; null — день не архивирован. */
+    val archived: List<String>?,
+)
+
 /**
  * ViewModel для управления состоянием календаря.
  *
  * Чтение через Flow, запись — через единый [CalendarRepository], который
  * сам сериализует параллельные записи через mutex.
+ *
+ * Месяц/выбранная дата/режим переживают process death через [SavedStateHandle].
  */
-class CalendarViewModel(application: Application) : AndroidViewModel(application) {
+class CalendarViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle,
+) : AndroidViewModel(application) {
 
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
 
-    private val _currentMonth = MutableStateFlow(YearMonth.now())
+    private val _currentMonth = MutableStateFlow(restoredMonth())
     val currentMonth: StateFlow<YearMonth> = _currentMonth.asStateFlow()
 
-    private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
+    private val _selectedDate = MutableStateFlow(restoredSelectedDate())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate.asStateFlow()
 
-    private val _calendarMode = MutableStateFlow(CalendarMode.SYNCED)
+    private val _calendarMode = MutableStateFlow(restoredMode())
     val calendarMode: StateFlow<CalendarMode> = _calendarMode.asStateFlow()
+
+    private fun restoredMonth(): YearMonth =
+        savedStateHandle.get<String>(KEY_MONTH)
+            ?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+            ?: YearMonth.now()
+
+    private fun restoredSelectedDate(): LocalDate? {
+        val raw = savedStateHandle.get<String>(KEY_SELECTED_DATE) ?: return LocalDate.now()
+        if (raw.isEmpty()) return null
+        return runCatching { LocalDate.parse(raw) }.getOrNull() ?: LocalDate.now()
+    }
+
+    private fun restoredMode(): CalendarMode =
+        savedStateHandle.get<String>(KEY_MODE)
+            ?.let { runCatching { CalendarMode.valueOf(it) }.getOrNull() }
+            ?: CalendarMode.SYNCED
+
+    private fun updateMonth(month: YearMonth) {
+        _currentMonth.value = month
+        savedStateHandle[KEY_MONTH] = month.toString()
+    }
+
+    private fun updateSelectedDate(date: LocalDate?) {
+        _selectedDate.value = date
+        savedStateHandle[KEY_SELECTED_DATE] = date?.toString() ?: ""
+    }
 
     /** Данные о людях для каждой даты (дата → список записей). */
     val dayData: StateFlow<Map<LocalDate, List<String>>> = repository.dayDataFlow
@@ -104,37 +150,114 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             ),
         )
 
+    /** Даты текущего месяца с расхождением архива и синхронизации; считается вне Main. */
+    val archiveMismatchDates: StateFlow<Set<LocalDate>> = combine(
+        dayData,
+        savedDayData,
+        currentMonth,
+    ) { synced, saved, month ->
+        val savedInMonth = saved.filterKeys { YearMonth.from(it) == month }
+        if (savedInMonth.isEmpty()) {
+            emptySet()
+        } else {
+            ArchiveSyncCompare.mismatchDates(synced, savedInMonth)
+        }
+    }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet(),
+        )
+
+    /**
+     * Прошлые дни с занятиями, забытые вне архива: размер набора — бейдж
+     * на вкладке «Архив», сами даты — маркеры на ячейках сетки, чтобы было
+     * видно, какой именно день не перенесён. Сегодняшний день не считается
+     * (для него есть вечернее напоминание); считается вне Main.
+     */
+    val daysNeedingArchive: StateFlow<Set<LocalDate>> = combine(
+        dayData,
+        savedDayData,
+        repository.userProfileFlow,
+    ) { synced, saved, profile ->
+        PastSessionsArchiveCollector.daysNeedingArchive(
+            dayData = synced,
+            archivedDates = saved.keys,
+            profile = profile,
+        ).toSet()
+    }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet(),
+        )
+
+    /** Контекст выбранного дня — экран не подписывается на полные карты. */
+    val selectedDayContext: StateFlow<SelectedDayContext?> = combine(
+        selectedDate,
+        dayData,
+        savedDayData,
+        calendarMode,
+    ) { date, synced, saved, mode ->
+        if (date == null) {
+            null
+        } else {
+            val archived = saved[date]
+            SelectedDayContext(
+                date = date,
+                effective = if (mode == CalendarMode.SYNCED) {
+                    synced[date].orEmpty()
+                } else {
+                    archived.orEmpty()
+                },
+                synced = synced[date].orEmpty(),
+                archived = archived,
+            )
+        }
+    }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null,
+        )
+
     // Карточки детей — см. TODO.md «Карточки детей».
 
     fun nextMonth() {
-        _currentMonth.value = _currentMonth.value.plusMonths(1)
+        updateMonth(_currentMonth.value.plusMonths(1))
     }
 
     fun previousMonth() {
-        _currentMonth.value = _currentMonth.value.minusMonths(1)
+        updateMonth(_currentMonth.value.minusMonths(1))
     }
 
     fun setMonth(yearMonth: YearMonth) {
-        _currentMonth.value = yearMonth
+        updateMonth(yearMonth)
     }
 
     fun goToToday() {
         val today = LocalDate.now()
-        _currentMonth.value = YearMonth.from(today)
-        _selectedDate.value = today
+        updateMonth(YearMonth.from(today))
+        updateSelectedDate(today)
     }
 
     fun selectDate(date: LocalDate) {
-        _selectedDate.value = date
+        updateSelectedDate(date)
     }
 
     fun navigateToDate(date: LocalDate) {
-        _currentMonth.value = YearMonth.from(date)
-        _selectedDate.value = date
+        updateMonth(YearMonth.from(date))
+        updateSelectedDate(date)
     }
 
     fun setCalendarMode(mode: CalendarMode) {
         _calendarMode.value = mode
+        savedStateHandle[KEY_MODE] = mode.name
     }
 
     /** Сохраняет данные дня в архивный календарь. */
@@ -169,22 +292,27 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Удаляет запись (ученика или доп. доход) из списка на дату. */
+    /**
+     * Удаляет запись из списка на дату.
+     * В SYNCED можно удалять только интенсивы — остальные записи идут из YClients.
+     */
     fun deleteSession(date: LocalDate, index: Int) {
         viewModelScope.launch {
             val mode = calendarMode.value
-            val currentMap = if (mode == CalendarMode.SYNCED) dayData.value else savedDayData.value
-            val list = currentMap[date] ?: return@launch
-            if (index !in list.indices) return@launch
-
-            val updated = list.toMutableList().apply { removeAt(index) }
-            
             if (mode == CalendarMode.SYNCED) {
-                val newData = currentMap.toMutableMap().apply {
-                    if (updated.isEmpty()) remove(date) else put(date, updated)
+                repository.updateDayData { current ->
+                    val list = current[date] ?: return@updateDayData current
+                    if (index !in list.indices) return@updateDayData current
+                    if (!SessionParser.isIntensive(list[index])) return@updateDayData current
+                    val updated = list.toMutableList().apply { removeAt(index) }
+                    current.toMutableMap().apply {
+                        if (updated.isEmpty()) remove(date) else put(date, updated)
+                    }
                 }
-                repository.saveDayData(newData)
             } else {
+                val list = savedDayData.value[date] ?: return@launch
+                if (index !in list.indices) return@launch
+                val updated = list.toMutableList().apply { removeAt(index) }
                 if (updated.isEmpty()) {
                     repository.deleteDayFromArchive(date)
                 } else {
@@ -197,76 +325,48 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     /**
      * Сохранение списка записей для указанной даты.
      *
+     * В SYNCED меняются только интенсивы; ученики и диагностика из YClients не перезаписываются.
+     * В архиве ([CalendarMode.PERSONAL]) сохраняется полный список как есть.
+     *
      * @param date Дата сохранения.
      * @param names Список записей в формате "Имя|attended" или с префиксами экстра-сессий.
-     * @param repeatUntilMonthEnd Если true, дублирует список на все такие же дни недели до конца месяца.
-     * @param repeatNextMonth Если true, дублирует список на все такие же дни недели в следующем месяце.
      */
     fun saveNamesForDate(
         date: LocalDate,
         names: List<String>,
-        repeatUntilMonthEnd: Boolean = false,
-        repeatNextMonth: Boolean = false,
     ) {
         viewModelScope.launch {
             if (calendarMode.value == CalendarMode.PERSONAL) {
-                // В режиме архива сохраняем только локально
                 repository.saveDayToArchive(date, names)
                 return@launch
             }
 
-            val newData = dayData.value.toMutableMap()
-            // ... (rest of the logic for SYNCED mode)
-
-            if (repeatUntilMonthEnd) {
-                val lastDayOfMonth = YearMonth.from(date).atEndOfMonth()
-                var cursor = date
-                while (!cursor.isAfter(lastDayOfMonth)) {
-                    updateDateData(newData, cursor, date, names)
-                    cursor = cursor.plusWeeks(1)
-                }
-            } else {
-                updateDateData(newData, date, date, names)
-            }
-
-            if (repeatNextMonth) {
-                val nextMonth = YearMonth.from(date).plusMonths(1)
-                val lastDayOfNextMonth = nextMonth.atEndOfMonth()
-                var cursor = nextMonth.atDay(1)
-                while (cursor.dayOfWeek != date.dayOfWeek) {
-                    cursor = cursor.plusDays(1)
-                }
-                while (!cursor.isAfter(lastDayOfNextMonth)) {
-                    updateDateData(newData, cursor, date, names)
-                    cursor = cursor.plusWeeks(1)
+            repository.updateDayData { current ->
+                val existing = current[date].orEmpty()
+                val merged = mergeSyncedDayPreservingNonIntensives(existing, names)
+                current.toMutableMap().apply {
+                    if (merged.isEmpty()) remove(date) else put(date, merged)
                 }
             }
-
-            repository.saveDayData(newData)
         }
     }
 
-    private fun updateDateData(
-        data: MutableMap<LocalDate, List<String>>,
-        targetDate: LocalDate,
-        originalDate: LocalDate,
-        names: List<String>,
-    ) {
-        if (names.isEmpty()) {
-            data.remove(targetDate)
-            return
-        }
-        val processed = if (targetDate.isAfter(originalDate)) resetAttendance(names) else names
-        data[targetDate] = processed
+    private companion object {
+        const val KEY_MONTH = "calendar_month"
+        const val KEY_SELECTED_DATE = "calendar_selected_date"
+        const val KEY_MODE = "calendar_mode"
     }
+}
 
-    private fun resetAttendance(names: List<String>): List<String> = names.map { raw ->
-        if (SessionParser.isExtra(raw)) {
-            raw
-        } else {
-            val sep = raw.indexOf('|')
-            val name = if (sep < 0) raw else raw.substring(0, sep)
-            "$name|false"
-        }
-    }
+/**
+ * В synced-календаре локально правятся только интенсивы:
+ * записи YClients (ученики, диагностика) берём из [existing], интенсивы — из [incoming].
+ */
+internal fun mergeSyncedDayPreservingNonIntensives(
+    existing: List<String>,
+    incoming: List<String>,
+): List<String> {
+    val fromYClients = existing.filterNot { SessionParser.isIntensive(it) }
+    val intensives = incoming.filter { SessionParser.isIntensive(it) }
+    return fromYClients + intensives
 }

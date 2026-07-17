@@ -18,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.THEME_DARK
@@ -154,7 +154,7 @@ private fun NeiroApp(
 ) {
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
-    val theme by settingsViewModel.theme.collectAsState()
+    val theme by settingsViewModel.theme.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
 
     val isDarkTheme = when (theme) {

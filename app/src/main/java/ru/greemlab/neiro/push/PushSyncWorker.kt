@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.sync.SyncOutcome
 import ru.greemlab.neiro.sync.YClientsCalendarSync
 
 /** Фоновая подтяжка календаря по FCM — не обрывается при завершении FCM-сервиса. */
@@ -18,8 +19,10 @@ class PushSyncWorker(
         if (!repository.isLoggedIn.first()) return Result.success()
 
         return runCatching {
-            YClientsCalendarSync.get(applicationContext).refreshLiveRange()
-            Result.success()
+            when (YClientsCalendarSync.get(applicationContext).refreshLiveRange()) {
+                is SyncOutcome.Failure -> Result.retry()
+                else -> Result.success()
+            }
         }.getOrElse { Result.retry() }
     }
 }

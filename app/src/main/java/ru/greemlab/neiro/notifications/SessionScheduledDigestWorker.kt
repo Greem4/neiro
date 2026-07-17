@@ -18,8 +18,11 @@ class SessionScheduledDigestWorker(
         val kind = runCatching { ScheduledDigestKind.valueOf(kindName) }.getOrNull()
             ?: return Result.failure()
 
-        SessionNotificationCoordinator.deliverScheduledDigest(applicationContext, kind)
-        SessionNotificationCoordinator.rescheduleDigest(applicationContext, kind)
+        try {
+            SessionNotificationCoordinator.deliverScheduledDigest(applicationContext, kind)
+        } finally {
+            SessionNotificationCoordinator.rescheduleDigestFromWorker(applicationContext, kind)
+        }
         return Result.success()
     }
 

@@ -31,15 +31,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.data.ImportResult
@@ -56,10 +53,10 @@ fun AppSettingsScreen(
     onOpenProfitSettings: () -> Unit = {},
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
-    val theme by viewModel.theme.collectAsState()
+    val theme by viewModel.theme.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var autoSyncEnabled by remember { mutableStateOf(viewModel.isAutoSyncEnabled()) }
-    var notificationsEnabled by remember { mutableStateOf(viewModel.isSessionNotificationsEnabled()) }
+    val autoSyncEnabled by viewModel.autoSyncEnabled.collectAsStateWithLifecycle()
+    val notificationsEnabled by viewModel.sessionNotificationsEnabled.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -140,10 +137,7 @@ fun AppSettingsScreen(
                         subtitle = stringResource(R.string.settings_notifications_subtitle),
                         icon = Icons.Rounded.Notifications,
                         checked = notificationsEnabled,
-                        onCheckedChange = { enabled ->
-                            notificationsEnabled = enabled
-                            viewModel.setSessionNotificationsEnabled(enabled)
-                        },
+                        onCheckedChange = viewModel::setSessionNotificationsEnabled,
                     )
                     SettingsNavigationRow(
                         title = stringResource(R.string.notification_settings_configure),
@@ -172,10 +166,7 @@ fun AppSettingsScreen(
                         subtitle = "Полная синхронизация при открытии, если прошло больше суток",
                         icon = Icons.Rounded.Sync,
                         checked = autoSyncEnabled,
-                        onCheckedChange = { enabled ->
-                            autoSyncEnabled = enabled
-                            viewModel.setAutoSyncEnabled(enabled)
-                        },
+                        onCheckedChange = viewModel::setAutoSyncEnabled,
                     )
                 }
             }

@@ -132,6 +132,6 @@ O(n) serialize + disk write на каждое уведомление. Лимит
 
 - **`HEADER_ICON_DP` bitmap как small icon** (`NeiroNotificationBranding.kt`) — на некоторых Android выглядит как серый квадрат. Замена на монохромный drawable — отдельная задача с дизайном.
 - **`InAppNotificationRecorder` — двойная запись active + archive без транзакции**. Риск минимальный (crash между двумя SharedPreferences.apply() редок). Оставляем.
-- **`PastSessionsArchiveCollector.daysNeedingArchive` — мёртвый код для multi-day**. Удалить можно, но безопасный refactor лучше сделать в отдельной сессии.
+- ~~**`PastSessionsArchiveCollector.daysNeedingArchive` — мёртвый код для multi-day**.~~ Уже не мёртвый: используется для бейджа «забытые дни» на вкладке «Архив» и в вечернем напоминании (окно 30 дней).
 - **`abortOnError = true` для release lint**. Может сломать сборку из-за warnings — отложим до отдельной задачи с baseline.
 - **`SessionNotificationDevPreview` / `SessionNotificationSyncSimulation` за `BuildConfig.DEBUG`** — оставлено в ETAP_3, но не критично.

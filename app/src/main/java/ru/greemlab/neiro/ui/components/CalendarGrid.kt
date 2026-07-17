@@ -43,6 +43,7 @@ fun CalendarGrid(
     selectedDate: LocalDate?,
     dayData: Map<LocalDate, List<String>> = emptyMap(),
     archiveMismatchDates: Set<LocalDate> = emptySet(),
+    daysNeedingArchive: Set<LocalDate> = emptySet(),
     workingDays: Set<DayOfWeek> = emptySet(),
     onDateClick: (LocalDate) -> Unit,
 ) {
@@ -82,6 +83,7 @@ fun CalendarGrid(
                             hasIntensive = hasIntensive,
                             isWorkingDay = !hasWorkingDayFilter || workingDays.contains(date.dayOfWeek),
                             archiveMismatch = date in archiveMismatchDates,
+                            needsArchive = date in daysNeedingArchive,
                             onDateClick = onDateClick,
                             modifier = Modifier.weight(1f),
                         )

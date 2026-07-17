@@ -51,6 +51,35 @@ class PastSessionsArchiveCollectorTest {
     }
 
     @Test
+    fun `daysNeedingArchive returns forgotten past days sorted within lookback`() {
+        val today = LocalDate.of(2026, 7, 17)
+        val forgotten1 = today.minusDays(3)
+        val forgotten2 = today.minusDays(1)
+        val tooOld = today.minusDays(31)
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Анна",
+            status = AttendanceStatus.ARRIVED,
+            time = "10:00-10:50",
+            phone = "",
+            comment = "",
+        )
+
+        val result = PastSessionsArchiveCollector.daysNeedingArchive(
+            dayData = mapOf(
+                forgotten2 to listOf(raw),
+                forgotten1 to listOf(raw),
+                tooOld to listOf(raw),
+                today to listOf(raw),
+            ),
+            archivedDates = emptySet(),
+            profile = UserProfile(name = "Тест", isRegistered = true),
+            today = today,
+        )
+
+        assertEquals(listOf(forgotten1, forgotten2), result)
+    }
+
+    @Test
     fun `todayNeedingArchive returns today when sessions exist and not archived`() {
         val today = LocalDate.of(2026, 5, 23)
         val raw = SessionFormat.serializeStudentExtended(

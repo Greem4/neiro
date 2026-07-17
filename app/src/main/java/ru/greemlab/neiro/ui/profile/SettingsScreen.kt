@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -42,8 +43,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenYClientsAuth: () -> Unit,
 ) {
-    val profile by viewModel.userProfile.collectAsState()
-    val isLoggedInToYClients by syncViewModel.isLoggedIn.collectAsState()
+    val profile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isLoggedInToYClients by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
     SettingsScreenImpl(
         profile = profile,

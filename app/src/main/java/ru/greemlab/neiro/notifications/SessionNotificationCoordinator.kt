@@ -82,6 +82,8 @@ object SessionNotificationCoordinator {
     /**
      * После обновления календаря с API (live-опрос или ручная синхронизация):
      * сравнить снимок до/после и уведомить об изменениях.
+     *
+     * Если [dayDataBefore] == [dayDataAfter] — быстрый выход (без перепланирования WorkManager).
      */
     suspend fun onCalendarUpdatedFromApi(
         context: Context,
@@ -91,11 +93,19 @@ object SessionNotificationCoordinator {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)
         if (!prefs.isEnabled) return
-        if (!YClientsRepository.getInstance(appContext).isLoggedIn.value) return
+        if (!YClientsRepository.getInstance(appContext).isLoggedIn.first()) return
 
         val calendarRepository = CalendarDataStoreProvider.get(appContext)
         val profile = calendarRepository.userProfileFlow.first()
         if (!profile.isRegistered) return
+
+        if (dayDataBefore == dayDataAfter) {
+            if (!prefs.hasBaselineSnapshot) {
+                prefs.establishBaseline(CalendarSessionSnapshot.from(dayDataAfter, profile))
+                scheduleAfterBaseline(appContext, profile, prefs)
+            }
+            return
+        }
 
         val before = CalendarSessionSnapshot.from(dayDataBefore, profile)
         val after = CalendarSessionSnapshot.from(dayDataAfter, profile)
@@ -182,13 +192,18 @@ object SessionNotificationCoordinator {
             return
         }
 
+        // Diff только по факту этого sync (dayData до/после), не по prefs-snapshot:
+        // иначе локальные правки интенсивов выглядят как NEW_BOOKING/DELETED.
         val today = LocalDate.now()
-        val storedBefore = CalendarSessionSnapshot.withinHorizon(prefs.loadSnapshot(), today)
-        val effectiveBefore = storedBefore.ifEmpty {
-            CalendarSessionSnapshot.withinHorizon(before, today)
+        val effectiveBefore = CalendarSessionSnapshot.withinHorizon(before, today)
+        val effectiveAfter = CalendarSessionSnapshot.withinHorizon(after, today)
+
+        if (effectiveBefore == effectiveAfter) {
+            prefs.saveSnapshot(effectiveAfter)
+            return
         }
 
-        val events = SessionChangeDetector.detect(effectiveBefore, after)
+        val events = SessionChangeDetector.detect(effectiveBefore, effectiveAfter)
             .filter { prefs.isTypeEnabled(it.type) }
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
@@ -199,7 +214,7 @@ object SessionNotificationCoordinator {
             }
         }
 
-        prefs.saveSnapshot(after)
+        prefs.saveSnapshot(effectiveAfter)
         scheduleAfterBaseline(context, profile, prefs)
     }
 
@@ -215,7 +230,9 @@ object SessionNotificationCoordinator {
 
         applyReminderSchedule(context, upcoming, prefs)
         scheduleDailyNotifications(context)
-        rescheduleAllDailyDigests(context)
+        // Из sync-пути только гарантируем наличие работ (KEEP), без cancel:
+        // cancel+enqueue около времени сводки убивал бы уже запущенный digest-worker.
+        ensureAllDailyDigestsScheduled(context)
 
         runDailyScheduledChecks(
             context,
@@ -253,40 +270,73 @@ object SessionNotificationCoordinator {
         }
     }
 
+    /**
+     * Жёсткое перепланирование (cancel + enqueue) — только при смене времени/настроек
+     * пользователем. Из sync-пути использовать [ensureAllDailyDigestsScheduled].
+     */
     fun rescheduleDigest(context: Context, kind: ScheduledDigestKind) {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)
-        if (!prefs.isEnabled) {
+        if (!prefs.isEnabled || !isDigestEnabled(prefs, kind)) {
             cancelDigestWork(appContext, kind)
             return
         }
+        cancelDigestWork(appContext, kind) // принудительно сбрасываем старый
+        enqueueDigestWork(appContext, digestWorkName(kind), digestTime(prefs, kind), kind)
+    }
 
-        when (kind) {
-            ScheduledDigestKind.TODAY -> {
-                if (!prefs.notifyTodayDigest) {
-                    cancelDigestWork(appContext, kind)
-                    return
-                }
-                cancelDigestWork(appContext, kind) // принудительно сбрасываем старый
-                enqueueDigestWork(appContext, WORK_TODAY_DIGEST, prefs.todayDigestTime, kind)
-            }
-            ScheduledDigestKind.TOMORROW -> {
-                if (!prefs.notifyTomorrowDigest) {
-                    cancelDigestWork(appContext, kind)
-                    return
-                }
-                cancelDigestWork(appContext, kind)
-                enqueueDigestWork(appContext, WORK_TOMORROW_DIGEST, prefs.tomorrowDigestTime, kind)
-            }
-            ScheduledDigestKind.ARCHIVE -> {
-                if (!prefs.notifyArchiveReminder) {
-                    cancelDigestWork(appContext, kind)
-                    return
-                }
-                cancelDigestWork(appContext, kind)
-                enqueueDigestWork(appContext, WORK_ARCHIVE_DIGEST, prefs.archiveReminderTime, kind)
-            }
+    /**
+     * Self-reschedule из работающего digest-worker'а: без cancel (не убивать себя)
+     * и с APPEND_OR_REPLACE — KEEP отбросил бы запрос, пока worker в RUNNING.
+     */
+    fun rescheduleDigestFromWorker(context: Context, kind: ScheduledDigestKind) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled || !isDigestEnabled(prefs, kind)) return
+        enqueueDigestWork(
+            appContext,
+            digestWorkName(kind),
+            digestTime(prefs, kind),
+            kind,
+            policy = ExistingWorkPolicy.APPEND_OR_REPLACE,
+        )
+    }
+
+    private fun ensureDigestScheduled(context: Context, kind: ScheduledDigestKind) {
+        val prefs = SessionNotificationPreferences.get(context)
+        if (!prefs.isEnabled || !isDigestEnabled(prefs, kind)) {
+            cancelDigestWork(context, kind)
+            return
         }
+        enqueueDigestWork(context, digestWorkName(kind), digestTime(prefs, kind), kind)
+    }
+
+    private fun ensureAllDailyDigestsScheduled(context: Context) {
+        ScheduledDigestKind.entries.forEach { ensureDigestScheduled(context, it) }
+    }
+
+    private fun isDigestEnabled(
+        prefs: SessionNotificationPreferences,
+        kind: ScheduledDigestKind,
+    ): Boolean = when (kind) {
+        ScheduledDigestKind.TODAY -> prefs.notifyTodayDigest
+        ScheduledDigestKind.TOMORROW -> prefs.notifyTomorrowDigest
+        ScheduledDigestKind.ARCHIVE -> prefs.notifyArchiveReminder
+    }
+
+    private fun digestTime(
+        prefs: SessionNotificationPreferences,
+        kind: ScheduledDigestKind,
+    ): ScheduledNotificationTime = when (kind) {
+        ScheduledDigestKind.TODAY -> prefs.todayDigestTime
+        ScheduledDigestKind.TOMORROW -> prefs.tomorrowDigestTime
+        ScheduledDigestKind.ARCHIVE -> prefs.archiveReminderTime
+    }
+
+    private fun digestWorkName(kind: ScheduledDigestKind): String = when (kind) {
+        ScheduledDigestKind.TODAY -> WORK_TODAY_DIGEST
+        ScheduledDigestKind.TOMORROW -> WORK_TOMORROW_DIGEST
+        ScheduledDigestKind.ARCHIVE -> WORK_ARCHIVE_DIGEST
     }
 
     suspend fun runDailyScheduledChecks(context: Context) {
@@ -360,6 +410,7 @@ object SessionNotificationCoordinator {
         uniqueName: String,
         scheduled: ScheduledNotificationTime,
         kind: ScheduledDigestKind,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
     ) {
         val delayMs = DigestSchedule
             .delayUntilNext(scheduled, ZoneId.systemDefault(), ZonedDateTime.now(ZoneId.systemDefault()))
@@ -373,7 +424,7 @@ object SessionNotificationCoordinator {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             uniqueName,
-            ExistingWorkPolicy.KEEP,
+            policy,
             request,
         )
     }
@@ -402,7 +453,6 @@ object SessionNotificationCoordinator {
             cancelAll(context)
             return
         }
-        scheduleSessionReminders(context)
         scheduleDailyNotifications(context)
         rescheduleAllDailyDigests(context)
     }
@@ -419,30 +469,22 @@ object SessionNotificationCoordinator {
         }
     }
 
-    /** Только «за N минут до занятия»; не влияет на сводки и архив. */
-    private fun scheduleSessionReminders(context: Context) {
-        val prefs = SessionNotificationPreferences.get(context)
-        if (!prefs.isEnabled || !prefs.notifyReminder) {
-            WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME)
-            return
-        }
-
-        val request = PeriodicWorkRequestBuilder<SessionReminderWorker>(15, TimeUnit.MINUTES)
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            PERIODIC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request,
-        )
-    }
-
-    /** Сводки и архив: отдельный периодический воркер, работает без notifyReminder. */
+    /**
+     * Единый периодический «notification tick»: напоминания (fallback к one-time),
+     * сводки и архив. Один periodic вместо двух — меньше пробуждений и расхода батареи.
+     */
     private fun scheduleDailyNotifications(context: Context) {
         val prefs = SessionNotificationPreferences.get(context)
         val workManager = WorkManager.getInstance(context)
+        // Легаси-имя старого отдельного periodic-воркера напоминаний.
+        workManager.cancelUniqueWork(PERIODIC_WORK_NAME)
         if (!prefs.isEnabled ||
-            (!prefs.notifyTodayDigest && !prefs.notifyTomorrowDigest && !prefs.notifyArchiveReminder)
+            (
+                !prefs.notifyReminder &&
+                    !prefs.notifyTodayDigest &&
+                    !prefs.notifyTomorrowDigest &&
+                    !prefs.notifyArchiveReminder
+                )
         ) {
             workManager.cancelUniqueWork(PERIODIC_DAILY_WORK_NAME)
             return
@@ -461,6 +503,37 @@ object SessionNotificationCoordinator {
     /** Проверка сводок и архива при открытии приложения (если время уже наступило). */
     suspend fun checkDueDigestsOnAppOpen(context: Context) {
         runDailyScheduledChecks(context)
+    }
+
+    /**
+     * Показ напоминаний «за N минут»: точечный (по [dedupeKey] из one-time work)
+     * или все попавшие в окно (периодический fallback, dedupeKey == null).
+     */
+    suspend fun runReminderCheck(context: Context, dedupeKey: String? = null) {
+        val appContext = context.applicationContext
+        val prefs = SessionNotificationPreferences.get(appContext)
+        if (!prefs.isEnabled || !prefs.notifyReminder) return
+
+        val calendarRepository = CalendarDataStoreProvider.get(appContext)
+        val profile = calendarRepository.userProfileFlow.first()
+        if (!profile.isRegistered) return
+
+        val dayData = calendarRepository.dayDataFlow.first()
+        val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
+        if (upcoming.isEmpty()) return
+
+        val toNotify = if (dedupeKey != null) {
+            upcoming.filter { it.dedupeKey == dedupeKey }
+        } else {
+            UpcomingSessionsCollector.collectDueForReminder(upcoming, prefs.reminderMinutesBefore)
+        }.filter { !prefs.wasReminderNotified(it.dedupeKey) }
+
+        if (toNotify.isEmpty()) return
+
+        if (NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
+            SessionNotificationDisplay.showReminder(appContext, toNotify)
+            toNotify.forEach { prefs.markReminderNotified(it.dedupeKey) }
+        }
     }
 
     private fun rescheduleReminders(
@@ -505,7 +578,10 @@ object SessionNotificationCoordinator {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTodayDigest(today.toEpochDay())) return
 
-        SessionNotificationDisplay.showTodayDigest(context, todayList)
+        if (!SessionNotificationDisplay.showTodayDigest(context, todayList)) {
+            // Показ не удался — откатываем claim, иначе сводка потеряна на весь день.
+            prefs.clearTodayDigestShown()
+        }
     }
 
     private fun maybeShowTomorrowDigest(
@@ -521,9 +597,17 @@ object SessionNotificationCoordinator {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTomorrowDigest(tomorrow.toEpochDay())) return
 
-        SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)
+        if (!SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)) {
+            prefs.clearTomorrowDigestShown()
+        }
     }
 
+    /**
+     * Вечернее напоминание об архиве: сегодняшний день + забытые прошлые дни
+     * (например, сегодня 17-е, а 14-е так и не перенесено). Каждая дата
+     * напоминается один раз (claim); в UI забытые дни дальше видны бейджем
+     * на вкладке «Архив».
+     */
     private fun maybeShowArchiveReminder(
         context: Context,
         dayData: Map<LocalDate, List<String>>,
@@ -532,17 +616,28 @@ object SessionNotificationCoordinator {
         prefs: SessionNotificationPreferences,
     ) {
         val today = LocalDate.now()
-        val date = PastSessionsArchiveCollector.todayNeedingArchive(
+        val pastDates = PastSessionsArchiveCollector.daysNeedingArchive(
             dayData = dayData,
             archivedDates = savedDayData.keys,
             profile = profile,
             today = today,
-        ) ?: return
+        )
+        val todayDate = PastSessionsArchiveCollector.todayNeedingArchive(
+            dayData = dayData,
+            archivedDates = savedDayData.keys,
+            profile = profile,
+            today = today,
+        )
+        val candidates = pastDates + listOfNotNull(todayDate)
+        if (candidates.isEmpty()) return
 
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-        if (!prefs.claimArchiveReminder(date.toEpochDay())) return
+        val claimed = candidates.filter { prefs.claimArchiveReminder(it.toEpochDay()) }
+        if (claimed.isEmpty()) return
 
-        SessionNotificationDisplay.showArchiveReminder(context, listOf(date), dayData)
+        if (!SessionNotificationDisplay.showArchiveReminder(context, claimed, dayData)) {
+            claimed.forEach { prefs.clearArchiveReminderShown(it.toEpochDay()) }
+        }
     }
 
     suspend fun onLoggedOut(context: Context) {

@@ -3,8 +3,10 @@ package ru.greemlab.neiro.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.sync.Mutex
@@ -27,7 +30,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "calendar_data")
+// corruptionHandler: битый calendar_data.preferences_pb не роняет приложение —
+// стартуем с пустых prefs, снимок восстановится из sync-кэша при следующем sync.
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "calendar_data",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 private const val DAY_DATA_KEY = "day_data_json"
 private const val SAVED_DAY_DATA_KEY = "saved_day_data_json"
@@ -106,14 +114,18 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     override fun peekSnapshot(): StoreSnapshot = cachedState.value
 
     override suspend fun warmUp() {
-        val prefs = appContext.dataStore.data.first()
-        val snapshot = parseSnapshot(prefs)
-        cachedState.value = snapshot
-        writeSyncCache(
-            dayJson = prefs[dataKey],
-            profileJson = prefs[profileKey],
-            themeValue = prefs[themeKey],
-        )
+        // Под writer-локом: гидратация не гоняется с параллельной записью,
+        // которая могла бы быть перезатёрта устаревшим snapshot'ом.
+        writeMutex.withLock {
+            val prefs = appContext.dataStore.data.first()
+            val snapshot = parseSnapshot(prefs)
+            cachedState.value = snapshot
+            writeSyncCache(
+                dayJson = prefs[dataKey],
+                profileJson = prefs[profileKey],
+                themeValue = prefs[themeKey],
+            )
+        }
     }
 
     private val snapshotsFlow: Flow<StoreSnapshot> = appContext.dataStore.data
@@ -127,6 +139,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
             )
             snapshot
         }
+        // Gson-парс всего календаря и запись sync-кэша — не в контексте коллектора
+        // (обычно viewModelScope/Main), иначе каждый sync дёргает UI-поток.
+        .flowOn(Dispatchers.Default)
         .onStart { emit(cachedState.value) }
         .distinctUntilChanged()
 
@@ -182,14 +197,23 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
     override suspend fun updateProfile(transform: (UserProfile) -> UserProfile) {
         writeMutex.withLock {
-            val current = cachedState.value.profile
-            val updated = transform(current)
-            if (updated == current) return@withLock
-            val json = UserProfileJson.toJson(updated)
-            appContext.dataStore.edit { prefs -> prefs[profileKey] = json }
+            var updated: UserProfile? = null
+            var json: String? = null
+            // Читаем актуальное значение внутри edit, а не из cachedState:
+            // RMW не зависит от того, успел ли завершиться warmUp.
+            appContext.dataStore.edit { prefs ->
+                val current = UserProfileJson.fromJson(prefs[profileKey])
+                val next = transform(current)
+                if (next == current) return@edit
+                val serialized = UserProfileJson.toJson(next)
+                prefs[profileKey] = serialized
+                updated = next
+                json = serialized
+            }
+            val next = updated ?: return@withLock
             // cached обновляется коллектором Flow, но peek-API должен видеть свежее значение
             // немедленно, поэтому подменяем атомарно здесь.
-            cachedState.value = cachedState.value.copy(profile = updated)
+            cachedState.value = cachedState.value.copy(profile = next)
             writeSyncCache(profileJson = json)
         }
     }
@@ -211,11 +235,23 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
-    override suspend fun saveDayData(data: Map<LocalDate, List<String>>) {
+    override suspend fun updateDayData(
+        transform: (Map<LocalDate, List<String>>) -> Map<LocalDate, List<String>>,
+    ) {
         writeMutex.withLock {
-            val serialized = serializeDayData(data)
-            appContext.dataStore.edit { prefs -> prefs[dataKey] = serialized }
-            cachedState.value = cachedState.value.copy(dayData = data)
+            var updated: Map<LocalDate, List<String>>? = null
+            var serialized: String? = null
+            appContext.dataStore.edit { prefs ->
+                val current = parseDayData(prefs[dataKey])
+                val next = transform(current)
+                if (next == current) return@edit
+                val json = serializeDayData(next)
+                prefs[dataKey] = json
+                updated = next
+                serialized = json
+            }
+            val next = updated ?: return@withLock
+            cachedState.value = cachedState.value.copy(dayData = next)
             writeSyncCache(dayJson = serialized)
         }
     }

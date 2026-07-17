@@ -17,7 +17,11 @@ import java.time.LocalDate
 object SessionNotificationDisplay {
 
     const val CHANNEL_ID = "neiro_sessions"
-    private const val GROUP_KEY = "neiro_sessions_group"
+
+    // Раздельные group key: digest-summary в общей группе с events давал
+    // странную группировку в шторке (E2).
+    private const val GROUP_KEY_EVENTS = "neiro_sessions_events"
+    private const val GROUP_KEY_REMINDERS = "neiro_sessions_reminders"
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -62,8 +66,9 @@ object SessionNotificationDisplay {
         }
     }
 
-    fun showTodayDigest(context: Context, sessions: List<UpcomingSession>) {
-        if (sessions.isEmpty()) return
+    /** @return false, если система не приняла уведомление — вызывающий откатывает claim. */
+    fun showTodayDigest(context: Context, sessions: List<UpcomingSession>): Boolean {
+        if (sessions.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordTodayDigest(context, sessions)
 
@@ -74,16 +79,15 @@ object SessionNotificationDisplay {
 
         val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setGroup(GROUP_KEY)
-            .setGroupSummary(true)
             .setContentIntent(openCalendarIntent(context, LocalDate.now()))
             .build()
 
-        notify(context, NOTIFICATION_ID_TODAY_DIGEST, notification)
+        return notify(context, NOTIFICATION_ID_TODAY_DIGEST, notification)
     }
 
-    fun showTomorrowDigest(context: Context, sessions: List<UpcomingSession>) {
-        if (sessions.isEmpty()) return
+    /** @return false, если система не приняла уведомление — вызывающий откатывает claim. */
+    fun showTomorrowDigest(context: Context, sessions: List<UpcomingSession>): Boolean {
+        if (sessions.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordTomorrowDigest(context, sessions)
 
@@ -95,20 +99,23 @@ object SessionNotificationDisplay {
 
         val notification = baseBuilder(context, title, content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setGroup(GROUP_KEY)
-            .setGroupSummary(true)
             .setContentIntent(openCalendarIntent(context, tomorrow))
             .build()
 
-        notify(context, NOTIFICATION_ID_TOMORROW_DIGEST, notification)
+        return notify(context, NOTIFICATION_ID_TOMORROW_DIGEST, notification)
     }
 
-    fun showArchiveReminder(context: Context, dates: List<LocalDate>, dayData: Map<LocalDate, List<String>>) {
-        if (dates.isEmpty()) return
+    /** @return false, если система не приняла уведомление — вызывающий откатывает claim. */
+    fun showArchiveReminder(
+        context: Context,
+        dates: List<LocalDate>,
+        dayData: Map<LocalDate, List<String>>,
+    ): Boolean {
+        if (dates.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordArchiveReminder(context, dates, dayData)
 
-        when (dates.size) {
+        return when (dates.size) {
             1 -> showSingleArchiveReminder(context, dates.first(), dayData)
             else -> showGroupedArchiveReminder(context, dates, dayData)
         }
@@ -118,9 +125,9 @@ object SessionNotificationDisplay {
         context: Context,
         date: LocalDate,
         dayData: Map<LocalDate, List<String>>,
-    ) {
+    ): Boolean {
         val count = PastSessionsArchiveCollector.sessionCount(dayData[date].orEmpty())
-        val title = SessionNotificationTexts.archiveTitle(context)
+        val title = SessionNotificationTexts.archiveTitleForDate(context, date)
         val content = SessionNotificationTexts.archiveBody(context, count)
 
         val notification = baseBuilder(context, title, content)
@@ -128,14 +135,14 @@ object SessionNotificationDisplay {
             .setContentIntent(openCalendarIntent(context, date))
             .build()
 
-        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER + stableHash(date.toString()), notification)
+        return notify(context, dynamicNotificationId("archive|$date"), notification)
     }
 
     private fun showGroupedArchiveReminder(
         context: Context,
         dates: List<LocalDate>,
         dayData: Map<LocalDate, List<String>>,
-    ) {
+    ): Boolean {
         val title = SessionNotificationTexts.archiveGroupTitle(context, dates.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
         dates.forEach { date ->
@@ -146,12 +153,10 @@ object SessionNotificationDisplay {
         val firstDate = dates.first()
         val summary = baseBuilder(context, title, SessionNotificationTexts.archiveGroupSummary(context))
             .setStyle(inbox)
-            .setGroup(GROUP_KEY)
-            .setGroupSummary(true)
             .setContentIntent(openCalendarIntent(context, firstDate))
             .build()
 
-        notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER, summary)
+        return notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER, summary)
     }
 
     private fun showSingleEvent(context: Context, event: SessionEvent) {
@@ -163,7 +168,7 @@ object SessionNotificationDisplay {
             .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
             .build()
 
-        notify(context, event.dedupeKey.hashCode(), notification)
+        notify(context, dynamicNotificationId(event.dedupeKey), notification)
     }
 
     private fun showGroupedEvents(context: Context, events: List<SessionEvent>) {
@@ -173,7 +178,7 @@ object SessionNotificationDisplay {
 
         val summary = baseBuilder(context, title, SessionNotificationTexts.eventContent(context, events.first()))
             .setStyle(inbox)
-            .setGroup(GROUP_KEY)
+            .setGroup(GROUP_KEY_EVENTS)
             .setGroupSummary(true)
             .setContentIntent(openCalendarIntent(context, events.first().session.date, events.first().session.slotKey))
             .build()
@@ -186,10 +191,10 @@ object SessionNotificationDisplay {
                 SessionNotificationTexts.eventTitle(context, event),
                 SessionNotificationTexts.eventContent(context, event),
             )
-                .setGroup(GROUP_KEY)
+                .setGroup(GROUP_KEY_EVENTS)
                 .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
                 .build()
-            notify(context, event.dedupeKey.hashCode(), child)
+            notify(context, dynamicNotificationId(event.dedupeKey), child)
         }
     }
 
@@ -215,7 +220,7 @@ object SessionNotificationDisplay {
             )
             .build()
 
-        notify(context, session.dedupeKey.hashCode(), notification)
+        notify(context, dynamicNotificationId(session.dedupeKey), notification)
     }
 
     private fun showGroupedReminders(context: Context, sessions: List<UpcomingSession>) {
@@ -226,7 +231,7 @@ object SessionNotificationDisplay {
 
         val summary = baseBuilder(context, title, SessionNotificationTexts.formatUpcomingLine(sorted.first()))
             .setStyle(inbox)
-            .setGroup(GROUP_KEY)
+            .setGroup(GROUP_KEY_REMINDERS)
             .setGroupSummary(true)
             .setContentIntent(openCalendarIntent(context, sorted.first().date))
             .build()
@@ -235,7 +240,7 @@ object SessionNotificationDisplay {
 
         sorted.forEach { session ->
             val child = baseBuilder(context, session.clientName, SessionNotificationTexts.formatUpcomingLine(session))
-                .setGroup(GROUP_KEY)
+                .setGroup(GROUP_KEY_REMINDERS)
                 .setContentIntent(
                     openCalendarIntent(
                         context,
@@ -244,7 +249,7 @@ object SessionNotificationDisplay {
                     ),
                 )
                 .build()
-            notify(context, session.dedupeKey.hashCode(), child)
+            notify(context, dynamicNotificationId(session.dedupeKey), child)
         }
     }
 
@@ -280,19 +285,30 @@ object SessionNotificationDisplay {
         )
     }
 
-    private fun stableHash(value: String): Int = value.hashCode()
+    private fun stableHash(value: String): Int = value.hashCode() and 0x7fffffff
 
-    private fun notify(context: Context, id: Int, notification: android.app.Notification) {
+    /**
+     * Динамические id живут в выделенном диапазоне [NOTIFICATION_ID_DYNAMIC_BASE, ...) —
+     * не пересекаются с фиксированными 10_001–10_005 и всегда неотрицательны (E1).
+     */
+    private fun dynamicNotificationId(key: String): Int =
+        NOTIFICATION_ID_DYNAMIC_BASE + stableHash(key) % NOTIFICATION_ID_DYNAMIC_RANGE
+
+    /** @return false, если система не приняла уведомление (нет разрешения / AppOps). */
+    private fun notify(context: Context, id: Int, notification: android.app.Notification): Boolean =
         try {
             NotificationManagerCompat.from(context.applicationContext).notify(id, notification)
+            true
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS не выдан или ошибка AppOps (uid -1).
+            false
         }
-    }
 
     private const val NOTIFICATION_ID_TODAY_DIGEST = 10_001
     private const val NOTIFICATION_ID_EVENTS_GROUP = 10_002
     private const val NOTIFICATION_ID_REMINDER_GROUP = 10_003
     private const val NOTIFICATION_ID_TOMORROW_DIGEST = 10_004
     private const val NOTIFICATION_ID_ARCHIVE_REMINDER = 10_005
+    private const val NOTIFICATION_ID_DYNAMIC_BASE = 20_000
+    private const val NOTIFICATION_ID_DYNAMIC_RANGE = 100_000_000
 }
