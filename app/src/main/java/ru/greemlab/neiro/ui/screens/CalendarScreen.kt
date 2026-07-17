@@ -4,10 +4,11 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Payments
@@ -631,6 +632,7 @@ fun CalendarScreenContent(
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
+    val scrollableState = rememberScrollableState { 0f }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -647,7 +649,7 @@ fun CalendarScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .verticalScroll(rememberScrollState())
+                    .scrollable(scrollableState, Orientation.Vertical)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
                 CalendarRefreshSplit(
@@ -718,7 +720,6 @@ fun CalendarScreenContent(
                         }
                     },
                 )
-                // Отступ снизу, чтобы кнопка "Сегодня" не перекрывала дни при прокрутке до конца
                 Spacer(modifier = Modifier.navigationBarsPadding().height(80.dp))
             }
 
