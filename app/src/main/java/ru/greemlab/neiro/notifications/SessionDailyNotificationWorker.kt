@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.first
 import java.time.LocalTime
 
 /**
- * Сводки и напоминание об архиве в настраиваемое время.
+ * Единый периодический «notification tick»: сводки, напоминание об архиве
+ * и fallback-проверка окна напоминаний о занятиях.
  */
 class SessionDailyNotificationWorker(
     appContext: Context,
@@ -16,6 +17,7 @@ class SessionDailyNotificationWorker(
 
     override suspend fun doWork(): Result {
         SessionNotificationCoordinator.runDailyScheduledChecks(applicationContext)
+        SessionNotificationCoordinator.runReminderCheck(applicationContext)
         return Result.success()
     }
 
