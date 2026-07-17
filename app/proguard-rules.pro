@@ -7,8 +7,9 @@
 -renamesourcefileattribute SourceFile
 
 # --- Gson ---
+# Широкий -keep com.google.gson.** не нужен: библиотека несёт consumer-rules,
+# достаточно сохранить наши адаптеры и поля с @SerializedName.
 -dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
 -keep class * extends com.google.gson.TypeAdapter
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
@@ -28,8 +29,9 @@
 -keep class ru.greemlab.neiro.notifications.SessionNotificationPreferences$* { *; }
 
 # --- Retrofit ---
+# Retrofit/OkHttp несут собственные consumer-rules; оставляем только
+# аннотации HTTP-методов наших интерфейсов и -dontwarn.
 -dontwarn retrofit2.**
--keep class retrofit2.** { *; }
 -keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
     @retrofit2.http.* <methods>;
@@ -38,8 +40,6 @@
 # --- OkHttp ---
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
 
 # --- Kotlin metadata, нужна Compose ---
 -keep class kotlin.Metadata { *; }
@@ -51,6 +51,7 @@
 }
 -keepclassmembers class * extends androidx.lifecycle.AndroidViewModel {
     <init>(android.app.Application);
+    <init>(android.app.Application, androidx.lifecycle.SavedStateHandle);
 }
 
 # --- Compose: оставляем сгенерированные функции с runtime-аннотациями ---
