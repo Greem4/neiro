@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.sync.Mutex
@@ -127,6 +128,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
             )
             snapshot
         }
+        // Gson-парс всего календаря и запись sync-кэша — не в контексте коллектора
+        // (обычно viewModelScope/Main), иначе каждый sync дёргает UI-поток.
+        .flowOn(Dispatchers.Default)
         .onStart { emit(cachedState.value) }
         .distinctUntilChanged()
 
