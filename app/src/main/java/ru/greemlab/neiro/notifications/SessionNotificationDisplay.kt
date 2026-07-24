@@ -215,7 +215,7 @@ object SessionNotificationDisplay {
                 openCalendarIntent(
                     context,
                     session.date,
-                    SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                    SessionSlotKey.build(session.clientName, session.date, session.startTime, session.kind),
                 ),
             )
             .build()
@@ -245,7 +245,7 @@ object SessionNotificationDisplay {
                     openCalendarIntent(
                         context,
                         session.date,
-                        SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                        SessionSlotKey.build(session.clientName, session.date, session.startTime, session.kind),
                     ),
                 )
                 .build()
