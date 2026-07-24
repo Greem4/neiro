@@ -700,6 +700,7 @@ object SessionNotificationCoordinator {
         SessionNotificationPreferences.get(appContext).resetSyncNotificationState()
         SessionNotificationPreferences.get(appContext).clearTodayDigestShown()
         SessionNotificationPreferences.get(appContext).clearTomorrowDigestShown()
+        SessionNotificationPreferences.get(appContext).clearAllArchiveReminders()
     }
 
     private fun cancelAll(context: Context) {

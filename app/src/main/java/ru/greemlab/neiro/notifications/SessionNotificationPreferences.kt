@@ -222,6 +222,14 @@ class SessionNotificationPreferences(context: Context) {
         prefs.edit().putString(KEY_ARCHIVE_REMINDER_DAYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
+    /** Logout: полностью сбросить архивный LRU (иначе claim-и следующего аккаунта путаются со старыми). */
+    fun clearAllArchiveReminders() {
+        prefs.edit()
+            .remove(KEY_ARCHIVE_REMINDER_DAYS_LIST)
+            .remove(KEY_ARCHIVE_REMINDER_DAYS)
+            .apply()
+    }
+
     fun saveSnapshot(sessions: List<TrackedSession>) {
         val json = gson.toJson(sessions.map { it.toSnapshotDto() })
         prefs.edit()
