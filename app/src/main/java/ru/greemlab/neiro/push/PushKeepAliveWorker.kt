@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.sync.SyncOutcome
 import ru.greemlab.neiro.sync.YClientsCalendarSync
 
 /**
@@ -23,16 +24,23 @@ class PushKeepAliveWorker(
         val repository = YClientsRepository.getInstance(applicationContext)
         if (!repository.isLoggedIn.first()) return Result.success()
 
-        try {
-            runCatching { PushRegistrar.registerNow(applicationContext) }
-                .onFailure { if (it is CancellationException) throw it }
-            runCatching {
-                YClientsCalendarSync.get(applicationContext).refreshLiveRange()
-            }.onFailure { if (it is CancellationException) throw it }
-        } finally {
-            if (!isStopped) {
-                PushKeepAliveCoordinator.scheduleNext(applicationContext)
-            }
+        val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
+            .onFailure { if (it is CancellationException) throw it }
+        val syncOutcome = runCatching {
+            YClientsCalendarSync.get(applicationContext).refreshLiveRange()
+        }.onFailure { if (it is CancellationException) throw it }
+
+        val failed = registerOutcome.isFailure ||
+            registerOutcome.getOrNull() == false ||
+            syncOutcome.isFailure ||
+            syncOutcome.getOrNull() is SyncOutcome.Failure
+
+        if (failed) {
+            return Result.retry()
+        }
+
+        if (!isStopped) {
+            PushKeepAliveCoordinator.scheduleNext(applicationContext)
         }
         return Result.success()
     }
