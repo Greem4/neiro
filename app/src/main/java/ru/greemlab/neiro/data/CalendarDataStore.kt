@@ -18,7 +18,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -408,8 +407,4 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
         if (changed) editor.apply()
     }
-
-    /** Read-only снимок состояния как StateFlow — нужен для отладки/тестов. */
-    @Suppress("unused")
-    fun snapshotState(): kotlinx.coroutines.flow.StateFlow<StoreSnapshot> = cachedState.asStateFlow()
 }

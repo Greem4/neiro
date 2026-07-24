@@ -3,7 +3,6 @@ package ru.greemlab.neiro.data.network
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
-import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -63,15 +62,6 @@ interface YClientsApi {
         @Query("page") page: Int = 1,
         @Query("count") count: Int = 200,
     ): Response<ClientsResponse>
-
-    /**
-     * Получить информацию о конкретной записи.
-     */
-    @GET("record/{company_id}/{record_id}")
-    suspend fun getRecord(
-        @Path("company_id") companyId: Int,
-        @Path("record_id") recordId: Long,
-    ): Response<RecordsResponse>
 
     /**
      * Публичный список сотрудников филиала (используется виджетом онлайн-записи).

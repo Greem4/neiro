@@ -33,6 +33,7 @@ class YClientsRepository(context: Context) {
     private val appContext = context.applicationContext
     private val api = YClientsClient.getApi(context)
     private val tokenStorage = YClientsClient.getTokenStorage(context)
+    private val errorGson = com.google.gson.Gson()
 
     private val logoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val logoutOn401InProgress = AtomicBoolean(false)
@@ -412,8 +413,7 @@ class YClientsRepository(context: Context) {
     private fun parseErrorMessage(errorBody: String?): String? {
         if (errorBody.isNullOrBlank()) return null
         return try {
-            val gson = com.google.gson.Gson()
-            val error = gson.fromJson(errorBody, ApiError::class.java)
+            val error = errorGson.fromJson(errorBody, ApiError::class.java)
             error.meta?.message
         } catch (e: Exception) {
             // Тело ответа не логируем: может содержать детали сессии.
