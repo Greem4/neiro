@@ -319,10 +319,14 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     }
 
     override suspend fun exportAllData(): String = withContext(Dispatchers.IO) {
-        val prefs = appContext.dataStore.data.first()
+        // Под writeMutex — иначе возможен torn read: чтение DataStore mid-write
+        // параллельной операции (см. D2/updateProfile — тот же RMW-принцип).
+        val savedDayJson = writeMutex.withLock {
+            appContext.dataStore.data.first()[savedDataKey] ?: EMPTY_OBJECT
+        }
         val data = linkedMapOf(
             ARCHIVE_EXPORTED_AT_KEY to LocalDateTime.now().format(archiveExportDateTimeFormatter),
-            "saved_day_data" to (prefs[savedDataKey] ?: EMPTY_OBJECT),
+            "saved_day_data" to savedDayJson,
             ArchiveNotificationStore.EXPORT_KEY to ArchiveNotificationStore.get(appContext).exportJson(),
         )
         gson.toJson(data)
