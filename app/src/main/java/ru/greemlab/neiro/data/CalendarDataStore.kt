@@ -304,6 +304,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
                 profileJson = EMPTY_OBJECT,
                 themeValue = THEME_SYSTEM
             )
+            // Легаси-ключ старых версий: writeSyncCache его не поддерживает,
+            // но на старых установках он мог там залежаться.
+            syncCache.edit().remove(SAVED_DAY_DATA_KEY).apply()
         }
     }
 
@@ -366,12 +369,16 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private fun loadFromSyncCache(): StoreSnapshot {
         val profileJson = syncCache.getString(PROFILE_KEY, null)
         val dayJson = syncCache.getString(DAY_DATA_KEY, null)
-        val savedDayJson = syncCache.getString(SAVED_DAY_DATA_KEY, null)
         val theme = syncCache.getString(THEME_KEY, null) ?: THEME_SYSTEM
+        // savedDayData: writeSyncCache никогда не поддерживает этот ключ в
+        // актуальном состоянии — не читаем его отсюда, иначе на установках,
+        // где ключ когда-то был записан старой версией, после clearAllData
+        // холодный старт кратко показывал бы устаревший архив-«зомби».
+        // Настоящее значение приходит почти сразу через warmUp()/snapshotsFlow.
         return StoreSnapshot(
             profile = UserProfileJson.fromJson(profileJson),
             dayData = parseDayData(dayJson),
-            savedDayData = parseDayData(savedDayJson),
+            savedDayData = emptyMap(),
             theme = theme,
         )
     }
