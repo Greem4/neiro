@@ -3,6 +3,7 @@ package ru.greemlab.neiro.push
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.sync.YClientsCalendarSync
@@ -24,11 +25,14 @@ class PushKeepAliveWorker(
 
         try {
             runCatching { PushRegistrar.registerNow(applicationContext) }
+                .onFailure { if (it is CancellationException) throw it }
             runCatching {
                 YClientsCalendarSync.get(applicationContext).refreshLiveRange()
-            }
+            }.onFailure { if (it is CancellationException) throw it }
         } finally {
-            PushKeepAliveCoordinator.scheduleNext(applicationContext)
+            if (!isStopped) {
+                PushKeepAliveCoordinator.scheduleNext(applicationContext)
+            }
         }
         return Result.success()
     }
