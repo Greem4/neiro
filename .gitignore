@@ -16,3 +16,5 @@ ruStoreApi.txt
 # Локальные утилиты и выгрузки (не в репозитории)
 tools/
 /app/release/
+*.aab
+*.apk
