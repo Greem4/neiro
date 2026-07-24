@@ -45,8 +45,9 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val _autoSyncEnabled = MutableStateFlow(syncPreferences.isAutoSyncEnabled)
     val autoSyncEnabled: StateFlow<Boolean> = _autoSyncEnabled.asStateFlow()
 
-    private val _sessionNotificationsEnabled = MutableStateFlow(notificationPreferences.isEnabled)
-    val sessionNotificationsEnabled: StateFlow<Boolean> = _sessionNotificationsEnabled.asStateFlow()
+    // Единый источник (SessionNotificationPreferences.isEnabledFlow) — см. P3:
+    // отдельный локальный StateFlow не видел бы переключение с другого экрана.
+    val sessionNotificationsEnabled: StateFlow<Boolean> = notificationPreferences.isEnabledFlow
 
     fun setAutoSyncEnabled(enabled: Boolean) {
         syncPreferences.isAutoSyncEnabled = enabled
@@ -56,7 +57,6 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     fun setSessionNotificationsEnabled(enabled: Boolean) {
         notificationPreferences.isEnabled = enabled
-        _sessionNotificationsEnabled.value = enabled
         viewModelScope.launch {
             SessionNotificationCoordinator.onNotificationsToggled(getApplication(), enabled)
         }

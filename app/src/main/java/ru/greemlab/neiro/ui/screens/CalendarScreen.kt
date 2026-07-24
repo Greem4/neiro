@@ -409,7 +409,13 @@ fun CalendarScreen(
         if (overlay is CalendarOverlay.DayDetails) {
             val dayContext = selectedDayContext
             if (dayContext == null) {
-                LaunchedEffect(Unit) { overlay = CalendarOverlay.None }
+                // selectedDate уже восстановлен (SavedStateHandle), а selectedDayContext
+                // (combine→stateIn) ещё не выдал первое значение — контекст грузится,
+                // а не отсутствует. Закрываем оверлей только если дата и правда null,
+                // иначе restore после process death мгновенно схлопывал открытый день (U3).
+                if (selectedDate == null) {
+                    LaunchedEffect(Unit) { overlay = CalendarOverlay.None }
+                }
             } else {
                 val date = dayContext.date
                 val archivedSessions = dayContext.archived

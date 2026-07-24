@@ -108,6 +108,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun login() {
         val state = _uiState.value
+        // IME Done + повторный тап по кнопке иначе запускали бы два параллельных
+        // repository.login (двойная push-регистрация, гонка записи токенов).
+        if (state.isLoading) return
         val loginForRequest = normalizeLoginForRequest(state.login)
 
         if (!repository.hasPartnerToken()) {

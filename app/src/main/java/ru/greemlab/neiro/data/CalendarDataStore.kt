@@ -12,15 +12,18 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -108,6 +111,8 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     /** Все записи в DataStore идут только под этим mutex — параллельные апдейты не теряются. */
     private val writeMutex = Mutex()
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val dayDataJsonType = object : TypeToken<Map<String, List<String>>>() {}.type
     private val backupJsonType = object : TypeToken<Map<String, String>>() {}.type
 
@@ -144,6 +149,10 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         .flowOn(Dispatchers.Default)
         .onStart { emit(cachedState.value) }
         .distinctUntilChanged()
+        // shareIn: без этого каждый из 4 публичных Flow ниже — независимая подписка
+        // на DataStore, т.е. N коллекторов = N Gson-парсов всего календаря и N
+        // записей sync-кэша на каждую эмиссию (D3).
+        .shareIn(appScope, SharingStarted.Eagerly, replay = 1)
 
     override val themeFlow: Flow<String> = snapshotsFlow
         .map { it.theme }
@@ -218,23 +227,6 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
-    override suspend fun applySessionPriceChange(newPrice: Double) {
-        writeMutex.withLock {
-            val snapshot = cachedState.value
-            val profile = snapshot.profile
-            if (newPrice == profile.pricePerSession) return@withLock
-
-            val updatedProfile = profile.copy(pricePerSession = newPrice)
-
-            val profileJson = UserProfileJson.toJson(updatedProfile)
-            appContext.dataStore.edit { prefs ->
-                prefs[profileKey] = profileJson
-            }
-            cachedState.value = snapshot.copy(profile = updatedProfile)
-            writeSyncCache(profileJson = profileJson)
-        }
-    }
-
     override suspend fun updateDayData(
         transform: (Map<LocalDate, List<String>>) -> Map<LocalDate, List<String>>,
     ) {
@@ -289,6 +281,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
                 profileJson = EMPTY_OBJECT,
                 themeValue = THEME_SYSTEM
             )
+            // Легаси-ключ старых версий: writeSyncCache его не поддерживает,
+            // но на старых установках он мог там залежаться.
+            syncCache.edit().remove(SAVED_DAY_DATA_KEY).apply()
         }
     }
 
@@ -301,10 +296,14 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     }
 
     override suspend fun exportAllData(): String = withContext(Dispatchers.IO) {
-        val prefs = appContext.dataStore.data.first()
+        // Под writeMutex — иначе возможен torn read: чтение DataStore mid-write
+        // параллельной операции (см. D2/updateProfile — тот же RMW-принцип).
+        val savedDayJson = writeMutex.withLock {
+            appContext.dataStore.data.first()[savedDataKey] ?: EMPTY_OBJECT
+        }
         val data = linkedMapOf(
             ARCHIVE_EXPORTED_AT_KEY to LocalDateTime.now().format(archiveExportDateTimeFormatter),
-            "saved_day_data" to (prefs[savedDataKey] ?: EMPTY_OBJECT),
+            "saved_day_data" to savedDayJson,
             ArchiveNotificationStore.EXPORT_KEY to ArchiveNotificationStore.get(appContext).exportJson(),
         )
         gson.toJson(data)
@@ -328,17 +327,20 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
         val parsedSavedDayData = parseDayData(savedDayJson)
 
-        parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
-            ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
-        }
-
-        return writeMutex.withLock {
+        // Сначала DataStore, потом notifications: если edit упадёт, уведомления
+        // не окажутся импортированы поверх несостоявшегося импорта календаря.
+        writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
                 prefs[savedDataKey] = savedDayJson
             }
             cachedState.value = cachedState.value.copy(savedDayData = parsedSavedDayData)
-            ImportResult.Success
         }
+
+        parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
+            ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
+        }
+
+        return ImportResult.Success
     }
 
     private fun serializeDayData(data: Map<LocalDate, List<String>>): String {
@@ -351,12 +353,16 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private fun loadFromSyncCache(): StoreSnapshot {
         val profileJson = syncCache.getString(PROFILE_KEY, null)
         val dayJson = syncCache.getString(DAY_DATA_KEY, null)
-        val savedDayJson = syncCache.getString(SAVED_DAY_DATA_KEY, null)
         val theme = syncCache.getString(THEME_KEY, null) ?: THEME_SYSTEM
+        // savedDayData: writeSyncCache никогда не поддерживает этот ключ в
+        // актуальном состоянии — не читаем его отсюда, иначе на установках,
+        // где ключ когда-то был записан старой версией, после clearAllData
+        // холодный старт кратко показывал бы устаревший архив-«зомби».
+        // Настоящее значение приходит почти сразу через warmUp()/snapshotsFlow.
         return StoreSnapshot(
             profile = UserProfileJson.fromJson(profileJson),
             dayData = parseDayData(dayJson),
-            savedDayData = parseDayData(savedDayJson),
+            savedDayData = emptyMap(),
             theme = theme,
         )
     }
@@ -379,8 +385,4 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
         if (changed) editor.apply()
     }
-
-    /** Read-only снимок состояния как StateFlow — нужен для отладки/тестов. */
-    @Suppress("unused")
-    fun snapshotState(): kotlinx.coroutines.flow.StateFlow<StoreSnapshot> = cachedState.asStateFlow()
 }

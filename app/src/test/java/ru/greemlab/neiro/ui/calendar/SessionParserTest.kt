@@ -162,6 +162,20 @@ class SessionParserTest {
     }
 
     @Test
+    fun `parses extended student comment containing vertical bar`() {
+        // U7: comment — последнее поле; без limit при split теряло хвост после `|`.
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Сидоров",
+            status = AttendanceStatus.CONFIRMED,
+            time = "10:00-11:00",
+            phone = "+79990000000",
+            comment = "мама|папа заберут в 12",
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals("мама|папа заберут в 12", parsed.comment)
+    }
+
+    @Test
     fun `fromYClients maps api codes to app statuses`() {
         assertEquals(AttendanceStatus.EXPECTED, AttendanceStatus.fromYClients(0))
         assertEquals(AttendanceStatus.ARRIVED, AttendanceStatus.fromYClients(1))
@@ -224,6 +238,31 @@ class SessionParserTest {
         assertEquals("Коновалов Ильдар", parsed.children[0].name)
         assertEquals(AttendanceStatus.CONFIRMED, parsed.children[1].status)
         assertFalse(parsed.amountFixed)
+    }
+
+    @Test
+    fun `SessionFormat round-trips intensive with children and no time`() {
+        // U2: пустой time + непустые children раньше ломали позиционный парсинг —
+        // первый ребёнок читался как time, остальные калечились.
+        val children = listOf(
+            Session.IntensiveChild("Коновалов Ильдар", AttendanceStatus.EXPECTED),
+            Session.IntensiveChild("Караховская Мария", AttendanceStatus.CONFIRMED),
+        )
+        val raw = SessionFormat.serializeIntensive(
+            price = "8000",
+            name = "Интенсив",
+            status = AttendanceStatus.EXPECTED,
+            time = "",
+            children = children,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(8000.0, parsed.amount, 0.0)
+        assertEquals("", parsed.time)
+        assertEquals(2, parsed.children.size)
+        assertEquals("Коновалов Ильдар", parsed.children[0].name)
+        assertEquals(AttendanceStatus.EXPECTED, parsed.children[0].status)
+        assertEquals("Караховская Мария", parsed.children[1].name)
+        assertEquals(AttendanceStatus.CONFIRMED, parsed.children[1].status)
     }
 
     @Test

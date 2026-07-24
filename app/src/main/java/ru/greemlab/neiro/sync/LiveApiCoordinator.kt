@@ -27,13 +27,13 @@ import java.util.concurrent.TimeUnit
  * Независимый от [AutoSyncCoordinator] опрос YClients API:
  * - сразу после входа и при возврате в приложение;
  * - на переднем плане: [LiveApiPollSchedule.DAY_INTERVAL_MINUTES] днём,
- *   [LiveApiPollSchedule.NIGHT_INTERVAL_MINUTES] с 22:00 до 08:00;
+ *   [LiveApiPollSchedule.NIGHT_INTERVAL_MINUTES] с 21:00 до 09:00;
  * - между полными подтяжками — только записи с `changed_after` (лёгкий трафик);
  * - в фоне — те же интервалы через цепочку [LiveApiRefreshWorker].
  */
 object LiveApiCoordinator {
 
-    private const val BACKGROUND_WORK_NAME = "yclients_live_api_refresh"
+    const val BACKGROUND_WORK_NAME = "yclients_live_api_refresh"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var initialized = false
@@ -56,9 +56,10 @@ object LiveApiCoordinator {
                             PushRegistrar.onAppForeground(appContext)
                         }
                         refreshNow(appContext)
-                        if (!serverPushActive) {
-                            startForegroundPolling(appContext)
-                        }
+                        // Foreground-поллинг остаётся и при активном push: FCM может
+                        // задержаться/потеряться, а keepalive — фоновый backup раз
+                        // в 30–60 мин, этого мало для открытого экрана календаря.
+                        startForegroundPolling(appContext)
                     }
                 }
 

@@ -312,7 +312,9 @@ object SessionParser {
      *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
      */
     private fun parseStudent(raw: String): Session.Student {
-        val parts = raw.split('|')
+        // limit = 5: comment — последнее поле, сериализуется как есть (с `|` внутри);
+        // без limit split резал бы такой комментарий на лишние сегменты и терял хвост.
+        val parts = raw.split("|", limit = 5)
         if (parts.isEmpty()) return Session.Student("", attended = false)
 
         val name = parts[0]
@@ -491,12 +493,15 @@ object SessionFormat {
             else -> price
         }
         val base = "$INTENSIVE_PREFIX$priceField|$name|${status.code}"
-        val withTime = if (time.isNotBlank()) "$base|$time" else base
-        if (children.isEmpty()) return withTime
+        if (children.isEmpty()) {
+            return if (time.isNotBlank()) "$base|$time" else base
+        }
+        // Слот времени сериализуем всегда (пустой допустим), если есть дети —
+        // иначе первый ребёнок позиционно читается парсером как time (U2).
         val childrenPart = children.joinToString(INTENSIVE_CHILD_SEP) { child ->
             "${child.name}|${child.status.code}|${child.phone}|${child.comment}"
         }
-        return "$withTime|$childrenPart"
+        return "$base|$time|$childrenPart"
     }
 
     /** Поле суммы: `5600` или `=5600` (фиксированная вручную). */

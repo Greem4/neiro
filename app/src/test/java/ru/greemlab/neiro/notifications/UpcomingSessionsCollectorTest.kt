@@ -7,6 +7,7 @@ import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.SessionFormat
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 class UpcomingSessionsCollectorTest {
@@ -93,5 +94,70 @@ class UpcomingSessionsCollectorTest {
         val tomorrowList = UpcomingSessionsCollector.tomorrowSessions(upcoming, today)
         assertEquals(1, tomorrowList.size)
         assertEquals(tomorrow, tomorrowList.first().date)
+    }
+
+    @Test
+    fun `collectDueForReminder catches session past its ideal reminder moment`() {
+        // periodic-тик опоздал: до старта осталось меньше, чем reminderMinutesBefore,
+        // но сессия ещё не началась — напоминание всё равно должно попасть в выборку.
+        val session = UpcomingSession(
+            date = LocalDate.of(2026, 5, 22),
+            startTime = LocalTime.of(10, 3),
+            endTime = LocalTime.of(10, 50),
+            clientName = "Игорь",
+            kind = UpcomingSessionKind.LESSON,
+            status = AttendanceStatus.EXPECTED,
+        )
+        val now = LocalDateTime.of(2026, 5, 22, 10, 0)
+
+        val due = UpcomingSessionsCollector.collectDueForReminder(
+            sessions = listOf(session),
+            reminderMinutesBefore = 15,
+            now = now,
+        )
+
+        assertEquals(1, due.size)
+    }
+
+    @Test
+    fun `collectDueForReminder excludes session already started`() {
+        val session = UpcomingSession(
+            date = LocalDate.of(2026, 5, 22),
+            startTime = LocalTime.of(9, 59),
+            endTime = LocalTime.of(10, 50),
+            clientName = "Игорь",
+            kind = UpcomingSessionKind.LESSON,
+            status = AttendanceStatus.EXPECTED,
+        )
+        val now = LocalDateTime.of(2026, 5, 22, 10, 0)
+
+        val due = UpcomingSessionsCollector.collectDueForReminder(
+            sessions = listOf(session),
+            reminderMinutesBefore = 15,
+            now = now,
+        )
+
+        assertTrue(due.isEmpty())
+    }
+
+    @Test
+    fun `collectDueForReminder excludes session far in the future`() {
+        val session = UpcomingSession(
+            date = LocalDate.of(2026, 5, 22),
+            startTime = LocalTime.of(11, 0),
+            endTime = LocalTime.of(11, 50),
+            clientName = "Игорь",
+            kind = UpcomingSessionKind.LESSON,
+            status = AttendanceStatus.EXPECTED,
+        )
+        val now = LocalDateTime.of(2026, 5, 22, 10, 0)
+
+        val due = UpcomingSessionsCollector.collectDueForReminder(
+            sessions = listOf(session),
+            reminderMinutesBefore = 15,
+            now = now,
+        )
+
+        assertTrue(due.isEmpty())
     }
 }

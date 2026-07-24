@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
+import ru.greemlab.neiro.data.network.YClientsClient
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
@@ -18,6 +19,11 @@ class NeiroApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Прогрев TokenStorage (KeyStore + EncryptedSharedPreferences) на IO —
+        // без этого создание синглтона синхронно происходит на main из
+        // AutoSyncCoordinator.initialize/LiveApiCoordinator.initialize ниже.
+        appScope.launch { YClientsClient.getTokenStorage(this@NeiroApplication) }
 
         // Синхронный SharedPreferences-кэш заполняет снимок прямо в конструкторе репозитория,
         // поэтому UI стартует с данными без блокировки main-потока.

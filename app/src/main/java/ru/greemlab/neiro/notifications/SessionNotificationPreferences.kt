@@ -1,8 +1,9 @@
 package ru.greemlab.neiro.notifications
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
 
 /**
@@ -11,11 +12,21 @@ import java.time.LocalDate
 class SessionNotificationPreferences(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val gson = Gson()
+
+    // Единый источник master-тумблера: [get] — синглтон (companion), поэтому этот
+    // StateFlow общий для всех экранов/ViewModel — без него AppSettingsViewModel
+    // (activity-scoped) и SessionNotificationSettingsViewModel независимо кэшировали
+    // isEnabled в своих StateFlow, и смена тумблера на одном экране не была видна
+    // на другом до пересоздания ViewModel (P3).
+    private val _isEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_ENABLED, true))
+    val isEnabledFlow: StateFlow<Boolean> = _isEnabledFlow.asStateFlow()
 
     var isEnabled: Boolean
         get() = prefs.getBoolean(KEY_ENABLED, true)
-        set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+            _isEnabledFlow.value = value
+        }
 
     var notifyNewBooking: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_NEW, true)
@@ -142,10 +153,9 @@ class SessionNotificationPreferences(context: Context) {
             .apply()
     }
 
-    /** Сброс снимка календаря и dedupe — для повторной симуляции синка в debug. */
+    /** Сброс baseline и dedupe — для повторной симуляции синка в debug. */
     fun resetSyncNotificationState() {
         prefs.edit()
-            .remove(KEY_SNAPSHOT)
             .remove(KEY_HAS_BASELINE)
             .apply()
         clearNotifiedKeys()
@@ -222,24 +232,17 @@ class SessionNotificationPreferences(context: Context) {
         prefs.edit().putString(KEY_ARCHIVE_REMINDER_DAYS_LIST, updated.joinToString(SEPARATOR)).apply()
     }
 
-    fun saveSnapshot(sessions: List<TrackedSession>) {
-        val json = gson.toJson(sessions.map { it.toSnapshotDto() })
+    /** Logout: полностью сбросить архивный LRU (иначе claim-и следующего аккаунта путаются со старыми). */
+    fun clearAllArchiveReminders() {
         prefs.edit()
-            .putString(KEY_SNAPSHOT, json)
+            .remove(KEY_ARCHIVE_REMINDER_DAYS_LIST)
+            .remove(KEY_ARCHIVE_REMINDER_DAYS)
             .apply()
-        hasBaselineSnapshot = true
     }
 
-    fun loadSnapshot(): List<TrackedSession> {
-        val json = prefs.getString(KEY_SNAPSHOT, null) ?: return emptyList()
-        val type = object : TypeToken<List<SnapshotDto>>() {}.type
-        return runCatching {
-            gson.fromJson<List<SnapshotDto>>(json, type).map { it.toTracked() }
-        }.getOrElse { emptyList() }
-    }
-
-    fun establishBaseline(sessions: List<TrackedSession>) {
-        saveSnapshot(sessions)
+    /** Снимок исторически сохранялся отдельно, но diff всегда считается по before/after
+     *  в памяти (см. [SessionNotificationCoordinator]) — здесь нужен только факт baseline. */
+    fun establishBaseline() {
         hasBaselineSnapshot = true
     }
 
@@ -251,36 +254,6 @@ class SessionNotificationPreferences(context: Context) {
         val legacySet = prefs.getStringSet(legacy, emptySet()).orEmpty()
         return java.util.LinkedHashSet(legacySet)
     }
-
-    private data class SnapshotDto(
-        val date: String,
-        val startTime: String,
-        val endTime: String,
-        val clientName: String,
-        val kind: String,
-        val statusCode: Int,
-        val isMarkedDeleted: Boolean,
-    )
-
-    private fun TrackedSession.toSnapshotDto() = SnapshotDto(
-        date = date.toString(),
-        startTime = startTime.toString(),
-        endTime = endTime.toString(),
-        clientName = clientName,
-        kind = kind.name,
-        statusCode = status.code,
-        isMarkedDeleted = isMarkedDeleted,
-    )
-
-    private fun SnapshotDto.toTracked() = TrackedSession(
-        date = LocalDate.parse(date),
-        startTime = java.time.LocalTime.parse(startTime),
-        endTime = java.time.LocalTime.parse(endTime),
-        clientName = clientName,
-        kind = UpcomingSessionKind.valueOf(kind),
-        status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.fromCode(statusCode),
-        isMarkedDeleted = isMarkedDeleted,
-    )
 
     companion object {
         private const val PREFS_NAME = "neiro_session_notifications"
@@ -309,7 +282,6 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_TOMORROW_DIGEST_TARGET_DAY = "tomorrow_digest_target_epoch_day"
         private const val KEY_ARCHIVE_REMINDER_DAYS = "archive_reminder_epoch_days"
         private const val KEY_ARCHIVE_REMINDER_DAYS_LIST = "archive_reminder_epoch_days_v2"
-        private const val KEY_SNAPSHOT = "calendar_snapshot"
         private const val KEY_HAS_BASELINE = "has_baseline_snapshot"
         private const val DEFAULT_REMINDER_MINUTES = 30
         private const val DEFAULT_TODAY_DIGEST_TIME_MINUTES = 8 * 60

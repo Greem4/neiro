@@ -80,11 +80,10 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             delay(PRICE_UPDATE_DEBOUNCE_MS)
             val current = userProfile.value.pricePerSession
             if (price == current) return@launch
-            when {
-                price <= 0.0 -> enqueueUpdate { it.copy(pricePerSession = price) }
-                current <= 0.0 -> enqueueUpdate { it.copy(pricePerSession = price) }
-                else -> repository.applySessionPriceChange(price)
-            }
+            // Через ту же очередь профиля, что и остальные поля — обходной
+            // repository.applySessionPriceChange больше не нужен: RMW внутри
+            // dataStore.edit (см. D2) даёт ту же атомарность, что и updateProfile.
+            enqueueUpdate { it.copy(pricePerSession = price) }
         }
     }
 

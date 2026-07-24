@@ -34,7 +34,7 @@ HSPLru/greemlab/neiro/ui/components/StatComponentsKt;->StatCard(Ljava/lang/Strin
 HSPLru/greemlab/neiro/theme/ThemeKt;->NeiroTheme(ZZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 
 # ViewModels — создаются на первой композиции.
-HSPLru/greemlab/neiro/ui/calendar/CalendarViewModel;-><init>(Landroid/app/Application;)V
+HSPLru/greemlab/neiro/ui/calendar/CalendarViewModel;-><init>(Landroid/app/Application;Landroidx/lifecycle/SavedStateHandle;)V
 HSPLru/greemlab/neiro/ui/profile/ProfileViewModel;-><init>(Landroid/app/Application;)V
 HSPLru/greemlab/neiro/ui/settings/AppSettingsViewModel;-><init>(Landroid/app/Application;)V
 

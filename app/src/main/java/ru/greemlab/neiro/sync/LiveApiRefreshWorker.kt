@@ -4,15 +4,13 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.network.YClientsRepository
 
 /**
- * Фоновая подтяжка записей с YClients; после выполнения планирует следующий запуск
- * с интервалом по [LiveApiPollSchedule].
- *
- * Гарантирует, что следующий запуск планируется даже при exception — иначе
- * цепочка обновлений ломается до перезапуска приложения.
+ * Фоновая подтяжка записей с YClients; после успешного выполнения планирует
+ * следующий запуск с интервалом по [LiveApiPollSchedule].
  */
 class LiveApiRefreshWorker(
     appContext: Context,
@@ -26,22 +24,20 @@ class LiveApiRefreshWorker(
 
         val outcome = runCatching {
             YClientsCalendarSync.get(applicationContext).refreshLiveRange()
+        }.onFailure { if (it is CancellationException) throw it }
+
+        if (outcome.isFailure) {
+            Log.w(TAG, "refreshLiveRange threw", outcome.exceptionOrNull())
+            return Result.retry()
+        }
+        if (outcome.getOrNull() is SyncOutcome.Failure) {
+            return Result.retry()
         }
 
-        try {
-            return when {
-                outcome.isFailure -> {
-                    Log.w(TAG, "refreshLiveRange threw", outcome.exceptionOrNull())
-                    Result.retry()
-                }
-                outcome.getOrNull() is SyncOutcome.Failure -> {
-                    Result.retry()
-                }
-                else -> Result.success()
-            }
-        } finally {
+        if (!isStopped) {
             LiveApiCoordinator.scheduleNextBackgroundRefresh(applicationContext)
         }
+        return Result.success()
     }
 
     private companion object {

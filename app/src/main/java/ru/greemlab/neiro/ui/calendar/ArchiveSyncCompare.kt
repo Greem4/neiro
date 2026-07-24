@@ -73,6 +73,13 @@ object ArchiveSyncCompare {
                     formatAmount(synced.amount),
                     formatAmount(archived.amount),
                 )
+                addFieldChange(
+                    lines,
+                    label,
+                    "сумма фиксирована",
+                    fixedLabel(synced.amountFixed),
+                    fixedLabel(archived.amountFixed),
+                )
                 addFieldChange(lines, label, "название", synced.name, archived.name)
                 lines += intensiveChildrenDiffLines(label, synced.children, archived.children)
             }
@@ -148,6 +155,8 @@ object ArchiveSyncCompare {
 
     private fun formatAmount(amount: Double): String =
         if (amount == 0.0) "" else amount.toLong().toString()
+
+    private fun fixedLabel(amountFixed: Boolean): String = if (amountFixed) "да" else "нет"
 
     private fun sessionIdentity(session: Session): String = when (session) {
         is Session.Student -> "student:${normalize(session.name)}:${normalize(session.time)}"

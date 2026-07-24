@@ -49,6 +49,7 @@ object UpcomingSessionsCollector {
         today: LocalDate = LocalDate.now(),
         now: LocalTime = LocalTime.now(),
         horizonDays: Int = 14,
+        includeStartedToday: Boolean = false,
     ): List<UpcomingSession> {
         if (!profile.isRegistered) return emptyList()
 
@@ -66,7 +67,7 @@ object UpcomingSessionsCollector {
 
                 val upcomingList = session.toUpcomingList(date)
                 for (upcoming in upcomingList) {
-                    if (date == today && !upcoming.startTime.isAfter(now)) continue
+                    if (!includeStartedToday && date == today && !upcoming.startTime.isAfter(now)) continue
 
                     result += upcoming
                 }
@@ -77,23 +78,25 @@ object UpcomingSessionsCollector {
     }
 
     /**
-     * Занятия, пора напомнить о которых сейчас (окно ±7 мин от [reminderMinutesBefore]).
+     * Занятия, пора напомнить о которых сейчас — periodic-fallback (раз в 15 мин).
+     * Нижняя граница — 0, а не окно вокруг [reminderMinutesBefore]: если расчётный
+     * момент напоминания уже прошёл (тик опоздал, delayMs one-time work был <= 0),
+     * сессия всё равно должна напомниться, пока не началась.
      */
     fun collectDueForReminder(
         sessions: List<UpcomingSession>,
         reminderMinutesBefore: Int,
         now: LocalDateTime = LocalDateTime.now(),
     ): List<UpcomingSession> {
-        val minMinutesUntilStart = (reminderMinutesBefore - REMINDER_WINDOW_HALF).toLong().coerceAtLeast(0)
         val maxMinutesUntilStart = (reminderMinutesBefore + REMINDER_WINDOW_HALF).toLong()
 
         return sessions.filter { session ->
             val minutesUntilStart = java.time.Duration.between(now, session.startsAt()).toMinutes()
-            minutesUntilStart in minMinutesUntilStart..maxMinutesUntilStart
+            minutesUntilStart in 0..maxMinutesUntilStart
         }
     }
 
-    private const val REMINDER_WINDOW_HALF = 7
+    private const val REMINDER_WINDOW_HALF = 10
 
     fun todaySessions(
         sessions: List<UpcomingSession>,

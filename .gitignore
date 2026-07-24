@@ -15,3 +15,7 @@ ruStoreApi.txt
 
 # Локальные утилиты и выгрузки (не в репозитории)
 tools/
+scripts/icon/node_modules/
+/app/release/
+*.aab
+*.apk

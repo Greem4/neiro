@@ -179,9 +179,11 @@ fun ProfitDetailsDialog(
                 }
 
                 if (display.showTax && stats.taxAmount > 0.0) {
+                    // Удержать больше заработанного за месяц нельзя — иначе при
+                    // gross < taxAmount строка показывала абсурдный минус (P5).
                     ProfitRow(
                         label = "Налог за месяц",
-                        value = stats.taxAmount,
+                        value = minOf(stats.taxAmount, stats.totalEarned),
                         color = MaterialTheme.colorScheme.error,
                         prefix = "−",
                     )

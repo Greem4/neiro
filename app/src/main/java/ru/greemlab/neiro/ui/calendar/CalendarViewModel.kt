@@ -102,6 +102,16 @@ class CalendarViewModel(
             initialValue = CalendarDataStoreProvider.peekSavedDayData(application),
         )
 
+    // Initial-значения по восстановленным mode/month, а не всегда «synced + текущий
+    // месяц» — иначе после восстановления (SavedStateHandle) первый кадр мигал бы
+    // не тем режимом/месяцем, пока combine() не выдаст настоящее значение (U8).
+    private val initialEffectiveDayData: Map<LocalDate, List<String>> =
+        if (_calendarMode.value == CalendarMode.SYNCED) {
+            CalendarDataStoreProvider.peekDayData(application)
+        } else {
+            CalendarDataStoreProvider.peekSavedDayData(application)
+        }
+
     /** Эффективные данные календаря в зависимости от текущего режима. */
     val effectiveDayData: StateFlow<Map<LocalDate, List<String>>> = combine(
         dayData,
@@ -112,7 +122,7 @@ class CalendarViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = CalendarDataStoreProvider.peekDayData(application),
+        initialValue = initialEffectiveDayData,
     )
 
     /**
@@ -129,10 +139,7 @@ class CalendarViewModel(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = filterDayDataForMonth(
-                CalendarDataStoreProvider.peekDayData(application),
-                YearMonth.now(),
-            ),
+            initialValue = filterDayDataForMonth(initialEffectiveDayData, _currentMonth.value),
         )
 
     /** Имена для быстрого выбора — только открытый [currentMonth], без обхода архива. */
@@ -143,10 +150,7 @@ class CalendarViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = computeRecentStudents(
-                filterDayDataForMonth(
-                    CalendarDataStoreProvider.peekDayData(application),
-                    YearMonth.now(),
-                ),
+                filterDayDataForMonth(initialEffectiveDayData, _currentMonth.value),
             ),
         )
 

@@ -53,7 +53,7 @@ android {
         //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 2
-        versionName = "0.6.9.0"
+        versionName = "0.6.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -71,7 +71,7 @@ android {
 
     @Suppress("UnstableApiUsage")
     androidResources {
-        localeFilters += listOf("ru", "en")
+        localeFilters += listOf("ru")
     }
 
     signingConfigs {
@@ -114,21 +114,22 @@ android {
             isCrunchPngs = true
             @Suppress("UnstableApiUsage")
             installation {
-                enableBaselineProfile = false
+                enableBaselineProfile = true
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
             signingConfig =
-                if (hasReleaseSigning) {
-                    signingConfigs.getByName("release")
-                } else {
-                    throw GradleException(
-                        "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
-                            "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
-                            "Соберите debug или prerelease для локальной отладки."
-                    )
+                when {
+                    hasReleaseSigning -> signingConfigs.getByName("release")
+                    gradle.startParameter.taskNames.any { it.contains("Release") } ->
+                        throw GradleException(
+                            "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
+                                "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
+                                "Соберите debug или prerelease для локальной отладки."
+                        )
+                    else -> null
                 }
         }
     }

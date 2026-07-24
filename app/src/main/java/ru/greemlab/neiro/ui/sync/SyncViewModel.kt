@@ -55,21 +55,18 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val isLoggedIn: StateFlow<Boolean> = yclientsRepository.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = yclientsRepository.userAvatarUrl
 
-    val isAutoSyncEnabled: Boolean
-        get() = syncPreferences.isAutoSyncEnabled
-
-    fun setAutoSyncEnabled(enabled: Boolean) {
-        syncPreferences.isAutoSyncEnabled = enabled
-        AutoSyncCoordinator.onAutoSyncToggled(getApplication(), enabled)
-    }
-
     val yclientsUserName: String? get() = yclientsRepository.userName
 
     fun logoutYClients() {
-        viewModelScope.launch {
-            LogoutCoordinator.logout(getApplication())
-            _uiState.value = SyncUiState()
-        }
+        viewModelScope.launch { logoutYClientsAwait() }
+    }
+
+    /** Suspend-версия — для «Сменить аккаунт»: форма входа открывается только
+     *  после того, как logout реально завершится (иначе isLoggedIn ещё true,
+     *  и AuthScreen на миг показывает LoggedInContent вместо формы, см. P1). */
+    suspend fun logoutYClientsAwait() {
+        LogoutCoordinator.logout(getApplication())
+        _uiState.value = SyncUiState()
     }
 
     fun devLogin(autoSync: Boolean = false) {

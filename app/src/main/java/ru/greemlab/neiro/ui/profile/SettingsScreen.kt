@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
@@ -45,6 +46,7 @@ fun SettingsScreen(
 ) {
     val profile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isLoggedInToYClients by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     SettingsScreenImpl(
         profile = profile,
@@ -62,8 +64,17 @@ fun SettingsScreen(
         onShowAvatarChange = viewModel::updateShowAvatar,
         onOpenYClientsAuth = onOpenYClientsAuth,
         onLogoutYClients = syncViewModel::logoutYClients,
+        onChangeAccount = {
+            scope.launch {
+                syncViewModel.logoutYClientsAwait()
+                onOpenYClientsAuth()
+            }
+        },
         onBack = {
-            if (!profile.isRegistered && profile.name.isNotBlank()) {
+            // То же условие, что и enabled у кнопки «Начать работу» ниже —
+            // иначе TopBar-стрелка «Назад» завершала регистрацию по одному
+            // только имени, без вида деятельности (P6).
+            if (!profile.isRegistered && profile.name.isNotBlank() && profile.activityType.isNotBlank()) {
                 viewModel.completeRegistration()
             }
             onBack()
@@ -89,6 +100,7 @@ private fun SettingsScreenImpl(
     onShowAvatarChange: (Boolean) -> Unit,
     onOpenYClientsAuth: () -> Unit,
     onLogoutYClients: () -> Unit,
+    onChangeAccount: () -> Unit,
     onBack: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
@@ -311,6 +323,7 @@ private fun SettingsScreenImpl(
                 userName = yclientsUserName,
                 onOpenYClientsAuth = onOpenYClientsAuth,
                 onLogout = onLogoutYClients,
+                onChangeAccount = onChangeAccount,
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -343,6 +356,7 @@ private fun YClientsAccountSection(
     userName: String?,
     onOpenYClientsAuth: () -> Unit,
     onLogout: () -> Unit,
+    onChangeAccount: () -> Unit,
 ) {
     Text(
         text = "Аккаунт YClients",
@@ -394,12 +408,11 @@ private fun YClientsAccountSection(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(
-                    onClick = {
-                        // «Сменить аккаунт» = выйти и сразу открыть форму входа,
-                        // чтобы пользователь не возвращался к карточке «Вы авторизованы».
-                        onLogout()
-                        onOpenYClientsAuth()
-                    },
+                    // «Сменить аккаунт» = выйти и сразу открыть форму входа, чтобы
+                    // пользователь не возвращался к карточке «Вы авторизованы».
+                    // onChangeAccount ждёт реального завершения logout — иначе
+                    // AuthScreen на миг показывает LoggedInContent вместо формы.
+                    onClick = onChangeAccount,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                 ) {
@@ -495,6 +508,7 @@ private fun SettingsScreenLightPreview() {
             onShowAvatarChange = {},
             onOpenYClientsAuth = {},
             onLogoutYClients = {},
+            onChangeAccount = {},
             onBack = {},
         )
     }

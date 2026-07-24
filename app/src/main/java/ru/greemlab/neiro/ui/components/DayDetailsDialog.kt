@@ -434,8 +434,8 @@ private fun DayDetailsContent(
             showArchiveAction = onStudentStatusChange == null || isArchived,
             onArchiveClick = {
                 when {
-                    allowStatusEdit && isArchived -> onUnarchive()
                     isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                    allowStatusEdit && isArchived -> onUnarchive()
                     isArchived -> onUnarchive()
                     else -> onMoveToArchive()
                 }
@@ -846,7 +846,7 @@ private fun parseEntries(
                         extraType = "Интенсив",
                         extraAmount = session.totalAmount(
                             userProfile.pricePerIntensiveChild,
-                            onlyArrived = false,
+                            onlyArrived = true,
                         ),
                         intensiveChildren = session.children,
                         sourceIndex = index,

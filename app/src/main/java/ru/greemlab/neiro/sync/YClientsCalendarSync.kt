@@ -468,9 +468,13 @@ class YClientsCalendarSync(
 
         var syncedCount = 0
         if (currentMonthTouching.isNotEmpty()) {
-            val changedDates = currentMonthTouching.mapNotNull { parseRecordDate(it.date) }
-            val subStart = changedDates.min()
-            val subEnd = changedDates.max()
+            // Весь текущий месяц, а не только окно min..max изменившихся дат:
+            // changed_after отдаёт запись уже с новой датой, поэтому старый день
+            // переноса (за пределами этого окна) не попал бы в очистку и остался
+            // бы в календаре «призраком» до полного live-sync раз в 6 часов.
+            val month = YearMonth.now()
+            val subStart = month.atDay(1)
+            val subEnd = month.atEndOfMonth()
             when (val fullDays = yclientsRepository.getRecords(subStart, subEnd)) {
                 is ApiResult.Success -> {
                     syncedCount += mergeRecordsToCalendar(

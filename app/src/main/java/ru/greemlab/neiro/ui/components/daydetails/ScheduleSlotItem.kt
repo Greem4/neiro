@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -302,6 +303,12 @@ fun ExpandableReplacementSlot(
     val showRightIndicators by remember { derivedStateOf { expansion.value > 0.95f } }
     val collapsedShowsAllIndicators by remember { derivedStateOf { expansion.value < 0.05f } }
 
+    // pointerInput(removed.size) не перезапускается на каждый toggle — без этого
+    // onDragEnd видел бы expanded/onToggle, замороженные на момент последнего
+    // запуска жеста, и свайп «отпрыгивал» бы обратно (U4).
+    val currentExpanded by rememberUpdatedState(expanded)
+    val currentOnToggle by rememberUpdatedState(onToggle)
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -322,8 +329,8 @@ fun ExpandableReplacementSlot(
                         }
                         scope.launch {
                             expansion.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy))
-                            if (target == 0.5f && !expanded) onToggle()
-                            else if (target == 0f && expanded) onToggle()
+                            if (target == 0.5f && !currentExpanded) currentOnToggle()
+                            else if (target == 0f && currentExpanded) currentOnToggle()
                         }
                     },
                 )
@@ -512,6 +519,12 @@ fun ExpandableIntensiveCoverSlot(
     val showRightIndicators by remember { derivedStateOf { expansion.value > 0.95f } }
     val collapsedShowsAllIndicators by remember { derivedStateOf { expansion.value < 0.05f } }
 
+    // pointerInput(covered.size) не перезапускается на каждый toggle — без этого
+    // onDragEnd видел бы expanded/onToggle, замороженные на момент последнего
+    // запуска жеста, и свайп «отпрыгивал» бы обратно (U4).
+    val currentExpanded by rememberUpdatedState(expanded)
+    val currentOnToggle by rememberUpdatedState(onToggle)
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -534,8 +547,8 @@ fun ExpandableIntensiveCoverSlot(
                                 }
                                 scope.launch {
                                     expansion.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy))
-                                    if (target == 0.5f && !expanded) onToggle()
-                                    else if (target == 0f && expanded) onToggle()
+                                    if (target == 0.5f && !currentExpanded) currentOnToggle()
+                                    else if (target == 0f && currentExpanded) currentOnToggle()
                                 }
                             },
                         )

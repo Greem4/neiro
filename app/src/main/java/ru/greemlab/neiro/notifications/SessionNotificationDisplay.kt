@@ -43,24 +43,26 @@ object SessionNotificationDisplay {
         }
     }
 
-    fun showEvents(context: Context, events: List<SessionEvent>) {
-        if (events.isEmpty()) return
+    /** @return dedupeKey событий, чей push система реально приняла — mark только для них. */
+    fun showEvents(context: Context, events: List<SessionEvent>): Set<String> {
+        if (events.isEmpty()) return emptySet()
         ensureChannel(context)
         InAppNotificationRecorder.recordEvents(context, events)
 
-        if (events.size == 1) {
+        return if (events.size == 1) {
             showSingleEvent(context, events.first())
         } else {
             showGroupedEvents(context, events)
         }
     }
 
-    fun showReminder(context: Context, sessions: List<UpcomingSession>) {
-        if (sessions.isEmpty()) return
+    /** @return dedupeKey сессий, чей push система реально приняла — mark только для них. */
+    fun showReminder(context: Context, sessions: List<UpcomingSession>): Set<String> {
+        if (sessions.isEmpty()) return emptySet()
         ensureChannel(context)
         InAppNotificationRecorder.recordReminder(context, sessions)
 
-        when (sessions.size) {
+        return when (sessions.size) {
             1 -> showSingleReminder(context, sessions.first())
             else -> showGroupedReminders(context, sessions)
         }
@@ -159,7 +161,7 @@ object SessionNotificationDisplay {
         return notify(context, NOTIFICATION_ID_ARCHIVE_REMINDER, summary)
     }
 
-    private fun showSingleEvent(context: Context, event: SessionEvent) {
+    private fun showSingleEvent(context: Context, event: SessionEvent): Set<String> {
         val title = SessionNotificationTexts.eventTitle(context, event)
         val content = SessionNotificationTexts.eventContent(context, event)
 
@@ -168,10 +170,14 @@ object SessionNotificationDisplay {
             .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
             .build()
 
-        notify(context, dynamicNotificationId(event.dedupeKey), notification)
+        return if (notify(context, dynamicNotificationId(event.dedupeKey), notification)) {
+            setOf(event.dedupeKey)
+        } else {
+            emptySet()
+        }
     }
 
-    private fun showGroupedEvents(context: Context, events: List<SessionEvent>) {
+    private fun showGroupedEvents(context: Context, events: List<SessionEvent>): Set<String> {
         val title = SessionNotificationTexts.groupedEventsTitle(context, events.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
         events.forEach { inbox.addLine(SessionNotificationTexts.eventContent(context, it)) }
@@ -185,6 +191,7 @@ object SessionNotificationDisplay {
 
         notify(context, NOTIFICATION_ID_EVENTS_GROUP, summary)
 
+        val shown = mutableSetOf<String>()
         events.forEach { event ->
             val child = baseBuilder(
                 context,
@@ -194,11 +201,14 @@ object SessionNotificationDisplay {
                 .setGroup(GROUP_KEY_EVENTS)
                 .setContentIntent(openCalendarIntent(context, event.session.date, event.session.slotKey))
                 .build()
-            notify(context, dynamicNotificationId(event.dedupeKey), child)
+            if (notify(context, dynamicNotificationId(event.dedupeKey), child)) {
+                shown += event.dedupeKey
+            }
         }
+        return shown
     }
 
-    private fun showSingleReminder(context: Context, session: UpcomingSession) {
+    private fun showSingleReminder(context: Context, session: UpcomingSession): Set<String> {
         val minutesUntil = java.time.Duration.between(
             java.time.LocalDateTime.now(),
             session.startsAt(),
@@ -215,15 +225,19 @@ object SessionNotificationDisplay {
                 openCalendarIntent(
                     context,
                     session.date,
-                    SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                    SessionSlotKey.build(session.clientName, session.date, session.startTime, session.kind),
                 ),
             )
             .build()
 
-        notify(context, dynamicNotificationId(session.dedupeKey), notification)
+        return if (notify(context, dynamicNotificationId(session.dedupeKey), notification)) {
+            setOf(session.dedupeKey)
+        } else {
+            emptySet()
+        }
     }
 
-    private fun showGroupedReminders(context: Context, sessions: List<UpcomingSession>) {
+    private fun showGroupedReminders(context: Context, sessions: List<UpcomingSession>): Set<String> {
         val sorted = sessions.sortedBy { it.startTime }
         val title = SessionNotificationTexts.reminderGroupTitle(context, sorted.size)
         val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
@@ -238,6 +252,7 @@ object SessionNotificationDisplay {
 
         notify(context, NOTIFICATION_ID_REMINDER_GROUP, summary)
 
+        val shown = mutableSetOf<String>()
         sorted.forEach { session ->
             val child = baseBuilder(context, session.clientName, SessionNotificationTexts.formatUpcomingLine(session))
                 .setGroup(GROUP_KEY_REMINDERS)
@@ -245,12 +260,15 @@ object SessionNotificationDisplay {
                     openCalendarIntent(
                         context,
                         session.date,
-                        SessionSlotKey.build(session.clientName, session.date, session.startTime),
+                        SessionSlotKey.build(session.clientName, session.date, session.startTime, session.kind),
                     ),
                 )
                 .build()
-            notify(context, dynamicNotificationId(session.dedupeKey), child)
+            if (notify(context, dynamicNotificationId(session.dedupeKey), child)) {
+                shown += session.dedupeKey
+            }
         }
+        return shown
     }
 
     private fun baseBuilder(context: Context, title: String, content: String): NotificationCompat.Builder =
