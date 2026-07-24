@@ -39,7 +39,7 @@ class YClientsCalendarSyncTest {
 
     @Test
     fun `full live sync not due within interval`() {
-        val now = 10_000_000L
+        val now = YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS * 10
         val last = now - YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS + 1_000L
         assertFalse(
             YClientsCalendarSync.isFullLiveSyncDue(
@@ -51,7 +51,7 @@ class YClientsCalendarSyncTest {
 
     @Test
     fun `full live sync due after interval`() {
-        val now = 10_000_000L
+        val now = YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS * 10
         val last = now - YClientsCalendarSync.FULL_LIVE_SYNC_INTERVAL_MS
         assertTrue(
             YClientsCalendarSync.isFullLiveSyncDue(
