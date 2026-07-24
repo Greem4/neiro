@@ -147,10 +147,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            // In-app лента и dedupe-mark — всегда; showEvents сам решает,
-            // показывать ли системный push (permission недоступен — не критично).
-            SessionNotificationDisplay.showEvents(appContext, events)
-            events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            // In-app лента — всегда (showEvents сам решает про системный push);
+            // mark — только для реально показанных, по образцу дайджестов (N8).
+            val shown = SessionNotificationDisplay.showEvents(appContext, events)
+            events.filter { it.dedupeKey in shown }.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
         prefs.saveSnapshot(after)
@@ -214,10 +214,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            // In-app лента и dedupe-mark — всегда; showEvents сам решает,
-            // показывать ли системный push (permission недоступен — не критично).
-            SessionNotificationDisplay.showEvents(context, events)
-            events.forEach { prefs.markEventNotified(it.dedupeKey) }
+            // In-app лента — всегда (showEvents сам решает про системный push);
+            // mark — только для реально показанных, по образцу дайджестов (N8).
+            val shown = SessionNotificationDisplay.showEvents(context, events)
+            events.filter { it.dedupeKey in shown }.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
         prefs.saveSnapshot(effectiveAfter)
@@ -551,8 +551,8 @@ object SessionNotificationCoordinator {
         if (toNotify.isEmpty()) return
 
         if (NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
-            SessionNotificationDisplay.showReminder(appContext, toNotify)
-            toNotify.forEach { prefs.markReminderNotified(it.dedupeKey) }
+            val shown = SessionNotificationDisplay.showReminder(appContext, toNotify)
+            toNotify.filter { it.dedupeKey in shown }.forEach { prefs.markReminderNotified(it.dedupeKey) }
         }
     }
 
