@@ -8,6 +8,7 @@ import ru.greemlab.neiro.push.PushKeepAliveCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.push.PushSyncCoordinator
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
+import ru.greemlab.neiro.sync.LiveApiCoordinator
 import ru.greemlab.neiro.sync.SyncPreferences
 
 /**
@@ -40,8 +41,6 @@ object LogoutCoordinator {
     }
 
     private fun cancelLiveApiWorker(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(LIVE_API_WORK_NAME)
+        WorkManager.getInstance(context).cancelUniqueWork(LiveApiCoordinator.BACKGROUND_WORK_NAME)
     }
-
-    private const val LIVE_API_WORK_NAME = "yclients_live_api_refresh"
 }
