@@ -2,6 +2,7 @@ package ru.greemlab.neiro.push
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,18 +21,32 @@ import kotlin.coroutines.resume
 object PushRegistrar {
 
     private const val REGISTER_RETRY_COUNT = 3
+    private const val TAG = "PushRegistrar"
+    private const val PREFS = "neiro_push_registrar"
+    private const val KEY_PENDING_UNREGISTER = "pending_unregister"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun initialize(context: Context) {
-        if (!PushConfig.isActive) return
         val appContext = context.applicationContext
+        retryPendingUnregisterIfNeeded(appContext)
+        if (!PushConfig.isActive) return
         scope.launch {
             if (registerIfLoggedIn(appContext)) {
                 PushKeepAliveCoordinator.schedule(appContext)
             }
         }
     }
+
+    /** Незавершённый unregister с прошлого logout (сеть отвалилась) — повторяем на старте. */
+    private fun retryPendingUnregisterIfNeeded(context: Context) {
+        if (!PushConfig.isServerConfigured) return
+        if (!prefs(context).getBoolean(KEY_PENDING_UNREGISTER, false)) return
+        scope.launch { unregister(context) }
+    }
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun onLoginSuccess(context: Context) {
         if (!PushConfig.isActive) return
@@ -129,10 +144,16 @@ object PushRegistrar {
     private suspend fun unregister(context: Context) {
         val api = PushClient.getApi() ?: return
         val deviceId = PushDeviceId.get(context)
-        withContext(Dispatchers.IO) {
-            runCatching {
-                api.unregisterDevice(PushClient.authHeader(), deviceId)
-            }
+        val success = withContext(Dispatchers.IO) {
+            runCatching { api.unregisterDevice(PushClient.authHeader(), deviceId) }
+                .map { it.isSuccessful }
+                .getOrDefault(false)
+        }
+        if (success) {
+            prefs(context).edit().remove(KEY_PENDING_UNREGISTER).apply()
+        } else {
+            Log.w(TAG, "unregister failed, will retry on next app start")
+            prefs(context).edit().putBoolean(KEY_PENDING_UNREGISTER, true).apply()
         }
     }
 
