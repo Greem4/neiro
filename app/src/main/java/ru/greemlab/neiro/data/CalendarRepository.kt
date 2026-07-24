@@ -33,9 +33,6 @@ interface CalendarRepository {
      */
     suspend fun updateProfile(transform: (UserProfile) -> UserProfile)
 
-    /** Меняет текущую ставку за занятие в профиле. */
-    suspend fun applySessionPriceChange(newPrice: Double)
-
     /**
      * Атомарно обновляет карту дней через [transform]: чтение актуального значения
      * и запись происходят под общим writer-локом. Единственный способ записи dayData —
