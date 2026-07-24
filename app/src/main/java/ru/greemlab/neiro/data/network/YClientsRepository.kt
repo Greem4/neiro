@@ -82,6 +82,10 @@ class YClientsRepository(context: Context) {
                         tokenStorage.userName = body.data.name
                         tokenStorage.userAvatarUrl =
                             normalizeYClientsAvatarUrl(body.data.avatar)
+                        // Повторный вход другим сотрудником той же компании без полного
+                        // logout иначе оставлял бы старый staffId — детект заново.
+                        tokenStorage.staffId = null
+                        detectAndSaveStaffId()
                         ApiResult.Success(body.data)
                     } else {
                         ApiResult.Error("Неверный логин или пароль")
