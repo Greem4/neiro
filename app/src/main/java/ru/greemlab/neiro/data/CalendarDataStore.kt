@@ -12,15 +12,19 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -108,6 +112,8 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     /** Все записи в DataStore идут только под этим mutex — параллельные апдейты не теряются. */
     private val writeMutex = Mutex()
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val dayDataJsonType = object : TypeToken<Map<String, List<String>>>() {}.type
     private val backupJsonType = object : TypeToken<Map<String, String>>() {}.type
 
@@ -144,6 +150,10 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         .flowOn(Dispatchers.Default)
         .onStart { emit(cachedState.value) }
         .distinctUntilChanged()
+        // shareIn: без этого каждый из 4 публичных Flow ниже — независимая подписка
+        // на DataStore, т.е. N коллекторов = N Gson-парсов всего календаря и N
+        // записей sync-кэша на каждую эмиссию (D3).
+        .shareIn(appScope, SharingStarted.Eagerly, replay = 1)
 
     override val themeFlow: Flow<String> = snapshotsFlow
         .map { it.theme }
