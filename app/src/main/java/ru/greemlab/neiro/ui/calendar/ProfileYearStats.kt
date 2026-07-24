@@ -100,9 +100,12 @@ internal fun computeProfileYearStats(
             monthlyTaxAmount = monthlyTaxAmount,
             pricePerIntensiveChild = pricePerIntensiveChild,
         )
-        completedSessions += monthStats.completedCount
+        // + completedIntensivesCount: иначе месяц с одними интенсивами показывал
+        // «0 занятий», хотя totalNetEarned их сумму уже учитывает (P4).
+        val monthCompletedWithIntensives = monthStats.completedCount + monthStats.completedIntensivesCount
+        completedSessions += monthCompletedWithIntensives
         monthlyNet[month - 1] = monthStats.netProfit
-        monthlyCompleted[month - 1] = monthStats.completedCount
+        monthlyCompleted[month - 1] = monthCompletedWithIntensives
         totalNetEarned += monthStats.netProfit
     }
 
