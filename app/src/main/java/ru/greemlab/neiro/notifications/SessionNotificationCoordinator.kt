@@ -265,7 +265,7 @@ object SessionNotificationCoordinator {
 
         when (kind) {
             ScheduledDigestKind.TODAY -> if (prefs.notifyTodayDigest) {
-                maybeShowTodayDigest(appContext, upcoming, prefs)
+                maybeShowTodayDigest(appContext, dayData, profile, prefs)
             }
             ScheduledDigestKind.TOMORROW -> if (prefs.notifyTomorrowDigest) {
                 maybeShowTomorrowDigest(appContext, upcoming, prefs)
@@ -388,7 +388,7 @@ object SessionNotificationCoordinator {
         if (prefs.notifyTodayDigest &&
             SessionDailyNotificationWorker.isDueToday(now, prefs.todayDigestTime)
         ) {
-            maybeShowTodayDigest(context, upcoming, prefs)
+            maybeShowTodayDigest(context, dayData, profile, prefs)
         }
 
         if (prefs.notifyTomorrowDigest &&
@@ -618,11 +618,15 @@ object SessionNotificationCoordinator {
 
     private fun maybeShowTodayDigest(
         context: Context,
-        upcoming: List<UpcomingSession>,
+        dayData: Map<LocalDate, List<String>>,
+        profile: UserProfile,
         prefs: SessionNotificationPreferences,
     ) {
         val today = LocalDate.now()
-        val todayList = UpcomingSessionsCollector.todaySessions(upcoming, today)
+        // includeStartedToday: сводка «сегодня» должна включать уже идущие/прошедшие
+        // слоты дня, если digest доставлен с опозданием (Doze) — не только будущие.
+        val allToday = UpcomingSessionsCollector.collect(dayData, profile, includeStartedToday = true)
+        val todayList = UpcomingSessionsCollector.todaySessions(allToday, today)
         if (todayList.isEmpty()) return
 
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return

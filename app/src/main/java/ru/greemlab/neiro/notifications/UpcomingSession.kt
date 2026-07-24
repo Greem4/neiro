@@ -49,6 +49,7 @@ object UpcomingSessionsCollector {
         today: LocalDate = LocalDate.now(),
         now: LocalTime = LocalTime.now(),
         horizonDays: Int = 14,
+        includeStartedToday: Boolean = false,
     ): List<UpcomingSession> {
         if (!profile.isRegistered) return emptyList()
 
@@ -66,7 +67,7 @@ object UpcomingSessionsCollector {
 
                 val upcomingList = session.toUpcomingList(date)
                 for (upcoming in upcomingList) {
-                    if (date == today && !upcoming.startTime.isAfter(now)) continue
+                    if (!includeStartedToday && date == today && !upcoming.startTime.isAfter(now)) continue
 
                     result += upcoming
                 }
