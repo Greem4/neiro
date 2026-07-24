@@ -141,10 +141,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            if (NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
-                SessionNotificationDisplay.showEvents(appContext, events)
-                events.forEach { prefs.markEventNotified(it.dedupeKey) }
-            }
+            // In-app лента и dedupe-mark — всегда; showEvents сам решает,
+            // показывать ли системный push (permission недоступен — не критично).
+            SessionNotificationDisplay.showEvents(appContext, events)
+            events.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
         prefs.saveSnapshot(after)
@@ -208,10 +208,10 @@ object SessionNotificationCoordinator {
             .filter { !prefs.wasEventNotified(it.dedupeKey) }
 
         if (events.isNotEmpty()) {
-            if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-                SessionNotificationDisplay.showEvents(context, events)
-                events.forEach { prefs.markEventNotified(it.dedupeKey) }
-            }
+            // In-app лента и dedupe-mark — всегда; showEvents сам решает,
+            // показывать ли системный push (permission недоступен — не критично).
+            SessionNotificationDisplay.showEvents(context, events)
+            events.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
         prefs.saveSnapshot(effectiveAfter)
