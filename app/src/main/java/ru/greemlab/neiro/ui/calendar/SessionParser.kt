@@ -312,7 +312,9 @@ object SessionParser {
      *  - Новый:  `name|statusCode|time|phone|comment` где statusCode = 0/1/2/3
      */
     private fun parseStudent(raw: String): Session.Student {
-        val parts = raw.split('|')
+        // limit = 5: comment — последнее поле, сериализуется как есть (с `|` внутри);
+        // без limit split резал бы такой комментарий на лишние сегменты и терял хвост.
+        val parts = raw.split("|", limit = 5)
         if (parts.isEmpty()) return Session.Student("", attended = false)
 
         val name = parts[0]

@@ -162,6 +162,20 @@ class SessionParserTest {
     }
 
     @Test
+    fun `parses extended student comment containing vertical bar`() {
+        // U7: comment — последнее поле; без limit при split теряло хвост после `|`.
+        val raw = SessionFormat.serializeStudentExtended(
+            name = "Сидоров",
+            status = AttendanceStatus.CONFIRMED,
+            time = "10:00-11:00",
+            phone = "+79990000000",
+            comment = "мама|папа заберут в 12",
+        )
+        val parsed = SessionParser.parse(raw) as Session.Student
+        assertEquals("мама|папа заберут в 12", parsed.comment)
+    }
+
+    @Test
     fun `fromYClients maps api codes to app statuses`() {
         assertEquals(AttendanceStatus.EXPECTED, AttendanceStatus.fromYClients(0))
         assertEquals(AttendanceStatus.ARRIVED, AttendanceStatus.fromYClients(1))
