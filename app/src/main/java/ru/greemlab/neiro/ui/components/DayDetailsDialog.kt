@@ -846,7 +846,7 @@ private fun parseEntries(
                         extraType = "Интенсив",
                         extraAmount = session.totalAmount(
                             userProfile.pricePerIntensiveChild,
-                            onlyArrived = false,
+                            onlyArrived = true,
                         ),
                         intensiveChildren = session.children,
                         sourceIndex = index,
