@@ -346,17 +346,20 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
         val parsedSavedDayData = parseDayData(savedDayJson)
 
-        parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
-            ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
-        }
-
-        return writeMutex.withLock {
+        // Сначала DataStore, потом notifications: если edit упадёт, уведомления
+        // не окажутся импортированы поверх несостоявшегося импорта календаря.
+        writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
                 prefs[savedDataKey] = savedDayJson
             }
             cachedState.value = cachedState.value.copy(savedDayData = parsedSavedDayData)
-            ImportResult.Success
         }
+
+        parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
+            ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
+        }
+
+        return ImportResult.Success
     }
 
     private fun serializeDayData(data: Map<LocalDate, List<String>>): String {
