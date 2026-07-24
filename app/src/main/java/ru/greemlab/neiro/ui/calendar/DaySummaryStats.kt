@@ -37,9 +37,7 @@ internal fun computeDayStats(
     val parsed = sessions.map(SessionParser::parse)
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
 
-    for (raw in sessions) {
-        val session = SessionParser.parse(raw)
-
+    for (session in parsed) {
         if (session.isEffectivelyDeleted()) {
             if (session is Session.Intensive) hasIntensive = true
             val price = when (session) {
