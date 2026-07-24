@@ -56,9 +56,10 @@ object LiveApiCoordinator {
                             PushRegistrar.onAppForeground(appContext)
                         }
                         refreshNow(appContext)
-                        if (!serverPushActive) {
-                            startForegroundPolling(appContext)
-                        }
+                        // Foreground-поллинг остаётся и при активном push: FCM может
+                        // задержаться/потеряться, а keepalive — фоновый backup раз
+                        // в 30–60 мин, этого мало для открытого экрана календаря.
+                        startForegroundPolling(appContext)
                     }
                 }
 
