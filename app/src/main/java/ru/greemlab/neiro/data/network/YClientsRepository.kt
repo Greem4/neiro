@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -36,6 +37,9 @@ class YClientsRepository(context: Context) {
     private val logoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val logoutOn401InProgress = AtomicBoolean(false)
 
+    @Volatile
+    private var logoutOn401Job: Job? = null
+
     val isLoggedIn: StateFlow<Boolean> = tokenStorage.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = tokenStorage.userAvatarUrlFlow
 
@@ -58,9 +62,14 @@ class YClientsRepository(context: Context) {
 
     /**
      * Авторизация пользователя.
+     *
+     * Ждёт завершения хвоста logout после 401, если он ещё идёт — иначе его
+     * финальные tokenStorage.clear()/clearSyncState() могли бы затереть только
+     * что установленную новую сессию (гонка входа с 401-logout).
      */
-    suspend fun login(login: String, password: String): ApiResult<AuthData> =
-        withContext(Dispatchers.IO) {
+    suspend fun login(login: String, password: String): ApiResult<AuthData> {
+        logoutOn401Job?.join()
+        return withContext(Dispatchers.IO) {
             try {
                 val response = api.auth(AuthRequest(login, password))
 
@@ -90,6 +99,7 @@ class YClientsRepository(context: Context) {
                 ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
             }
         }
+    }
 
     /**
      * Выход из аккаунта.
@@ -234,7 +244,7 @@ class YClientsRepository(context: Context) {
         if (code != 401) return
         tokenStorage.clear()
         if (logoutOn401InProgress.compareAndSet(false, true)) {
-            logoutScope.launch {
+            logoutOn401Job = logoutScope.launch {
                 try {
                     LogoutCoordinator.logout(appContext)
                 } catch (e: CancellationException) {
