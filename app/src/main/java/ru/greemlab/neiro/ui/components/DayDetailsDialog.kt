@@ -434,8 +434,8 @@ private fun DayDetailsContent(
             showArchiveAction = onStudentStatusChange == null || isArchived,
             onArchiveClick = {
                 when {
-                    allowStatusEdit && isArchived -> onUnarchive()
                     isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                    allowStatusEdit && isArchived -> onUnarchive()
                     isArchived -> onUnarchive()
                     else -> onMoveToArchive()
                 }
