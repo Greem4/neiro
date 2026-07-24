@@ -37,13 +37,15 @@ object SessionNotificationCoordinator {
     fun initialize(context: Context) {
         val appContext = context.applicationContext
         SessionNotificationDisplay.ensureChannel(appContext)
-        rescheduleAllWork(appContext)
+        // KEEP: старт приложения/boot не должен сбрасывать фазу уже идущего
+        // 15-минутного тика — это ослабляет fallback напоминаний (см. N1).
+        rescheduleAllWork(appContext, periodicPolicy = ExistingPeriodicWorkPolicy.KEEP)
     }
 
     suspend fun onNotificationsToggled(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
         if (enabled) {
-            rescheduleAllWork(appContext)
+            rescheduleAllWork(appContext, periodicPolicy = ExistingPeriodicWorkPolicy.UPDATE)
             refreshFromCalendar(appContext)
         } else {
             cancelAll(appContext)
@@ -57,7 +59,7 @@ object SessionNotificationCoordinator {
             cancelAll(appContext)
             return
         }
-        rescheduleAllWork(appContext)
+        rescheduleAllWork(appContext, periodicPolicy = ExistingPeriodicWorkPolicy.UPDATE)
         refreshFromCalendar(appContext)
     }
 
@@ -454,13 +456,16 @@ object SessionNotificationCoordinator {
     }
 
     /** Перепланировать все фоновые задачи по текущим настройкам (независимо друг от друга). */
-    private fun rescheduleAllWork(context: Context) {
+    private fun rescheduleAllWork(
+        context: Context,
+        periodicPolicy: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.KEEP,
+    ) {
         val prefs = SessionNotificationPreferences.get(context)
         if (!prefs.isEnabled) {
             cancelAll(context)
             return
         }
-        scheduleDailyNotifications(context)
+        scheduleDailyNotifications(context, periodicPolicy)
         rescheduleAllDailyDigests(context)
     }
 
@@ -480,7 +485,10 @@ object SessionNotificationCoordinator {
      * Единый периодический «notification tick»: напоминания (fallback к one-time),
      * сводки и архив. Один periodic вместо двух — меньше пробуждений и расхода батареи.
      */
-    private fun scheduleDailyNotifications(context: Context) {
+    private fun scheduleDailyNotifications(
+        context: Context,
+        policy: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.KEEP,
+    ) {
         val prefs = SessionNotificationPreferences.get(context)
         val workManager = WorkManager.getInstance(context)
         // Легаси-имя старого отдельного periodic-воркера напоминаний.
@@ -502,7 +510,7 @@ object SessionNotificationCoordinator {
 
         workManager.enqueueUniquePeriodicWork(
             PERIODIC_DAILY_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            policy,
             request,
         )
     }
