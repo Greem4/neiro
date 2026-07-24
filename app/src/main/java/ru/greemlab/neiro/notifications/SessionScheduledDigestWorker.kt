@@ -21,7 +21,11 @@ class SessionScheduledDigestWorker(
         try {
             SessionNotificationCoordinator.deliverScheduledDigest(applicationContext, kind)
         } finally {
-            SessionNotificationCoordinator.rescheduleDigestFromWorker(applicationContext, kind)
+            // isStopped: воркер отменён (например, пользователь только что сменил
+            // время сводки) — не перепланировать поверх свежего enqueue из UI.
+            if (!isStopped) {
+                SessionNotificationCoordinator.rescheduleDigestFromWorker(applicationContext, kind)
+            }
         }
         return Result.success()
     }

@@ -271,8 +271,10 @@ object SessionNotificationCoordinator {
     }
 
     /**
-     * Жёсткое перепланирование (cancel + enqueue) — только при смене времени/настроек
-     * пользователем. Из sync-пути использовать [ensureAllDailyDigestsScheduled].
+     * Жёсткое перепланирование — только при смене времени/настроек пользователем.
+     * Один enqueue с REPLACE (без отдельного cancel): cancel + enqueue — гонка,
+     * при которой enqueue мог быть отброшен, пока отменённая работа ещё числится
+     * ENQUEUED. Из sync-пути использовать [ensureAllDailyDigestsScheduled].
      */
     fun rescheduleDigest(context: Context, kind: ScheduledDigestKind) {
         val appContext = context.applicationContext
@@ -281,8 +283,13 @@ object SessionNotificationCoordinator {
             cancelDigestWork(appContext, kind)
             return
         }
-        cancelDigestWork(appContext, kind) // принудительно сбрасываем старый
-        enqueueDigestWork(appContext, digestWorkName(kind), digestTime(prefs, kind), kind)
+        enqueueDigestWork(
+            appContext,
+            digestWorkName(kind),
+            digestTime(prefs, kind),
+            kind,
+            policy = ExistingWorkPolicy.REPLACE,
+        )
     }
 
     /**
