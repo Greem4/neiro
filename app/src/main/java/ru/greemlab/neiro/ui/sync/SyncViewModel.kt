@@ -55,14 +55,6 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     val isLoggedIn: StateFlow<Boolean> = yclientsRepository.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = yclientsRepository.userAvatarUrl
 
-    val isAutoSyncEnabled: Boolean
-        get() = syncPreferences.isAutoSyncEnabled
-
-    fun setAutoSyncEnabled(enabled: Boolean) {
-        syncPreferences.isAutoSyncEnabled = enabled
-        AutoSyncCoordinator.onAutoSyncToggled(getApplication(), enabled)
-    }
-
     val yclientsUserName: String? get() = yclientsRepository.userName
 
     fun logoutYClients() {
