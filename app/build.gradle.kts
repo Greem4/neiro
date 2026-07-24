@@ -121,14 +121,15 @@ android {
                 "proguard-rules.pro",
             )
             signingConfig =
-                if (hasReleaseSigning) {
-                    signingConfigs.getByName("release")
-                } else {
-                    throw GradleException(
-                        "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
-                            "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
-                            "Соберите debug или prerelease для локальной отладки."
-                    )
+                when {
+                    hasReleaseSigning -> signingConfigs.getByName("release")
+                    gradle.startParameter.taskNames.any { it.contains("Release") } ->
+                        throw GradleException(
+                            "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
+                                "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
+                                "Соберите debug или prerelease для локальной отладки."
+                        )
+                    else -> null
                 }
         }
     }
