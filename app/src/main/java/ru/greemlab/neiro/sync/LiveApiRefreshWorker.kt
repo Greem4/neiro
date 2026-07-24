@@ -26,22 +26,18 @@ class LiveApiRefreshWorker(
             YClientsCalendarSync.get(applicationContext).refreshLiveRange()
         }.onFailure { if (it is CancellationException) throw it }
 
-        try {
-            return when {
-                outcome.isFailure -> {
-                    Log.w(TAG, "refreshLiveRange threw", outcome.exceptionOrNull())
-                    Result.retry()
-                }
-                outcome.getOrNull() is SyncOutcome.Failure -> {
-                    Result.retry()
-                }
-                else -> Result.success()
-            }
-        } finally {
-            if (!isStopped) {
-                LiveApiCoordinator.scheduleNextBackgroundRefresh(applicationContext)
-            }
+        if (outcome.isFailure) {
+            Log.w(TAG, "refreshLiveRange threw", outcome.exceptionOrNull())
+            return Result.retry()
         }
+        if (outcome.getOrNull() is SyncOutcome.Failure) {
+            return Result.retry()
+        }
+
+        if (!isStopped) {
+            LiveApiCoordinator.scheduleNextBackgroundRefresh(applicationContext)
+        }
+        return Result.success()
     }
 
     private companion object {
