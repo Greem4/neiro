@@ -1,6 +1,9 @@
 package ru.greemlab.neiro.notifications
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
 
 /**
@@ -10,9 +13,20 @@ class SessionNotificationPreferences(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    // Единый источник master-тумблера: [get] — синглтон (companion), поэтому этот
+    // StateFlow общий для всех экранов/ViewModel — без него AppSettingsViewModel
+    // (activity-scoped) и SessionNotificationSettingsViewModel независимо кэшировали
+    // isEnabled в своих StateFlow, и смена тумблера на одном экране не была видна
+    // на другом до пересоздания ViewModel (P3).
+    private val _isEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_ENABLED, true))
+    val isEnabledFlow: StateFlow<Boolean> = _isEnabledFlow.asStateFlow()
+
     var isEnabled: Boolean
         get() = prefs.getBoolean(KEY_ENABLED, true)
-        set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+            _isEnabledFlow.value = value
+        }
 
     var notifyNewBooking: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_NEW, true)

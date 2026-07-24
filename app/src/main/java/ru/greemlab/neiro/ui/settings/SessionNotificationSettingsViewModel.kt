@@ -38,9 +38,18 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
     private val _state = MutableStateFlow(loadState())
     val state: StateFlow<SessionNotificationSettingsState> = _state.asStateFlow()
 
+    init {
+        // Единый источник master-тумблера (SessionNotificationPreferences.isEnabledFlow) —
+        // без этого переключение на экране AppSettings не отражалось бы здесь (P3).
+        viewModelScope.launch {
+            prefs.isEnabledFlow.collect { enabled ->
+                _state.update { it.copy(isEnabled = enabled) }
+            }
+        }
+    }
+
     fun setEnabled(value: Boolean) {
         prefs.isEnabled = value
-        _state.update { it.copy(isEnabled = value) }
         viewModelScope.launch {
             SessionNotificationCoordinator.onNotificationsToggled(getApplication(), value)
         }
