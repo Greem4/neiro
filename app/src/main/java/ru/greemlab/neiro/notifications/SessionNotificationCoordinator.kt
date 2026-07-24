@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.await
 import androidx.work.workDataOf
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
@@ -32,6 +33,7 @@ object SessionNotificationCoordinator {
     private const val WORK_ARCHIVE_DIGEST = "session_archive_digest"
     private const val WORK_TAG_REMINDER = "session_reminder"
     private const val WORK_PREFIX = "session_reminder_"
+    private const val DEDUPE_TAG_PREFIX = "session_reminder_dedupe:"
     private const val MAX_SCHEDULE_DAYS = 7L
 
     fun initialize(context: Context) {
@@ -46,7 +48,7 @@ object SessionNotificationCoordinator {
         val appContext = context.applicationContext
         if (enabled) {
             rescheduleAllWork(appContext, periodicPolicy = ExistingPeriodicWorkPolicy.UPDATE)
-            refreshFromCalendar(appContext)
+            refreshFromCalendar(appContext, forceReminderRefresh = true)
         } else {
             cancelAll(appContext)
         }
@@ -60,7 +62,9 @@ object SessionNotificationCoordinator {
             return
         }
         rescheduleAllWork(appContext, periodicPolicy = ExistingPeriodicWorkPolicy.UPDATE)
-        refreshFromCalendar(appContext)
+        // forceReminderRefresh: reminderMinutesBefore мог измениться — старые
+        // one-time work с прежней задержкой нужно пересчитать, а не просто оставить.
+        refreshFromCalendar(appContext, forceReminderRefresh = true)
     }
 
     /** Смена времени доставки: перепланирование и немедленная проверка, если новое время «сейчас». */
@@ -153,7 +157,7 @@ object SessionNotificationCoordinator {
         scheduleAfterBaseline(appContext, profile, prefs)
     }
 
-    suspend fun refreshFromCalendar(context: Context) {
+    suspend fun refreshFromCalendar(context: Context, forceReminderRefresh: Boolean = false) {
         val appContext = context.applicationContext
         val prefs = SessionNotificationPreferences.get(appContext)
         if (!prefs.isEnabled) return
@@ -169,7 +173,7 @@ object SessionNotificationCoordinator {
         val savedDayData = calendarRepository.savedDayDataFlow.first()
         val upcoming = UpcomingSessionsCollector.collect(dayData, profile)
 
-        applyReminderSchedule(appContext, upcoming, prefs)
+        applyReminderSchedule(appContext, upcoming, prefs, forceRefresh = forceReminderRefresh)
 
         runDailyScheduledChecks(
             appContext,
@@ -469,13 +473,14 @@ object SessionNotificationCoordinator {
         rescheduleAllDailyDigests(context)
     }
 
-    private fun applyReminderSchedule(
+    private suspend fun applyReminderSchedule(
         context: Context,
         upcoming: List<UpcomingSession>,
         prefs: SessionNotificationPreferences,
+        forceRefresh: Boolean = false,
     ) {
         if (prefs.notifyReminder) {
-            rescheduleReminders(context, upcoming, prefs.reminderMinutesBefore)
+            rescheduleReminders(context, upcoming, prefs.reminderMinutesBefore, forceRefresh)
         } else {
             WorkManager.getInstance(context).cancelAllWorkByTag(WORK_TAG_REMINDER)
         }
@@ -551,19 +556,42 @@ object SessionNotificationCoordinator {
         }
     }
 
-    private fun rescheduleReminders(
+    /**
+     * Diff-перепланирование: трогает только dedupe-ключи, которых больше нет
+     * среди актуальных сессий (отмена) или которые ещё не запланированы (enqueue).
+     * Уже запланированные сессии не трогаем — cancel-all на каждый sync пересоздавал
+     * все one-time work и в сочетании со старым skip-ом при delayMs<=0 терял
+     * напоминания (см. N1). [forceRefresh] — пересчитать всё (сменился
+     * reminderMinutesBefore в настройках, старые delay уже не актуальны).
+     */
+    private suspend fun rescheduleReminders(
         context: Context,
         sessions: List<UpcomingSession>,
         reminderMinutesBefore: Int,
+        forceRefresh: Boolean = false,
     ) {
         val workManager = WorkManager.getInstance(context)
-        workManager.cancelAllWorkByTag(WORK_TAG_REMINDER)
+
+        val desiredKeys = sessions.map { it.dedupeKey }.toSet()
+        val scheduledKeys = runCatching { workManager.getWorkInfosByTag(WORK_TAG_REMINDER).await() }
+            .getOrDefault(emptyList())
+            .filter { !it.state.isFinished }
+            .flatMap { it.tags }
+            .filter { it.startsWith(DEDUPE_TAG_PREFIX) }
+            .map { it.removePrefix(DEDUPE_TAG_PREFIX) }
+            .toSet()
+
+        for (staleKey in scheduledKeys - desiredKeys) {
+            workManager.cancelUniqueWork(WORK_PREFIX + staleKey)
+        }
 
         val zone = ZoneId.systemDefault()
         val now = java.time.Instant.now()
         val nowDateTime = java.time.LocalDateTime.ofInstant(now, zone)
 
         for (session in sessions) {
+            if (!forceRefresh && session.dedupeKey in scheduledKeys) continue
+
             val trigger = session.reminderAt(reminderMinutesBefore).atZone(zone).toInstant()
             val rawDelayMs = Duration.between(now, trigger).toMillis()
             if (rawDelayMs > TimeUnit.DAYS.toMillis(MAX_SCHEDULE_DAYS)) continue
@@ -576,6 +604,7 @@ object SessionNotificationCoordinator {
             val request = OneTimeWorkRequestBuilder<SessionReminderWorker>()
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
                 .addTag(WORK_TAG_REMINDER)
+                .addTag(DEDUPE_TAG_PREFIX + session.dedupeKey)
                 .setInputData(workDataOf(KEY_DEDUPE to session.dedupeKey))
                 .build()
 
