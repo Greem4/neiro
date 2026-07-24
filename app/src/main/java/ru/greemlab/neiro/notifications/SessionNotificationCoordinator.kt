@@ -546,11 +546,17 @@ object SessionNotificationCoordinator {
 
         val zone = ZoneId.systemDefault()
         val now = java.time.Instant.now()
+        val nowDateTime = java.time.LocalDateTime.ofInstant(now, zone)
 
         for (session in sessions) {
             val trigger = session.reminderAt(reminderMinutesBefore).atZone(zone).toInstant()
-            val delayMs = Duration.between(now, trigger).toMillis()
-            if (delayMs <= 0L || delayMs > TimeUnit.DAYS.toMillis(MAX_SCHEDULE_DAYS)) continue
+            val rawDelayMs = Duration.between(now, trigger).toMillis()
+            if (rawDelayMs > TimeUnit.DAYS.toMillis(MAX_SCHEDULE_DAYS)) continue
+            // Расчётный момент напоминания уже прошёл (например, sync случился
+            // прямо перед стартом) — если сессия ещё не началась, всё равно
+            // ставим one-time work с нулевой задержкой, а не пропускаем её.
+            if (rawDelayMs <= 0L && !session.startsAt().isAfter(nowDateTime)) continue
+            val delayMs = rawDelayMs.coerceAtLeast(0L)
 
             val request = OneTimeWorkRequestBuilder<SessionReminderWorker>()
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
