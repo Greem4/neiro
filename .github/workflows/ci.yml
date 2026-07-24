@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Запретить артефакты сборки в диффе
+        run: |
+          if git ls-files -z | grep -zZ -E '\.aab$|\.apk$|google-services\.json$' | grep -q .; then
+            echo "В репозитории найдены запрещённые артефакты (aab/apk/google-services.json)" >&2
+            git ls-files | grep -E '\.aab$|\.apk$|google-services\.json$'
+            exit 1
+          fi
+
+      - name: Установить JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Настроить Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Юнит-тесты
+        run: ./gradlew testDebugUnitTest
