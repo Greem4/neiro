@@ -491,12 +491,15 @@ object SessionFormat {
             else -> price
         }
         val base = "$INTENSIVE_PREFIX$priceField|$name|${status.code}"
-        val withTime = if (time.isNotBlank()) "$base|$time" else base
-        if (children.isEmpty()) return withTime
+        if (children.isEmpty()) {
+            return if (time.isNotBlank()) "$base|$time" else base
+        }
+        // Слот времени сериализуем всегда (пустой допустим), если есть дети —
+        // иначе первый ребёнок позиционно читается парсером как time (U2).
         val childrenPart = children.joinToString(INTENSIVE_CHILD_SEP) { child ->
             "${child.name}|${child.status.code}|${child.phone}|${child.comment}"
         }
-        return "$withTime|$childrenPart"
+        return "$base|$time|$childrenPart"
     }
 
     /** Поле суммы: `5600` или `=5600` (фиксированная вручную). */

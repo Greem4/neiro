@@ -227,6 +227,31 @@ class SessionParserTest {
     }
 
     @Test
+    fun `SessionFormat round-trips intensive with children and no time`() {
+        // U2: пустой time + непустые children раньше ломали позиционный парсинг —
+        // первый ребёнок читался как time, остальные калечились.
+        val children = listOf(
+            Session.IntensiveChild("Коновалов Ильдар", AttendanceStatus.EXPECTED),
+            Session.IntensiveChild("Караховская Мария", AttendanceStatus.CONFIRMED),
+        )
+        val raw = SessionFormat.serializeIntensive(
+            price = "8000",
+            name = "Интенсив",
+            status = AttendanceStatus.EXPECTED,
+            time = "",
+            children = children,
+        )
+        val parsed = SessionParser.parse(raw) as Session.Intensive
+        assertEquals(8000.0, parsed.amount, 0.0)
+        assertEquals("", parsed.time)
+        assertEquals(2, parsed.children.size)
+        assertEquals("Коновалов Ильдар", parsed.children[0].name)
+        assertEquals(AttendanceStatus.EXPECTED, parsed.children[0].status)
+        assertEquals("Караховская Мария", parsed.children[1].name)
+        assertEquals(AttendanceStatus.CONFIRMED, parsed.children[1].status)
+    }
+
+    @Test
     fun `SessionFormat round-trips fixed intensive amount`() {
         val raw = SessionFormat.serializeIntensive(
             price = "5600",
