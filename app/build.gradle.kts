@@ -71,7 +71,7 @@ android {
 
     @Suppress("UnstableApiUsage")
     androidResources {
-        localeFilters += listOf("ru", "en")
+        localeFilters += listOf("ru")
     }
 
     signingConfigs {
