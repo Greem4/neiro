@@ -107,7 +107,7 @@ object SessionNotificationCoordinator {
 
         if (dayDataBefore == dayDataAfter) {
             if (!prefs.hasBaselineSnapshot) {
-                prefs.establishBaseline(CalendarSessionSnapshot.from(dayDataAfter, profile))
+                prefs.establishBaseline()
                 scheduleAfterBaseline(appContext, profile, prefs)
             }
             return
@@ -140,7 +140,7 @@ object SessionNotificationCoordinator {
         val after = CalendarSessionSnapshot.from(dayDataAfter, profile)
 
         prefs.clearNotifiedKeys()
-        prefs.establishBaseline(before)
+        prefs.establishBaseline()
 
         val events = SessionChangeDetector.detect(before, after)
             .filter { prefs.isTypeEnabled(it.type) }
@@ -153,7 +153,6 @@ object SessionNotificationCoordinator {
             events.filter { it.dedupeKey in shown }.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
-        prefs.saveSnapshot(after)
         scheduleAfterBaseline(appContext, profile, prefs)
     }
 
@@ -193,7 +192,7 @@ object SessionNotificationCoordinator {
         prefs: SessionNotificationPreferences,
     ) {
         if (!prefs.hasBaselineSnapshot) {
-            prefs.establishBaseline(after)
+            prefs.establishBaseline()
             scheduleAfterBaseline(context, profile, prefs)
             return
         }
@@ -205,7 +204,6 @@ object SessionNotificationCoordinator {
         val effectiveAfter = CalendarSessionSnapshot.withinHorizon(after, today)
 
         if (effectiveBefore == effectiveAfter) {
-            prefs.saveSnapshot(effectiveAfter)
             return
         }
 
@@ -220,7 +218,6 @@ object SessionNotificationCoordinator {
             events.filter { it.dedupeKey in shown }.forEach { prefs.markEventNotified(it.dedupeKey) }
         }
 
-        prefs.saveSnapshot(effectiveAfter)
         scheduleAfterBaseline(context, profile, prefs)
     }
 
