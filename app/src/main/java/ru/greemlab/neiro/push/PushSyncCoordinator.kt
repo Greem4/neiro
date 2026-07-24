@@ -10,7 +10,7 @@ import androidx.work.WorkManager
 
 object PushSyncCoordinator {
 
-    private const val WORK_NAME = "push_fcm_sync"
+    const val WORK_NAME = "push_fcm_sync"
 
     fun enqueue(context: Context) {
         if (!PushConfig.isServerConfigured) return
