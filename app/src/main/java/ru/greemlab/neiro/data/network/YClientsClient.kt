@@ -98,13 +98,18 @@ object YClientsClient {
     private class RetryInterceptor : Interceptor {
 
         override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
+            // POST — не идемпотентен (создание/изменение записи): повторный
+            // запрос после таймаута может задвоить операцию на сервере.
+            val attempts = if (request.method == "POST") 1 else MAX_ATTEMPTS
+
             var lastException: IOException? = null
             var response: Response? = null
 
-            repeat(MAX_ATTEMPTS) { attempt ->
+            repeat(attempts) { attempt ->
                 response?.close()
                 response = try {
-                    chain.proceed(chain.request())
+                    chain.proceed(request)
                 } catch (e: IOException) {
                     lastException = e
                     null
@@ -114,17 +119,26 @@ object YClientsClient {
                 if (current != null && current.code !in RETRYABLE_CODES) {
                     return current
                 }
-                if (attempt < MAX_ATTEMPTS - 1) {
-                    Thread.sleep(RETRY_BASE_DELAY_MS shl attempt)
+                if (attempt < attempts - 1) {
+                    val delayMs = current?.let(::retryAfterMillis) ?: (RETRY_BASE_DELAY_MS shl attempt)
+                    Thread.sleep(delayMs)
                 }
             }
 
             return response ?: throw (lastException ?: IOException("Request failed"))
         }
 
+        /** `Retry-After` — секунды или HTTP-дата; сервер лучше нас знает, когда повторять. */
+        private fun retryAfterMillis(response: Response): Long? {
+            val header = response.header("Retry-After") ?: return null
+            val seconds = header.toLongOrNull() ?: return null
+            return (seconds * 1000L).coerceIn(0L, MAX_RETRY_AFTER_MS)
+        }
+
         private companion object {
             const val MAX_ATTEMPTS = 3
             const val RETRY_BASE_DELAY_MS = 500L
+            const val MAX_RETRY_AFTER_MS = 30_000L
             val RETRYABLE_CODES = setOf(408, 429) + (500..599)
         }
     }
