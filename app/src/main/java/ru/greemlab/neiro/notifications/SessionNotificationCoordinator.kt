@@ -7,9 +7,10 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.await
 import androidx.work.workDataOf
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.suspendCancellableCoroutine
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.UserProfile
@@ -18,6 +19,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
+import kotlin.collections.emptyList
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Планирование и показ уведомлений о занятиях зарегистрированного пользователя.
@@ -707,5 +711,20 @@ object SessionNotificationCoordinator {
             cancelAllDailyDigests(context)
             cancelAllWorkByTag(WORK_TAG_REMINDER)
         }
+    }
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    private suspend fun <T> ListenableFuture<T>.await(): T = suspendCancellableCoroutine { cont ->
+        addListener(
+            {
+                try {
+                    cont.resume(get())
+                } catch (e: Throwable) {
+                    cont.resumeWithException(e)
+                }
+            },
+            { it.run() },
+        )
+        cont.invokeOnCancellation { cancel(false) }
     }
 }
