@@ -220,18 +220,23 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
     override suspend fun applySessionPriceChange(newPrice: Double) {
         writeMutex.withLock {
-            val snapshot = cachedState.value
-            val profile = snapshot.profile
-            if (newPrice == profile.pricePerSession) return@withLock
-
-            val updatedProfile = profile.copy(pricePerSession = newPrice)
-
-            val profileJson = UserProfileJson.toJson(updatedProfile)
+            var updated: UserProfile? = null
+            var json: String? = null
+            // RMW внутри dataStore.edit, а не из cachedState (см. updateProfile) —
+            // иначе устаревший снимок (до warmUp, из sync-кэша) перезаписывал бы
+            // остальные поля профиля, обновлёнными где-то ещё в фоне за это время.
             appContext.dataStore.edit { prefs ->
-                prefs[profileKey] = profileJson
+                val current = UserProfileJson.fromJson(prefs[profileKey])
+                if (newPrice == current.pricePerSession) return@edit
+                val next = current.copy(pricePerSession = newPrice)
+                val serialized = UserProfileJson.toJson(next)
+                prefs[profileKey] = serialized
+                updated = next
+                json = serialized
             }
-            cachedState.value = snapshot.copy(profile = updatedProfile)
-            writeSyncCache(profileJson = profileJson)
+            val next = updated ?: return@withLock
+            cachedState.value = cachedState.value.copy(profile = next)
+            writeSyncCache(profileJson = json)
         }
     }
 
