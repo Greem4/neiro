@@ -71,7 +71,10 @@ fun SettingsScreen(
             }
         },
         onBack = {
-            if (!profile.isRegistered && profile.name.isNotBlank()) {
+            // То же условие, что и enabled у кнопки «Начать работу» ниже —
+            // иначе TopBar-стрелка «Назад» завершала регистрацию по одному
+            // только имени, без вида деятельности (P6).
+            if (!profile.isRegistered && profile.name.isNotBlank() && profile.activityType.isNotBlank()) {
                 viewModel.completeRegistration()
             }
             onBack()
