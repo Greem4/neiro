@@ -114,7 +114,7 @@ android {
             isCrunchPngs = true
             @Suppress("UnstableApiUsage")
             installation {
-                enableBaselineProfile = false
+                enableBaselineProfile = true
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
