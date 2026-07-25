@@ -128,6 +128,38 @@ class YClientsClient:
         )
 
 
+def next_changed_after(records: list[YClientsRecord]) -> str | None:
+    """Курсор для следующего опроса — самый свежий `last_change_date` в пачке.
+
+    Небольшое перекрытие (5 с) страхует от границы окна, как в старом сервисе
+    и Android-клиенте.
+    """
+    zone = ZoneInfo("Europe/Moscow")
+    latest: datetime | None = None
+    for record in records:
+        if not record.last_change_date:
+            continue
+        parsed = _parse_timestamp(record.last_change_date, zone)
+        if parsed and (latest is None or parsed > latest):
+            latest = parsed
+    if latest is None:
+        return None
+    overlap = latest - timedelta(seconds=5)
+    return overlap.astimezone(zone).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_timestamp(value: str, zone: ZoneInfo) -> datetime | None:
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=zone)
+            return parsed
+        except ValueError:
+            continue
+    return None
+
+
 def _extract_time(value: str | None) -> str:
     if not value:
         return ""

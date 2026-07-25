@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Protocol
 
 
 def utc_now_iso() -> str:
@@ -42,6 +42,19 @@ class RecordState:
     deleted: int
     client_name: str
     kind: str
+
+
+class EventLike(Protocol):
+    """Структурный контракт для вставки — под него подходит `events.DerivedEvent`."""
+
+    type: str
+    client_name: str
+    date: str
+    time: str
+    kind: str
+    prev_date: str | None
+    prev_time: str | None
+    record_id: int | None
 
 
 @dataclass(frozen=True)
@@ -360,7 +373,7 @@ class Database:
                 ],
             )
 
-    def insert_events(self, account_id: int, events: list[Event]) -> list[int]:
+    def insert_events(self, account_id: int, events: list[EventLike]) -> list[int]:
         now = utc_now_iso()
         ids = []
         with self.connect() as conn:
