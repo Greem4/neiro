@@ -99,19 +99,16 @@ class YClientsClient:
     @staticmethod
     def _parse_record(raw: dict[str, Any]) -> YClientsRecord:
         client = raw.get("client") or {}
+        # Порядок полей обязан совпадать с extractClientName в приложении
+        # (YClientsCalendarSync.kt:700) — иначе dedupeKey разъедется и
+        # одно событие покажется дважды. См. push-events-app.md §2.2.
         name = (
             client.get("display_name")
             or " ".join(
                 part
-                for part in (
-                    client.get("surname"),
-                    client.get("name"),
-                    client.get("patronymic"),
-                )
+                for part in (client.get("name"), client.get("surname"))
                 if part
             ).strip()
-            or client.get("name")
-            or ""
         )
         services = raw.get("services") or []
         is_diagnostics = any(
