@@ -28,6 +28,7 @@
 | 2 | Схема БД [app/database.py](../neiro-push-events/app/database.py) по §7 Этапа 2, WAL включён | `c8c4369` |
 | 3 | Клиент YClients [app/yclients.py](../neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
 | 4 | Дифф состояний [app/events.py](../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
+| 5 | Поллер [app/poller.py](../neiro-push-events/app/poller.py) (группировка по компании, сидирование, backoff, ретеншен) + [app/fcm.py](../neiro-push-events/app/fcm.py) (payload/nudge по §6.1) + [app/security.py](../neiro-push-events/app/security.py) (`SecretBox`, копия из старого сервиса); связано в [app/main.py](../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста с фейками YClients/FCM | `503949a` |
 
 Проверено на этот момент: контейнер `neiro-push-events` жив на Pi (порт 8011),
 `curl https://push.neiro.greemlab.ru/v2/health` отвечает `200` публично,
@@ -86,7 +87,23 @@ restart caddy`. Резервная копия файла до правки ле�
 старый `/health` и чужой `medicine.greemlab.ru` (другой проект на том же
 Caddy) оба живы после рестарта.
 
-**4. `client_name` собирался в неправильном порядке полей.**
+**4. Курсор `next_changed_after` не входил в Этап 3, добавлен в Этапе 5.**
+[app/yclients.py](../neiro-push-events/app/yclients.py) на Этапе 3 разбирал
+записи, но не считал курсор для следующего опроса — этой функции не было в
+плане явно расписана, но она нужна поллеру. Добавлена как `next_changed_after()`
+в тот же файл (по образцу [server/app/yclients.py:106](../server/app/yclients.py#L106)),
+аддитивно — старый код разбора записей не тронут.
+
+**5. `get_poll_service()`-синглтон из старого сервиса не подошёл.**
+Первый черновик `poller.py` копировал паттерн старого сервиса — модуль-level
+синглтон, который сам создаёт свой `Database`. Это создало бы **второй**
+экземпляр `Database` на процесс (первый уже держит `main.py` в `app.state.db`)
+— прямое нарушение принципа Этапа 2 «один `Database` на процесс». Убрано:
+`PollService` собирается один раз в `lifespan` вместе с общим `Database`,
+`SecretBox`, `YClientsClient`, `FcmSender`; `YClientsClient.aclose()` вызывается
+при остановке — раньше эта функция (написанная в Этапе 3) нигде не вызывалась.
+
+**6. `client_name` собирался в неправильном порядке полей.**
 Найдено на пересечении с [push-events-app.md §2.2](push-events-app.md) —
 документом, который параллельно уточнял пользователь: контракт требует ровно
 `displayName ?: (name + " " + surname)`, как в `extractClientName`
@@ -109,9 +126,11 @@ Caddy) оба живы после рестарта.
 
 ### Дальше по порядку
 
-Этап 5 — `app/poller.py`, `app/fcm.py`: поллер (группировка по `company_id`,
-сидирование, backoff, ретеншен) и отправка FCM. После него — Этапы 6–9 как в
-плане, без изменений в подходе.
+Этап 6 — `app/main.py` (эндпоинты), `app/schemas.py`: API регистрации
+устройств, догона событий и снятия регистрации из §6.2. Сейчас в базе нет ни
+одного аккаунта или устройства кроме тех, что заводят тесты, — регистрация
+появится этим этапом. После него — Этапы 7–9 как в плане, без изменений в
+подходе.
 
 Полезно держать в голове для Этапа 6 (API): по решению пользователя от
 25.07.2026 (см. [push-events-app.md §6.4](push-events-app.md)) курсор
