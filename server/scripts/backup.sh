@@ -43,7 +43,7 @@ print("sqlite backup ok")
 PY
 
 docker compose cp neiro-push:/data/_backup_tmp.db ~/"${REMOTE_DIR}/neiro_push-${STAMP}.db"
-docker compose exec -T neiro-push rm -f /data/_backup_tmp.db
+docker compose exec -T neiro-push rm -f /data/_backup_tmp.db < /dev/null
 
 cp .env ~/"${REMOTE_DIR}/env-${STAMP}.txt"
 chmod 600 ~/"${REMOTE_DIR}/env-${STAMP}.txt"
