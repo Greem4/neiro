@@ -11,7 +11,7 @@
 ## Статус выполнения
 
 Хроника работ, коммиты, подводные камни и решения пользователя вынесены в
-отдельный документ — **[push-events-progress.md](push-events-progress.md)**.
+отдельный документ — **[progress.md](progress.md)**.
 Здесь только сводка.
 
 | Этап | Состояние |
@@ -21,35 +21,35 @@
 | 2. Схема БД | ✅ WAL включён |
 | 3. Клиент YClients | ✅ один запрос на компанию |
 | 4. Вычисление событий | ✅ 14 тестов |
-| 5. Поллер и отправка | ⚠️ **написан, но требует правок** — см. [разбор](push-events-stage5-review.md) |
+| 5. Поллер и отправка | ⚠️ **написан, но требует правок** — см. [разбор](stage5-review.md) |
 | 6–10 | не начаты |
 
 > **Внимание перед продолжением.** Этап 5 закоммичен (`503949a`), но сверка с
 > этим планом выявила два блокера: сидирование сделано не по §7 Этапа 5 п.3
 > (даёт ложные `NEW_BOOKING`) и состояния пишутся раньше журнала событий (риск
 > потерять событие — это П2 из §3). Правки не сделаны. Разбор находок и порядок
-> работ — **[push-events-stage5-review.md](push-events-stage5-review.md)**.
+> работ — **[stage5-review.md](stage5-review.md)**.
 
 ### Связанные документы
 
 | Документ | Роль |
 |---|---|
-| [CLAUDE.md](../CLAUDE.md) | Правила репозитория — формат коммитов, «не ломать работающее», этапы/коммиты |
-| **push-events-plan.md** (этот файл) | Главный план: архитектура, контракт, пошаговый список этапов, чек-лист приёмки |
-| [push-events-progress.md](push-events-progress.md) | Журнал работ: что сделано по этапам, коммиты, подводные камни, решения пользователя |
-| [push-events-stage5-review.md](push-events-stage5-review.md) | Разбор находок по Этапу 5 и порядок правок — **следующая работа** |
-| [push-events-app.md](push-events-app.md) | Детализация Этапа 8 (правки приложения) — пишется и уточняется параллельно этому файлу |
-| [push-setup.md](push-setup.md) | Текущая (старая) инструкция по `neiro-push` 0.6.9.0 — будет дополнена разделом про новый сервис на Этапе 9.4 |
-| [server/README.md](../server/README.md) | Карточка старого сервиса `neiro-push` (заморожен, не трогать) |
+| [CLAUDE.md](../../CLAUDE.md) | Правила репозитория — формат коммитов, «не ломать работающее», этапы/коммиты |
+| **plan.md** (этот файл) | Главный план: архитектура, контракт, пошаговый список этапов, чек-лист приёмки |
+| [progress.md](progress.md) | Журнал работ: что сделано по этапам, коммиты, подводные камни, решения пользователя |
+| [stage5-review.md](stage5-review.md) | Разбор находок по Этапу 5 и порядок правок — **следующая работа** |
+| [app.md](app.md) | Детализация Этапа 8 (правки приложения) — пишется и уточняется параллельно этому файлу |
+| [push-setup.md](../push-setup.md) | Текущая (старая) инструкция по `neiro-push` 0.6.9.0 — будет дополнена разделом про новый сервис на Этапе 9.4 |
+| [server/README.md](../../server/README.md) | Карточка старого сервиса `neiro-push` (заморожен, не трогать) |
 
 ### Дальше по порядку
 
-1. **Правки Этапа 5** по [push-events-stage5-review.md §7](push-events-stage5-review.md#7-с-чего-начинать)
+1. **Правки Этапа 5** по [stage5-review.md §7](stage5-review.md#7-с-чего-начинать)
    — пять коммитов, блокеры первыми.
 2. **Этап 6** — API регистрации и догона (§6.2). Курсор устройства при новой
    регистрации ставится в `max(events.id)`, при повторной регистрации известного
    `device_id` не трогается (решение пользователя от 25.07.2026, см.
-   [push-events-app.md §6.4](push-events-app.md)). Схема БД это уже позволяет
+   [app.md §6.4](app.md)). Схема БД это уже позволяет
    (`devices.last_ack_event_id` nullable). Учесть замечание про устройство,
    молчавшее дольше ретеншена.
 3. Этапы 7–10 — как в плане ниже, без изменений в подходе.
@@ -77,7 +77,7 @@
 
 ### Формат коммитов
 
-По правилам репозитория ([CLAUDE.md](../CLAUDE.md)): одна строка на русском,
+По правилам репозитория ([CLAUDE.md](../../CLAUDE.md)): одна строка на русском,
 до 72 символов, глагол в прошедшем времени, без префиксов `feat:`/`fix:`,
 без перечисления файлов и деталей реализации.
 
@@ -150,10 +150,10 @@ YClients ──(опрос 15 c)──> neiro-push ──FCM {action:"sync"}─�
                                              «Ваня подтвердился»
 ```
 
-**Сервер** ([server/app/poller.py](../server/app/poller.py)):
+**Сервер** ([server/app/poller.py](../../server/app/poller.py)):
 - `fetch_records(changed_after=...)` забирает изменившиеся записи со всеми
   полями: `attendance`, `deleted`, `client_name`, `date`, `datetime`;
-- [`yclients.py:fingerprint()`](../server/app/yclients.py) схлопывает весь набор
+- [`yclients.py:fingerprint()`](../../server/app/yclients.py) схлопывает весь набор
   в один SHA-256 и сравнивает с сохранённым;
 - при расхождении шлёт FCM `{action: "sync", company_id, staff_id, reason}` —
   **без информации о том, что изменилось**.
@@ -204,8 +204,8 @@ YClients ──(опрос 15 c)──> neiro-push ──FCM {action:"sync"}─�
 | Состояние по `record_id` вместо общего хеша | Убирает П3, плюс перенос занятия определяется однозначно |
 | Один запрос на компанию, разбор по `staff_id` в памяти | Убирает П5. Прав токена хватает — проверено |
 | Дневной режим до 23:00 | Убирает П6. Ночной интервал остаётся часовым: после 23 в YClients никто не работает |
-| **`dedupeKey` считает приложение, не сервер** | `normalizeForKey()` ([UpcomingSession.kt:185](../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185)) нетривиален: сортировка токенов, `ё`→`е`, чистка пунктуации. Повтор на Python = риск расхождения = дубли уведомлений |
-| Календарь правится данными из payload, без похода в YClients | Push остаётся почти бесплатным, но экран не расходится с уведомлением. Пересмотрено 25.07.2026: раньше здесь было «календарь обновляется только при открытии приложения» — уведомление «Ваня подтвердился» при неизменившемся слоте выглядит поломкой. Полный синк по-прежнему только на `LiveApiCoordinator.onStart`. Подробности — [push-events-app.md §5](push-events-app.md) |
+| **`dedupeKey` считает приложение, не сервер** | `normalizeForKey()` ([UpcomingSession.kt:185](../../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185)) нетривиален: сортировка токенов, `ё`→`е`, чистка пунктуации. Повтор на Python = риск расхождения = дубли уведомлений |
+| Календарь правится данными из payload, без похода в YClients | Push остаётся почти бесплатным, но экран не расходится с уведомлением. Пересмотрено 25.07.2026: раньше здесь было «календарь обновляется только при открытии приложения» — уведомление «Ваня подтвердился» при неизменившемся слоте выглядит поломкой. Полный синк по-прежнему только на `LiveApiCoordinator.onStart`. Подробности — [app.md §5](app.md) |
 | Новый сервис рядом, а не переделка старого | 0.6.9.0 работает. Откат = остановить контейнер |
 
 ---
@@ -249,7 +249,7 @@ YClients ─────────────┤
 | Кто ходит | сборка 0.6.9.0 | новая сборка приложения |
 
 **Разделение по сборкам приложения.** `NEIRO_PUSH_API_BASE_URL` — поле
-`buildConfigField` ([app/build.gradle.kts:66](../app/build.gradle.kts#L66)),
+`buildConfigField` ([app/build.gradle.kts:66](../../app/build.gradle.kts#L66)),
 задаётся в `local.properties`. Старая сборка смотрит на старый URL, новая — на
 `/v2`. Устройство регистрируется ровно на одном сервисе, поэтому **двойных
 уведомлений быть не может**.
@@ -272,7 +272,7 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 
 Дубли невозможны: их гасит существующий `wasEventNotified(dedupeKey)` — LRU на
 300 ключей в
-[SessionNotificationPreferences.kt:117](../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117).
+[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117).
 Кто первый принёс событие, тот и показал.
 
 ---
@@ -294,11 +294,11 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 | Поле события | Тип | Примечание |
 |---|---|---|
 | `id` | int | id из журнала, он же курсор |
-| `staff_id` | int | **Чей это специалист.** Устройство обязано отбрасывать события с чужим `staff_id` — второй рубеж на случай, если серверная раскладка по специалистам сломается ([push-events-app.md §2.5](push-events-app.md)) |
+| `staff_id` | int | **Чей это специалист.** Устройство обязано отбрасывать события с чужим `staff_id` — второй рубеж на случай, если серверная раскладка по специалистам сломается ([app.md §2.5](app.md)) |
 | `type` | string | `NEW_BOOKING`, `CANCELLED`, `RESCHEDULED`, `DELETED`, `CLIENT_CONFIRMED`, `CLIENT_ARRIVED` — совпадают с `SessionEventType` |
-| `client_name` | string | как в YClients, без нормализации. Порядок полей — как в `extractClientName`: `display_name`, иначе `name + surname` ([push-events-app.md §2.2](push-events-app.md)) |
+| `client_name` | string | как в YClients, без нормализации. Порядок полей — как в `extractClientName`: `display_name`, иначе `name + surname` ([app.md §2.2](app.md)) |
 | `date` | string | `YYYY-MM-DD` |
-| `time` | string | `HH:MM`, начало занятия. Локальное время подстрокой из `datetime`, **без пересчёта часового пояса** ([§2.1](push-events-app.md)) |
+| `time` | string | `HH:MM`, начало занятия. Локальное время подстрокой из `datetime`, **без пересчёта часового пояса** ([§2.1](app.md)) |
 | `kind` | string | `LESSON` \| `DIAGNOSTICS` |
 | `prev_date`, `prev_time` | string? | только для `RESCHEDULED` |
 
@@ -309,7 +309,7 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 доверяя серверу: иначе при поломке раскладки специалист получит уведомления про
 чужих детей, а `PushEventCalendarApplier` впишет чужую запись ему в календарь.
 Правило действует одинаково для push'а и для догона (§6.2). Подробности и место
-барьера — [push-events-app.md §2.5](push-events-app.md).
+барьера — [app.md §2.5](app.md).
 
 В журнале (`events`) отдельной колонки `staff_id` нет и не нужно — он берётся
 через `account_id` → `accounts.staff_id`, и API обязан его подставлять в ответ.
@@ -330,7 +330,7 @@ Doze доставка откладывается и смысл payload'а тер
 | POST | `/v1/devices/register` | API key | Регистрация телефона. **Новый** `device_id` получает `last_ack_event_id = max(events.id)`; у известного курсор не трогаем. В ответе — `last_event_id` |
 | DELETE | `/v1/devices/{device_id}` | API key | Снятие регистрации |
 | GET | `/v1/devices/{device_id}/events?since=&limit=` | API key | **Догон событий** |
-| POST | `/v1/devices/{device_id}/events/ack` | API key | Курсор доставки. **Обязателен:** курсор должен пережить переустановку приложения ([push-events-app.md §6.4](push-events-app.md)) |
+| POST | `/v1/devices/{device_id}/events/ack` | API key | Курсор доставки. **Обязателен:** курсор должен пережить переустановку приложения ([app.md §6.4](app.md)) |
 | GET | `/health` | Admin key | Статус |
 | GET | `/v1/admin/events?limit=` | Admin key | Последние события + доставка |
 | GET | `/v1/admin/poll-log?limit=` | Admin key | Последние циклы опроса |
@@ -349,7 +349,7 @@ Doze доставка откладывается и смысл payload'а тер
 
 Догон отдаёт события **в том же формате**, что и push, — с `staff_id` в каждом.
 Приложение прогоняет их через тот же фильтр по специалисту
-([push-events-app.md §2.5](push-events-app.md)): сервер в обоих путях один и тот
+([app.md §2.5](app.md)): сервер в обоих путях один и тот
 же, значит и ошибиться может в обоих.
 
 `device_id` отображается на аккаунт через таблицу `devices` — отдельная
@@ -374,7 +374,7 @@ Doze доставка откладывается и смысл payload'а тер
 
 `kind = DIAGNOSTICS`, если какая-либо из `services` содержит «диагностика» без
 учёта регистра — та же проверка, что в приложении
-([YClientsCalendarSync.kt:722](../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722)).
+([YClientsCalendarSync.kt:722](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722)).
 
 ---
 
@@ -454,7 +454,7 @@ http://push.neiro.greemlab.ru {
 
 1. **Идемпотентность** — повторный запуск ничего не дублирует.
 2. **Не ломать старый блок.** Проверено: старый
-   [patch-pi-caddy.py](../server/scripts/patch-pi-caddy.py) при повторном
+   [patch-pi-caddy.py](../../server/scripts/patch-pi-caddy.py) при повторном
    запуске видит свой маркер `http://push.neiro.greemlab.ru {`, печатает
    `already_patched` и файл не трогает — значит наш `handle_path` он не сотрёт.
    Это поведение важно сохранить: если старый скрипт когда-нибудь поменяют на
@@ -634,7 +634,7 @@ conn.execute("PRAGMA synchronous=NORMAL")
 
 Ставится после того, как сервер проверен и работает.
 
-**Подробности — в [push-events-app.md](push-events-app.md):** разбор по файлам,
+**Подробности — в [app.md](app.md):** разбор по файлам,
 маппинг типов события в `AttendanceStatus`, требования к payload, вытекающие из
 `slotKey` приложения, риски и приёмка. Ниже — только состав этапа.
 
@@ -662,7 +662,7 @@ conn.execute("PRAGMA synchronous=NORMAL")
 | новый `push/PushSessionEvent.kt` | Модель события + `toSessionEvent(): SessionEvent`. Собирает `TrackedSession` (endTime = time + `SESSION_DURATION_MINUTES`, `status` из типа, `isMarkedDeleted = type == DELETED`) — `dedupeKey` считается существующим кодом |
 | новый `push/PushEventNotifier.kt` | Фильтры и показ, зеркало хвоста `processSnapshotTransition`: `prefs.isEnabled` → `isTypeEnabled(type)` → `!wasEventNotified(key)` → `SessionNotificationDisplay.showEvents(...)` → `markEventNotified` для показанных |
 | `push/NeiroFirebaseMessagingService.kt` | Ветвление по `action`: `session_events` → разбор и показ; `sync_events` → догон. Ветки `sync` нет — новая сборка со старым сервисом не работает |
-| `push/PushSyncWorker.kt`, `push/PushSyncCoordinator.kt` | Удалить. Осиротевшую работу `push_fcm_sync` отменить по имени при старте, как `yclients_periodic_sync` ([push-events-app.md §4.4](push-events-app.md)) |
+| `push/PushSyncWorker.kt`, `push/PushSyncCoordinator.kt` | Удалить. Осиротевшую работу `push_fcm_sync` отменить по имени при старте, как `yclients_periodic_sync` ([app.md §4.4](app.md)) |
 
 Собирая настоящий `SessionEvent`, получаем бесплатно всю существующую
 машинерию: переключатели типов в настройках, dedupe, ленту уведомлений,
@@ -675,7 +675,7 @@ conn.execute("PRAGMA synchronous=NORMAL")
 | новый `push/PushEventCalendarApplier.kt` | Точечная правка `dayData` из payload через `calendarRepository.updateDayData { }`: смена статуса, перенос, удаление, добавление. В YClients не ходит. Интенсивы не трогает |
 
 Разбор по типам событий, сохранение телефона и комментария при смене статуса,
-порядок применения — [push-events-app.md §5](push-events-app.md).
+порядок применения — [app.md §5](app.md).
 
 **8.3. Догон.**
 
@@ -721,7 +721,7 @@ conn.execute("PRAGMA synchronous=NORMAL")
 5. Проверить, что телефон зарегистрирован именно на этом сервисе, а не на
    старом.
 
-**9.4.** Обновить [docs/push-setup.md](push-setup.md) — добавить раздел про
+**9.4.** Обновить [docs/push-setup.md](../push-setup.md) — добавить раздел про
 новый сервис и пометить, что старый обслуживает только сборку 0.6.9.0.
 
 **9.5.** В этом файле проставить отметки о выполнении и перечислить
@@ -828,7 +828,7 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
 ```
 
 Обёртка `neiro-push-events/scripts/dash.sh` — по образцу
-[admin-status.sh](../server/scripts/admin-status.sh): сама достаёт
+[admin-status.sh](../../server/scripts/admin-status.sh): сама достаёт
 `ADMIN_API_KEY` из `.env` на Pi по ssh, если он не задан в
 `NEIRO_PUSH_EVENTS_ADMIN_KEY`.
 
@@ -957,4 +957,4 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
    зарегистрирован и на старом, и на новом — придут два уведомления.
 
 7. **Сборку Gradle не запускать** — по правилам репозитория
-   ([CLAUDE.md](../CLAUDE.md)) её делает пользователь сам.
+   ([CLAUDE.md](../../CLAUDE.md)) её делает пользователь сам.

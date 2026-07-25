@@ -1,6 +1,6 @@
 # Разбор Этапа 5: что не так с поллером и как это чинить
 
-Отчёт по итогам сверки реализации Этапа 5 с [планом](push-events-plan.md).
+Отчёт по итогам сверки реализации Этапа 5 с [планом](plan.md).
 Составлен 25.07.2026 вечером, анализ — Opus, реализация Этапа 5 — Sonnet.
 
 **Статус: код Этапа 5 закоммичен (`503949a`), правки по этому отчёту НЕ сделаны.**
@@ -33,7 +33,7 @@
 **по смыслу**, через уже готовую функцию `derive_events`, не заметив, что
 решение «полный запрос или инкрементальный» живёт совсем в другом месте кода и
 с сидированием никак не связано. Классический случай из
-[CLAUDE.md](../CLAUDE.md): молча выбранное допущение выглядит как выполненная
+[CLAUDE.md](../../CLAUDE.md): молча выбранное допущение выглядит как выполненная
 работа.
 
 ---
@@ -42,7 +42,7 @@
 
 ### 2.1 Сидирование: два источника правды
 
-**Где:** [app/poller.py](../neiro-push-events/app/poller.py) — `_poll_company`
+**Где:** [app/poller.py](../../neiro-push-events/app/poller.py) — `_poll_company`
 (строка ~110) и `_company_changed_after` (строки ~237–241).
 
 **Что требует план.** §7 Этап 5, п.3:
@@ -114,7 +114,7 @@ def _company_changed_after(self, accounts: list[WatchedAccount]) -> str | None:
 
 **Что писать:**
 
-1. В [app/database.py](../neiro-push-events/app/database.py) — лёгкая проверка
+1. В [app/database.py](../../neiro-push-events/app/database.py) — лёгкая проверка
    без выгрузки всех состояний:
 
 ```python
@@ -127,7 +127,7 @@ def has_record_states(self, account_id: int) -> bool:
     return row is not None
 ```
 
-2. В [app/events.py](../neiro-push-events/app/events.py) — обновление состояний
+2. В [app/events.py](../../neiro-push-events/app/events.py) — обновление состояний
    без генерации событий:
 
 ```python
@@ -162,7 +162,7 @@ changed_after = None if seeding else self._company_changed_after(active_accounts
 
 ### 2.2 Состояния пишутся раньше событий
 
-**Где:** [app/poller.py](../neiro-push-events/app/poller.py) — `_poll_account`,
+**Где:** [app/poller.py](../../neiro-push-events/app/poller.py) — `_poll_account`,
 строки ~167–174.
 
 ```python
@@ -182,7 +182,7 @@ event_ids = self._db.insert_events(account.id, events)   # ← журнал
 цикл сравнит новые записи с уже обновлёнными состояниями, разницы не увидит —
 и **событие потеряно навсегда**.
 
-Это буквально П2 из [плана §3](push-events-plan.md), ради которого весь сервис
+Это буквально П2 из [плана §3](plan.md), ради которого весь сервис
 и строится:
 
 > **П2. Потерянный push = потерянное событие навсегда.** […] Главный риск.
@@ -203,8 +203,8 @@ self._db.replace_record_states(account.id, new_states)
 следующий цикл сгенерирует те же события повторно → в журнале дубль. Это
 **безопасный** отказ: дубли гасит `wasEventNotified(dedupeKey)` в приложении
 (LRU на 300 ключей,
-[SessionNotificationPreferences.kt:117](../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
-см. [план §5.2](push-events-plan.md)). Потеря — невосстановима, дубль —
+[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
+см. [план §5.2](plan.md)). Потеря — невосстановима, дубль —
 гасится штатно.
 
 **Идеально** было бы писать событие и состояния одной транзакцией, но сейчас
@@ -229,7 +229,7 @@ states)` с одним `conn`. Если делать — то этим же ко
 | `INFO backoff company=123 until=12:41:05 (errors=3)` | ❌ **нет** | backoff проставляется молча |
 
 Почему это не косметика: «Прозрачность» — одна из четырёх жёстких рамок
-[§1 плана](push-events-plan.md), а §9.3 («что делать, если уведомление не
+[§1 плана](plan.md), а §9.3 («что делать, если уведомление не
 пришло») построен на том, что по логам видно, шёл ли опрос и не сидит ли
 аккаунт в backoff. Сейчас backoff невидим полностью.
 
@@ -262,7 +262,7 @@ status TEXT NOT NULL,          -- sent | failed | token_invalid
 ```
 
 Причём в реализации схемы
-([app/database.py](../neiro-push-events/app/database.py), стр. ~140) этот
+([app/database.py](../../neiro-push-events/app/database.py), стр. ~140) этот
 поясняющий комментарий **потерян ещё на Этапе 2** — значит следующий, кто
 полезет в схему, вообще не узнает, какие значения допустимы. Этап 5 сверху
 добавил четвёртый статус, не описанный нигде.
@@ -307,13 +307,13 @@ partner_token = self._secret_box.decrypt(lead_account.partner_token_enc)
 
 ### 3.6 FCM не настроен → спам `failed`
 
-[app/fcm.py](../neiro-push-events/app/fcm.py): `send_events_push` кидает
+[app/fcm.py](../../neiro-push-events/app/fcm.py): `send_events_push` кидает
 `RuntimeError`, если FCM не сконфигурирован. `_push_to_device` ловит любое
 исключение и пишет `failed` — **на каждое событие каждого устройства каждый
 цикл**. За сутки это тысячи мусорных строк в `push_deliveries`, и настоящие
 сбои доставки в них утонут.
 
-Старый сервис ([server/app/poller.py](../server/app/poller.py)) проверял это
+Старый сервис ([server/app/poller.py](../../server/app/poller.py)) проверял это
 явно и клал внятное сообщение в `last_error` аккаунта. Здесь так же: проверить
 `self._fcm.is_configured` до отправки, один раз на аккаунт.
 
@@ -321,7 +321,7 @@ partner_token = self._secret_box.decrypt(lead_account.partner_token_enc)
 
 **Требование добавлено пользователем 25.07.2026, после написания Этапа 5.**
 
-`_event_payload` в [app/poller.py](../neiro-push-events/app/poller.py) (стр.
+`_event_payload` в [app/poller.py](../../neiro-push-events/app/poller.py) (стр.
 ~254) собирает событие без `staff_id`:
 
 ```python
@@ -349,7 +349,7 @@ account_records = [r for r in records if r.staff_id == account.staff_id]
 на устройстве — второй рубеж, чтобы поломка сервера не доезжала до экрана.
 
 Полное обоснование и место барьера в приложении —
-[push-events-app.md §2.5](push-events-app.md), контракт — [план §6.1](push-events-plan.md).
+[app.md §2.5](app.md), контракт — [план §6.1](plan.md).
 
 **Что писать на сервере:**
 
@@ -445,7 +445,7 @@ loop. Плюс `record_push_delivery` открывает **отдельное с
 ## 7. С чего начинать
 
 Порядок именно такой: блокеры сначала, каждая порция — отдельным коммитом по
-правилам [CLAUDE.md](../CLAUDE.md).
+правилам [CLAUDE.md](../../CLAUDE.md).
 
 **Коммит 1 — сидирование** ([§2.1](#21-сидирование-два-источника-правды)).
 `Database.has_record_states`, `events.merge_states`, решение о сидировании на
@@ -504,4 +504,4 @@ python3 -m venv /tmp/venv-neiro-events
 cd neiro-push-events && PYTHONPATH=. /tmp/venv-neiro-events/bin/python -m pytest tests/ -v
 ```
 
-Сборку Gradle не запускать — по [CLAUDE.md](../CLAUDE.md) её делает пользователь.
+Сборку Gradle не запускать — по [CLAUDE.md](../../CLAUDE.md) её делает пользователь.

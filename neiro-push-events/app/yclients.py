@@ -101,7 +101,7 @@ class YClientsClient:
         client = raw.get("client") or {}
         # Порядок полей обязан совпадать с extractClientName в приложении
         # (YClientsCalendarSync.kt:700) — иначе dedupeKey разъедется и
-        # одно событие покажется дважды. См. push-events-app.md §2.2.
+        # одно событие покажется дважды. См. docs/push-events/app.md §2.2.
         name = (
             client.get("display_name")
             or " ".join(

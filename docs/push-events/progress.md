@@ -1,16 +1,16 @@
 # Журнал работ по сервису событий
 
-Живая хроника выполнения [плана](push-events-plan.md): что сделано по этапам,
+Живая хроника выполнения [плана](plan.md): что сделано по этапам,
 какими коммитами, что проверено и что пришлось поменять на лету.
 
 Ветка: `фикс-уведомлений`. Ничего не запушено в origin.
 
 | Документ | Роль |
 |---|---|
-| [push-events-plan.md](push-events-plan.md) | Главный план: архитектура, контракт, этапы, чек-лист приёмки |
-| **push-events-progress.md** (этот файл) | Что и когда реально сделано |
-| [push-events-stage5-review.md](push-events-stage5-review.md) | Разбор находок по Этапу 5 и план правок — **следующая работа** |
-| [push-events-app.md](push-events-app.md) | Детализация Этапа 8 (правки приложения) |
+| [plan.md](plan.md) | Главный план: архитектура, контракт, этапы, чек-лист приёмки |
+| **progress.md** (этот файл) | Что и когда реально сделано |
+| [stage5-review.md](stage5-review.md) | Разбор находок по Этапу 5 и план правок — **следующая работа** |
+| [app.md](app.md) | Детализация Этапа 8 (правки приложения) |
 
 ---
 
@@ -18,10 +18,10 @@
 
 Этапы 0–5 закоммичены. **Но Этап 5 нельзя считать закрытым:** сверка с планом
 выявила два блокера, правки не сделаны. Подробности и порядок работ —
-[push-events-stage5-review.md](push-events-stage5-review.md).
+[stage5-review.md](stage5-review.md).
 
 Следующее действие: коммит 1 из
-[§7 «С чего начинать»](push-events-stage5-review.md#7-с-чего-начинать) —
+[§7 «С чего начинать»](stage5-review.md#7-с-чего-начинать) —
 исправление сидирования.
 
 ---
@@ -31,12 +31,12 @@
 | Этап | Что сделано | Коммит |
 |---|---|---|
 | 0 | Бэкап `neiro-push` снят и проверен, тег `pre-events-service` (только локально) | `3a17298`, тег без пуша |
-| 1 | Каркас [neiro-push-events/](../neiro-push-events/) (FastAPI, Dockerfile, docker-compose, скрипты обслуживания), задеплоен на Pi | `346e24b` |
+| 1 | Каркас [neiro-push-events/](../../neiro-push-events/) (FastAPI, Dockerfile, docker-compose, скрипты обслуживания), задеплоен на Pi | `346e24b` |
 | 1 | Публичный маршрут `/v2` — отдельный туннель + nginx на VPS (план предполагал другое, см. [подводный камень 2](#2-реальная-топология-сети-разошлась-с-планом)) | `4698f28` |
-| 2 | Схема БД [app/database.py](../neiro-push-events/app/database.py) по §7 Этапа 2, WAL включён | `c8c4369` |
-| 3 | Клиент YClients [app/yclients.py](../neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
-| 4 | Дифф состояний [app/events.py](../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
-| 5 | Поллер [app/poller.py](../neiro-push-events/app/poller.py) + [app/fcm.py](../neiro-push-events/app/fcm.py) + [app/security.py](../neiro-push-events/app/security.py), связано в [app/main.py](../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](push-events-stage5-review.md) |
+| 2 | Схема БД [app/database.py](../../neiro-push-events/app/database.py) по §7 Этапа 2, WAL включён | `c8c4369` |
+| 3 | Клиент YClients [app/yclients.py](../../neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
+| 4 | Дифф состояний [app/events.py](../../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
+| 5 | Поллер [app/poller.py](../../neiro-push-events/app/poller.py) + [app/fcm.py](../../neiro-push-events/app/fcm.py) + [app/security.py](../../neiro-push-events/app/security.py), связано в [app/main.py](../../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
@@ -54,7 +54,7 @@
 ## Подводные камни
 
 Находки, которые не входили в изначальный план, но всплыли по ходу. По правилу
-«расходится с реальностью — остановись и спроси» ([CLAUDE.md](../CLAUDE.md))
+«расходится с реальностью — остановись и спроси» ([CLAUDE.md](../../CLAUDE.md))
 каждая сначала обсуждалась с пользователем.
 
 ### 1. `backup.sh` никогда не бэкапил `.env`
@@ -63,7 +63,7 @@
 stdin от родительского скрипта и съедал из него весь хвост — строки `cp .env
 ...` и далее просто не выполнялись, без единой ошибки в выводе. Бэкап базы
 работал, бэкап секретов — никогда. Исправлено в
-[server/scripts/backup.sh](../server/scripts/backup.sh) (коммит `3a17298`)
+[server/scripts/backup.sh](../../server/scripts/backup.sh) (коммит `3a17298`)
 добавлением `< /dev/null`.
 
 ### 2. Реальная топология сети разошлась с планом
@@ -81,11 +81,11 @@ reverse SSH-туннель Pi→VPS → сервис на Pi. Caddy в этом 
 - независимый reverse-туннель под `neiro-push-events`: systemd `--user` юнит
   `neiro-push-events-tunnel.service` на Pi, порт **18082** (VPS) →
   `127.0.0.1:8011` (Pi) —
-  [scripts/start-tunnel.sh](../neiro-push-events/scripts/start-tunnel.sh),
-  [scripts/install-tunnel.sh](../neiro-push-events/scripts/install-tunnel.sh);
+  [scripts/start-tunnel.sh](../../neiro-push-events/scripts/start-tunnel.sh),
+  [scripts/install-tunnel.sh](../../neiro-push-events/scripts/install-tunnel.sh);
 - `location /v2/` в nginx на VPS, идемпотентно —
-  [scripts/patch-vps-nginx-v2.sh](../neiro-push-events/scripts/patch-vps-nginx-v2.sh);
-- [scripts/patch-pi-caddy-v2.py](../neiro-push-events/scripts/patch-pi-caddy-v2.py)
+  [scripts/patch-vps-nginx-v2.sh](../../neiro-push-events/scripts/patch-vps-nginx-v2.sh);
+- [scripts/patch-pi-caddy-v2.py](../../neiro-push-events/scripts/patch-pi-caddy-v2.py)
   **написан, но не используется** — оставлен как задокументированная попытка «по
   плану», которая не подошла; можно удалить на Этапе 9, если не найдётся
   применения.
@@ -103,7 +103,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 штатного деплоя).
 
 Восстановлено штатным
-[server/scripts/patch-pi-caddy.py](../server/scripts/patch-pi-caddy.py) (тем же
+[server/scripts/patch-pi-caddy.py](../../server/scripts/patch-pi-caddy.py) (тем же
 скриптом, что изначально создавал этот блок) + `docker compose restart caddy`.
 Резервная копия файла до правки лежит на Pi:
 `~/server/caddy/Caddyfile.before-restore-<timestamp>`. Проверено вручную: старый
@@ -112,11 +112,11 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 
 ### 4. Курсор `next_changed_after` не входил в Этап 3
 
-[app/yclients.py](../neiro-push-events/app/yclients.py) на Этапе 3 разбирал
+[app/yclients.py](../../neiro-push-events/app/yclients.py) на Этапе 3 разбирал
 записи, но не считал курсор для следующего опроса — в плане эта функция явно не
 расписана, а поллеру она нужна. Добавлена как `next_changed_after()` в тот же
 файл (по образцу
-[server/app/yclients.py:106](../server/app/yclients.py#L106)), аддитивно —
+[server/app/yclients.py:106](../../server/app/yclients.py#L106)), аддитивно —
 код разбора записей не тронут.
 
 ### 5. Синглтон `get_poll_service()` из старого сервиса не подошёл
@@ -131,11 +131,11 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 
 ### 6. `client_name` собирался в неправильном порядке полей
 
-Найдено на пересечении с [push-events-app.md §2.2](push-events-app.md) —
+Найдено на пересечении с [app.md §2.2](app.md) —
 документом, который параллельно уточнял пользователь: контракт требует ровно
 `displayName ?: (name + " " + surname)`, как в `extractClientName`
-([YClientsCalendarSync.kt:700](../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L700)).
-[app/yclients.py](../neiro-push-events/app/yclients.py) на Этапе 3 собирал
+([YClientsCalendarSync.kt:700](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L700)).
+[app/yclients.py](../../neiro-push-events/app/yclients.py) на Этапе 3 собирал
 `surname + name + patronymic` — другой порядок и лишнее поле. Разница меняет
 `dedupeKey` в приложении и превращается в молчаливые дубли уведомлений. Исправлено
 коммитом `ba75934`, проверено на синтетической записи.
@@ -143,7 +143,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 ### 7. Этап 5 разошёлся с планом по сидированию и порядку записи
 
 Самая крупная находка, вынесена в отдельный документ:
-**[push-events-stage5-review.md](push-events-stage5-review.md)**. Кратко: два
+**[stage5-review.md](stage5-review.md)**. Кратко: два
 блокера (ложные `NEW_BOOKING` из-за рассинхрона решения о сидировании; риск
 потери событий из-за порядка записи состояний и журнала) плюс невыполненный
 §8.1 про логи. Правки не сделаны — это следующая работа.
@@ -156,20 +156,20 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 
 | Дата | Решение | Где применяется |
 |---|---|---|
-| 25.07.2026 | Курсор устройства при **новой** регистрации ставится в `max(events.id)`; при повторной регистрации известного `device_id` не трогается; ответ регистрации возвращает текущий курсор | Этап 6, см. [push-events-app.md §6.4](push-events-app.md) |
-| 25.07.2026 | Календарь правится данными из payload, без похода в YClients (раньше в плане было «только при открытии приложения») | Этап 8.2а, [push-events-app.md §5](push-events-app.md) |
-| 25.07.2026 | Сидирование — свойство **цикла компании**: если хоть у одного аккаунта пустые `record_states`, весь цикл идёт полным запросом и события не генерируются ни для кого | [stage5-review §2.1](push-events-stage5-review.md#21-сидирование-два-источника-правды) |
-| 25.07.2026 | Ретеншен оставить как в плане — каждый цикл, несмотря на фулсканы каждые 10 с | [stage5-review §5.4](push-events-stage5-review.md#5-наблюдения-на-будущее-не-трогать-сейчас) |
-| 25.07.2026 | Каждое событие несёт `staff_id`, устройство **само** отбрасывает чужие — второй рубеж поверх серверной раскладки по специалистам | [план §6.1](push-events-plan.md), [push-events-app.md §2.5](push-events-app.md); правка сервера — [stage5-review §3.7](push-events-stage5-review.md) |
+| 25.07.2026 | Курсор устройства при **новой** регистрации ставится в `max(events.id)`; при повторной регистрации известного `device_id` не трогается; ответ регистрации возвращает текущий курсор | Этап 6, см. [app.md §6.4](app.md) |
+| 25.07.2026 | Календарь правится данными из payload, без похода в YClients (раньше в плане было «только при открытии приложения») | Этап 8.2а, [app.md §5](app.md) |
+| 25.07.2026 | Сидирование — свойство **цикла компании**: если хоть у одного аккаунта пустые `record_states`, весь цикл идёт полным запросом и события не генерируются ни для кого | [stage5-review §2.1](stage5-review.md#21-сидирование-два-источника-правды) |
+| 25.07.2026 | Ретеншен оставить как в плане — каждый цикл, несмотря на фулсканы каждые 10 с | [stage5-review §5.4](stage5-review.md#5-наблюдения-на-будущее-не-трогать-сейчас) |
+| 25.07.2026 | Каждое событие несёт `staff_id`, устройство **само** отбрасывает чужие — второй рубеж поверх серверной раскладки по специалистам | [план §6.1](plan.md), [app.md §2.5](app.md); правка сервера — [stage5-review §3.7](stage5-review.md) |
 
 ---
 
 ## Что дальше
 
-1. **Правки Этапа 5** — [порядок работ](push-events-stage5-review.md#7-с-чего-начинать),
+1. **Правки Этапа 5** — [порядок работ](stage5-review.md#7-с-чего-начинать),
    5 коммитов.
 2. **Этап 6** — API регистрации и догона (§6.2 плана). Учесть
-   [замечание про курсор за пределами ретеншена](push-events-stage5-review.md#5-наблюдения-на-будущее-не-трогать-сейчас).
+   [замечание про курсор за пределами ретеншена](stage5-review.md#5-наблюдения-на-будущее-не-трогать-сейчас).
 3. **Этап 7** — дашборд (§8.4 плана).
-4. **Этап 8** — правки приложения, [push-events-app.md](push-events-app.md).
+4. **Этап 8** — правки приложения, [app.md](app.md).
 5. **Этап 9** — документация по факту сделанного.

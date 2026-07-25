@@ -55,4 +55,4 @@
 рядом (свой контейнер, своя база, порт 8011, публичный путь `/v2`).
 
 Разбор проблем текущей схемы, решения и пошаговый план —
-[docs/push-events-plan.md](../docs/push-events-plan.md).
+[docs/push-events/](../docs/push-events/README.md).
