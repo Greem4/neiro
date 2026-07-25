@@ -266,10 +266,10 @@ Doze доставка откладывается и смысл payload'а тер
 
 | Метод | Путь | Auth | Назначение |
 |---|---|---|---|
-| POST | `/v1/devices/register` | API key | Регистрация телефона (как в старом) |
+| POST | `/v1/devices/register` | API key | Регистрация телефона. **Новый** `device_id` получает `last_ack_event_id = max(events.id)`; у известного курсор не трогаем. В ответе — `last_event_id` |
 | DELETE | `/v1/devices/{device_id}` | API key | Снятие регистрации |
 | GET | `/v1/devices/{device_id}/events?since=&limit=` | API key | **Догон событий** |
-| POST | `/v1/devices/{device_id}/events/ack` | API key | Курсор доставки (необязательно, для дашборда) |
+| POST | `/v1/devices/{device_id}/events/ack` | API key | Курсор доставки. **Обязателен:** курсор должен пережить переустановку приложения ([push-events-app.md §6.4](push-events-app.md)) |
 | GET | `/health` | Admin key | Статус |
 | GET | `/v1/admin/events?limit=` | Admin key | Последние события + доставка |
 | GET | `/v1/admin/poll-log?limit=` | Admin key | Последние циклы опроса |
@@ -831,6 +831,10 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
 - [ ] WAL включён, ротация логов включена (`docker inspect neiro-push-events`)
 - [ ] Один запрос возвращает записи нескольких специалистов
 - [ ] Первый запуск: события **не** генерируются, `record_states` заполнена
+- [ ] Регистрация нового `device_id` → курсор встал на текущий максимум, догон
+      сразу отдаёт пустой список
+- [ ] Повторная регистрация того же `device_id` (как на keepalive) → курсор
+      **не** сдвинулся, недоставленные события на месте
 - [ ] Подтверждение в YClients → событие `CLIENT_CONFIRMED`
 - [ ] Отмена → `CANCELLED`; перенос → `RESCHEDULED` с `prev_*`
 - [ ] Новая запись → `NEW_BOOKING`; удаление → `DELETED`
