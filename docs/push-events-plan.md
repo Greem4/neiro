@@ -595,7 +595,8 @@ conn.execute("PRAGMA synchronous=NORMAL")
 |---|---|
 | новый `push/PushSessionEvent.kt` | Модель события + `toSessionEvent(): SessionEvent`. Собирает `TrackedSession` (endTime = time + `SESSION_DURATION_MINUTES`, `status` из типа, `isMarkedDeleted = type == DELETED`) — `dedupeKey` считается существующим кодом |
 | новый `push/PushEventNotifier.kt` | Фильтры и показ, зеркало хвоста `processSnapshotTransition`: `prefs.isEnabled` → `isTypeEnabled(type)` → `!wasEventNotified(key)` → `SessionNotificationDisplay.showEvents(...)` → `markEventNotified` для показанных |
-| `push/NeiroFirebaseMessagingService.kt` | Ветвление по `action`: `session_events` → разбор и показ; `sync_events` → догон |
+| `push/NeiroFirebaseMessagingService.kt` | Ветвление по `action`: `session_events` → разбор и показ; `sync_events` → догон. Ветки `sync` нет — новая сборка со старым сервисом не работает |
+| `push/PushSyncWorker.kt`, `push/PushSyncCoordinator.kt` | Удалить. Осиротевшую работу `push_fcm_sync` отменить по имени при старте, как `yclients_periodic_sync` ([push-events-app.md §4.4](push-events-app.md)) |
 
 Собирая настоящий `SessionEvent`, получаем бесплатно всю существующую
 машинерию: переключатели типов в настройках, dedupe, ленту уведомлений,
