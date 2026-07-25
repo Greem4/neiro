@@ -19,3 +19,7 @@ scripts/icon/node_modules/
 /app/release/
 *.aab
 *.apk
+
+# Бэкапы push-сервисов: база и .env с секретами — только локально
+server/backups/
+neiro-push-events/backups/
