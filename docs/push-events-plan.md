@@ -286,7 +286,7 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 ```jsonc
 {
   "action": "session_events",
-  "events": "[{\"id\":1234,\"type\":\"CLIENT_CONFIRMED\",\"client_name\":\"Иванов Ваня\",\"date\":\"2026-07-26\",\"time\":\"15:00\",\"kind\":\"LESSON\"}]",
+  "events": "[{\"id\":1234,\"staff_id\":456,\"type\":\"CLIENT_CONFIRMED\",\"client_name\":\"Иванов Ваня\",\"date\":\"2026-07-26\",\"time\":\"15:00\",\"kind\":\"LESSON\"}]",
   "last_event_id": "1234"
 }
 ```
@@ -294,12 +294,25 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 | Поле события | Тип | Примечание |
 |---|---|---|
 | `id` | int | id из журнала, он же курсор |
+| `staff_id` | int | **Чей это специалист.** Устройство обязано отбрасывать события с чужим `staff_id` — второй рубеж на случай, если серверная раскладка по специалистам сломается ([push-events-app.md §2.5](push-events-app.md)) |
 | `type` | string | `NEW_BOOKING`, `CANCELLED`, `RESCHEDULED`, `DELETED`, `CLIENT_CONFIRMED`, `CLIENT_ARRIVED` — совпадают с `SessionEventType` |
 | `client_name` | string | как в YClients, без нормализации. Порядок полей — как в `extractClientName`: `display_name`, иначе `name + surname` ([push-events-app.md §2.2](push-events-app.md)) |
 | `date` | string | `YYYY-MM-DD` |
 | `time` | string | `HH:MM`, начало занятия. Локальное время подстрокой из `datetime`, **без пересчёта часового пояса** ([§2.1](push-events-app.md)) |
 | `kind` | string | `LESSON` \| `DIAGNOSTICS` |
 | `prev_date`, `prev_time` | string? | только для `RESCHEDULED` |
+
+**Фильтр по специалисту на устройстве.** Сервер делает один запрос на всю
+компанию (§9.1) и раскладывает записи по `staff_id` в памяти — эта раскладка
+единственное, что отделяет события одного специалиста от другого. Поэтому
+`staff_id` идёт в каждом событии, а приложение отбрасывает чужие **само**, не
+доверяя серверу: иначе при поломке раскладки специалист получит уведомления про
+чужих детей, а `PushEventCalendarApplier` впишет чужую запись ему в календарь.
+Правило действует одинаково для push'а и для догона (§6.2). Подробности и место
+барьера — [push-events-app.md §2.5](push-events-app.md).
+
+В журнале (`events`) отдельной колонки `staff_id` нет и не нужно — он берётся
+через `account_id` → `accounts.staff_id`, и API обязан его подставлять в ответ.
 
 **Приоритет.** Data-only сообщение уходит с `android.priority = "high"`, иначе в
 Doze доставка откладывается и смысл payload'а теряется.
@@ -331,8 +344,13 @@ Doze доставка откладывается и смысл payload'а тер
 Ответ догона:
 
 ```jsonc
-{ "events": [ /* поля из §6.1 */ ], "last_event_id": 1240, "has_more": false }
+{ "events": [ /* поля из §6.1, включая staff_id */ ], "last_event_id": 1240, "has_more": false }
 ```
+
+Догон отдаёт события **в том же формате**, что и push, — с `staff_id` в каждом.
+Приложение прогоняет их через тот же фильтр по специалисту
+([push-events-app.md §2.5](push-events-app.md)): сервер в обоих путях один и тот
+же, значит и ошибиться может в обоих.
 
 `device_id` отображается на аккаунт через таблицу `devices` — отдельная
 авторизация не нужна.
