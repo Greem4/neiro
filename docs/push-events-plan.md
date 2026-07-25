@@ -247,11 +247,14 @@ DNS и сертификат; путь `/v2/*` на существующем хо
 |---|---|---|
 | `id` | int | id из журнала, он же курсор |
 | `type` | string | `NEW_BOOKING`, `CANCELLED`, `RESCHEDULED`, `DELETED`, `CLIENT_CONFIRMED`, `CLIENT_ARRIVED` — совпадают с `SessionEventType` |
-| `client_name` | string | как в YClients, без нормализации |
+| `client_name` | string | как в YClients, без нормализации. Порядок полей — как в `extractClientName`: `display_name`, иначе `name + surname` ([push-events-app.md §2.2](push-events-app.md)) |
 | `date` | string | `YYYY-MM-DD` |
-| `time` | string | `HH:MM`, начало занятия |
+| `time` | string | `HH:MM`, начало занятия. Локальное время подстрокой из `datetime`, **без пересчёта часового пояса** ([§2.1](push-events-app.md)) |
 | `kind` | string | `LESSON` \| `DIAGNOSTICS` |
 | `prev_date`, `prev_time` | string? | только для `RESCHEDULED` |
+
+**Приоритет.** Data-only сообщение уходит с `android.priority = "high"`, иначе в
+Doze доставка откладывается и смысл payload'а теряется.
 
 **Переполнение.** Если сериализованный `events` превышает 3 КБ (лимит FCM ~4 КБ
 на сообщение), сервер шлёт нудж `{"action": "sync_events", "last_event_id": "…"}`
@@ -564,6 +567,10 @@ conn.execute("PRAGMA synchronous=NORMAL")
 ### Этап 8. Приложение — новая сборка
 
 Ставится после того, как сервер проверен и работает.
+
+**Подробности — в [push-events-app.md](push-events-app.md):** разбор по файлам,
+маппинг типов события в `AttendanceStatus`, требования к payload, вытекающие из
+`slotKey` приложения, риски и приёмка. Ниже — только состав этапа.
 
 **8.1. Убрать локальный опрос и починить воркеры.** Эти правки были сделаны
 25.07.2026 и намеренно откачены, чтобы всё шло одним заходом. Лежат в
