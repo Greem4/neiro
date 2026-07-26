@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if authenticated %}<meta http-equiv="refresh" content="10">{% endif %}
+<title>neiro-push-events</title>
+<style>
+  body {
+    margin: 0;
+    padding: 12px;
+    background: #111;
+    color: #ddd;
+    font: 14px/1.4 -apple-system, system-ui, sans-serif;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; color: #888; margin: 20px 0 6px; }
+  .ok { color: #4caf50; }
+  .bad { color: #e53935; }
+  .muted { color: #888; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid #333; text-align: left; white-space: nowrap; }
+  th { color: #888; font-weight: normal; }
+  .wrap { overflow-x: auto; }
+  input[type=password] {
+    font-size: 16px; padding: 8px; width: 100%; box-sizing: border-box;
+    background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px;
+  }
+  button {
+    margin-top: 8px; padding: 8px 16px; font-size: 15px;
+    background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px;
+  }
+  .error { color: #e53935; margin-top: 8px; }
+</style>
+</head>
+<body>
+{% if not authenticated %}
+  <h1>neiro-push-events</h1>
+  <form method="post" action="/dashboard/login">
+    <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
+    <button type="submit">Войти</button>
+  </form>
+  {% if login_error %}<p class="error">Неверный ключ</p>{% endif %}
+{% else %}
+  <h1>neiro-push-events <span class="{{ 'ok' if data.ok else 'bad' }}">●</span></h1>
+  <p class="muted">
+    аптайм {{ uptime }} &nbsp;
+    опрос {{ data.poll_day_seconds }}с (день до {{ data.quiet_start_hour }}:00) &nbsp;
+    FCM {{ "настроен" if data.fcm_configured else "НЕ настроен" }}
+  </p>
+  <p class="muted">
+    последний опрос {{ last_polled_at }} &nbsp;
+    длительность {{ last_poll_duration }} &nbsp;
+    ошибок за сутки: {{ data.errors_today }}
+  </p>
+
+  <h2>События (последние {{ events|length }})</h2>
+  <div class="wrap">
+  <table>
+    <tr><th>время</th><th>тип</th><th>клиент</th><th>занятие</th><th>доставлено</th></tr>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.created_at_hms }}</td>
+      <td>{{ e.type }}</td>
+      <td>{{ e.client_name }}</td>
+      <td>{{ e.date_short }} {{ e.time }}{% if e.prev_date %} <span class="muted">(было {{ e.prev_date_short }} {{ e.prev_time }})</span>{% endif %}</td>
+      <td>{{ e.delivered }}/{{ e.targets }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">пока пусто</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <h2>Аккаунты</h2>
+  <div class="wrap">
+  <table>
+    <tr><th>компания</th><th>специалист</th><th>устройств</th><th>опрос</th><th>статус</th></tr>
+    {% for a in accounts %}
+    <tr>
+      <td>{{ a.company_id }}</td>
+      <td>{{ a.staff_id }}</td>
+      <td>{{ a.device_count }}</td>
+      <td>{{ a.last_polled_hms }}</td>
+      <td class="{{ 'bad' if a.backoff_until or a.last_error else 'ok' }}">{{ a.state }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">нет аккаунтов</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <h2>Устройства</h2>
+  <div class="wrap">
+  <table>
+    <tr><th>устройство</th><th>версия</th><th>видели</th><th>курсор</th></tr>
+    {% for d in devices %}
+    <tr>
+      <td>{{ d.label or d.device_id }}</td>
+      <td>{{ d.app_version or "—" }}</td>
+      <td>{{ d.last_seen_hms }}</td>
+      <td>{{ d.last_ack_event_id if d.last_ack_event_id is not none else "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">нет устройств</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <h2>Циклы опроса (последние {{ poll_runs|length }})</h2>
+  <div class="wrap">
+  <table>
+    <tr><th>время</th><th>компания</th><th>мс</th><th>записей</th><th>событий</th><th>пушей</th><th>ошибка</th></tr>
+    {% for r in poll_runs %}
+    <tr>
+      <td>{{ r.started_at_hms }}</td>
+      <td>{{ r.company_id }}</td>
+      <td>{{ r.duration_ms }}</td>
+      <td>{{ r.records_fetched }}</td>
+      <td>{{ r.events_created }}</td>
+      <td>{{ r.pushes_sent }}</td>
+      <td class="{{ 'bad' if r.error else '' }}">{{ r.error or "" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">пока пусто</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+{% endif %}
+</body>
+</html>

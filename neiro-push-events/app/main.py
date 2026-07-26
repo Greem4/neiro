@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request, Response, status
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 
 from app.config import Settings, get_settings
+from app.dashboard import build_html_context, collect_dashboard_data, render_dashboard_text
 from app.database import Database
 from app.fcm import FcmSender
 from app.poller import MOSCOW, PollService
@@ -20,6 +24,11 @@ from app.schemas import (
 )
 from app.security import SecretBox, constant_time_equals
 from app.yclients import YClientsClient
+
+DASHBOARD_COOKIE = "admin_key"
+DASHBOARD_COOKIE_MAX_AGE = 30 * 24 * 3600
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +60,7 @@ async def lifespan(app: FastAPI):
     app.state.db = db
     app.state.secret_box = secret_box
     app.state.poll_service = poll_service
+    app.state.started_at = datetime.now(timezone.utc)
 
     poll_service.start()
     logger.info("neiro-push-events started")
@@ -89,17 +99,20 @@ def verify_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key")
 
 
+def _admin_key(settings: Settings) -> str:
+    return settings.admin_api_key or settings.api_key
+
+
 def verify_admin_api_key(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> None:
-    admin_key = settings.admin_api_key or settings.api_key
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token"
         )
     token = authorization.removeprefix("Bearer ").strip()
-    if not constant_time_equals(token, admin_key):
+    if not constant_time_equals(token, _admin_key(settings)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin api key")
 
 
@@ -237,3 +250,73 @@ async def ack_device_events(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     db.update_device_ack(device_id, body.last_event_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/admin/events", dependencies=[Depends(verify_admin_api_key)])
+async def admin_events(
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Database = Depends(get_database),
+) -> dict:
+    return {"events": db.list_recent_events_admin(limit)}
+
+
+@app.get("/v1/admin/poll-log", dependencies=[Depends(verify_admin_api_key)])
+async def admin_poll_log(
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Database = Depends(get_database),
+) -> dict:
+    return {"poll_runs": db.list_poll_runs_admin(limit)}
+
+
+@app.get(
+    "/v1/admin/dashboard.txt",
+    response_class=PlainTextResponse,
+    dependencies=[Depends(verify_admin_api_key)],
+)
+async def admin_dashboard_text(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+    poll_service: PollService = Depends(get_poll_service),
+) -> str:
+    data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
+    return render_dashboard_text(data)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+    poll_service: PollService = Depends(get_poll_service),
+) -> HTMLResponse:
+    cookie_value = request.cookies.get(DASHBOARD_COOKIE)
+    authenticated = bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
+    context = {"authenticated": authenticated, "login_error": False}
+    if authenticated:
+        data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
+        context.update(build_html_context(data))
+    return templates.TemplateResponse(request, "dashboard.html", context)
+
+
+@app.post("/dashboard/login", response_class=HTMLResponse)
+async def dashboard_login(
+    request: Request,
+    key: str = Form(...),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    if not constant_time_equals(key, _admin_key(settings)):
+        context = {"authenticated": False, "login_error": True}
+        return templates.TemplateResponse(
+            request, "dashboard.html", context, status_code=status.HTTP_401_UNAUTHORIZED
+        )
+    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        DASHBOARD_COOKIE,
+        key,
+        max_age=DASHBOARD_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    return response

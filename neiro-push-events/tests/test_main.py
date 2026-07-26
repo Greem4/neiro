@@ -165,6 +165,92 @@ def test_ack_unknown_device_is_404(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_admin_events_requires_admin_key(client: TestClient) -> None:
+    response = client.get("/v1/admin/events", headers={"Authorization": "Bearer test-api-key"})
+    assert response.status_code == 401
+
+
+def test_admin_events_returns_recent_events(client: TestClient) -> None:
+    db = client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.commit_poll_result(account_id, [_event(1)], {})
+
+    response = client.get(
+        "/v1/admin/events", headers={"Authorization": "Bearer test-admin-key"}
+    )
+
+    assert response.status_code == 200
+    events = response.json()["events"]
+    assert len(events) == 1
+    assert events[0]["client_name"] == "Иванов Ваня"
+    assert events[0]["targets"] == 0
+
+
+def test_admin_poll_log_returns_runs(client: TestClient) -> None:
+    db = client.app.state.db
+    db.record_poll_run(1, "2026-07-26T10:00:00+00:00", 100, 3, 1, 1, None)
+
+    response = client.get(
+        "/v1/admin/poll-log", headers={"Authorization": "Bearer test-admin-key"}
+    )
+
+    assert response.status_code == 200
+    runs = response.json()["poll_runs"]
+    assert len(runs) == 1
+    assert runs[0]["company_id"] == 1
+
+
+def test_admin_dashboard_text_requires_admin_key(client: TestClient) -> None:
+    response = client.get("/v1/admin/dashboard.txt")
+    assert response.status_code == 401
+
+
+def test_admin_dashboard_text_renders_plain_text(client: TestClient) -> None:
+    db = client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.commit_poll_result(account_id, [_event(1)], {})
+
+    response = client.get(
+        "/v1/admin/dashboard.txt", headers={"Authorization": "Bearer test-admin-key"}
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert "neiro-push-events" in response.text
+    assert "NEW_BOOKING" in response.text
+
+
+def test_dashboard_without_cookie_shows_login_form(client: TestClient) -> None:
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "ADMIN_API_KEY" in response.text
+    assert "СОБЫТИЯ" not in response.text
+
+
+def test_dashboard_login_wrong_key_shows_error(client: TestClient) -> None:
+    response = client.post("/dashboard/login", data={"key": "wrong"})
+    assert response.status_code == 401
+    assert "Неверный ключ" in response.text
+
+
+def test_dashboard_login_sets_cookie_and_unlocks_page(client: TestClient) -> None:
+    db = client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.commit_poll_result(account_id, [_event(1)], {})
+
+    login = client.post(
+        "/dashboard/login", data={"key": "test-admin-key"}, follow_redirects=False
+    )
+    assert login.status_code == 303
+    client.cookies.set("admin_key", "test-admin-key")
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert "События" in response.text
+    assert "Иванов Ваня" in response.text
+
+
 def test_health_requires_admin_key(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 401

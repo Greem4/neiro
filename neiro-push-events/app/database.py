@@ -558,6 +558,91 @@ class Database:
             "events_today": int(events_today),
         }
 
+    def poll_health_summary(self) -> dict:
+        with self.connect() as conn:
+            last = conn.execute(
+                "SELECT started_at, duration_ms, error FROM poll_runs ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            errors_today = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM poll_runs
+                WHERE error IS NOT NULL AND started_at >= datetime('now', '-1 day')
+                """
+            ).fetchone()["c"]
+        return {
+            "last_polled_at": last["started_at"] if last else None,
+            "last_poll_duration_ms": int(last["duration_ms"]) if last else None,
+            "last_poll_error": last["error"] if last else None,
+            "errors_today": int(errors_today),
+        }
+
+    def list_recent_events_admin(self, limit: int = 50) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    e.id, e.type, e.client_name, e.date, e.time, e.kind,
+                    e.prev_date, e.prev_time, e.created_at,
+                    a.company_id, a.staff_id,
+                    (SELECT COUNT(*) FROM push_deliveries pd
+                     WHERE pd.event_id = e.id AND pd.status = 'sent') AS delivered,
+                    (SELECT COUNT(*) FROM push_deliveries pd
+                     WHERE pd.event_id = e.id) AS targets
+                FROM events e
+                JOIN accounts a ON a.id = e.account_id
+                ORDER BY e.id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_accounts_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    a.id, a.company_id, a.staff_id, a.changed_after,
+                    a.backoff_until, a.consecutive_errors,
+                    a.last_polled_at, a.last_error,
+                    COUNT(d.id) AS device_count
+                FROM accounts a
+                LEFT JOIN devices d ON d.account_id = a.id
+                GROUP BY a.id
+                ORDER BY a.id
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_devices_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    d.device_id, d.label, d.app_version, d.last_seen_at,
+                    d.last_ack_event_id,
+                    a.id AS account_id, a.company_id, a.staff_id
+                FROM devices d
+                JOIN accounts a ON a.id = d.account_id
+                ORDER BY d.id
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_poll_runs_admin(self, limit: int = 20) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, company_id, started_at, duration_ms, records_fetched,
+                       events_created, pushes_sent, error
+                FROM poll_runs
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
 
 def _row_to_account(row: sqlite3.Row) -> WatchedAccount:
     return WatchedAccount(
