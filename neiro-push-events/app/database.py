@@ -352,62 +352,89 @@ class Database:
             for row in rows
         }
 
+    def _replace_record_states(
+        self, conn: sqlite3.Connection, account_id: int, states: dict[int, RecordState]
+    ) -> None:
+        now = utc_now_iso()
+        conn.execute("DELETE FROM record_states WHERE account_id = ?", (account_id,))
+        conn.executemany(
+            """
+            INSERT INTO record_states (
+                account_id, record_id, date, time, attendance, deleted,
+                client_name, kind, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    account_id,
+                    state.record_id,
+                    state.date,
+                    state.time,
+                    state.attendance,
+                    state.deleted,
+                    state.client_name,
+                    state.kind,
+                    now,
+                )
+                for state in states.values()
+            ],
+        )
+
     def replace_record_states(
         self, account_id: int, states: dict[int, RecordState]
     ) -> None:
-        now = utc_now_iso()
         with self.connect() as conn:
-            conn.execute("DELETE FROM record_states WHERE account_id = ?", (account_id,))
-            conn.executemany(
-                """
-                INSERT INTO record_states (
-                    account_id, record_id, date, time, attendance, deleted,
-                    client_name, kind, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        account_id,
-                        state.record_id,
-                        state.date,
-                        state.time,
-                        state.attendance,
-                        state.deleted,
-                        state.client_name,
-                        state.kind,
-                        now,
-                    )
-                    for state in states.values()
-                ],
-            )
+            self._replace_record_states(conn, account_id, states)
 
-    def insert_events(self, account_id: int, events: list[EventLike]) -> list[int]:
+    def _insert_events(
+        self, conn: sqlite3.Connection, account_id: int, events: list[EventLike]
+    ) -> list[int]:
         now = utc_now_iso()
         ids = []
-        with self.connect() as conn:
-            for event in events:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO events (
-                        account_id, type, client_name, date, time, kind,
-                        prev_date, prev_time, record_id, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        account_id,
-                        event.type,
-                        event.client_name,
-                        event.date,
-                        event.time,
-                        event.kind,
-                        event.prev_date,
-                        event.prev_time,
-                        event.record_id,
-                        now,
-                    ),
-                )
-                ids.append(int(cursor.lastrowid))
+        for event in events:
+            cursor = conn.execute(
+                """
+                INSERT INTO events (
+                    account_id, type, client_name, date, time, kind,
+                    prev_date, prev_time, record_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    account_id,
+                    event.type,
+                    event.client_name,
+                    event.date,
+                    event.time,
+                    event.kind,
+                    event.prev_date,
+                    event.prev_time,
+                    event.record_id,
+                    now,
+                ),
+            )
+            ids.append(int(cursor.lastrowid))
         return ids
+
+    def insert_events(self, account_id: int, events: list[EventLike]) -> list[int]:
+        with self.connect() as conn:
+            return self._insert_events(conn, account_id, events)
+
+    def commit_poll_result(
+        self,
+        account_id: int,
+        events: list[EventLike],
+        states: dict[int, RecordState],
+    ) -> list[int]:
+        """Журнал и состояния — одной транзакцией (§2.2 разбора Этапа 5).
+
+        Либо записано всё, либо ничего: при падении посередине SQLite откатит
+        вставку событий вместе со сдвигом состояний, и следующий цикл пересчитает
+        тот же дифф. Разделять эти две записи нельзя — см. П2 плана §3.
+        """
+        with self.connect() as conn:
+            event_ids = self._insert_events(conn, account_id, events)
+            self._replace_record_states(conn, account_id, states)
+        return event_ids
 
     def list_events_since(
         self, account_id: int, since_id: int, limit: int = 100
