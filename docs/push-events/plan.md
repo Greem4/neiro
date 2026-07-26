@@ -24,7 +24,9 @@
 | 5. Поллер и отправка | ✅ правки [stage5-review.md](stage5-review.md) сделаны |
 | 6. API регистрации и догона | ✅ сделано, см. [progress.md](progress.md) |
 | 7. Дашборд | ✅ сделано, см. [progress.md](progress.md) |
-| 8–10 | не начаты |
+| 8. Правки приложения | ✅ сделано, 5 коммитов A–D, см. [progress.md](progress.md) |
+| 9. Документация | ✅ [neiro-push-events/README.md](../../neiro-push-events/README.md), [docs/push-events.md](../push-events.md), [docs/push-setup.md](../push-setup.md) обновлены |
+| 10. Переезд и гашение старого | не начат — не раньше недели стабильной работы новой связки |
 
 ### Связанные документы
 

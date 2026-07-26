@@ -1,6 +1,22 @@
-# Push-уведомления Neiro
+# Push-уведомления Neiro (старый сервис `neiro-push`)
 
 Всё в этом репозитории: сервер (`server/`), приложение (`app/.../push/`), деплой на Pi.
+
+**Этот документ — про старый сервис `neiro-push` (порт 8010).** Он обслуживает
+только сборку приложения **0.6.9.0 и старше** и живёт локальным опросом
+YClients с телефона по таймеру. С версии **0.7.0.0** приложение полностью
+переходит на новый сервис `neiro-push-events` (порт 8011, маршрут `/v2`),
+который сам опрашивает YClients и шлёт события push'ем — без опроса с
+телефона. Новый сервис, его эксплуатация и дашборд — в
+[docs/push-events.md](push-events.md); история разработки и контракт — в
+[docs/push-events/](push-events/).
+
+Переход делается устройство за устройством (обратной совместимости между
+сервисами нет — новая сборка со старым сервисом не работает вообще, см.
+[app.md §4.3](push-events/app.md#43-pushneirofirebasemessagingservicekt)).
+Пока не все телефоны обновлены, `neiro-push` держим живым — гасить его
+раньше срока нельзя, читайте [Этап 10 плана](push-events/plan.md) перед тем
+как его останавливать.
 
 ## 1. Сервер на Pi
 
@@ -53,18 +69,24 @@ chmod +x server/scripts/*.sh
 
 ## 3. local.properties (Mac)
 
+**Актуально только для сборки ≤0.6.9.0.** С версии 0.7.0.0 `local.properties`
+указывает на новый сервис — `NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru/v2`
+и `API_KEY` из `~/neiro-push-events/.env`, см. [push-events.md §5](push-events.md#5-переменные-окружения).
+
+Для старой сборки было так:
+
 ```properties
 NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru
 NEIRO_PUSH_API_KEY=<API_KEY из ~/neiro-push/.env на Pi>
 ```
 
-API_KEY на Pi:
+API_KEY старого сервиса на Pi:
 
 ```bash
 ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'
 ```
 
-## 4. Как работает
+## 4. Как работает (старый сервис)
 
 ```
 YClients ←── опрос 15с/1ч ── Pi (neiro-push)
@@ -73,6 +95,9 @@ YClients ←── опрос 15с/1ч ── Pi (neiro-push)
                                 │
                            Телефон(ы) → sync → уведомления
 ```
+
+Новый сервис работает иначе — сам шлёт события в payload, без похода в
+YClients с телефона, см. [push-events.md §1](push-events.md#1-как-устроено).
 
 - Несколько телефонов одного педагога: один опрос, push на все `fcm_token`.
 - При активном server push телефон **не** опрашивает YClients в фоне — только по FCM и при открытии приложения.
