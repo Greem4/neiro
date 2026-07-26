@@ -2,12 +2,44 @@
 
 Отчёт по итогам сверки реализации Этапа 5 с [планом](plan.md).
 Составлен 25.07.2026 вечером, анализ — Opus, реализация Этапа 5 — Sonnet.
+Развилки закрыты решениями пользователя 26.07.2026.
 
 **Статус: код Этапа 5 закоммичен (`503949a`), правки по этому отчёту НЕ сделаны.**
 Всё ниже — разобранные находки и готовые решения, работа начинается с чистого
 рабочего дерева.
 
-Порядок работ на завтра — в [§7 «С чего начинать»](#7-с-чего-начинать).
+Порядок работ — в [§7 «С чего начинать»](#7-с-чего-начинать).
+
+---
+
+## 0. Как работать по этому документу
+
+Читать целиком до первой строчки кода. Дальше — по правилам, которые здесь
+важнее привычек.
+
+**Выбирать нечего.** Все развилки закрыты решениями пользователя, в тексте нет
+ни одного «либо так, либо так». Если всё-таки нашлось место, где непонятно, что
+делать, — **остановиться и спросить пользователя**, а не выбирать вариант
+самому. Этап 5 сломался ровно на этом: п.3 плана реализовали «по смыслу», молча
+приняв допущение, и получили баг с ложными уведомлениями.
+
+**Куски кода в документе — это то, что нужно написать, а не пример по мотивам.**
+Сигнатуры, имена методов и аргументов, порядок вызовов заданы намеренно: они
+согласованы между разделами. Переименовал `commit_poll_result` — сломал §2.1,
+который его вызывает.
+
+**Один коммит = один раздел.** Порядок из [§7](#7-с-чего-начинать) не
+перемешивать, сообщения коммитов брать оттуда дословно. Не сваливать несколько
+находок в один коммит.
+
+**Тесты гонять после каждого коммита**, команда — в
+[«Как гонять тесты»](#как-гонять-тесты). 14 тестов `test_events.py` обязаны
+проходить без единой правки на протяжении всей работы: если какой-то упал,
+значит правка задела чистый дифф, чего быть не должно. Это главный индикатор,
+что всё идёт правильно.
+
+**Чего не делать без спроса:** деплоить на Pi, трогать каталог `server/`
+(там работающий сервис старой сборки), запускать Gradle, пушить в origin.
 
 ---
 
@@ -142,15 +174,49 @@ def merge_states(
     return states
 ```
 
-3. В `_poll_company` — решение принимается один раз, на всю компанию:
+3. В `_poll_company` — решение принимается один раз, на всю компанию, **до**
+   запроса в YClients:
 
 ```python
 seeding = any(not self._db.has_record_states(a.id) for a in active_accounts)
 changed_after = None if seeding else self._company_changed_after(active_accounts)
 ```
 
-и дальше `seeding` прокидывается в `_poll_account`, где вместо `derive_events`
-вызывается `merge_states`.
+4. `seeding` прокидывается в `_poll_account` третьим аргументом — сигнатура
+   меняется так, и никак иначе:
+
+```python
+async def _poll_account(
+    self,
+    account: WatchedAccount,
+    records: list[YClientsRecord],
+    seeding: bool,
+) -> tuple[int, int]:
+    previous_states = self._db.get_record_states(account.id)
+    if seeding:
+        new_states = merge_states(previous_states, records)
+        self._db.commit_poll_result(account.id, [], new_states)
+        return 0, 0
+    events, new_states = derive_events(previous_states, records)
+    ...
+```
+
+При сидировании метод выходит сразу: событий нет, пушей нет, устройства не
+опрашиваются. Состояния при этом записываются — через тот же
+`commit_poll_result` из [§2.2](#22-состояния-пишутся-раньше-событий), с пустым
+списком событий.
+
+Вызов в цикле `_poll_company` — `await self._poll_account(account,
+account_records, seeding)`. Импорт в
+[poller.py:11](../../neiro-push-events/app/poller.py#L11) дополняется:
+`from app.events import DerivedEvent, derive_events, merge_states`.
+
+`merge_states` намеренно повторяет то, что `derive_events` делает со
+состояниями — тот же `_state_from_record` для каждой записи, без исключений для
+`deleted` и `attendance`. Сверено с
+[events.py:54](../../neiro-push-events/app/events.py#L54) и
+[:119](../../neiro-push-events/app/events.py#L119): расхождений быть не должно,
+иначе после сидирования первый же дифф выдаст ложные события.
 
 **Что НЕ трогать.** `derive_events` и `should_seed_baseline` оставить как есть:
 внутренняя проверка «пустой `previous` → событий нет» остаётся страховкой на
@@ -191,27 +257,144 @@ event_ids = self._db.insert_events(account.id, events)   # ← журнал
 доставки). Если он теряет записи, разваливается вся конструкция: догон по
 курсору не найдёт того, чего в журнале нет.
 
-**Решение: поменять порядок — сначала журнал, потом состояния.**
+**Решение (выбрано пользователем 26.07.2026): одна транзакция.**
+
+Перестановка строк местами (журнал раньше состояний) рассматривалась и
+**отклонена**. Она закрывает только потерю, оставляя щель на дубль. Сервис ещё
+не введён в работу, переделывать `Database` можно свободно — поэтому делаем
+правильно, а не дёшево.
+
+Событие и состояния записываются **одним соединением, одним коммитом**. Падение
+на середине откатывает всё: состояния не сдвинулись, событий нет, следующий цикл
+пересчитает тот же дифф и запишет заново. Ни потери, ни дубля.
+
+**Почему нельзя просто обернуть текущие вызовы.** `connect()`
+([database.py:167](../../neiro-push-events/app/database.py#L167)) — контекстный
+менеджер, который сам открывает соединение, коммитит и закрывает. Каждый
+публичный метод начинается с `with self.connect() as conn`, поэтому
+`insert_events` и `replace_record_states` — это два независимых соединения и два
+независимых коммита. Транзакцию поверх них натянуть невозможно.
+
+**Что писать. Шаг 1** — тела обоих методов переезжают в приватные, принимающие
+готовый `conn`. Логика внутри **не меняется**, это чистый перенос:
 
 ```python
-if events:
-    event_ids = self._db.insert_events(account.id, events)
-self._db.replace_record_states(account.id, new_states)
+def _insert_events(
+    self, conn: sqlite3.Connection, account_id: int, events: list[EventLike]
+) -> list[int]:
+    now = utc_now_iso()
+    ids = []
+    for event in events:
+        cursor = conn.execute(
+            """
+            INSERT INTO events (
+                account_id, type, client_name, date, time, kind,
+                prev_date, prev_time, record_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                account_id, event.type, event.client_name, event.date,
+                event.time, event.kind, event.prev_date, event.prev_time,
+                event.record_id, now,
+            ),
+        )
+        ids.append(int(cursor.lastrowid))
+    return ids
+
+
+def _replace_record_states(
+    self, conn: sqlite3.Connection, account_id: int, states: dict[int, RecordState]
+) -> None:
+    now = utc_now_iso()
+    conn.execute("DELETE FROM record_states WHERE account_id = ?", (account_id,))
+    conn.executemany(
+        """
+        INSERT INTO record_states (
+            account_id, record_id, date, time, attendance, deleted,
+            client_name, kind, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                account_id, state.record_id, state.date, state.time,
+                state.attendance, state.deleted, state.client_name,
+                state.kind, now,
+            )
+            for state in states.values()
+        ],
+    )
 ```
 
-При падении между ними теперь получится обратное: состояния не сдвинулись,
-следующий цикл сгенерирует те же события повторно → в журнале дубль. Это
-**безопасный** отказ: дубли гасит `wasEventNotified(dedupeKey)` в приложении
-(LRU на 300 ключей,
-[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
-см. [план §5.2](plan.md)). Потеря — невосстановима, дубль —
-гасится штатно.
+**Шаг 2** — публичные методы остаются, становятся тонкими обёртками. Убирать их
+нельзя: они часть API `Database`, на них будут опираться Этап 6 и тесты.
 
-**Идеально** было бы писать событие и состояния одной транзакцией, но сейчас
-`Database` выдаёт соединение на каждый метод (`with self.connect()`), так что
-это потребует нового метода вида `commit_poll_result(account_id, events,
-states)` с одним `conn`. Если делать — то этим же коммитом; если нет —
-перестановка порядка закрывает основную часть риска.
+```python
+def insert_events(self, account_id: int, events: list[EventLike]) -> list[int]:
+    with self.connect() as conn:
+        return self._insert_events(conn, account_id, events)
+
+
+def replace_record_states(
+    self, account_id: int, states: dict[int, RecordState]
+) -> None:
+    with self.connect() as conn:
+        self._replace_record_states(conn, account_id, states)
+```
+
+**Шаг 3** — новый публичный метод, ради которого всё и затевалось:
+
+```python
+def commit_poll_result(
+    self,
+    account_id: int,
+    events: list[EventLike],
+    states: dict[int, RecordState],
+) -> list[int]:
+    """Журнал и состояния — одной транзакцией (§2.2 разбора Этапа 5).
+
+    Либо записано всё, либо ничего: при падении посередине SQLite откатит
+    вставку событий вместе со сдвигом состояний, и следующий цикл пересчитает
+    тот же дифф. Разделять эти две записи нельзя — см. П2 плана §3.
+    """
+    with self.connect() as conn:
+        event_ids = self._insert_events(conn, account_id, events)
+        self._replace_record_states(conn, account_id, states)
+    return event_ids
+```
+
+Пустой список `events` — валидный вызов: событий нет, состояния всё равно надо
+обновить. Отдельную ветку под это писать не нужно, цикл `for` просто не
+выполнится.
+
+**Шаг 4** — в `_poll_account` два вызова схлопываются в один:
+
+```python
+previous_states = self._db.get_record_states(account.id)
+events, new_states = derive_events(previous_states, records)
+event_ids = self._db.commit_poll_result(account.id, events, new_states)
+
+if not events:
+    return 0, 0
+```
+
+Обрати внимание на порядок: `commit_poll_result` вызывается **до** проверки
+`if not events`, иначе при пустом диффе состояния не запишутся вообще.
+
+**Чего НЕ делать.** Не трогать сам `connect()` — контекстный менеджер с
+`try/finally` написан правильно, `finally` там закрывает соединение при любом
+исходе. Не добавлять вложенных `with self.connect()` внутри приватных методов —
+именно ради этого они и принимают `conn` аргументом.
+
+**Чем проверять.** Тест на откат: фейковый `Database` не подойдёт, нужен
+настоящий SQLite во временном файле. Вставить событие и состояния через
+`commit_poll_result`, где `_replace_record_states` кидает исключение (monkeypatch),
+и убедиться, что после исключения в `events` **пусто** — то есть вставка события
+откатилась вместе с состояниями.
+
+Дубли, если они когда-нибудь всё же случатся, гасит `wasEventNotified(dedupeKey)`
+в приложении (LRU на 300 ключей,
+[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
+см. [план §5.2](plan.md)) — но это страховка, а не проектное решение.
 
 ---
 
@@ -236,6 +419,42 @@ states)` с одним `conn`. Если делать — то этим же ко
 Для строки про событие нужно переставить логирование **после** получения
 списка устройств — сейчас оно выше, и числа устройств в этот момент ещё нет.
 
+**Что писать.** Формат менять нельзя: §9.3 плана учит смотреть именно эти
+строки, и дашборд Этапа 7 будет опираться на них же.
+
+```python
+# _poll_company, в самом конце, рядом с record_poll_run:
+logger.info(
+    "poll company=%s records=%s events=%s pushes=%s duration=%sms",
+    company_id, len(records), events_created, pushes_sent, duration_ms,
+)
+
+# _poll_account, ПОСЛЕ devices = self._db.list_devices_for_account(...):
+logger.info(
+    'event id=%s %s "%s" %s %s → %s devices',
+    event_id, event.type, event.client_name, event.date, event.time,
+    len(devices),
+)
+
+# _poll_company, там же где проставляется backoff (обработка ошибки):
+logger.info(
+    "backoff company=%s until=%s (errors=%s)",
+    company_id,
+    backoff_until_dt.strftime("%H:%M:%S"),
+    next_errors,
+)
+```
+
+Кавычки вокруг имени клиента — часть формата, не украшение: имя содержит
+пробелы, без кавычек строка не парсится глазом.
+
+**Порядок в `_poll_account` важен.** Логирование событий переезжает вниз, под
+`devices = self._db.list_devices_for_account(...)`, но **выше** ветки
+`if not devices: return len(events), 0`. Иначе событие, у которого нет ни одного
+устройства, не оставит в логе следа — а это ровно тот случай, который чаще всего
+и расследуют по §9.3 («событие было, отправлять оказалось некому»). Строка
+`→ 0 devices` должна писаться.
+
 ### 3.2 Все аккаунты в backoff → тихий выход
 
 `_poll_company`, стр. ~105–106:
@@ -247,9 +466,27 @@ if not active_accounts:
 ```
 
 В дашборде (Этап 7) и в `poll-log` это выглядит как «опрос просто перестал
-происходить», без единого следа почему. Надо либо писать строку в `poll_runs`,
-либо логировать — но не каждые 10 секунд, иначе лог зальёт (например, писать
-только при первом попадании в backoff, что и так делает строка из §8.1).
+происходить», без единого следа почему.
+
+**Решение (выбрано пользователем 26.07.2026): делать оба следа, не «либо-либо».**
+
+1. **Строка в `poll_runs` на каждый пропущенный цикл** — чтобы дашборд Этапа 7 и
+   `GET /v1/admin/poll-log` показывали, что опрос идёт, но упирается в паузу:
+
+```python
+active_accounts = [a for a in accounts if not self._is_backed_off(a, now)]
+if not active_accounts:
+    self._db.record_poll_run(
+        company_id, utc_now_iso(), 0, 0, 0, 0, "all accounts backed off"
+    )
+    return
+```
+
+Ретеншен `poll_runs` эти строки подчистит сам, разрастания не будет.
+
+2. **Лог один раз при попадании в backoff** — это строка из §8.1, пишется там,
+   где backoff проставляется (обработчик ошибки в `_poll_company`), а не в этой
+   ветке. Каждые 10 секунд её писать нельзя, лог зальёт.
 
 ### 3.3 Статус `nudged` вне контракта
 
@@ -286,6 +523,60 @@ payload; отдельным статусом он быть не должен. З
 **Решение:** обернуть вызов, ошибку писать в `last_error` конкретного аккаунта
 и продолжать цикл по остальным.
 
+```python
+for account in active_accounts:
+    account_records = [r for r in records if r.staff_id == account.staff_id]
+    try:
+        created, sent = await self._poll_account(account, account_records, seeding)
+    except Exception as exc:
+        error_message = str(exc)[:500]
+        logger.exception("account poll failed account=%s", account.id)
+        self._db.update_account_poll_state(
+            account.id,
+            backoff_until=account.backoff_until,   # см. ловушку ниже
+            last_error=error_message,
+        )
+        continue
+    events_created += created
+    pushes_sent += sent
+    self._db.update_account_poll_state(
+        account.id,
+        changed_after=next_cursor,
+        backoff_until=None,
+        consecutive_errors=0,
+        last_error=None,
+    )
+```
+
+Два момента, которые легко испортить:
+
+- **`continue` до сброса состояния.** Упавшему аккаунту `changed_after`
+  обновлять **нельзя** — иначе изменения, которые он не обработал, уедут за
+  курсор и потеряются. Сброс `backoff_until`/`consecutive_errors` тоже не для
+  него.
+- **backoff здесь не выставляется.** Это ошибка обработки, а не связи с
+  YClients; пауза на 15 минут из-за битой строки в БД сделает только хуже.
+  Пишем `last_error` и идём дальше.
+
+**Ловушка в `update_account_poll_state`.** В отличие от `changed_after` и
+`consecutive_errors`, поле `backoff_until` обновляется **без `COALESCE`** —
+[database.py:307](../../neiro-push-events/app/database.py#L307):
+
+```sql
+SET changed_after = COALESCE(?, changed_after),
+    backoff_until = ?,                            -- ← напрямую, без COALESCE
+    consecutive_errors = COALESCE(?, consecutive_errors),
+```
+
+Значит `None` здесь означает не «не трогать», а «обнулить». Вызвать метод с
+одним лишь `last_error=` нельзя: это молча снимет паузу с аккаунта, который в
+ней сидит. Текущий код везде передаёт `backoff_until` явно, поэтому баг ещё не
+проявился — но при любой новой правке значение надо передавать осознанно. То же
+касается `last_error`.
+
+Схему **не менять** — добавление `COALESCE` сломает штатный сброс паузы после
+успешного опроса.
+
 ### 3.5 Токен берётся у произвольного аккаунта
 
 `_poll_company`, стр. ~113:
@@ -301,9 +592,45 @@ partner_token = self._secret_box.decrypt(lead_account.partner_token_enc)
 
 План §9.1 предусматривает фолбэк («если у какой-то компании прав не хватит —
 фолбэк на поштучный опрос»), он не реализован — и это нормально, план говорит
-«если не хватит». Но молчаливое допущение «токен любого аккаунта подойдёт»
-стоит хотя бы записать комментарием, а при ошибке — пробовать следующий
-аккаунт компании, прежде чем валить всю компанию в backoff.
+«если не хватит».
+
+**Решение (выбрано пользователем 26.07.2026): перебирать токены аккаунтов, а не
+ограничиваться комментарием.**
+
+Запрос пробуется с токеном каждого активного аккаунта по очереди. Первый
+успешный — работаем дальше. В backoff компания валится, только если **не
+сработал ни один** токен:
+
+```python
+records = None
+last_error: str | None = None
+for candidate in active_accounts:
+    try:
+        partner_token = self._secret_box.decrypt(candidate.partner_token_enc)
+        user_token = self._secret_box.decrypt(candidate.user_token_enc)
+        records = await self._yclients.fetch_company_records(
+            company_id=company_id,
+            partner_token=partner_token,
+            user_token=user_token,
+            changed_after=changed_after,
+        )
+        break
+    except Exception as exc:
+        last_error = str(exc)[:500]
+        logger.warning(
+            "fetch failed company=%s account=%s: %s",
+            company_id, candidate.id, last_error,
+        )
+
+if records is None:
+    # ни один токен не сработал → backoff всей компании, как раньше
+    ...существующая обработка ошибки...
+    return
+```
+
+Важно: существующую обработку ошибки (backoff всем аккаунтам + `record_poll_run`
++ `logger.warning`) не переписывать, а перенести под `if records is None`
+целиком. Она корректна, меняется только условие, при котором срабатывает.
 
 ### 3.6 FCM не настроен → спам `failed`
 
@@ -382,8 +709,10 @@ account_records = [r for r in records if r.staff_id == account.staff_id]
 - сидирование на уровне компании: аккаунт с полными состояниями + новый пустой
   аккаунт в одной компании → **ноль** событий у обоих (тест на находку 2.1,
   сценарий А);
-- события попадают в журнал раньше состояний (тест на находку 2.2 — проще
-  всего проверить через порядок вызовов на фейковом `Database`).
+- откат транзакции: `commit_poll_result` падает на записи состояний → в таблице
+  `events` пусто (тест на находку 2.2). Фейковый `Database` здесь не годится,
+  нужен настоящий SQLite во временном файле — проверяется поведение самой БД,
+  а не порядок вызовов.
 
 ---
 
@@ -447,17 +776,26 @@ loop. Плюс `record_push_delivery` открывает **отдельное с
 Порядок именно такой: блокеры сначала, каждая порция — отдельным коммитом по
 правилам [CLAUDE.md](../../CLAUDE.md).
 
-**Коммит 1 — сидирование** ([§2.1](#21-сидирование-два-источника-правды)).
+Порядок коммитов 1 и 2 поменялся местами относительно первой редакции этого
+документа: транзакция из [§2.2](#22-состояния-пишутся-раньше-событий) идёт
+**первой**, потому что сидирование из
+[§2.1](#21-сидирование-два-источника-правды) вызывает `commit_poll_result` —
+метода не будет существовать, если сделать их в обратном порядке.
+
+**Коммит 1 — одна транзакция** ([§2.2](#22-состояния-пишутся-раньше-событий)).
+Приватные `_insert_events` / `_replace_record_states`, публичные обёртки над
+ними, новый `commit_poll_result`, один вызов в `_poll_account` вместо двух. Плюс
+тест на откат (настоящий SQLite во временном файле, не фейк).
+
+Сообщение: `Добавил запись событий и состояний одной транзакцией`
+
+**Коммит 2 — сидирование** ([§2.1](#21-сидирование-два-источника-правды)).
 `Database.has_record_states`, `events.merge_states`, решение о сидировании на
-уровне компании в `_poll_company`. Плюс тест на сценарий А. Проверка: все 14
-тестов `test_events.py` проходят без изменений.
+уровне компании в `_poll_company`, `seeding` третьим аргументом `_poll_account`.
+Плюс тест на сценарий А. Проверка: все 14 тестов `test_events.py` проходят без
+изменений.
 
 Сообщение: `Исправил сидирование состояний на уровне компании`
-
-**Коммит 2 — порядок записи** ([§2.2](#22-состояния-пишутся-раньше-событий)).
-Журнал раньше состояний. Плюс тест на порядок.
-
-Сообщение: `Исправил порядок записи событий и состояний`
 
 **Коммит 3 — `staff_id` в payload** ([§3.7](#37-в-payload-события-нет-staff_id)).
 Одна строка в `_event_payload` плюс прокидывание `account.staff_id`. Сделать
