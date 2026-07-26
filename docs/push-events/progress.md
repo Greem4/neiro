@@ -28,12 +28,12 @@
   коммитов, [stage5-review.md](stage5-review.md).
 
 Развилки в обоих закрыты решениями пользователя 26.07.2026 — выбирать
-исполнителю нечего. Коммит 1 из stage1-4-review (формат `date`) сделан,
-остальные три пока нет.
+исполнителю нечего. Коммиты 1–2 из stage1-4-review (формат `date`, дифф
+удаления/отмены/возврата) сделаны, остальные два пока нет.
 
-Следующее действие: коммит 2 из
-[stage1-4-review §7](stage1-4-review.md#7-с-чего-начинать) — дифф не различает
-удаление, отмену и возврат записи.
+Следующее действие: коммит 3 из
+[stage1-4-review §7](stage1-4-review.md#7-с-чего-начинать) — FCM (лишний
+refresh OAuth-токена, `INVALID_ARGUMENT` удаляет живые устройства).
 
 **Не забыть при выкатке:** после правки формата даты выполнить
 `DELETE FROM record_states;` — иначе первый же цикл выдаст `RESCHEDULED` на весь
@@ -53,6 +53,7 @@
 | 4 | Дифф состояний [app/events.py](../../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
 | 5 | Поллер [app/poller.py](../../neiro-push-events/app/poller.py) + [app/fcm.py](../../neiro-push-events/app/fcm.py) + [app/security.py](../../neiro-push-events/app/security.py), связано в [app/main.py](../../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
 | 3 (правка) | `date` теперь берётся из `datetime` подстрокой, как `time` ([§2 stage1-4-review](stage1-4-review.md#2-блокер-date-уезжает-со-временем)); добавлен `tests/test_yclients.py` — 9 тестов на реальном экспорте | `60ebd44` |
+| 4 (правка) | Дифф [app/events.py](../../neiro-push-events/app/events.py) различает удаление, отмену и возврат записи ([§3.3 stage1-4-review](stage1-4-review.md#33-дифф-не-различает-удаление-отмену-и-возврат)); 5 новых тестов, старые 14 не тронуты | `5fdbbcb` |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
