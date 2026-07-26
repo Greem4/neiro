@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -8,6 +9,8 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,11 @@ class YClientsClient:
             if len(page_data) < page_size:
                 break
             page += 1
+        else:
+            logger.warning(
+                "records truncated company=%s: hit max_pages=%s, fetched=%s",
+                company_id, max_pages, len(all_records),
+            )
 
         return all_records
 
@@ -133,6 +141,9 @@ def next_changed_after(records: list[YClientsRecord]) -> str | None:
 
     Небольшое перекрытие (5 с) страхует от границы окна, как в старом сервисе
     и Android-клиенте.
+
+    Фолбэка на `datetime` (как в старом сервисе) намеренно нет: это время
+    визита, а не время изменения — по нему курсор перескочит вперёд.
     """
     zone = ZoneInfo("Europe/Moscow")
     latest: datetime | None = None

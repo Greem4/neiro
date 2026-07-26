@@ -29,12 +29,13 @@ async def lifespan(app: FastAPI):
 
     db = Database(settings.database_path)
     yclients_client = YClientsClient(settings)
+    fcm_sender = FcmSender(settings)
     poll_service = PollService(
         settings=settings,
         database=db,
         secret_box=SecretBox(settings.token_encryption_key),
         yclients=yclients_client,
-        fcm=FcmSender(settings),
+        fcm=fcm_sender,
     )
 
     app.state.db = db
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
     yield
     await poll_service.stop()
     await yclients_client.aclose()
+    await fcm_sender.aclose()
     logger.info("neiro-push-events stopped")
 
 

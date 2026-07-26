@@ -25,6 +25,7 @@ class FcmSender:
         self._settings = settings
         self._credentials = None
         self._project_id = settings.fcm_project_id
+        self._client = httpx.AsyncClient(timeout=20.0)
 
         credentials_path = Path(settings.fcm_credentials_path)
         if credentials_path.exists():
@@ -36,6 +37,9 @@ class FcmSender:
                 with credentials_path.open("r", encoding="utf-8") as handle:
                     payload = json.load(handle)
                 self._project_id = payload.get("project_id", "")
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     @property
     def is_configured(self) -> bool:
@@ -74,21 +78,20 @@ class FcmSender:
             }
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
+        response = await self._client.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+        )
+        if response.status_code >= 400:
+            if self._is_invalid_token_error(response):
+                return FcmSendResult(token_invalid=True)
+            raise RuntimeError(
+                f"FCM error {response.status_code}: {response.text[:300]}"
             )
-            if response.status_code >= 400:
-                if self._is_invalid_token_error(response):
-                    return FcmSendResult(token_invalid=True)
-                raise RuntimeError(
-                    f"FCM error {response.status_code}: {response.text[:300]}"
-                )
         return FcmSendResult(nudged=nudged)
 
     def _is_invalid_token_error(self, response: httpx.Response) -> bool:

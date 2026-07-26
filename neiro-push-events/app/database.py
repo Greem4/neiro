@@ -7,6 +7,14 @@ from typing import Iterator, Protocol
 
 
 def utc_now_iso() -> str:
+    """ISO-8601 UTC: `2026-07-26T12:00:00+00:00`.
+
+    Внимание: SQLite-функция datetime('now') отдаёт другой формат —
+    `2026-07-26 12:00:00`, без T и без смещения. Строковые сравнения между
+    ними верны только на уровне даты (общий префикс YYYY-MM-DD); на точности
+    до часа они разъедутся. Ретеншену этого хватает, более тонким сравнениям —
+    нет.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
