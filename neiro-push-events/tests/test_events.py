@@ -88,6 +88,49 @@ def test_deleted_emitted_when_record_marked_deleted() -> None:
     assert states[1].deleted == 1
 
 
+def test_deleted_and_cancelled_at_once_emits_single_deleted() -> None:
+    previous = {1: _state(_record(attendance=0, deleted=False))}
+
+    events, states = derive_events(previous, [_record(attendance=-1, deleted=True)])
+
+    assert [e.type for e in events] == ["DELETED"]
+    assert states[1].deleted == 1
+
+
+def test_already_deleted_record_with_changed_date_emits_nothing() -> None:
+    previous = {1: _state(_record(date="2026-07-26", deleted=True))}
+
+    events, _ = derive_events(previous, [_record(date="2026-07-27", deleted=True)])
+
+    assert events == []
+
+
+def test_restored_record_emits_new_booking() -> None:
+    previous = {1: _state(_record(deleted=True))}
+
+    events, states = derive_events(previous, [_record(deleted=False)])
+
+    assert [e.type for e in events] == ["NEW_BOOKING"]
+    assert states[1].deleted == 0
+
+
+def test_uncancelled_record_emits_new_booking() -> None:
+    previous = {1: _state(_record(attendance=-1))}
+
+    events, states = derive_events(previous, [_record(attendance=0)])
+
+    assert [e.type for e in events] == ["NEW_BOOKING"]
+    assert states[1].attendance == 0
+
+
+def test_uncancelled_record_confirmed_at_once_emits_only_new_booking() -> None:
+    previous = {1: _state(_record(attendance=-1))}
+
+    events, _ = derive_events(previous, [_record(attendance=2)])
+
+    assert [e.type for e in events] == ["NEW_BOOKING"]
+
+
 def test_rescheduled_emitted_with_prev_date_and_time() -> None:
     previous = {1: _state(_record(date="2026-07-26", time="18:00"))}
 

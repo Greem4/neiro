@@ -54,10 +54,29 @@ def derive_events(
             new_states[record.record_id] = _state_from_record(record)
             continue
 
-        if record.deleted and not old.deleted:
+        # Удаление терминально: записи больше нет, остальное по ней не считаем
+        # (§3.3 stage1-4-review — иначе одно действие даёт два уведомления).
+        if record.deleted:
+            if not old.deleted:
+                events.append(
+                    DerivedEvent(
+                        type="DELETED",
+                        client_name=record.client_name,
+                        date=record.date,
+                        time=record.time,
+                        kind=record.kind,
+                        record_id=record.record_id,
+                    )
+                )
+            new_states[record.record_id] = _state_from_record(record)
+            continue
+
+        # Возврат: была удалена или отменена, снова стала активной — это
+        # NEW_BOOKING, как в приложении (SessionChangeDetector:45,71).
+        if old.deleted or (old.attendance == -1 and record.attendance != -1):
             events.append(
                 DerivedEvent(
-                    type="DELETED",
+                    type="NEW_BOOKING",
                     client_name=record.client_name,
                     date=record.date,
                     time=record.time,
@@ -65,7 +84,10 @@ def derive_events(
                     record_id=record.record_id,
                 )
             )
+            new_states[record.record_id] = _state_from_record(record)
+            continue
 
+        # Отмена тоже обрывает разбор (SessionChangeDetector:61-66).
         if old.attendance != -1 and record.attendance == -1:
             events.append(
                 DerivedEvent(
@@ -77,7 +99,11 @@ def derive_events(
                     record_id=record.record_id,
                 )
             )
+            new_states[record.record_id] = _state_from_record(record)
+            continue
 
+        # Дальше — обычные изменения активной записи; перенос и смена
+        # статуса за один цикл дают два разных события (§6.3 плана).
         if old.date != record.date or old.time != record.time:
             events.append(
                 DerivedEvent(
