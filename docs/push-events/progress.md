@@ -52,7 +52,7 @@
 | 3 | Клиент YClients [app/yclients.py](../../neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
 | 4 | Дифф состояний [app/events.py](../../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
 | 5 | Поллер [app/poller.py](../../neiro-push-events/app/poller.py) + [app/fcm.py](../../neiro-push-events/app/fcm.py) + [app/security.py](../../neiro-push-events/app/security.py), связано в [app/main.py](../../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
-| 3 (правка) | `date` теперь берётся из `datetime` подстрокой, как `time` ([§2 stage1-4-review](stage1-4-review.md#2-блокер-date-уезжает-со-временем)); добавлен `tests/test_yclients.py` — 9 тестов на реальном экспорте | — |
+| 3 (правка) | `date` теперь берётся из `datetime` подстрокой, как `time` ([§2 stage1-4-review](stage1-4-review.md#2-блокер-date-уезжает-со-временем)); добавлен `tests/test_yclients.py` — 9 тестов на реальном экспорте | `60ebd44` |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
