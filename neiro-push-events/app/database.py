@@ -330,6 +330,14 @@ class Database:
                 ),
             )
 
+    def has_record_states(self, account_id: int) -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM record_states WHERE account_id = ? LIMIT 1",
+                (account_id,),
+            ).fetchone()
+        return row is not None
+
     def get_record_states(self, account_id: int) -> dict[int, RecordState]:
         with self.connect() as conn:
             rows = conn.execute(

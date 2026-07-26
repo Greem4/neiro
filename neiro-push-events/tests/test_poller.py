@@ -143,6 +143,33 @@ def test_one_fetch_per_company_for_multiple_staff(tmp_path: Path) -> None:
     assert 2 in db.get_record_states(account_b)
 
 
+def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_a = db.upsert_account(5, 10, "pt", "ut")
+
+    # Аккаунт A уже работает: после первого опроса record_states не пуста.
+    # Второй ответ — полный горизонт после регистрации B: та же запись A
+    # (давно существующая) не должна дать NEW_BOOKING.
+    yclients = FakeYClients([[_record(1, 10)], [_record(1, 10), _record(2, 20)]])
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+    asyncio.run(service.poll_once())
+    assert fcm.calls == []
+
+    # Регистрируется аккаунт B — новый специалист, record_states пуста.
+    account_b = db.upsert_account(5, 20, "pt", "ut")
+
+    asyncio.run(service.poll_once())
+
+    assert fcm.calls == []
+    assert db.list_events_since(account_a, 0) == []
+    assert 1 in db.get_record_states(account_a)
+    assert 2 in db.get_record_states(account_b)
+
+
 def test_fetch_failure_backs_off_and_skips_next_cycle(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     db = Database(settings.database_path)

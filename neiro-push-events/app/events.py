@@ -147,6 +147,17 @@ def derive_events(
     return events, new_states
 
 
+def merge_states(
+    previous: dict[int, RecordState],
+    records: list[YClientsRecord],
+) -> dict[int, RecordState]:
+    """Сидирование: состояния обновляются, события не генерируются (§7 Этап 5 п.3)."""
+    states = dict(previous)
+    for record in records:
+        states[record.record_id] = _state_from_record(record)
+    return states
+
+
 def _state_from_record(record: YClientsRecord) -> RecordState:
     return RecordState(
         record_id=record.record_id,

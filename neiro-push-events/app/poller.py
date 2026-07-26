@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.database import Database, WatchedAccount, utc_now_iso
-from app.events import DerivedEvent, derive_events
+from app.events import DerivedEvent, derive_events, merge_states
 from app.fcm import FcmSender
 from app.security import SecretBox
 from app.yclients import YClientsClient, YClientsRecord, next_changed_after
@@ -107,7 +107,8 @@ class PollService:
 
         started_at = utc_now_iso()
         started = time.monotonic()
-        changed_after = self._company_changed_after(active_accounts)
+        seeding = any(not self._db.has_record_states(a.id) for a in active_accounts)
+        changed_after = None if seeding else self._company_changed_after(active_accounts)
 
         try:
             lead_account = active_accounts[0]
@@ -145,7 +146,7 @@ class PollService:
         pushes_sent = 0
         for account in active_accounts:
             account_records = [r for r in records if r.staff_id == account.staff_id]
-            created, sent = await self._poll_account(account, account_records)
+            created, sent = await self._poll_account(account, account_records, seeding)
             events_created += created
             pushes_sent += sent
             self._db.update_account_poll_state(
@@ -162,9 +163,17 @@ class PollService:
         )
 
     async def _poll_account(
-        self, account: WatchedAccount, records: list[YClientsRecord]
+        self,
+        account: WatchedAccount,
+        records: list[YClientsRecord],
+        seeding: bool,
     ) -> tuple[int, int]:
         previous_states = self._db.get_record_states(account.id)
+        if seeding:
+            new_states = merge_states(previous_states, records)
+            self._db.commit_poll_result(account.id, [], new_states)
+            return 0, 0
+
         events, new_states = derive_events(previous_states, records)
         event_ids = self._db.commit_poll_result(account.id, events, new_states)
 
