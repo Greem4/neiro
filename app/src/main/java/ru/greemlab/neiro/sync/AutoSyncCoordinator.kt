@@ -16,7 +16,8 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 /**
  * Ежедневная автосинхронизация YClients при возврате в приложение (текущий + следующий месяц).
  *
- * Live-опрос текущего месяца — [LiveApiCoordinator]. Периодический WorkManager каждые 4 ч отключён.
+ * Разовая подтяжка при входе/открытии приложения — [LiveApiCoordinator]. Периодический
+ * WorkManager каждые 4 ч отключён; фоновые изменения приходят push'ом с сервера.
  */
 object AutoSyncCoordinator {
 
