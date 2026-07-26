@@ -118,7 +118,7 @@ class YClientsClient:
         return YClientsRecord(
             record_id=int(raw["id"]),
             staff_id=int(raw.get("staff_id") or 0),
-            date=str(raw.get("date") or ""),
+            date=_extract_date(raw.get("datetime"), raw.get("date")),
             time=_extract_time(raw.get("datetime")),
             attendance=int(raw.get("attendance") or 0),
             deleted=bool(raw.get("deleted")),
@@ -158,6 +158,23 @@ def _parse_timestamp(value: str, zone: ZoneInfo) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def _extract_date(datetime_value: str | None, date_value: str | None) -> str:
+    """`YYYY-MM-DD` подстрокой, без пересчёта часового пояса (app.md §2.1).
+
+    Основной источник — `datetime` (`2026-06-28T18:00:00+03:00`), тот же, из
+    которого берётся `time`: иначе на границе суток дата и время разъедутся.
+    Фолбэк — поле `date`, которое YClients отдаёт как `2026-06-28 18:00:00`,
+    то есть с временем: от него берутся первые 10 символов.
+    """
+    for value in (datetime_value, date_value):
+        if not value:
+            continue
+        head = value[:10]
+        if len(head) == 10 and head[4] == "-" and head[7] == "-":
+            return head
+    return ""
 
 
 def _extract_time(value: str | None) -> str:
