@@ -10,14 +10,16 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 
 /**
  * FCM: сервер шлёт события занятий (`session_events`) прямо в payload — правим
- * календарь и показываем уведомление без похода в YClients. Догон по нуджу
- * (`sync_events`) — Этап C, app.md §6.
+ * календарь и показываем уведомление без похода в YClients. Если пуш не влез в
+ * лимит, сервер шлёт нудж (`sync_events`) — забираем через WorkManager, сеть в
+ * FCM-сервисе не место (app.md §6.3).
  */
 class NeiroFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
-        if (message.data["action"] == "session_events") {
-            handleSessionEvents(message)
+        when (message.data["action"]) {
+            "session_events" -> handleSessionEvents(message)
+            "sync_events" -> PushEventsSyncCoordinator.enqueue(applicationContext)
         }
     }
 

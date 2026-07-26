@@ -16,7 +16,7 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 import kotlin.coroutines.resume
 
 /**
- * Регистрация телефона на push-сервере и обработка FCM «sync».
+ * Регистрация телефона на push-сервере.
  */
 object PushRegistrar {
 
@@ -63,6 +63,9 @@ object PushRegistrar {
     suspend fun onLogout(context: Context) {
         val appContext = context.applicationContext
         PushKeepAliveCoordinator.cancel(appContext)
+        // Иначе после входа под другим аккаунтом догон начнётся с чужого id
+        // и пропустит его события (app.md §6.5).
+        PushEventsCursor.reset(appContext)
         if (!PushConfig.isServerConfigured) return
         unregister(appContext)
     }
@@ -127,7 +130,13 @@ object PushRegistrar {
                 }
                 val response = outcome.getOrNull()
                 when {
-                    response != null && response.isSuccessful -> return@withContext true
+                    response != null && response.isSuccessful -> {
+                        // Курсор ещё не задан (новое устройство) — принять начальное
+                        // значение из ответа регистрации; известное устройство своё
+                        // не отдаёт (app.md §6.4).
+                        response.body()?.lastEventId?.let { PushEventsCursor.setIfAbsent(context, it) }
+                        return@withContext true
+                    }
                     response != null && response.code() in 400..499 -> {
                         // 4xx: невалидный токен/payload — retry бесполезен.
                         return@withContext false

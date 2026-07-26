@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.push.PushConfig
+import ru.greemlab.neiro.push.PushEventsSyncer
 import ru.greemlab.neiro.push.PushKeepAliveCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 
@@ -44,6 +45,9 @@ object LiveApiCoordinator {
                         if (!yclientsRepository.isLoggedIn.first()) return@launch
                         if (serverPushActive) {
                             PushRegistrar.onAppForeground(appContext)
+                            // Догон рядом с refreshNow: закрывает дыру нуджа при
+                            // открытом приложении, когда синка ещё не было (app.md §6.2).
+                            runCatching { PushEventsSyncer.syncNow(appContext) }
                         }
                         refreshNow(appContext)
                     }
