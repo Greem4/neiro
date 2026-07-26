@@ -113,18 +113,29 @@ class PollService:
         seeding = any(not self._db.has_record_states(a.id) for a in active_accounts)
         changed_after = None if seeding else self._company_changed_after(active_accounts)
 
-        try:
-            lead_account = active_accounts[0]
-            partner_token = self._secret_box.decrypt(lead_account.partner_token_enc)
-            user_token = self._secret_box.decrypt(lead_account.user_token_enc)
-            records = await self._yclients.fetch_company_records(
-                company_id=company_id,
-                partner_token=partner_token,
-                user_token=user_token,
-                changed_after=changed_after,
-            )
-        except Exception as exc:
-            error_message = str(exc)[:500]
+        records: list[YClientsRecord] | None = None
+        error_message: str | None = None
+        for candidate in active_accounts:
+            try:
+                partner_token = self._secret_box.decrypt(candidate.partner_token_enc)
+                user_token = self._secret_box.decrypt(candidate.user_token_enc)
+                records = await self._yclients.fetch_company_records(
+                    company_id=company_id,
+                    partner_token=partner_token,
+                    user_token=user_token,
+                    changed_after=changed_after,
+                )
+                break
+            except Exception as exc:
+                error_message = str(exc)[:500]
+                logger.warning(
+                    "fetch failed company=%s account=%s: %s",
+                    company_id, candidate.id, error_message,
+                )
+
+        if records is None:
+            # ни один токен активного аккаунта не сработал — backoff всей компании.
+            assert error_message is not None
             for account in active_accounts:
                 next_errors = account.consecutive_errors + 1
                 backoff_until_dt = now + timedelta(seconds=_backoff_seconds(next_errors))
@@ -153,7 +164,19 @@ class PollService:
         pushes_sent = 0
         for account in active_accounts:
             account_records = [r for r in records if r.staff_id == account.staff_id]
-            created, sent = await self._poll_account(account, account_records, seeding)
+            try:
+                created, sent, account_error = await self._poll_account(
+                    account, account_records, seeding
+                )
+            except Exception as exc:
+                error_message = str(exc)[:500]
+                logger.exception("account poll failed account=%s", account.id)
+                self._db.update_account_poll_state(
+                    account.id,
+                    backoff_until=account.backoff_until,
+                    last_error=error_message,
+                )
+                continue
             events_created += created
             pushes_sent += sent
             self._db.update_account_poll_state(
@@ -161,7 +184,7 @@ class PollService:
                 changed_after=next_cursor,
                 backoff_until=None,
                 consecutive_errors=0,
-                last_error=None,
+                last_error=account_error,
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -178,18 +201,18 @@ class PollService:
         account: WatchedAccount,
         records: list[YClientsRecord],
         seeding: bool,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, str | None]:
         previous_states = self._db.get_record_states(account.id)
         if seeding:
             new_states = merge_states(previous_states, records)
             self._db.commit_poll_result(account.id, [], new_states)
-            return 0, 0
+            return 0, 0, None
 
         events, new_states = derive_events(previous_states, records)
         event_ids = self._db.commit_poll_result(account.id, events, new_states)
 
         if not events:
-            return 0, 0
+            return 0, 0, None
 
         devices = self._db.list_devices_for_account(account.id)
 
@@ -205,7 +228,13 @@ class PollService:
             )
 
         if not devices:
-            return len(events), 0
+            return len(events), 0, None
+
+        if not self._fcm.is_configured:
+            logger.warning(
+                "events created for account=%s, but FCM is not configured", account.id
+            )
+            return len(events), 0, "events created but FCM is not configured"
 
         last_event_id = max(event_ids)
         payload_events = [
@@ -220,7 +249,7 @@ class PollService:
             )
         )
         pushes_sent = sum(1 for sent in results if sent)
-        return len(events), pushes_sent
+        return len(events), pushes_sent, None
 
     async def _push_to_device(
         self,
