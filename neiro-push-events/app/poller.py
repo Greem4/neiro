@@ -196,7 +196,8 @@ class PollService:
 
         last_event_id = max(event_ids)
         payload_events = [
-            _event_payload(event, event_id) for event, event_id in zip(events, event_ids)
+            _event_payload(event, event_id, account.staff_id)
+            for event, event_id in zip(events, event_ids)
         ]
 
         results = await asyncio.gather(
@@ -259,10 +260,11 @@ class PollService:
         return now < backoff_until
 
 
-def _event_payload(event: DerivedEvent, event_id: int) -> dict:
+def _event_payload(event: DerivedEvent, event_id: int, staff_id: int) -> dict:
     payload: dict = {
         "id": event_id,
         "type": event.type,
+        "staff_id": staff_id,
         "client_name": event.client_name,
         "date": event.date,
         "time": event.time,
