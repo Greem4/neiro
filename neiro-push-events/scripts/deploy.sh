@@ -43,6 +43,9 @@ EOF
   echo "Created .env"
 fi
 
+# shellcheck disable=SC1091
+source .env
+
 if [[ ! -f secrets/fcm-service-account.json && -f ~/neiro-push/secrets/fcm-service-account.json ]]; then
   cp ~/neiro-push/secrets/fcm-service-account.json secrets/fcm-service-account.json
   echo "Copied FCM credentials from neiro-push"
@@ -60,13 +63,15 @@ if [[ -f ~/server/caddy/Caddyfile ]]; then
 fi
 
 sleep 5
-curl -fsS http://127.0.0.1:8011/health
+curl -fsS -H "Authorization: Bearer ${ADMIN_API_KEY}" http://127.0.0.1:8011/health
 echo
 REMOTE
 
 echo ""
 echo "Public: ${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health"
-curl -fsS "${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health" && echo || echo "(Caddy ещё не готов)"
+ADMIN_API_KEY="$(ssh_pi "grep ^ADMIN_API_KEY= ~/neiro-push-events/.env | cut -d= -f2-")"
+curl -fsS -H "Authorization: Bearer ${ADMIN_API_KEY}" "${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health" \
+  && echo || echo "(Caddy ещё не готов)"
 echo ""
 echo "API_KEY: ssh ${SSH_HOST} \"grep ^API_KEY= ~/neiro-push-events/.env\""
 echo "ADMIN_API_KEY: ssh ${SSH_HOST} \"grep ^ADMIN_API_KEY= ~/neiro-push-events/.env\""

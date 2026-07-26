@@ -261,6 +261,18 @@ class Database:
             ).fetchone()
         return _row_to_device(row) if row else None
 
+    def get_account(self, account_id: int) -> WatchedAccount | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, company_id, staff_id, partner_token_enc, user_token_enc,
+                       changed_after, backoff_until, consecutive_errors
+                FROM accounts WHERE id = ?
+                """,
+                (account_id,),
+            ).fetchone()
+        return _row_to_account(row) if row else None
+
     def list_accounts(self) -> list[WatchedAccount]:
         with self.connect() as conn:
             rows = conn.execute(
@@ -271,19 +283,7 @@ class Database:
                 ORDER BY id
                 """
             ).fetchall()
-        return [
-            WatchedAccount(
-                id=int(row["id"]),
-                company_id=int(row["company_id"]),
-                staff_id=int(row["staff_id"]),
-                partner_token_enc=row["partner_token_enc"],
-                user_token_enc=row["user_token_enc"],
-                changed_after=row["changed_after"],
-                backoff_until=row["backoff_until"],
-                consecutive_errors=int(row["consecutive_errors"]),
-            )
-            for row in rows
-        ]
+        return [_row_to_account(row) for row in rows]
 
     def list_devices_for_account(self, account_id: int) -> list[RegisteredDevice]:
         with self.connect() as conn:
@@ -445,21 +445,37 @@ class Database:
         return event_ids
 
     def list_events_since(
-        self, account_id: int, since_id: int, limit: int = 100
+        self,
+        account_id: int,
+        since_id: int,
+        limit: int = 100,
+        min_date: str | None = None,
     ) -> list[Event]:
+        """`min_date` — горизонт §6.4 плана: не отдавать события про уже прошедшие занятия.
+
+        Без него (по умолчанию) фильтра по дате нет — так пользуются внутренние
+        вызовы поллера и тесты.
+        """
+        query = """
+            SELECT id, account_id, type, client_name, date, time, kind,
+                   prev_date, prev_time, record_id, created_at
+            FROM events
+            WHERE account_id = ? AND id > ?
+        """
+        params: list[object] = [account_id, since_id]
+        if min_date is not None:
+            query += " AND date >= ?"
+            params.append(min_date)
+        query += " ORDER BY id LIMIT ?"
+        params.append(limit)
         with self.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, account_id, type, client_name, date, time, kind,
-                       prev_date, prev_time, record_id, created_at
-                FROM events
-                WHERE account_id = ? AND id > ?
-                ORDER BY id
-                LIMIT ?
-                """,
-                (account_id, since_id, limit),
-            ).fetchall()
+            rows = conn.execute(query, params).fetchall()
         return [_row_to_event(row) for row in rows]
+
+    def get_max_event_id(self) -> int:
+        with self.connect() as conn:
+            row = conn.execute("SELECT COALESCE(MAX(id), 0) AS m FROM events").fetchone()
+        return int(row["m"])
 
     def record_push_delivery(
         self, event_id: int, device_id: str, status: str, detail: str | None
@@ -541,6 +557,19 @@ class Database:
             "devices": int(devices),
             "events_today": int(events_today),
         }
+
+
+def _row_to_account(row: sqlite3.Row) -> WatchedAccount:
+    return WatchedAccount(
+        id=int(row["id"]),
+        company_id=int(row["company_id"]),
+        staff_id=int(row["staff_id"]),
+        partner_token_enc=row["partner_token_enc"],
+        user_token_enc=row["user_token_enc"],
+        changed_after=row["changed_after"],
+        backoff_until=row["backoff_until"],
+        consecutive_errors=int(row["consecutive_errors"]),
+    )
 
 
 def _row_to_device(row: sqlite3.Row) -> RegisteredDevice:

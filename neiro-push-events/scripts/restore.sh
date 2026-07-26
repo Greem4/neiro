@@ -59,7 +59,9 @@ docker compose start neiro-push-events
 rm -f ~/"${REMOTE_DIR}/_restore.db"
 
 sleep 5
-curl -fsS http://127.0.0.1:8011/health
+# shellcheck disable=SC1091
+source .env
+curl -fsS -H "Authorization: Bearer ${ADMIN_API_KEY}" http://127.0.0.1:8011/health
 echo
 REMOTE
 
