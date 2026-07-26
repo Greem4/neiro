@@ -20,14 +20,16 @@
 Если открываешь чат заново специально ради экономии контекста — не нужно
 пересказывать историю, документ самодостаточен:
 
-1. Открой [app.md](app.md) — это Этап 8, следующая нетронутая работа: правки
-   приложения (уже написан целиком, детализирует §8 плана).
+1. Этап 8 (правки приложения, [app.md](app.md)) закрыт — пять коммитов A–D,
+   см. таблицу «Сделано по этапам» ниже. Следующая нетронутая работа — Этап 9
+   (документация по факту, §7.9 плана), затем деплой на Pi.
 2. Работай этапами из [CLAUDE.md](../../CLAUDE.md): один коммит — одна
    законченная порция, тесты гонять через venv в скретчпаде (см. ниже), после
    каждого шага возвращайся сюда и дописывай строку в таблицу «Сделано по
    этапам».
-3. Когда Этап 8 закрыт — переходи к Этапу 9 (документация по факту, §7.9
-   плана).
+3. Приложение не собиралось Gradle'ом ни разу (агенту это запрещено
+   [CLAUDE.md](../../CLAUDE.md)) — первая реальная сборка и тест на устройстве
+   ещё предстоят пользователю.
 
 `pytest` в проекте не установлен. Разовое окружение:
 
@@ -62,10 +64,14 @@ Gradle не запускать — сборку и тесты приложени
   admin-ключу), `/v1/admin/dashboard.txt` (тот же снимок текстом),
   `/v1/admin/events`, `/v1/admin/poll-log`, `scripts/dash.sh` для терминала.
   10 новых тестов в `tests/test_main.py`.
+- **Этап 8** — правки приложения ([app.md](app.md)), пять коммитов A–D (см.
+  таблицу ниже). Локальный опрос убран, показ и правка календаря идут прямо
+  из payload, догон по курсору `last_event_id` закрывает пропуски push'а,
+  `local.properties` и версия обновлены под новый сервис.
 
 **Ничего из этого ещё не задеплоено на Pi** — все коммиты только в
-локальной ветке `фикс-уведомлений`. Дальше — Этап 8 (правки приложения), см.
-блок выше.
+локальной ветке `фикс-уведомлений`. Дальше — Этап 9 (документация по факту,
+§7.9 плана), затем деплой.
 
 **Не забыть при выкатке:** перед первым запуском после этих правок выполнить
 `DELETE FROM record_states;` — иначе первый же цикл выдаст `RESCHEDULED` на весь
@@ -95,7 +101,12 @@ Gradle не запускать — сборку и тесты приложени
 | 5 (правка 5/6) | `_poll_account` обёрнут в `try` (ошибка одного аккаунта не рушит компанию), перебор токенов вместо токена первого аккаунта, ранняя проверка `fcm.is_configured` ([§3.4–3.6](stage5-review.md#34-_poll_account-не-обёрнут-в-try)) | `256deef` |
 | 5 (правка 6/6) | Тесты приёмки: холостой опрос → 0 событий/0 пушей, рост и сброс backoff после восстановления ([§4](stage5-review.md#4-тесты-чего-не-хватает)) | `501bba2` |
 | 6 | API [app/main.py](../../neiro-push-events/app/main.py) + [app/schemas.py](../../neiro-push-events/app/schemas.py) по §6.2 плана: регистрация (курсор нового устройства = `max(events.id)` по журналу, известного — не трогается), снятие регистрации, догон с горизонтом §6.4 и точным `has_more` (`limit+1`), `ack`, богатый `/health` под admin-ключом. `Database`: `get_account`, `get_max_event_id`, `min_date` у `list_events_since`. `deploy.sh`/`restore.sh` обновлены под авторизованный `/health`. 9 тестов в `tests/test_main.py` | `05b3c30` |
-| 7 | Дашборд [app/dashboard.py](../../neiro-push-events/app/dashboard.py) + [templates/dashboard.html](../../neiro-push-events/templates/dashboard.html) по §8.4 плана: одна функция `collect_dashboard_data` кормит и HTML (`/dashboard`, cookie-логин на 30 дней), и текст (`/v1/admin/dashboard.txt`); плюс JSON `/v1/admin/events`, `/v1/admin/poll-log`. `Database`: `poll_health_summary`, `list_recent_events_admin`, `list_accounts_admin`, `list_devices_admin`, `list_poll_runs_admin`. `scripts/dash.sh` (`--watch` циклом `clear`+`sleep`, без `watch(1)`). `Dockerfile` дополнен `COPY templates`. 10 тестов в `tests/test_main.py` | ожидает коммита |
+| 7 | Дашборд [app/dashboard.py](../../neiro-push-events/app/dashboard.py) + [templates/dashboard.html](../../neiro-push-events/templates/dashboard.html) по §8.4 плана: одна функция `collect_dashboard_data` кормит и HTML (`/dashboard`, cookie-логин на 30 дней), и текст (`/v1/admin/dashboard.txt`); плюс JSON `/v1/admin/events`, `/v1/admin/poll-log`. `Database`: `poll_health_summary`, `list_recent_events_admin`, `list_accounts_admin`, `list_devices_admin`, `list_poll_runs_admin`. `scripts/dash.sh` (`--watch` циклом `clear`+`sleep`, без `watch(1)`). `Dockerfile` дополнен `COPY templates`. 10 тестов в `tests/test_main.py` | `03e51cf` |
+| 8A | [app.md §3](app.md): убран локальный опрос YClients — `LiveApiRefreshWorker` удалён, `LiveApiCoordinator`/`PushKeepAliveWorker`/`AutoSyncCoordinator`/`LogoutCoordinator` правлены по готовому дифу из `git stash`; `scheduleNext` в `finally` (баг `51d8fe3` не возвращён) | `6c0fc33` |
+| 8B | [app.md §4](app.md): показ уведомления прямо из push-payload — новые `PushSessionEvent`, `PushEventsCursor`, `PushEventNotifier`; `NeiroFirebaseMessagingService` разбирает `session_events`, отсеивает чужой `staff_id`, зовёт нотифаер; старые `PushSyncWorker`/`PushSyncCoordinator` и ветка `action=sync` удалены; осиротевшие имена WorkManager-работ отменяются в `AutoSyncCoordinator` | `2bf04dc` |
+| 8B2 | [app.md §5](app.md): новый `PushEventCalendarApplier` правит `dayData` из payload (все 6 типов событий, интенсивы не трогает, курсор синка не требуется); `CalendarSessionSnapshot.parseEntries` открыт до `internal`, чтобы не копировать разбор строки; вызов вклинён в FCM-сервис до нотифая | `5b795d2` |
+| 8C | [app.md §6](app.md): догон `PushEventsSyncer.syncNow` (курсор, `Mutex`, до 10 страниц, сортировка по `id`, независимые календарь/уведомление, `ack` после каждой страницы); новые `PushEventsSyncCoordinator`/`PushEventsSyncWorker` под нудж `sync_events`; точки вызова — keepalive-тик (до `registerNow`), `LiveApiCoordinator.onStart`; курсор из ответа регистрации (`setIfAbsent`) и сброс при logout | `fdfd613` |
+| 8D | [app.md §7](app.md): `NEIRO_PUSH_API_BASE_URL` с `/v2` (и дефолт в `build.gradle.kts`, и `local.properties` — обновлён локально, не в git), версия `0.7.0.0` (`versionCode` 3) | `e4cd9f0` |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
@@ -260,6 +271,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 | 26.07.2026 | Догон **тоже** правит календарь, не только push. Обычно спасает синк при открытии, но нудж при открытом приложении оставлял бы календарь старым до следующего запуска | [app.md §6.2](app.md) |
 | 26.07.2026 | Описание маршрута `/v2` в плане и app.md приведено к реальности: nginx на VPS + SSH-туннель, Caddy не участвует, префикс снимает слеш в `proxy_pass`. Проверено на живых серверах | [план §5.1 и §7 Этап 1](plan.md), [app.md §7](app.md) |
 | 26.07.2026 | `/health` закрыт admin-ключом по плану §6.2 (богаче, чем публичный ответ Этапа 1). Публичный безключевой `/health` был временным для Этапа 1 — расхождения с уже задеплоенным нет, `deploy.sh`/`restore.sh` поправлены под `Authorization: Bearer $ADMIN_API_KEY` | [план §6.2](plan.md) |
+| 26.07.2026 | `local.properties` до Этапа 8D хранил URL и ключ **старого** сервиса (`neiro-push`, порт 8010) под именами `NEIRO_PUSH_API_BASE_URL`/`NEIRO_PUSH_API_KEY` — расхождение с реальностью, по инструкции пользователя проверено через `ssh roster-b3` в `~/neiro-push-events/.env`. Обновлено на `API_KEY` нового сервиса (не `ADMIN_API_KEY` — устройства проходят через `verify_api_key`, [main.py](../../neiro-push-events/app/main.py)) и URL с `/v2` | [app.md §7](app.md) |
 
 ---
 
@@ -270,9 +282,12 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 2. ~~**Правки Этапа 5**~~ — сделаны, 6 коммитов `28dcd70`, `ddf6f79`,
    `2c300c6`, `9f00c38`, `256deef`, `501bba2`.
 3. ~~**Этап 6** — API регистрации и догона~~ — сделано, коммит `05b3c30`.
-4. ~~**Этап 7** — дашборд~~ — сделано, коммит ниже.
-5. **Этап 8** — правки приложения, [app.md](app.md) — уже написан целиком.
-   **Следующая работа, план в блоке «Начинаешь в новом окне?» выше.**
-6. **Этап 9** — документация по факту сделанного.
-7. **Деплой на Pi** — локальные коммиты этапов 1–7 ещё не выкачены. Не забыть
-   `DELETE FROM record_states;` перед первым запуском.
+4. ~~**Этап 7** — дашборд~~ — сделано, коммит `03e51cf`.
+5. ~~**Этап 8** — правки приложения~~ — сделано, коммиты `6c0fc33`, `2bf04dc`,
+   `5b795d2`, `fdfd613`, `e4cd9f0`. Не собиралось Gradle'ом (агенту запрещено) —
+   первую сборку и проверку на устройстве делает пользователь.
+6. **Этап 9** — документация по факту сделанного. **Следующая работа.**
+7. **Деплой на Pi** — локальные коммиты этапов 1–8 ещё не выкачены. Не забыть
+   `DELETE FROM record_states;` перед первым запуском сервера, и что переход
+   на новый push обратной совместимости со старым сервисом не имеет — оба
+   устройства переводятся одновременно с обновлением приложения.
