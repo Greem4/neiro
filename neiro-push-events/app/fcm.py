@@ -92,23 +92,32 @@ class FcmSender:
         return FcmSendResult(nudged=nudged)
 
     def _is_invalid_token_error(self, response: httpx.Response) -> bool:
+        """Токен мёртв — устройство можно удалять.
+
+        INVALID_ARGUMENT сюда НЕ входит: FCM отдаёт его и на нашу собственную
+        ошибку в теле сообщения, а не только на мёртвый токен. Удалять по нему
+        устройство — значит терять живые телефоны из-за своей же опечатки.
+        """
         try:
             payload = response.json()
         except json.JSONDecodeError:
             return response.status_code in {404, 410}
         error = payload.get("error", {})
         status = str(error.get("status", "")).upper()
-        if status in {"NOT_FOUND", "UNREGISTERED", "INVALID_ARGUMENT"}:
+        if status in {"NOT_FOUND", "UNREGISTERED"}:
             return True
         details = error.get("details", [])
         for item in details:
             error_code = str(item.get("errorCode", "")).upper()
-            if error_code in {"UNREGISTERED", "INVALID_ARGUMENT"}:
+            if error_code == "UNREGISTERED":
                 return True
         return response.status_code in {404, 410}
 
     def _access_token(self) -> str:
         assert self._credentials is not None
-        request = google.auth.transport.requests.Request()
-        self._credentials.refresh(request)
+        # refresh() — синхронный сетевой вызов, блокирует event loop.
+        # Токен живёт час, поэтому ходим в Google только когда он протух.
+        if not self._credentials.valid:
+            request = google.auth.transport.requests.Request()
+            self._credentials.refresh(request)
         return self._credentials.token
