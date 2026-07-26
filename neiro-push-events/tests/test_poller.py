@@ -79,6 +79,10 @@ def _poll_runs_count(db_path: str) -> int:
         conn.close()
 
 
+def _account(db: Database, account_id: int):
+    return next(a for a in db.list_accounts() if a.id == account_id)
+
+
 def _push_deliveries(db_path: str) -> list[tuple]:
     conn = sqlite3.connect(db_path)
     try:
@@ -168,6 +172,56 @@ def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
     assert db.list_events_since(account_a, 0) == []
     assert 1 in db.get_record_states(account_a)
     assert 2 in db.get_record_states(account_b)
+
+
+def test_no_changes_produces_zero_events_and_zero_pushes(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.upsert_device(account_id, "dev1", "tok1", None, None)
+
+    record = _record(1, 10)
+    yclients = FakeYClients([[record], [record]])
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())  # сидирование — базовый снимок
+    asyncio.run(service.poll_once())  # холостой опрос — запись не менялась
+
+    assert fcm.calls == []
+    assert db.list_events_since(account_id, 0) == []
+
+
+def test_backoff_grows_with_repeated_failures_and_resets_after_recovery(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+
+    past = "2020-01-01T00:00:00+00:00"
+    yclients = FakeYClients(
+        [RuntimeError("boom1"), RuntimeError("boom2"), [_record(1, 10)]]
+    )
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())
+    account = _account(db, account_id)
+    assert account.consecutive_errors == 1
+    backoff_after_first = account.backoff_until
+
+    db.update_account_poll_state(account_id, backoff_until=past)
+    asyncio.run(service.poll_once())
+    account = _account(db, account_id)
+    assert account.consecutive_errors == 2
+    assert account.backoff_until > backoff_after_first
+
+    db.update_account_poll_state(account_id, backoff_until=past)
+    asyncio.run(service.poll_once())
+    account = _account(db, account_id)
+    assert account.consecutive_errors == 0
+    assert account.backoff_until is None
 
 
 def test_fetch_failure_backs_off_and_skips_next_cycle(tmp_path: Path) -> None:
