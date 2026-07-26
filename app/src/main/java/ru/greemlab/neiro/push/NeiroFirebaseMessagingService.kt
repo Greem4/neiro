@@ -5,11 +5,13 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.runBlocking
 import ru.greemlab.neiro.data.network.YClientsRepository
 
 /**
- * FCM: сервер шлёт события занятий (`session_events`) прямо в payload — без
- * похода в YClients. Догон по нуджу (`sync_events`) — Этап C, app.md §6.
+ * FCM: сервер шлёт события занятий (`session_events`) прямо в payload — правим
+ * календарь и показываем уведомление без похода в YClients. Догон по нуджу
+ * (`sync_events`) — Этап C, app.md §6.
  */
 class NeiroFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -35,6 +37,10 @@ class NeiroFirebaseMessagingService : FirebaseMessagingService() {
             ok
         }
 
+        // Календарь и уведомление — независимо: ошибка применения не должна
+        // съесть push (app.md §5.7). Порядок обратный означал бы «не смогли
+        // поправить календарь — не сказали пользователю».
+        runCatching { runBlocking { PushEventCalendarApplier.apply(applicationContext, mine) } }
         PushEventNotifier.notify(applicationContext, mine.mapNotNull { it.toSessionEvent() })
 
         // Максимумом с уже сохранённым — push'и могут прийти не по порядку.
