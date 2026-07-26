@@ -23,6 +23,16 @@ object AutoSyncCoordinator {
 
     /** Имя старой периодической задачи — отменяем при старте для обновления с установленной версии. */
     private const val LEGACY_PERIODIC_WORK_NAME = "yclients_periodic_sync"
+
+    /**
+     * Осиротевшие уникальные работы удалённых воркеров (Этап 8: локальный опрос
+     * YClients и FCM-синк по действию "sync" убраны, показ теперь идёт прямо из
+     * payload). Классов, из которых можно было бы взять эти имена, больше нет —
+     * держим строками здесь.
+     */
+    private const val ORPHANED_LIVE_API_REFRESH_WORK_NAME = "yclients_live_api_refresh"
+    private const val ORPHANED_PUSH_FCM_SYNC_WORK_NAME = "push_fcm_sync"
+
     private const val DAILY_STALE_MS = 24 * 60 * 60 * 1000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -37,6 +47,10 @@ object AutoSyncCoordinator {
         val syncPreferences = SyncPreferences.get(appContext)
 
         cancelLegacyPeriodicSync(appContext)
+        WorkManager.getInstance(appContext).apply {
+            cancelUniqueWork(ORPHANED_LIVE_API_REFRESH_WORK_NAME)
+            cancelUniqueWork(ORPHANED_PUSH_FCM_SYNC_WORK_NAME)
+        }
 
         if (!syncPreferences.hasCompletedInitialFullSync &&
             CalendarDataStoreProvider.peekDayData(appContext).isNotEmpty()

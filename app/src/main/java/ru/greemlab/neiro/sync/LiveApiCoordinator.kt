@@ -20,7 +20,7 @@ import ru.greemlab.neiro.push.PushRegistrar
  * - при каждом возврате в приложение (onStart).
  *
  * Никакого локального опроса по таймеру — сервер сам опрашивает YClients и шлёт
- * push при изменениях (см. [ru.greemlab.neiro.push.PushSyncCoordinator]), дублировать
+ * push при изменениях (см. [ru.greemlab.neiro.push.NeiroFirebaseMessagingService]), дублировать
  * эту нагрузку клиентом не нужно. [PushKeepAliveCoordinator] лишь переустанавливает
  * FCM-регистрацию, календарь не опрашивает.
  */

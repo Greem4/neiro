@@ -1,12 +1,10 @@
 package ru.greemlab.neiro.auth
 
 import android.content.Context
-import androidx.work.WorkManager
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.push.PushKeepAliveCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
-import ru.greemlab.neiro.push.PushSyncCoordinator
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.SyncPreferences
 
@@ -28,7 +26,6 @@ object LogoutCoordinator {
 
         AutoSyncCoordinator.cancelLegacyPeriodicSync(appContext)
         PushKeepAliveCoordinator.cancel(appContext)
-        WorkManager.getInstance(appContext).cancelUniqueWork(PushSyncCoordinator.WORK_NAME)
 
         SessionNotificationCoordinator.onLoggedOut(appContext)
 
