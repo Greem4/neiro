@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
     device_id TEXT NOT NULL,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL,          -- sent | failed | token_invalid
     detail TEXT,
     created_at TEXT NOT NULL
 );

@@ -103,6 +103,9 @@ class PollService:
         now = datetime.now(timezone.utc)
         active_accounts = [a for a in accounts if not self._is_backed_off(a, now)]
         if not active_accounts:
+            self._db.record_poll_run(
+                company_id, utc_now_iso(), 0, 0, 0, 0, "all accounts backed off"
+            )
             return
 
         started_at = utc_now_iso()
@@ -124,14 +127,18 @@ class PollService:
             error_message = str(exc)[:500]
             for account in active_accounts:
                 next_errors = account.consecutive_errors + 1
-                backoff_until = (
-                    now + timedelta(seconds=_backoff_seconds(next_errors))
-                ).isoformat()
+                backoff_until_dt = now + timedelta(seconds=_backoff_seconds(next_errors))
                 self._db.update_account_poll_state(
                     account.id,
-                    backoff_until=backoff_until,
+                    backoff_until=backoff_until_dt.isoformat(),
                     consecutive_errors=next_errors,
                     last_error=error_message,
+                )
+                logger.info(
+                    "backoff company=%s until=%s (errors=%s)",
+                    company_id,
+                    backoff_until_dt.strftime("%H:%M:%S"),
+                    next_errors,
                 )
             duration_ms = int((time.monotonic() - started) * 1000)
             self._db.record_poll_run(
@@ -161,6 +168,10 @@ class PollService:
         self._db.record_poll_run(
             company_id, started_at, duration_ms, len(records), events_created, pushes_sent, None
         )
+        logger.info(
+            "poll company=%s records=%s events=%s pushes=%s duration=%sms",
+            company_id, len(records), events_created, pushes_sent, duration_ms,
+        )
 
     async def _poll_account(
         self,
@@ -180,17 +191,19 @@ class PollService:
         if not events:
             return 0, 0
 
+        devices = self._db.list_devices_for_account(account.id)
+
         for event, event_id in zip(events, event_ids):
             logger.info(
-                "event id=%s %s %s %s %s",
+                'event id=%s %s "%s" %s %s → %s devices',
                 event_id,
                 event.type,
                 event.client_name,
                 event.date,
                 event.time,
+                len(devices),
             )
 
-        devices = self._db.list_devices_for_account(account.id)
         if not devices:
             return len(events), 0
 
@@ -238,9 +251,9 @@ class PollService:
                 logger.warning("removed stale device %s: invalid FCM token", device_id)
             return False
 
-        status = "nudged" if result.nudged else "sent"
+        detail = "nudged: payload > 3KB" if result.nudged else None
         for event_id in event_ids:
-            self._db.record_push_delivery(event_id, device_id, status, None)
+            self._db.record_push_delivery(event_id, device_id, "sent", detail)
         return True
 
     def _company_changed_after(self, accounts: list[WatchedAccount]) -> str | None:
