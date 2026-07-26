@@ -28,12 +28,12 @@
   коммитов, [stage5-review.md](stage5-review.md).
 
 Развилки в обоих закрыты решениями пользователя 26.07.2026 — выбирать
-исполнителю нечего. Коммиты 1–2 из stage1-4-review (формат `date`, дифф
-удаления/отмены/возврата) сделаны, остальные два пока нет.
+исполнителю нечего. Коммиты 1–3 из stage1-4-review (формат `date`, дифф
+удаления/отмены/возврата, FCM) сделаны, остался последний.
 
-Следующее действие: коммит 3 из
-[stage1-4-review §7](stage1-4-review.md#7-с-чего-начинать) — FCM (лишний
-refresh OAuth-токена, `INVALID_ARGUMENT` удаляет живые устройства).
+Следующее действие: коммит 4 из
+[stage1-4-review §7](stage1-4-review.md#7-с-чего-начинать) — мелочи (httpx-клиент
+FCM, лог обрезания `max_pages`, комментарии).
 
 **Не забыть при выкатке:** после правки формата даты выполнить
 `DELETE FROM record_states;` — иначе первый же цикл выдаст `RESCHEDULED` на весь
@@ -54,6 +54,7 @@ refresh OAuth-токена, `INVALID_ARGUMENT` удаляет живые уст�
 | 5 | Поллер [app/poller.py](../../neiro-push-events/app/poller.py) + [app/fcm.py](../../neiro-push-events/app/fcm.py) + [app/security.py](../../neiro-push-events/app/security.py), связано в [app/main.py](../../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
 | 3 (правка) | `date` теперь берётся из `datetime` подстрокой, как `time` ([§2 stage1-4-review](stage1-4-review.md#2-блокер-date-уезжает-со-временем)); добавлен `tests/test_yclients.py` — 9 тестов на реальном экспорте | `60ebd44` |
 | 4 (правка) | Дифф [app/events.py](../../neiro-push-events/app/events.py) различает удаление, отмену и возврат записи ([§3.3 stage1-4-review](stage1-4-review.md#33-дифф-не-различает-удаление-отмену-и-возврат)); 5 новых тестов, старые 14 не тронуты | `5fdbbcb` |
+| 5 (правка) | [app/fcm.py](../../neiro-push-events/app/fcm.py): `_access_token` обновляет OAuth-токен только когда протух ([§3.1](stage1-4-review.md#31-oauth-токен-обновляется-на-каждую-отправку)); `INVALID_ARGUMENT` больше не считается мёртвым токеном ([§3.2](stage1-4-review.md#32-invalid_argument-удаляет-живое-устройство)) | `90824fd` |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
