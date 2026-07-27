@@ -41,7 +41,7 @@
 | `scripts/patch-vps-nginx.sh` | nginx + TLS на VPS |
 | `scripts/test-push.sh` | Тестовый FCM push — [docs](../docs/push-setup.md) |
 | `scripts/admin-status.sh` | Health и список устройств |
-| `scripts/backup.sh` | Бэкап базы и `.env` с Pi на локальную машину |
+| `scripts/backup.sh` | Бэкап базы и `../neiro-push-events/.env` с Pi на локальную машину |
 | `scripts/restore.sh` | Восстановление базы из бэкапа |
 | `scripts/logs.sh` | Логи контейнера с Pi (`--errors` — только проблемы за сутки) |
 
