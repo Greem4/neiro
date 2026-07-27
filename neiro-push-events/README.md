@@ -24,7 +24,7 @@ FastAPI-сервис на Raspberry Pi: опрашивает YClients по вс�
 | GET | `/v1/admin/poll-log` | `ADMIN_API_KEY` | Последние циклы опроса (JSON) |
 | GET | `/v1/admin/dashboard.txt` | `ADMIN_API_KEY` | Снимок дашборда простым текстом — для `curl`/`scripts/dash.sh` |
 | GET | `/dashboard` | cookie после логина | HTML-дашборд, логин формой по `ADMIN_API_KEY` (cookie на 30 дней) |
-| POST | `/dashboard/login` | `ADMIN_API_KEY` | Логин в HTML-дашборд |
+| POST | `/dashboard` и `/dashboard/login` | `ADMIN_API_KEY` в поле `key` | Логин в HTML-дашборд; в ответ сразу страница, без редиректа |
 
 `API_KEY` и `ADMIN_API_KEY` — разные ключи. `API_KEY` уходит в приложение
 (`local.properties`), `ADMIN_API_KEY` — только себе, в приложении его нет.
@@ -36,6 +36,7 @@ FastAPI-сервис на Raspberry Pi: опрашивает YClients по вс�
 | Скрипт | Что делает |
 |---|---|
 | `deploy.sh` | Синк кода на Pi, генерация `.env` при первом деплое, `docker compose up -d --build`, патч Caddy на Pi |
+| `deploy-no-caddy.sh` | То же, но **без** шага с Caddy — им и деплоим: `/v2` идёт через VPS nginx, Caddy в маршруте не участвует (docs/push-events.md §7) |
 | `logs.sh` | Логи контейнера: хвост, N строк, за период, только warning/error |
 | `backup.sh` | Онлайн-бэкап SQLite (без остановки контейнера) + `.env` → `neiro-push-events/backups/` локально |
 | `restore.sh` | Восстановление базы из бэкапа; снимает страховочный снимок перед подменой, останавливает контейнер на время подмены файла |
