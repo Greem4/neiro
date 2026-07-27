@@ -107,6 +107,9 @@ def build_html_context(data: DashboardData) -> dict:
         }
         for event in data.events
     ]
+    devices = [
+        {**device, "last_seen_hms": _hms(device["last_seen_at"])} for device in data.devices
+    ]
     accounts = []
     for account in data.accounts:
         if account["backoff_until"]:
@@ -115,12 +118,15 @@ def build_html_context(data: DashboardData) -> dict:
             state = "error"
         else:
             state = "ok"
+        account_devices = [d for d in devices if d["account_id"] == account["id"]]
         accounts.append(
-            {**account, "last_polled_hms": _hms(account["last_polled_at"]), "state": state}
+            {
+                **account,
+                "last_polled_hms": _hms(account["last_polled_at"]),
+                "state": state,
+                "devices": account_devices,
+            }
         )
-    devices = [
-        {**device, "last_seen_hms": _hms(device["last_seen_at"])} for device in data.devices
-    ]
     poll_runs = [
         {**run, "started_at_hms": _hms(run["started_at"])} for run in data.poll_runs
     ]
@@ -133,8 +139,24 @@ def build_html_context(data: DashboardData) -> dict:
         ),
         "events": events,
         "accounts": accounts,
-        "devices": devices,
         "poll_runs": poll_runs,
+    }
+
+
+def build_device_html_context(device: dict, deliveries: list[dict]) -> dict:
+    """Готовит форматированные поля для dashboard_device.html — карточка устройства
+    и список уведомлений, которые на него пришли (§8.4 плана)."""
+    return {
+        "device": {**device, "last_seen_hms": _hms(device["last_seen_at"])},
+        "deliveries": [
+            {
+                **d,
+                "delivered_at_hms": _hms(d["delivered_at"]),
+                "date_short": _short_date(d["date"]),
+                "prev_date_short": _short_date(d["prev_date"]) if d["prev_date"] else None,
+            }
+            for d in deliveries
+        ],
     }
 
 
