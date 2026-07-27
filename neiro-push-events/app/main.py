@@ -10,7 +10,12 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import Settings, get_settings
-from app.dashboard import build_html_context, collect_dashboard_data, render_dashboard_text
+from app.dashboard import (
+    build_device_html_context,
+    build_html_context,
+    collect_dashboard_data,
+    render_dashboard_text,
+)
 from app.database import Database
 from app.fcm import FcmSender
 from app.poller import MOSCOW, PollService
@@ -330,3 +335,24 @@ async def dashboard_login(
         samesite="lax",
     )
     return response
+
+
+@app.get("/dashboard/devices/{device_id}", response_class=HTMLResponse)
+async def dashboard_device_page(
+    device_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+) -> HTMLResponse:
+    cookie_value = request.cookies.get(DASHBOARD_COOKIE)
+    authenticated = bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
+    if not authenticated:
+        context = {"authenticated": False, "login_error": False}
+        return templates.TemplateResponse(request, "dashboard.html", context)
+    device = db.get_device_admin(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    deliveries = db.list_deliveries_for_device(device_id)
+    context = {"authenticated": True}
+    context.update(build_device_html_context(device, deliveries))
+    return templates.TemplateResponse(request, "dashboard_device.html", context)
