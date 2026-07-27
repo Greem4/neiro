@@ -1,0 +1,59 @@
+{# Страница циклов опроса. Подменяется целиком при листании, поэтому кнопки
+   пагинации живут внутри фрагмента вместе с таблицей. #}
+<div class="wrap">
+<table>
+  <thead>
+    <tr>
+      <th>время</th>
+      <th>компания</th>
+      <th>длительность</th>
+      <th>записей</th>
+      <th>событий</th>
+      <th>пушей</th>
+      <th>ошибка</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in poll_runs %}
+    <tr>
+      <td>{{ r.started_at_hms }}</td>
+      <td class="muted">{{ r.company_id }}</td>
+      <td class="num">{{ r.duration_ms }} мс</td>
+      <td class="num">{{ r.records_fetched }}</td>
+      <td class="num">{{ r.events_created }}</td>
+      <td class="num">{{ r.pushes_sent }}</td>
+      <td>
+        {% if r.error %}
+        <span class="pill critical">{{ r.error }}</span>
+        {% else %}
+        <span class="dim">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="empty">пока пусто</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="pager">
+  {# Настоящие ссылки: без JS они просто перезагружают страницу с ?runs_offset=N,
+     с JS — подменяют только эту таблицу и не схлопывают аккордеоны выше. #}
+  {% if runs_prev is not none %}
+  <a href="dashboard?runs_offset={{ runs_prev }}"
+     onclick="return pageRuns(event, {{ runs_prev }})">← новее</a>
+  {% else %}
+  <span class="off">← новее</span>
+  {% endif %}
+
+  {% if runs_next is not none %}
+  <a href="dashboard?runs_offset={{ runs_next }}"
+     onclick="return pageRuns(event, {{ runs_next }})">старее →</a>
+  {% else %}
+  <span class="off">старее →</span>
+  {% endif %}
+
+  <span class="spacer"></span>
+  <span>{{ runs_from }}–{{ runs_to }} из {{ runs_total }}</span>
+</div>

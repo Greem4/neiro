@@ -3,125 +3,115 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{% if authenticated %}<meta http-equiv="refresh" content="10">{% endif %}
 <title>neiro-push-events</title>
-<style>
-  body {
-    margin: 0;
-    padding: 12px;
-    background: #111;
-    color: #ddd;
-    font: 14px/1.4 -apple-system, system-ui, sans-serif;
-  }
-  h1 { font-size: 16px; margin: 0 0 4px; }
-  h2 { font-size: 13px; text-transform: uppercase; color: #888; margin: 20px 0 6px; }
-  .ok { color: #4caf50; }
-  .bad { color: #e53935; }
-  .muted { color: #888; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  td, th { padding: 4px 6px; border-bottom: 1px solid #333; text-align: left; white-space: nowrap; }
-  th { color: #888; font-weight: normal; }
-  .wrap { overflow-x: auto; }
-  input[type=password] {
-    font-size: 16px; padding: 8px; width: 100%; box-sizing: border-box;
-    background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px;
-  }
-  button {
-    margin-top: 8px; padding: 8px 16px; font-size: 15px;
-    background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px;
-  }
-  .error { color: #e53935; margin-top: 8px; }
-</style>
+{% include "_styles.html" %}
 </head>
 <body>
 {% if not authenticated %}
-  <h1>neiro-push-events</h1>
-  {# Без action — форма уходит на текущий URL. Абсолютный "/dashboard/login"
-     ломался публично: браузер стоит на /v2/dashboard, а /v2 срезает nginx. #}
-  <form method="post">
-    <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
-    <button type="submit">Войти</button>
-  </form>
-  {% if login_error %}<p class="error">Неверный ключ</p>{% endif %}
+  <div class="login">
+    <h1 style="margin-bottom: 14px;">neiro-push-events</h1>
+    {# Без action — форма уходит на текущий URL. Абсолютный "/dashboard/login"
+       ломался публично: браузер стоит на /v2/dashboard, а /v2 срезает nginx. #}
+    <form method="post">
+      <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
+      <button type="submit">Войти</button>
+    </form>
+    {% if login_error %}<p class="error">Неверный ключ</p>{% endif %}
+  </div>
 {% else %}
-  <h1>neiro-push-events <span class="{{ 'ok' if data.ok else 'bad' }}">●</span></h1>
-  <p class="muted">
-    аптайм {{ uptime }} &nbsp;
-    опрос {{ data.poll_day_seconds }}с (день до {{ data.quiet_start_hour }}:00) &nbsp;
-    FCM {{ "настроен" if data.fcm_configured else "НЕ настроен" }} &nbsp;
-    время МСК
-  </p>
-  <p class="muted">
-    последний опрос {{ last_polled_at }} &nbsp;
-    длительность {{ last_poll_duration }} &nbsp;
-    ошибок за сутки: {{ data.errors_today }}
-  </p>
+  <div class="page">
+    <div id="status">{% include "_status.html" %}</div>
 
-  <h2>События (последние {{ events|length }})</h2>
-  <div class="wrap">
-  <table>
-    <tr><th>время</th><th>тип</th><th>клиент</th><th>занятие</th><th>доставлено</th></tr>
-    {% for e in events %}
-    <tr>
-      <td>{{ e.created_at_hms }}</td>
-      <td>{{ e.type }}</td>
-      <td>{{ e.client_name }}</td>
-      <td>{{ e.date_short }} {{ e.time }}{% if e.prev_date %} <span class="muted">(было {{ e.prev_date_short }} {{ e.prev_time }})</span>{% endif %}</td>
-      <td>{{ e.delivered }}/{{ e.targets }}</td>
-    </tr>
+    <h2>Аккаунты</h2>
+    {% for a in accounts %}
+    <details class="acc">
+      <summary>
+        <span class="title">company={{ a.company_id }} · staff={{ a.staff_id }}</span>
+        <span class="meta">устройств: {{ a.devices | length }} · опрос {{ a.last_polled_hms }}</span>
+        <span class="spacer"></span>
+        <span class="pill {{ a.state }}">{{ a.state_label }}</span>
+      </summary>
+      <div class="acc-body">
+        {% if a.last_error %}<div class="banner">{{ a.last_error }}</div>{% endif %}
+        {% for d in a.devices %}
+        {# Уведомления подгружаются по первому раскрытию — см. loadDeviceEvents. #}
+        <details class="acc nested"
+                 ontoggle="loadDeviceEvents(this)"
+                 data-url="dashboard/devices/{{ d.device_id | urlpath }}/events">
+          <summary>
+            <span class="title">{{ d.label or d.device_id }}</span>
+            <span class="meta">
+              {{ d.app_version or "версия неизвестна" }} ·
+              видели {{ d.last_seen_hms }} ·
+              уведомлений: {{ d.delivery_count }}
+            </span>
+          </summary>
+          <div class="acc-body"><span class="dim">загрузка…</span></div>
+        </details>
+        {% else %}
+        <p class="empty">нет устройств</p>
+        {% endfor %}
+      </div>
+    </details>
     {% else %}
-    <tr><td colspan="5" class="muted">пока пусто</td></tr>
+    <p class="empty">нет аккаунтов</p>
     {% endfor %}
-  </table>
+
+    <h2>Циклы опроса</h2>
+    <div id="poll-runs">{% include "_poll_runs.html" %}</div>
   </div>
 
-  <h2>Аккаунты и устройства</h2>
-  {% for a in accounts %}
-  <p style="margin: 16px 0 4px;">
-    <strong>company={{ a.company_id }} staff={{ a.staff_id }}</strong>&nbsp;
-    <span class="muted">опрос {{ a.last_polled_hms }}</span>&nbsp;
-    <span class="{{ 'bad' if a.backoff_until or a.last_error else 'ok' }}">{{ a.state }}</span>
-  </p>
-  <div class="wrap">
-  <table>
-    <tr><th>устройство</th><th>версия</th><th>видели</th><th>курсор</th></tr>
-    {% for d in a.devices %}
-    <tr>
-      {# Относительный href без ведущего "/": абсолютный путь ломается под
-         nginx-префиксом /v2 (см. комментарий у формы логина выше). #}
-      <td><a href="dashboard/devices/{{ d.device_id }}" style="color:#ddd;">{{ d.label or d.device_id }}</a></td>
-      <td>{{ d.app_version or "—" }}</td>
-      <td>{{ d.last_seen_hms }}</td>
-      <td>{{ d.last_ack_event_id if d.last_ack_event_id is not none else "—" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4" class="muted">нет устройств</td></tr>
-    {% endfor %}
-  </table>
-  </div>
-  {% else %}
-  <p class="muted">нет аккаунтов</p>
-  {% endfor %}
+<script>
+  // Страница собирается на сервере; здесь только подмена готовых HTML-кусков,
+  // чтобы форматирование времени и статусов жило в одном месте — в Python.
+  function handle(response) {
+    if (response.status === 401) {
+      // Сессия истекла — перезагрузка покажет форму входа.
+      window.location.reload();
+      throw new Error('unauthorized');
+    }
+    if (!response.ok) throw new Error('http ' + response.status);
+    return response.text();
+  }
 
-  <h2>Циклы опроса (последние {{ poll_runs|length }})</h2>
-  <div class="wrap">
-  <table>
-    <tr><th>время</th><th>компания</th><th>мс</th><th>записей</th><th>событий</th><th>пушей</th><th>ошибка</th></tr>
-    {% for r in poll_runs %}
-    <tr>
-      <td>{{ r.started_at_hms }}</td>
-      <td>{{ r.company_id }}</td>
-      <td>{{ r.duration_ms }}</td>
-      <td>{{ r.records_fetched }}</td>
-      <td>{{ r.events_created }}</td>
-      <td>{{ r.pushes_sent }}</td>
-      <td class="{{ 'bad' if r.error else '' }}">{{ r.error or "" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="muted">пока пусто</td></tr>
-    {% endfor %}
-  </table>
-  </div>
+  function loadDeviceEvents(details) {
+    if (!details.open || details.dataset.loaded) return;
+    details.dataset.loaded = '1';
+    var box = details.querySelector('.acc-body');
+    fetch(details.dataset.url, { credentials: 'same-origin' })
+      .then(handle)
+      .then(function (html) { box.innerHTML = html; })
+      .catch(function () {
+        box.innerHTML = '<span class="dim">не удалось загрузить</span>';
+        // Даём повторить попытку при следующем раскрытии.
+        delete details.dataset.loaded;
+      });
+  }
+
+  function pageRuns(event, offset) {
+    event.preventDefault();
+    fetch('dashboard/poll-runs?offset=' + offset, { credentials: 'same-origin' })
+      .then(handle)
+      .then(function (html) {
+        document.getElementById('poll-runs').innerHTML = html;
+      })
+      .catch(function () {
+        // Не вышло подменить — уходим по обычной ссылке.
+        window.location = 'dashboard?runs_offset=' + offset;
+      });
+    return false;
+  }
+
+  // Обновляем только шапку: раскрытые аккаунты и страница циклов не сбрасываются.
+  setInterval(function () {
+    fetch('dashboard/status', { credentials: 'same-origin' })
+      .then(handle)
+      .then(function (html) {
+        document.getElementById('status').innerHTML = html;
+      })
+      .catch(function () {});
+  }, 10000);
+</script>
 {% endif %}
 </body>
 </html>

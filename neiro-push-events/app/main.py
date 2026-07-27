@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -11,8 +12,12 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import Settings, get_settings
 from app.dashboard import (
+    DEVICE_EVENTS_LIMIT,
+    build_device_events_context,
     build_device_html_context,
     build_html_context,
+    build_poll_runs_context,
+    build_status_context,
     collect_dashboard_data,
     render_dashboard_text,
 )
@@ -34,6 +39,11 @@ DASHBOARD_COOKIE = "admin_key"
 DASHBOARD_COOKIE_MAX_AGE = 30 * 24 * 3600
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+# device_id приходит от клиента произвольной строкой (RegisterDeviceRequest), и в
+# ссылку он должен уходить полностью экранированным. Встроенный urlencode держит
+# "/" за безопасный символ и разваливает путь, поэтому safe="".
+templates.env.filters["urlpath"] = lambda value: quote(str(value), safe="")
 
 logger = logging.getLogger(__name__)
 
@@ -288,20 +298,76 @@ async def admin_dashboard_text(
     return render_dashboard_text(data)
 
 
+def _dashboard_authenticated(request: Request, settings: Settings) -> bool:
+    cookie_value = request.cookies.get(DASHBOARD_COOKIE)
+    return bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(
+    request: Request,
+    runs_offset: int = Query(default=0, ge=0),
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+    poll_service: PollService = Depends(get_poll_service),
+) -> HTMLResponse:
+    authenticated = _dashboard_authenticated(request, settings)
+    context = {"authenticated": authenticated, "login_error": False}
+    if authenticated:
+        data = collect_dashboard_data(
+            db, poll_service, settings, request.app.state.started_at, runs_offset
+        )
+        context.update(build_html_context(data))
+    return templates.TemplateResponse(request, "dashboard.html", context)
+
+
+@app.get("/dashboard/status", response_class=HTMLResponse)
+async def dashboard_status_fragment(
     request: Request,
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
     poll_service: PollService = Depends(get_poll_service),
 ) -> HTMLResponse:
-    cookie_value = request.cookies.get(DASHBOARD_COOKIE)
-    authenticated = bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
-    context = {"authenticated": authenticated, "login_error": False}
-    if authenticated:
-        data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
-        context.update(build_html_context(data))
-    return templates.TemplateResponse(request, "dashboard.html", context)
+    """Шапка отдельным куском: страница подтягивает её раз в 10 секунд, чтобы
+    live-данные обновлялись, не схлопывая раскрытые аккордеоны."""
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
+    return templates.TemplateResponse(request, "_status.html", build_status_context(data))
+
+
+@app.get("/dashboard/poll-runs", response_class=HTMLResponse)
+async def dashboard_poll_runs_fragment(
+    request: Request,
+    offset: int = Query(default=0, ge=0),
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+    poll_service: PollService = Depends(get_poll_service),
+) -> HTMLResponse:
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    data = collect_dashboard_data(
+        db, poll_service, settings, request.app.state.started_at, offset
+    )
+    return templates.TemplateResponse(request, "_poll_runs.html", build_poll_runs_context(data))
+
+
+@app.get("/dashboard/devices/{device_id}/events", response_class=HTMLResponse)
+async def dashboard_device_events_fragment(
+    device_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+) -> HTMLResponse:
+    """Уведомления устройства подгружаются только при раскрытии — иначе стартовая
+    страница тянула бы историю по всем устройствам сразу."""
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    if db.get_device_admin(device_id) is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    deliveries = db.list_deliveries_for_device(device_id, DEVICE_EVENTS_LIMIT)
+    context = build_device_events_context(device_id, deliveries)
+    return templates.TemplateResponse(request, "_device_events.html", context)
 
 
 @app.post("/dashboard", response_class=HTMLResponse)
@@ -344,9 +410,7 @@ async def dashboard_device_page(
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
 ) -> HTMLResponse:
-    cookie_value = request.cookies.get(DASHBOARD_COOKIE)
-    authenticated = bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
-    if not authenticated:
+    if not _dashboard_authenticated(request, settings):
         context = {"authenticated": False, "login_error": False}
         return templates.TemplateResponse(request, "dashboard.html", context)
     device = db.get_device_admin(device_id)

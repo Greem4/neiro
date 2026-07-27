@@ -244,16 +244,19 @@ def test_dashboard_login_sets_cookie_and_unlocks_page(client: TestClient) -> Non
         "/dashboard/login", data={"key": "test-admin-key"}, follow_redirects=False
     )
     assert login.status_code == 200
-    assert "События" in login.text
-    assert "Иванов Ваня" in login.text
+    assert "Аккаунты" in login.text
+    assert "company=1" in login.text
     assert login.cookies["admin_key"] == "test-admin-key"
 
     client.cookies.set("admin_key", "test-admin-key")
     response = client.get("/dashboard")
 
     assert response.status_code == 200
-    assert "События" in response.text
-    assert "Иванов Ваня" in response.text
+    assert "Аккаунты" in response.text
+    assert "company=1" in response.text
+    # Отдельного списка событий на странице больше нет: события лежат внутри
+    # устройства и подгружаются фрагментом /dashboard/devices/{id}/events.
+    assert "Иванов Ваня" not in response.text
 
 
 def test_dashboard_login_form_posts_to_current_url(client: TestClient) -> None:
@@ -267,6 +270,69 @@ def test_dashboard_login_accepts_post_on_page_url(client: TestClient) -> None:
     response = client.post("/dashboard", data={"key": "test-admin-key"})
     assert response.status_code == 200
     assert response.cookies["admin_key"] == "test-admin-key"
+
+
+def test_dashboard_fragments_require_cookie(client: TestClient) -> None:
+    """Фрагменты отдают 401 без куки — страница по нему перезагружается на форму входа."""
+    for path in ("/dashboard/status", "/dashboard/poll-runs"):
+        assert client.get(path).status_code == 401
+
+
+def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClient) -> None:
+    client.cookies.set("admin_key", "test-admin-key")
+    response = client.get("/dashboard/status")
+
+    assert response.status_code == 200
+    assert "Аптайм" in response.text
+    # Это кусок страницы, а не страница: без <html> его можно класть в innerHTML.
+    assert "<html" not in response.text
+
+
+def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
+    from app.database import utc_now_iso
+
+    db = client.app.state.db
+    for _ in range(25):
+        db.record_poll_run(1, utc_now_iso(), 5, 0, 0, 0, None)
+    client.cookies.set("admin_key", "test-admin-key")
+
+    first = client.get("/dashboard/poll-runs")
+    second = client.get("/dashboard/poll-runs", params={"offset": 20})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert "1–20 из 25" in first.text
+    assert "21–25 из 25" in second.text
+
+
+def test_dashboard_device_events_fragment_renders_for_known_device(
+    client: TestClient,
+) -> None:
+    _register(client)
+    client.cookies.set("admin_key", "test-admin-key")
+
+    response = client.get("/dashboard/devices/device-1/events")
+
+    assert response.status_code == 200
+    # Это кусок страницы, а не страница.
+    assert "<html" not in response.text
+
+
+def test_dashboard_device_events_fragment_404_for_unknown_device(client: TestClient) -> None:
+    client.cookies.set("admin_key", "test-admin-key")
+    response = client.get("/dashboard/devices/no-such-device/events")
+    assert response.status_code == 404
+
+
+def test_uptime_is_written_in_words() -> None:
+    """«3д 4ч» читалось хуже всего в первые минуты после рестарта."""
+    from app.dashboard import _format_uptime
+
+    assert _format_uptime(2 * 86400 + 4 * 3600) == "2 дня 4 часа"
+    assert _format_uptime(5 * 3600 + 12 * 60) == "5 часов 12 минут"
+    assert _format_uptime(21 * 60) == "21 минута"
+    assert _format_uptime(17) == "17 секунд"
+    assert _format_uptime(11 * 3600) == "11 часов 0 минут"
 
 
 def test_dashboard_time_is_moscow_not_utc() -> None:

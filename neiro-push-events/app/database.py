@@ -621,7 +621,9 @@ class Database:
                 SELECT
                     d.device_id, d.label, d.app_version, d.last_seen_at,
                     d.last_ack_event_id,
-                    a.id AS account_id, a.company_id, a.staff_id
+                    a.id AS account_id, a.company_id, a.staff_id,
+                    (SELECT COUNT(*) FROM push_deliveries pd
+                     WHERE pd.device_id = d.device_id) AS delivery_count
                 FROM devices d
                 JOIN accounts a ON a.id = d.account_id
                 ORDER BY d.id
@@ -663,7 +665,7 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def list_poll_runs_admin(self, limit: int = 20) -> list[dict]:
+    def list_poll_runs_admin(self, limit: int = 20, offset: int = 0) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(
                 """
@@ -671,11 +673,17 @@ class Database:
                        events_created, pushes_sent, error
                 FROM poll_runs
                 ORDER BY id DESC
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (limit,),
+                (limit, offset),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def count_poll_runs(self) -> int:
+        """Сколько всего циклов лежит в базе — дашборд по этому числу решает,
+        показывать ли ссылку «дальше» (хранение ограничено purge_old_data)."""
+        with self.connect() as conn:
+            return int(conn.execute("SELECT COUNT(*) AS c FROM poll_runs").fetchone()["c"])
 
 
 def _row_to_account(row: sqlite3.Row) -> WatchedAccount:
