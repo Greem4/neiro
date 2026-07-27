@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request, Response, status
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import Settings, get_settings
@@ -299,18 +299,28 @@ async def dashboard_page(
     return templates.TemplateResponse(request, "dashboard.html", context)
 
 
+@app.post("/dashboard", response_class=HTMLResponse)
 @app.post("/dashboard/login", response_class=HTMLResponse)
 async def dashboard_login(
     request: Request,
     key: str = Form(...),
     settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+    poll_service: PollService = Depends(get_poll_service),
 ) -> Response:
     if not constant_time_equals(key, _admin_key(settings)):
         context = {"authenticated": False, "login_error": True}
         return templates.TemplateResponse(
             request, "dashboard.html", context, status_code=status.HTTP_401_UNAUTHORIZED
         )
-    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    # Страница отдаётся сразу, без Location-редиректа. Публично сервис живёт под
+    # /v2, и nginx на VPS срезает префикс (docs/push-events.md §7) — приложение
+    # не знает, что смонтировано под /v2, поэтому абсолютный "/dashboard" в
+    # Location уводил браузер мимо сервиса на 404 старого neiro-push.
+    data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
+    context = {"authenticated": True, "login_error": False}
+    context.update(build_html_context(data))
+    response = templates.TemplateResponse(request, "dashboard.html", context)
     response.set_cookie(
         DASHBOARD_COOKIE,
         key,

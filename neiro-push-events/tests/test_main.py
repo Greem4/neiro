@@ -238,17 +238,35 @@ def test_dashboard_login_sets_cookie_and_unlocks_page(client: TestClient) -> Non
     account_id = db.upsert_account(1, 10, "pt", "ut")
     db.commit_poll_result(account_id, [_event(1)], {})
 
+    # Логин отдаёт готовую страницу сразу, без редиректа: абсолютный Location
+    # уводил бы браузер мимо префикса /v2 (см. dashboard_login в app/main.py).
     login = client.post(
         "/dashboard/login", data={"key": "test-admin-key"}, follow_redirects=False
     )
-    assert login.status_code == 303
-    client.cookies.set("admin_key", "test-admin-key")
+    assert login.status_code == 200
+    assert "События" in login.text
+    assert "Иванов Ваня" in login.text
+    assert login.cookies["admin_key"] == "test-admin-key"
 
+    client.cookies.set("admin_key", "test-admin-key")
     response = client.get("/dashboard")
 
     assert response.status_code == 200
     assert "События" in response.text
     assert "Иванов Ваня" in response.text
+
+
+def test_dashboard_login_form_posts_to_current_url(client: TestClient) -> None:
+    """Форма не должна знать абсолютный путь — публично страница живёт под /v2."""
+    response = client.get("/dashboard")
+    assert 'action="/dashboard/login"' not in response.text
+
+
+def test_dashboard_login_accepts_post_on_page_url(client: TestClient) -> None:
+    """Форма без action уходит на сам /dashboard — этот POST тоже должен логинить."""
+    response = client.post("/dashboard", data={"key": "test-admin-key"})
+    assert response.status_code == 200
+    assert response.cookies["admin_key"] == "test-admin-key"
 
 
 def test_health_requires_admin_key(client: TestClient) -> None:

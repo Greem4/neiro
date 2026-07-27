@@ -36,7 +36,9 @@
 <body>
 {% if not authenticated %}
   <h1>neiro-push-events</h1>
-  <form method="post" action="/dashboard/login">
+  {# Без action — форма уходит на текущий URL. Абсолютный "/dashboard/login"
+     ломался публично: браузер стоит на /v2/dashboard, а /v2 срезает nginx. #}
+  <form method="post">
     <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
     <button type="submit">Войти</button>
   </form>
