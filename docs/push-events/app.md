@@ -689,7 +689,7 @@ Caddy на малине **в пути с улицы не участвует.** �
 так вышло, — [progress.md, камень 2](progress.md).
 
 `NEIRO_PUSH_API_KEY` — **новый ключ нового сервиса**, не старый: у сервисов свои
-`.env`. Регистрация с чужим ключом вернёт 401, а `PushRegistrar` на 4xx не
+`../../neiro-push-events/.env`. Регистрация с чужим ключом вернёт 401, а `PushRegistrar` на 4xx не
 повторяет запрос ([PushRegistrar.kt:131](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L131))
 — телефон молча останется незарегистрированным.
 

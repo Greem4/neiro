@@ -511,7 +511,7 @@ neiro-push-events/
 ```
 
 - Порт `127.0.0.1:8011`, контейнер `neiro-push-events`, том `neiro_push_events_data`.
-- `.env`: свои `API_KEY`, `ADMIN_API_KEY`, `TOKEN_ENCRYPTION_KEY`,
+- `../../neiro-push-events/.env`: свои `API_KEY`, `ADMIN_API_KEY`, `TOKEN_ENCRYPTION_KEY`,
   `POLL_INTERVAL_SECONDS=10`, `POLL_NIGHT_INTERVAL_SECONDS=3600`,
   `QUIET_START_HOUR=23`, `DATABASE_PATH=/data/neiro_push_events.db`.
 - Секрет FCM: тот же `fcm-service-account.json`, свой каталог `secrets/`.
@@ -935,7 +935,7 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
 
 Обёртка `neiro-push-events/scripts/dash.sh` — по образцу
 [admin-status.sh](../../server/scripts/admin-status.sh): сама достаёт
-`ADMIN_API_KEY` из `.env` на Pi по ssh, если он не задан в
+`ADMIN_API_KEY` из `../../neiro-push-events/.env` на Pi по ssh, если он не задан в
 `NEIRO_PUSH_EVENTS_ADMIN_KEY`.
 
 ```bash

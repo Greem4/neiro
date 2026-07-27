@@ -2,6 +2,7 @@ secrets/
 .env
 data/
 backups/
+.venv/
 __pycache__/
 *.pyc
 .DS_Store

@@ -12,7 +12,7 @@ local.properties
 app/google-services.json
 .signing/
 ruStoreApi.txt
-.env
+neiro-push-events/.env
 
 # Локальные утилиты и выгрузки (не в репозитории)
 tools/

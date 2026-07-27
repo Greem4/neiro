@@ -126,7 +126,7 @@ INFO  backoff company=123 until=12:41:05 (errors=3)
 
 ## 5. Переменные окружения
 
-`.env` на Pi (`~/neiro-push-events/.env`, шаблон —
+`../neiro-push-events/.env` на Pi (`~/neiro-push-events/.env`, шаблон —
 [.env.example](../neiro-push-events/.env.example)):
 
 | Переменная | Что меняет |
@@ -160,7 +160,7 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 
 Бэкап — консистентный онлайн-снимок через `sqlite3` backup API, контейнер не
 останавливается. Локально складывается в `neiro-push-events/backups/`
-(`.env`-снимок — с правами `600`, в git не попадает). На Pi хранится 10
+(`../neiro-push-events/.env`-снимок — с правами `600`, в git не попадает). На Pi хранится 10
 последних снимков.
 
 **Откат:**
