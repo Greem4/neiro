@@ -13,6 +13,36 @@ POLL_RUNS_LIMIT = 20
 # отдельной странице устройства, чтобы аккордеон не превращался в простыню.
 DEVICE_EVENTS_LIMIT = 20
 
+# Подписи к типам событий. Ключи — ровно то, что кладёт derive_events в
+# app/events.py; ничего другого поллер не создаёт.
+EVENT_TYPE_LABELS = {
+    "NEW_BOOKING": "новая запись",
+    "DELETED": "запись удалена",
+    "CANCELLED": "отмена",
+    "RESCHEDULED": "перенос",
+    "CLIENT_CONFIRMED": "клиент подтвердил",
+    "CLIENT_ARRIVED": "клиент пришёл",
+}
+
+# Статусы доставки пуша — (состояние для плашки, подпись). Ключи — всё, что
+# кладёт record_push_delivery в app/poller.py.
+DELIVERY_STATUS_LABELS = {
+    "sent": ("good", "доставлено"),
+    "failed": ("critical", "не доставлено"),
+    "token_invalid": ("warning", "токен недействителен"),
+}
+
+# Ошибки, которые сервис формулирует сам. Всё остальное в last_error — это
+# str(exc) от httpx/YClients, произвольный текст, его показываем как есть.
+ERROR_LABELS = {
+    "all accounts backed off": "все аккаунты на паузе после ошибок",
+    "YClients returned success=false": "YClients ответил отказом (success=false)",
+}
+
+# Проблемные аккаунты уходят наверх списка: при двух десятках аккаунтов
+# сломанный не должен теряться в середине.
+_STATE_ORDER = {"critical": 0, "warning": 1, "good": 2}
+
 
 @dataclass(frozen=True)
 class DashboardData:
@@ -129,26 +159,71 @@ def _short_date(value: str) -> str:
         return value
 
 
+def _event_type_label(value: str) -> str:
+    return EVENT_TYPE_LABELS.get(value, value)
+
+
+def _error_label(value: str | None) -> str | None:
+    """Наши собственные формулировки — по-русски, чужие тексты — как есть."""
+    if not value:
+        return None
+    return ERROR_LABELS.get(value, value)
+
+
 def _account_state(account: dict) -> tuple[str, str]:
     """(машинный статус, подпись) — статус никогда не передаётся одним цветом,
     рядом всегда идёт текст."""
     if account["backoff_until"]:
-        return "critical", f"пауза после {account['consecutive_errors']} ошибок"
+        errors = account["consecutive_errors"]
+        return "critical", f"пауза после {errors} {_plural(errors, 'ошибки', 'ошибок', 'ошибок')}"
     if account["last_error"]:
         return "warning", "ошибка"
     return "good", "работает"
 
 
+def _accounts_summary(accounts: list[dict], company_id: int | None = None) -> str:
+    """Строка над списком — чтобы не пересчитывать состояния глазами.
+
+    company_id передаётся, когда компания одна: тогда её номер из заголовков
+    аккаунтов убран, и показать его нужно здесь, иначе он пропадёт со страницы.
+    """
+    total = len(accounts)
+    if not total:
+        return "нет аккаунтов"
+    paused = sum(1 for a in accounts if a["state"] == "critical")
+    errored = sum(1 for a in accounts if a["state"] == "warning")
+    working = total - paused - errored
+    detail = []
+    if working:
+        detail.append(f"{working} {_plural(working, 'работает', 'работают', 'работают')}")
+    if errored:
+        detail.append(f"{errored} с ошибкой")
+    if paused:
+        detail.append(f"{paused} на паузе")
+    head = f"{total} {_plural(total, 'аккаунт', 'аккаунта', 'аккаунтов')}"
+    if company_id is not None:
+        head = f"Компания {company_id} · {head}"
+    return f"{head}: {', '.join(detail)}" if detail else head
+
+
 def _format_deliveries(deliveries: list[dict]) -> list[dict]:
-    return [
-        {
-            **d,
-            "delivered_at_hms": _hms(d["delivered_at"]),
-            "date_short": _short_date(d["date"]),
-            "prev_date_short": _short_date(d["prev_date"]) if d["prev_date"] else None,
-        }
-        for d in deliveries
-    ]
+    result = []
+    for d in deliveries:
+        status_state, status_label = DELIVERY_STATUS_LABELS.get(
+            d["status"], ("warning", d["status"])
+        )
+        result.append(
+            {
+                **d,
+                "delivered_at_hms": _hms(d["delivered_at"]),
+                "type_label": _event_type_label(d["type"]),
+                "status_state": status_state,
+                "status_label": status_label,
+                "date_short": _short_date(d["date"]),
+                "prev_date_short": _short_date(d["prev_date"]) if d["prev_date"] else None,
+            }
+        )
+    return result
 
 
 def build_status_context(data: DashboardData) -> dict:
@@ -160,12 +235,20 @@ def build_status_context(data: DashboardData) -> dict:
         "last_poll_duration": (
             "—" if data.last_poll_duration_ms is None else f"{data.last_poll_duration_ms} мс"
         ),
+        "last_poll_error": _error_label(data.last_poll_error),
     }
 
 
 def build_poll_runs_context(data: DashboardData) -> dict:
     """Страница циклов опроса: сколько показано, откуда и куда листать."""
-    runs = [{**run, "started_at_hms": _hms(run["started_at"])} for run in data.poll_runs]
+    runs = [
+        {
+            **run,
+            "started_at_hms": _hms(run["started_at"]),
+            "error_label": _error_label(run["error"]),
+        }
+        for run in data.poll_runs
+    ]
     offset = data.poll_runs_offset
     return {
         "poll_runs": runs,
@@ -187,6 +270,12 @@ def build_html_context(data: DashboardData) -> dict:
     devices = [
         {**device, "last_seen_hms": _hms(device["last_seen_at"])} for device in data.devices
     ]
+    # Компания обычно одна на весь сервис. Тогда её номер в каждой строке — шум,
+    # и заголовком остаётся только сотрудник. Если компаний вдруг несколько,
+    # номер возвращается: иначе два разных аккаунта выглядят одинаково.
+    company_ids = {account["company_id"] for account in data.accounts}
+    single_company = len(company_ids) == 1
+
     accounts = []
     for account in data.accounts:
         state, state_label = _account_state(account)
@@ -197,10 +286,24 @@ def build_html_context(data: DashboardData) -> dict:
                 "last_polled_hms": _hms(account["last_polled_at"]),
                 "state": state,
                 "state_label": state_label,
+                "title": (
+                    f"Сотрудник {account['staff_id']}"
+                    if single_company
+                    else f"Компания {account['company_id']} · сотрудник {account['staff_id']}"
+                ),
+                # По этой строке фильтрует поиск на странице.
+                "search": f"{account['company_id']} {account['staff_id']}",
+                "last_error_label": _error_label(account["last_error"]),
                 "devices": account_devices,
             }
         )
-    context = {"accounts": accounts}
+    accounts.sort(key=lambda a: (_STATE_ORDER[a["state"]], a["company_id"], a["staff_id"]))
+    context = {
+        "accounts": accounts,
+        "accounts_summary": _accounts_summary(
+            accounts, next(iter(company_ids)) if single_company else None
+        ),
+    }
     context.update(build_status_context(data))
     context.update(build_poll_runs_context(data))
     return context
@@ -219,7 +322,15 @@ def build_device_html_context(device: dict, deliveries: list[dict]) -> dict:
     """Готовит форматированные поля для dashboard_device.html — карточка устройства
     и список уведомлений, которые на него пришли (§8.4 плана)."""
     return {
-        "device": {**device, "last_seen_hms": _hms(device["last_seen_at"])},
+        "device": {
+            **device,
+            "last_seen_hms": _hms(device["last_seen_at"]),
+            # Здесь компанию оставляем всегда: это страница-карточка, а не список,
+            # повторов нет, и полный контекст на ней уместен.
+            "account_title": (
+                f"Компания {device['company_id']} · сотрудник {device['staff_id']}"
+            ),
+        },
         "deliveries": _format_deliveries(deliveries),
     }
 

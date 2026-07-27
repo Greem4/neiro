@@ -14,7 +14,7 @@
     {% for d in deliveries %}
     <tr>
       <td>{{ d.delivered_at_hms }}</td>
-      <td class="muted">{{ d.type }}</td>
+      <td class="muted" title="{{ d.type }}">{{ d.type_label }}</td>
       <td>{{ d.client_name }}</td>
       <td>
         {{ d.date_short }} {{ d.time }}
@@ -23,11 +23,9 @@
         {% endif %}
       </td>
       <td>
-        {% if d.status == 'sent' %}
-        <span class="pill good">доставлено</span>
-        {% else %}
-        <span class="pill critical">{{ d.status }}{% if d.detail %} · {{ d.detail }}{% endif %}</span>
-        {% endif %}
+        <span class="pill {{ d.status_state }}" title="{{ d.status }}{% if d.detail %} · {{ d.detail }}{% endif %}">
+          {{ d.status_label }}
+        </span>
       </td>
     </tr>
     {% else %}

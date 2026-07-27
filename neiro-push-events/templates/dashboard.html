@@ -23,16 +23,28 @@
     <div id="status">{% include "_status.html" %}</div>
 
     <h2>Аккаунты</h2>
+    <div class="listbar">
+      <span class="summary">{{ accounts_summary }}</span>
+      <span class="spacer"></span>
+      {% if accounts | length > 5 %}
+      <input type="search" id="acc-filter" autocomplete="off"
+             placeholder="фильтр по номеру компании или сотрудника"
+             oninput="filterAccounts(this.value)">
+      {% endif %}
+    </div>
+    <p id="acc-nothing" class="empty" hidden>ничего не нашлось</p>
+
+    <div id="accounts">
     {% for a in accounts %}
-    <details class="acc">
+    <details class="acc" data-search="{{ a.search }}">
       <summary>
-        <span class="title">company={{ a.company_id }} · staff={{ a.staff_id }}</span>
+        <span class="title">{{ a.title }}</span>
         <span class="meta">устройств: {{ a.devices | length }} · опрос {{ a.last_polled_hms }}</span>
         <span class="spacer"></span>
         <span class="pill {{ a.state }}">{{ a.state_label }}</span>
       </summary>
       <div class="acc-body">
-        {% if a.last_error %}<div class="banner">{{ a.last_error }}</div>{% endif %}
+        {% if a.last_error_label %}<div class="banner">{{ a.last_error_label }}</div>{% endif %}
         {% for d in a.devices %}
         {# Уведомления подгружаются по первому раскрытию — см. loadDeviceEvents. #}
         <details class="acc nested"
@@ -56,6 +68,7 @@
     {% else %}
     <p class="empty">нет аккаунтов</p>
     {% endfor %}
+    </div>
 
     <h2>Циклы опроса</h2>
     <div id="poll-runs">{% include "_poll_runs.html" %}</div>
@@ -86,6 +99,19 @@
         // Даём повторить попытку при следующем раскрытии.
         delete details.dataset.loaded;
       });
+  }
+
+  // Фильтр по уже отрисованному списку: аккаунтов десятки, а не тысячи,
+  // поэтому ходить за этим на сервер незачем.
+  function filterAccounts(query) {
+    var q = query.trim().toLowerCase();
+    var shown = 0;
+    document.querySelectorAll('#accounts > details.acc').forEach(function (card) {
+      var hit = !q || card.dataset.search.toLowerCase().indexOf(q) !== -1;
+      card.hidden = !hit;
+      if (hit) shown += 1;
+    });
+    document.getElementById('acc-nothing').hidden = shown > 0;
   }
 
   function pageRuns(event, offset) {

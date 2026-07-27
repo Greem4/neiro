@@ -88,6 +88,21 @@
     color: #ff9b9b; font-size: 14px; word-break: break-word;
   }
 
+  /* Строка над списком аккаунтов: сводка слева, фильтр справа */
+  .listbar {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .listbar .spacer { flex: 1 1 auto; }
+  .listbar .summary { font-size: 13px; color: var(--ink-2); }
+  input[type=search] {
+    font-size: 14px; padding: 7px 11px; min-width: 260px; flex: 0 1 320px;
+    background: var(--card); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  input[type=search]::placeholder { color: var(--ink-3); }
+  input[type=search]:focus { outline: none; border-color: #3d4552; }
+
   /* Аккордеон */
   .acc {
     background: var(--card); border: 1px solid var(--line);

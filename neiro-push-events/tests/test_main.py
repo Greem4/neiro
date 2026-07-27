@@ -245,7 +245,7 @@ def test_dashboard_login_sets_cookie_and_unlocks_page(client: TestClient) -> Non
     )
     assert login.status_code == 200
     assert "Аккаунты" in login.text
-    assert "company=1" in login.text
+    assert "Сотрудник 10" in login.text
     assert login.cookies["admin_key"] == "test-admin-key"
 
     client.cookies.set("admin_key", "test-admin-key")
@@ -253,7 +253,7 @@ def test_dashboard_login_sets_cookie_and_unlocks_page(client: TestClient) -> Non
 
     assert response.status_code == 200
     assert "Аккаунты" in response.text
-    assert "company=1" in response.text
+    assert "Сотрудник 10" in response.text
     # Отдельного списка событий на странице больше нет: события лежат внутри
     # устройства и подгружаются фрагментом /dashboard/devices/{id}/events.
     assert "Иванов Ваня" not in response.text
@@ -322,6 +322,101 @@ def test_dashboard_device_events_fragment_404_for_unknown_device(client: TestCli
     client.cookies.set("admin_key", "test-admin-key")
     response = client.get("/dashboard/devices/no-such-device/events")
     assert response.status_code == 404
+
+
+def test_every_event_type_has_russian_label() -> None:
+    """Словари подписей уже разъезжались с кодом: сид-скрипт писал MOVED и
+    CONFIRMED, которых derive_events не создаёт. Пусть расхождение ловит тест."""
+    import re
+
+    from app.dashboard import EVENT_TYPE_LABELS
+
+    source = Path(__file__).resolve().parent.parent / "app" / "events.py"
+    produced = set(re.findall(r'type="([A-Z_]+)"', source.read_text(encoding="utf-8")))
+
+    assert produced, "в events.py не нашлось ни одного type=\"...\""
+    assert produced == set(EVENT_TYPE_LABELS)
+
+
+def test_every_delivery_status_has_russian_label() -> None:
+    import re
+
+    from app.dashboard import DELIVERY_STATUS_LABELS
+
+    source = Path(__file__).resolve().parent.parent / "app" / "poller.py"
+    produced = set(
+        re.findall(
+            r'record_push_delivery\([^)]*?"(\w+)"', source.read_text(encoding="utf-8")
+        )
+    )
+
+    assert produced, "в poller.py не нашлось вызовов record_push_delivery"
+    assert produced == set(DELIVERY_STATUS_LABELS)
+
+
+def test_seed_script_uses_only_real_event_types() -> None:
+    """Локальные данные должны быть похожи на прод, иначе дашборд правится вслепую."""
+    import ast
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    real = set(
+        re.findall(r'type="([A-Z_]+)"', (root / "app" / "events.py").read_text(encoding="utf-8"))
+    )
+    tree = ast.parse((root / "scripts" / "seed_dev_data.py").read_text(encoding="utf-8"))
+    seeded = {
+        element.value
+        for node in tree.body
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "EVENT_TYPES"
+        for pair in node.value.elts
+        for element in pair.elts
+        if isinstance(element, ast.Constant) and isinstance(element.value, str)
+    }
+
+    assert seeded, "в сид-скрипте не нашёлся список EVENT_TYPES"
+    assert seeded <= real, f"сид пишет несуществующие типы: {sorted(seeded - real)}"
+
+
+def test_device_page_has_no_raw_latin_fields(client: TestClient) -> None:
+    _register(client)
+    client.cookies.set("admin_key", "test-admin-key")
+
+    page = client.get("/dashboard/devices/device-1")
+
+    assert page.status_code == 200
+    assert "Компания 1 · сотрудник 10" in page.text
+    assert "company=" not in page.text
+    assert "staff=" not in page.text
+
+
+def test_account_title_shows_company_only_when_there_are_several(client: TestClient) -> None:
+    """При одной компании её номер в каждой строке — шум. При двух — без него
+    аккаунты с одинаковым staff_id стали бы неразличимы."""
+    db = client.app.state.db
+    db.upsert_account(111111, 208, "pt", "ut")
+    client.cookies.set("admin_key", "test-admin-key")
+
+    one = client.get("/dashboard").text
+    assert "Сотрудник 208" in one
+    assert "Компания 111111 · сотрудник 208" not in one
+    # Номер компании не пропал со страницы — он ушёл в сводку над списком.
+    assert "Компания 111111 · 1 аккаунт" in one
+
+    db.upsert_account(333333, 208, "pt", "ut")
+    two = client.get("/dashboard").text
+    assert "Компания 111111 · сотрудник 208" in two
+    assert "Компания 333333 · сотрудник 208" in two
+
+
+def test_accounts_summary_counts_and_declines() -> None:
+    from app.dashboard import _accounts_summary
+
+    assert _accounts_summary([]) == "нет аккаунтов"
+    assert _accounts_summary([{"state": "good"}]) == "1 аккаунт: 1 работает"
+    assert (
+        _accounts_summary([{"state": "good"}] * 17 + [{"state": "critical"}] * 3)
+        == "20 аккаунтов: 17 работают, 3 на паузе"
+    )
 
 
 def test_uptime_is_written_in_words() -> None:
