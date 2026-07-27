@@ -4,9 +4,11 @@ import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface PushApi {
 
@@ -20,6 +22,21 @@ interface PushApi {
     suspend fun unregisterDevice(
         @Header("Authorization") authorization: String,
         @Path("deviceId") deviceId: String,
+    ): Response<Unit>
+
+    @GET("v1/devices/{deviceId}/events")
+    suspend fun getEvents(
+        @Header("Authorization") authorization: String,
+        @Path("deviceId") deviceId: String,
+        @Query("since") since: Long,
+        @Query("limit") limit: Int = 100,
+    ): Response<EventsResponse>
+
+    @POST("v1/devices/{deviceId}/events/ack")
+    suspend fun ackEvents(
+        @Header("Authorization") authorization: String,
+        @Path("deviceId") deviceId: String,
+        @Body body: AckEventsRequest,
     ): Response<Unit>
 }
 
@@ -37,4 +54,16 @@ data class RegisterDeviceRequest(
 data class RegisterDeviceResponse(
     @SerializedName("account_id") val accountId: Int,
     @SerializedName("device_id") val deviceId: String,
+    @SerializedName("last_event_id") val lastEventId: Long,
+)
+
+data class AckEventsRequest(
+    @SerializedName("last_event_id") val lastEventId: Long,
+)
+
+/** Ответ догона — `events` зеркалит `EventPayload` через уже существующий [PushSessionEvent]. */
+data class EventsResponse(
+    val events: List<PushSessionEvent>,
+    @SerializedName("last_event_id") val lastEventId: Long,
+    @SerializedName("has_more") val hasMore: Boolean,
 )

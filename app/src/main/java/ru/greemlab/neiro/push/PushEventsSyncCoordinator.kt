@@ -8,9 +8,9 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 
-object PushSyncCoordinator {
+object PushEventsSyncCoordinator {
 
-    const val WORK_NAME = "push_fcm_sync"
+    const val WORK_NAME = "push_events_sync"
 
     fun enqueue(context: Context) {
         if (!PushConfig.isActive) return
@@ -19,13 +19,13 @@ object PushSyncCoordinator {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = OneTimeWorkRequestBuilder<PushSyncWorker>()
+        val request = OneTimeWorkRequestBuilder<PushEventsSyncWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setConstraints(constraints)
             .build()
 
-        // APPEND_OR_REPLACE: повторный FCM во время идущего sync не отбрасывается
-        // (KEEP терял бы изменения до keepalive), а встаёт следом в цепочку.
+        // APPEND_OR_REPLACE: повторный нудж во время идущего догона не отбрасывается,
+        // а встаёт следом в цепочку (как у бывшего PushSyncCoordinator).
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             WORK_NAME,
             ExistingWorkPolicy.APPEND_OR_REPLACE,

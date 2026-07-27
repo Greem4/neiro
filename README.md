@@ -7,6 +7,7 @@ Android-приложение для педагогов: календарь за�
 | Тема | Документ | О чём |
 |------|----------|--------|
 | Push и FCM | [docs/push-setup.md](docs/push-setup.md) | Сервер на Pi, домен, Firebase, регистрация телефонов, тестовый push, `ADMIN_API_KEY`, где лежит БД |
+| Сервис событий (в работе) | [docs/push-events/](docs/push-events/README.md) | Новый push-сервис `neiro-push-events`: план, журнал работ, разбор находок, правки приложения |
 | YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Авторизация, сетевой слой, синхронизация, `local.properties` |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |

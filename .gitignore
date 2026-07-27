@@ -12,6 +12,7 @@ local.properties
 app/google-services.json
 .signing/
 ruStoreApi.txt
+.env
 
 # Локальные утилиты и выгрузки (не в репозитории)
 tools/
@@ -19,3 +20,10 @@ scripts/icon/node_modules/
 /app/release/
 *.aab
 *.apk
+
+# Бэкапы push-сервисов: база и .env с секретами — только локально
+server/backups/
+neiro-push-events/backups/
+
+# Личные разрешения агента: пути к venv и прочее только для этой машины
+.claude/settings.local.json

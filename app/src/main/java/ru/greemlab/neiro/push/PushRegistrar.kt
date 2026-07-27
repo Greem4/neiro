@@ -16,7 +16,7 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 import kotlin.coroutines.resume
 
 /**
- * Регистрация телефона на push-сервере и обработка FCM «sync».
+ * Регистрация телефона на push-сервере.
  */
 object PushRegistrar {
 
@@ -63,6 +63,9 @@ object PushRegistrar {
     suspend fun onLogout(context: Context) {
         val appContext = context.applicationContext
         PushKeepAliveCoordinator.cancel(appContext)
+        // Иначе после входа под другим аккаунтом догон начнётся с чужого id
+        // и пропустит его события (app.md §6.5).
+        PushEventsCursor.reset(appContext)
         if (!PushConfig.isServerConfigured) return
         unregister(appContext)
     }
@@ -83,6 +86,22 @@ object PushRegistrar {
                 PushKeepAliveCoordinator.schedule(appContext)
             }
         }
+    }
+
+    /**
+     * То же, что [onAppForeground], но suspend — вызывающий может дождаться
+     * регистрации, прежде чем идти за событиями. Через [onAppForeground] это
+     * не выходит: он уходит в свою корутину и возвращается сразу, из-за чего
+     * догон обгонял регистрацию и стучался по неизвестному серверу device_id.
+     */
+    suspend fun onAppForegroundNow(context: Context): Boolean {
+        if (!PushConfig.isActive) return false
+        val appContext = context.applicationContext
+        val registered = registerIfLoggedIn(appContext)
+        if (registered) {
+            PushKeepAliveCoordinator.schedule(appContext)
+        }
+        return registered
     }
 
     suspend fun registerNow(context: Context): Boolean {
@@ -127,7 +146,13 @@ object PushRegistrar {
                 }
                 val response = outcome.getOrNull()
                 when {
-                    response != null && response.isSuccessful -> return@withContext true
+                    response != null && response.isSuccessful -> {
+                        // Курсор ещё не задан (новое устройство) — принять начальное
+                        // значение из ответа регистрации; известное устройство своё
+                        // не отдаёт (app.md §6.4).
+                        response.body()?.lastEventId?.let { PushEventsCursor.setIfAbsent(context, it) }
+                        return@withContext true
+                    }
                     response != null && response.code() in 400..499 -> {
                         // 4xx: невалидный токен/payload — retry бесполезен.
                         return@withContext false

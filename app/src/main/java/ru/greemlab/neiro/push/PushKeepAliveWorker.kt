@@ -6,12 +6,16 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.data.network.YClientsRepository
-import ru.greemlab.neiro.sync.SyncOutcome
-import ru.greemlab.neiro.sync.YClientsCalendarSync
 
 /**
- * Периодически обновляет регистрацию на push-сервере и подтягивает календарь,
- * если FCM не дошёл (Doze, экономия батареи и т.п.).
+ * Периодически догоняет пропущенные события (backup на случай, если FCM не
+ * долетел — Doze, экономия батареи) и обновляет регистрацию на push-сервере
+ * (FCM-токен мог протухнуть). Календарь по таймеру не опрашивает — изменения
+ * приходят push'ом или тем же догоном.
+ *
+ * Гарантирует, что следующий запуск планируется даже при ошибке — иначе цепочка
+ * keepalive ломается до перезапуска приложения. Исключение — isStopped (воркер
+ * остановлен явно, например logout): цепочку не воскрешаем.
  */
 class PushKeepAliveWorker(
     appContext: Context,
@@ -24,24 +28,24 @@ class PushKeepAliveWorker(
         val repository = YClientsRepository.getInstance(applicationContext)
         if (!repository.isLoggedIn.first()) return Result.success()
 
-        val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
-            .onFailure { if (it is CancellationException) throw it }
-        val syncOutcome = runCatching {
-            YClientsCalendarSync.get(applicationContext).refreshLiveRange()
-        }.onFailure { if (it is CancellationException) throw it }
+        try {
+            // Регистрация — до догона: пока устройство не известно серверу, догон
+            // отвечает 404, а курсор берётся как раз из ответа регистрации
+            // (app.md §6.4). Выигрыш прежнего порядка — показать события на один
+            // HTTP-запрос раньше — того не стоил.
+            val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
+                .onFailure { if (it is CancellationException) throw it }
 
-        val failed = registerOutcome.isFailure ||
-            registerOutcome.getOrNull() == false ||
-            syncOutcome.isFailure ||
-            syncOutcome.getOrNull() is SyncOutcome.Failure
+            runCatching { PushEventsSyncer.syncNow(applicationContext) }
+                .onFailure { if (it is CancellationException) throw it }
 
-        if (failed) {
-            return Result.retry()
+            val failed = registerOutcome.isFailure || registerOutcome.getOrNull() == false
+
+            return if (failed) Result.retry() else Result.success()
+        } finally {
+            if (!isStopped) {
+                PushKeepAliveCoordinator.scheduleNext(applicationContext)
+            }
         }
-
-        if (!isStopped) {
-            PushKeepAliveCoordinator.scheduleNext(applicationContext)
-        }
-        return Result.success()
     }
 }

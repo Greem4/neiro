@@ -93,7 +93,9 @@ object CalendarSessionSnapshot {
         return !date.isAfter(today.plusDays(horizonDays.toLong()))
     }
 
-    private fun parseEntries(date: LocalDate, raw: String): List<TrackedSession> {
+    /** internal: переиспользуется [ru.greemlab.neiro.push.PushEventCalendarApplier] —
+     *  один разбор строки в занятие, а не вторая копия формата (app.md §5.2). */
+    internal fun parseEntries(date: LocalDate, raw: String): List<TrackedSession> {
         val session = SessionParser.parse(raw)
 
         // Для интенсива отслеживаем каждого ребёнка как отдельное занятие,
