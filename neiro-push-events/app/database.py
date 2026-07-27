@@ -629,6 +629,40 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_device_admin(self, device_id: str) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    d.device_id, d.label, d.app_version, d.last_seen_at,
+                    d.last_ack_event_id,
+                    a.id AS account_id, a.company_id, a.staff_id
+                FROM devices d
+                JOIN accounts a ON a.id = d.account_id
+                WHERE d.device_id = ?
+                """,
+                (device_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_deliveries_for_device(self, device_id: str, limit: int = 100) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    pd.id AS delivery_id, pd.status, pd.detail, pd.created_at AS delivered_at,
+                    e.id AS event_id, e.type, e.client_name, e.date, e.time, e.kind,
+                    e.prev_date, e.prev_time
+                FROM push_deliveries pd
+                JOIN events e ON e.id = pd.event_id
+                WHERE pd.device_id = ?
+                ORDER BY pd.id DESC
+                LIMIT ?
+                """,
+                (device_id, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def list_poll_runs_admin(self, limit: int = 20) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(
