@@ -89,27 +89,52 @@ if ! systemctl --user is-active --quiet "${TUNNEL_UNIT}"; then
   }
 fi
 
-for _ in $(seq 1 10); do
-  if curl -fsS -o /dev/null -H "Authorization: Bearer ${ADMIN_API_KEY}" \
-       http://127.0.0.1:8011/health; then
-    echo "  контейнер отвечает на 127.0.0.1:8011"
+# Пересобранный контейнер на Pi поднимается небыстро: Docker уже слушает порт,
+# а uvicorn внутри ещё стартует, и curl получает "reset by peer". Ждём до 90 с
+# и молчим про промежуточные неудачи — иначе экран заливает мусором.
+echo -n "  жду приложение"
+ok=""
+for _ in $(seq 1 30); do
+  if curl -fsS -o /dev/null --max-time 5 -H "Authorization: Bearer ${ADMIN_API_KEY}" \
+       http://127.0.0.1:8011/health 2>/dev/null; then
+    ok="1"
     break
   fi
-  sleep 2
+  echo -n "."
+  sleep 3
 done
+echo
+if [[ -n "${ok}" ]]; then
+  echo "  контейнер отвечает на 127.0.0.1:8011"
+else
+  echo "  контейнер не ответил за 90 с — смотри: docker compose logs --tail=50" >&2
+  exit 1
+fi
 REMOTE
 
 echo ""
-echo "Проверяю публичный адрес..."
+echo -n "Проверяю публичный адрес"
 ADMIN_API_KEY="$(ssh_pi "grep ^ADMIN_API_KEY= ~/neiro-push-events/.env | cut -d= -f2-")"
-if curl -fsS -o /dev/null --max-time 20 \
-     -H "Authorization: Bearer ${ADMIN_API_KEY}" "${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health"; then
-  echo "  ОК: ${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health"
-else
+# Тоже с повторами: nginx на VPS может успеть отдать 502, пока туннель
+# переподключается к только что пересозданному контейнеру.
+public_ok=""
+for _ in $(seq 1 10); do
+  if curl -fsS -o /dev/null --max-time 10 \
+       -H "Authorization: Bearer ${ADMIN_API_KEY}" \
+       "${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health" 2>/dev/null; then
+    public_ok="1"
+    break
+  fi
+  echo -n "."
+  sleep 3
+done
+echo
+if [[ -z "${public_ok}" ]]; then
   echo "  НЕ ОТВЕЧАЕТ: ${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health" >&2
   echo "  Порядок разбора — docs/deploy.md, раздел «Если публичный адрес молчит»." >&2
   exit 1
 fi
+echo "  ОК: ${NEIRO_PUSH_EVENTS_PUBLIC_URL}/health"
 
 cat <<INFO
 

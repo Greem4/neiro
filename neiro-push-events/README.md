@@ -5,17 +5,26 @@ FastAPI-сервис на Raspberry Pi: опрашивает YClients по вс�
 подтверждение, приход, отмена, перенос, удаление) и рассылает их устройствам
 через FCM data-push.
 
+## Старт
+
+Обе команды запускаются **из корня репозитория** — никуда переходить не нужно.
+
+```bash
+./neiro-push-events/scripts/dev.sh            # локально
+./neiro-push-events/scripts/dev.sh --reset    # локально, с чистыми тестовыми данными
+```
+
+Дашборд — `http://127.0.0.1:8011/dashboard`. Код и шаблоны подхватываются на
+лету, пересобирать контейнер не нужно.
+
 ## Деплой
 
 ```bash
-./scripts/deploy.sh
+./neiro-push-events/scripts/deploy.sh
 ```
 
 Одна команда, из любой сети. Как устроен публичный маршрут `/v2`, откуда
 деплоить и что делать, если адрес молчит — [docs/deploy.md](../docs/deploy.md).
-
-Локальная разработка — `./scripts/dev.sh` (дашборд на
-`http://127.0.0.1:8011/dashboard`, код и шаблоны подхватываются на лету).
 
 Архитектура и история разработки — [plan.md](../docs/push-events/plan.md) и
 [progress.md](../docs/push-events/progress.md). Эксплуатация и troubleshooting —
