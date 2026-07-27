@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.config import Settings
 from app.database import Database
-from app.poller import PollService
+from app.poller import MOSCOW, PollService
 
 EVENTS_LIMIT = 50
 POLL_RUNS_LIMIT = 20
@@ -71,12 +71,22 @@ def _format_uptime(seconds: int) -> str:
 
 
 def _hms(value: str | None) -> str:
+    """Время на экран — московское.
+
+    В базе всё лежит в UTC (`utc_now_iso`) и таким должно остаться: по нему
+    считаются ретеншен и «за сутки». Но смотрит на дашборд человек в МСК, и без
+    конверсии часы показывали на три часа назад — 08:24 вместо 11:24.
+    """
     if not value:
         return "—"
     try:
-        return datetime.fromisoformat(value).strftime("%H:%M:%S")
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return value
+    if parsed.tzinfo is None:
+        # Подстраховка: naive-строка (формат SQLite datetime('now')) — это UTC.
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(MOSCOW).strftime("%H:%M:%S")
 
 
 def _short_date(value: str) -> str:
@@ -135,7 +145,8 @@ def render_dashboard_text(data: DashboardData) -> str:
     lines = [
         f"neiro-push-events  ●  {status}        "
         f"аптайм {_format_uptime(data.uptime_seconds)}      "
-        f"опрос {data.poll_day_seconds}с (день до {data.quiet_start_hour}:00)",
+        f"опрос {data.poll_day_seconds}с (день до {data.quiet_start_hour}:00)      "
+        f"время МСК",
         f"последний опрос  {_hms(data.last_polled_at)}   "
         f"длительность {duration}   "
         f"ошибок за сутки: {data.errors_today}",
@@ -146,8 +157,10 @@ def render_dashboard_text(data: DashboardData) -> str:
         prev = ""
         if event.get("prev_date") and event.get("prev_time"):
             prev = f"  (было {_short_date(event['prev_date'])} {event['prev_time']})"
+        # Разделители пробелами, а не только шириной поля: длинное имя клиента
+        # («Абросимова Полина, 5 ЛЕТ») иначе слипается с датой занятия.
         lines.append(
-            f"{_hms(event['created_at'])}  {event['type']:<17}{event['client_name']:<17}"
+            f"{_hms(event['created_at'])}  {event['type']:<17}  {event['client_name']:<17}  "
             f"{_short_date(event['date'])} {event['time']}  "
             f"→{event['delivered']}/{event['targets']}{prev}"
         )

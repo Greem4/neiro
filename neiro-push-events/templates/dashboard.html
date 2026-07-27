@@ -48,7 +48,8 @@
   <p class="muted">
     аптайм {{ uptime }} &nbsp;
     опрос {{ data.poll_day_seconds }}с (день до {{ data.quiet_start_hour }}:00) &nbsp;
-    FCM {{ "настроен" if data.fcm_configured else "НЕ настроен" }}
+    FCM {{ "настроен" if data.fcm_configured else "НЕ настроен" }} &nbsp;
+    время МСК
   </p>
   <p class="muted">
     последний опрос {{ last_polled_at }} &nbsp;

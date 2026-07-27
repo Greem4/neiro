@@ -269,6 +269,16 @@ def test_dashboard_login_accepts_post_on_page_url(client: TestClient) -> None:
     assert response.cookies["admin_key"] == "test-admin-key"
 
 
+def test_dashboard_time_is_moscow_not_utc() -> None:
+    """В базе UTC, на экране МСК (+3) — иначе часы врут на три часа назад."""
+    from app.dashboard import _hms
+
+    assert _hms("2026-07-27T08:24:00+00:00") == "11:24:00"
+    # naive-строку (формат SQLite datetime('now')) тоже читаем как UTC
+    assert _hms("2026-07-27 08:24:00") == "11:24:00"
+    assert _hms(None) == "—"
+
+
 def test_health_requires_admin_key(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 401
