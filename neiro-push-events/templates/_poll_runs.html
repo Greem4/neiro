@@ -22,7 +22,7 @@
       <td class="num">{{ r.records_fetched }}</td>
       <td class="num">{{ r.events_created }}</td>
       <td class="num">{{ r.pushes_sent }}</td>
-      <td>
+      <td class="flex-cell">
         {% if r.error_label %}
         <span class="pill critical">{{ r.error_label }}</span>
         {% else %}

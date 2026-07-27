@@ -103,6 +103,24 @@
   }
   .listbar .spacer { flex: 1 1 auto; }
   .listbar .summary { font-size: 13px; color: var(--ink-2); }
+
+  /* Кнопки-компании. Рисуются только когда компаний больше одной. */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    margin: 0; padding: 5px 11px; width: auto;
+    font-size: 13px; line-height: 1.2;
+    background: var(--card); color: var(--ink-2);
+    border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+  }
+  .chip:hover { background: var(--card-hover); color: var(--ink); }
+  .chip.on {
+    background: #2f3644; color: var(--ink); border-color: #46506180;
+  }
+  .chip-n {
+    display: inline-block; margin-left: 4px;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  .chip.on .chip-n { color: var(--ink-2); }
   input[type=search] {
     font-size: 14px; padding: 7px 11px; min-width: 260px; flex: 0 1 320px;
     background: var(--card); color: var(--ink);
@@ -153,6 +171,16 @@
   th, td {
     padding: 8px 12px; text-align: left; white-space: nowrap;
     border-bottom: 1px solid var(--line);
+  }
+  /* Имена клиентов бывают длинные («Медников Владимир 5,9/ Рома 2,11л
+     (Екатерина)»). Такие колонки переносим по словам, иначе таблица уезжает
+     за край и появляется горизонтальный ползунок. */
+  td.flex-cell { white-space: normal; min-width: 12ch; }
+  /* «Было 28.07 10:00» — отдельной строкой и мельче: в строку оно раздувало
+     колонку «занятие» вдвое. */
+  .prev {
+    display: block; font-size: 12px; color: var(--ink-3);
+    margin-top: 2px; white-space: nowrap;
   }
   th {
     color: var(--ink-3); font-weight: 500; font-size: 12px;

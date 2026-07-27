@@ -26,6 +26,18 @@
     <h2>Аккаунты</h2>
     <div class="listbar">
       <span class="summary">{{ accounts_summary }}</span>
+      {# Кнопки компаний появляются только при нескольких компаниях —
+         при одной фильтровать нечего. #}
+      {% if companies %}
+      <span class="chips">
+        <button type="button" class="chip on" data-company="" onclick="filterCompany(this)">все</button>
+        {% for c in companies %}
+        <button type="button" class="chip" data-company="{{ c.id }}" onclick="filterCompany(this)">
+          {{ c.id }} <span class="chip-n">{{ c.count }}</span>
+        </button>
+        {% endfor %}
+      </span>
+      {% endif %}
       <span class="spacer"></span>
       {% if accounts | length > 5 %}
       <label class="sr-only" for="acc-filter">Фильтр аккаунтов</label>
@@ -38,7 +50,7 @@
 
     <div id="accounts">
     {% for a in accounts %}
-    <details class="acc" data-search="{{ a.search }}">
+    <details class="acc" data-search="{{ a.search }}" data-company="{{ a.company_id }}">
       <summary>
         <span class="title">{{ a.title }}</span>
         <span class="meta">устройств: {{ a.devices | length }} · опрос {{ a.last_polled_hms }}</span>
@@ -104,16 +116,35 @@
   }
 
   // Фильтр по уже отрисованному списку: аккаунтов десятки, а не тысячи,
-  // поэтому ходить за этим на сервер незачем.
-  function filterAccounts(query) {
-    var q = query.trim().toLowerCase();
+  // поэтому ходить за этим на сервер незачем. Строка поиска и выбранная
+  // компания действуют вместе, поэтому применяются одной функцией.
+  var activeCompany = '';
+  var activeQuery = '';
+
+  function applyFilters() {
     var shown = 0;
     document.querySelectorAll('#accounts > details.acc').forEach(function (card) {
-      var hit = !q || card.dataset.search.toLowerCase().indexOf(q) !== -1;
+      var byCompany = !activeCompany || card.dataset.company === activeCompany;
+      var byQuery = !activeQuery
+        || card.dataset.search.toLowerCase().indexOf(activeQuery) !== -1;
+      var hit = byCompany && byQuery;
       card.hidden = !hit;
       if (hit) shown += 1;
     });
     document.getElementById('acc-nothing').hidden = shown > 0;
+  }
+
+  function filterAccounts(query) {
+    activeQuery = query.trim().toLowerCase();
+    applyFilters();
+  }
+
+  function filterCompany(button) {
+    activeCompany = button.dataset.company;
+    button.parentNode.querySelectorAll('.chip').forEach(function (chip) {
+      chip.classList.toggle('on', chip === button);
+    });
+    applyFilters();
   }
 
   function pageRuns(event, offset) {

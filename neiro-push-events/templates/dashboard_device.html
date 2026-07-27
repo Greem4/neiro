@@ -69,11 +69,11 @@
         <tr>
           <td>{{ d.delivered_at_hms }}</td>
           <td class="muted" title="{{ d.type }}">{{ d.type_label }}</td>
-          <td>{{ d.client_name }}</td>
+          <td class="flex-cell">{{ d.client_name }}</td>
           <td>
             {{ d.date_short }} {{ d.time }}
             {% if d.prev_date %}
-            <span class="dim">(было {{ d.prev_date_short }} {{ d.prev_time }})</span>
+            <span class="prev">было {{ d.prev_date_short }} {{ d.prev_time }}</span>
             {% endif %}
           </td>
           <td>

@@ -298,8 +298,22 @@ def build_html_context(data: DashboardData) -> dict:
             }
         )
     accounts.sort(key=lambda a: (_STATE_ORDER[a["state"]], a["company_id"], a["staff_id"]))
+    # Компании как фильтр имеют смысл, только когда их больше одной. При одной
+    # это была бы кнопка, ничего не меняющая — шаблон её просто не рисует.
+    companies = []
+    if not single_company:
+        for company_id in sorted(company_ids):
+            in_company = [a for a in accounts if a["company_id"] == company_id]
+            companies.append(
+                {
+                    "id": company_id,
+                    "count": len(in_company),
+                    "bad": sum(1 for a in in_company if a["state"] != "good"),
+                }
+            )
     context = {
         "accounts": accounts,
+        "companies": companies,
         "accounts_summary": _accounts_summary(
             accounts, next(iter(company_ids)) if single_company else None
         ),

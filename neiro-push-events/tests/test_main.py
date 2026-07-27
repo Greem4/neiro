@@ -408,6 +408,24 @@ def test_account_title_shows_company_only_when_there_are_several(client: TestCli
     assert "Компания 333333 · сотрудник 208" in two
 
 
+def test_company_chips_appear_only_with_several_companies(client: TestClient) -> None:
+    """Кнопка-фильтр по компании при одной компании ничего не меняла бы."""
+    db = client.app.state.db
+    db.upsert_account(111111, 208, "pt", "ut")
+    client.cookies.set("admin_key", "test-admin-key")
+
+    one = client.get("/dashboard").text
+    assert 'class="chips"' not in one
+
+    db.upsert_account(520135, 3618433, "pt", "ut")
+    two = client.get("/dashboard").text
+    assert 'class="chips"' in two
+    assert 'data-company="111111"' in two
+    assert 'data-company="520135"' in two
+    # Карточки размечены той же компанией — по ней и фильтрует скрипт.
+    assert two.count('data-company=') >= 4
+
+
 def test_accounts_summary_counts_and_declines() -> None:
     from app.dashboard import _accounts_summary
 
