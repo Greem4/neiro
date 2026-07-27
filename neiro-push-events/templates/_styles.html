@@ -43,6 +43,14 @@
   .muted { color: var(--ink-2); }
   .dim { color: var(--ink-3); }
 
+  /* Подпись для скринридера там, где по дизайну текста быть не должно.
+     Пустой <label> линтер гасит, но пользы не даёт — нужен реальный текст. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    padding: 0; border: 0; overflow: hidden; white-space: nowrap;
+    clip: rect(0 0 0 0); clip-path: inset(50%);
+  }
+
   /* Статус: точка + подпись. Цвет никогда не несёт смысл в одиночку. */
   .pill {
     display: inline-flex; align-items: center; gap: 6px;

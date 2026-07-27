@@ -13,7 +13,8 @@
     {# Без action — форма уходит на текущий URL. Абсолютный "/dashboard/login"
        ломался публично: браузер стоит на /v2/dashboard, а /v2 срезает nginx. #}
     <form method="post">
-      <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
+      <label class="sr-only" for="admin-key">Ключ администратора</label>
+      <input type="password" id="admin-key" name="key" placeholder="ADMIN_API_KEY" autofocus>
       <button type="submit">Войти</button>
     </form>
     {% if login_error %}<p class="error">Неверный ключ</p>{% endif %}
@@ -27,6 +28,7 @@
       <span class="summary">{{ accounts_summary }}</span>
       <span class="spacer"></span>
       {% if accounts | length > 5 %}
+      <label class="sr-only" for="acc-filter">Фильтр аккаунтов</label>
       <input type="search" id="acc-filter" autocomplete="off"
              placeholder="фильтр по номеру компании или сотрудника"
              oninput="filterAccounts(this.value)">

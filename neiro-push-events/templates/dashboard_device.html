@@ -15,7 +15,8 @@
        /v2 (см. dashboard.html). "../login" от .../dashboard/devices/{id}
        резолвится в .../dashboard/login независимо от префикса. #}
     <form method="post" action="../login">
-      <input type="password" name="key" placeholder="ADMIN_API_KEY" autofocus>
+      <label class="sr-only" for="admin-key">Ключ администратора</label>
+      <input type="password" id="admin-key" name="key" placeholder="ADMIN_API_KEY" autofocus>
       <button type="submit">Войти</button>
     </form>
   </div>

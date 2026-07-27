@@ -30,21 +30,23 @@
    Следующая работа — **деплой на Pi** (см. «Что дальше» ниже), Этап 10
    (гашение старого сервиса) не раньше недели стабильной работы после деплоя.
 2. Работай этапами из [CLAUDE.md](../../CLAUDE.md): один коммит — одна
-   законченная порция, тесты гонять через venv в скретчпаде (см. ниже), после
-   каждого шага возвращайся сюда и дописывай строку в таблицу «Сделано по
-   этапам».
+   законченная порция, тесты гонять в Docker (см. ниже), после каждого шага
+   возвращайся сюда и дописывай строку в таблицу «Сделано по этапам».
 3. Приложение не собиралось Gradle'ом ни разу (агенту это запрещено
    [CLAUDE.md](../../CLAUDE.md)) — первая реальная сборка и тест на устройстве
    ещё предстоят пользователю.
 
-`pytest` в проекте не установлен. Разовое окружение:
+Тесты — только через Docker, в том же образе, что и прод. Ставить что-либо на
+машину не нужно:
 
 ```bash
-python3 -m venv /tmp/venv-neiro-events
-/tmp/venv-neiro-events/bin/pip install pytest httpx pydantic-settings \
-    google-auth cryptography requests fastapi jinja2 uvicorn
-cd neiro-push-events && PYTHONPATH=. /tmp/venv-neiro-events/bin/python -m pytest tests/ -v
+cd "$(git rev-parse --show-toplevel)"
+docker run --rm -v "$PWD":/repo -w /repo/neiro-push-events python:3.12-slim \
+  sh -c "pip install -q pytest && pip install -q -r requirements.txt && python -m pytest -q"
 ```
+
+Монтируется **корень репозитория**, а не папка сервиса: `tests/test_yclients.py`
+читает фикстуры из `tools/yclients-sandbox/exports/` уровнем выше.
 
 Gradle не запускать — сборку и тесты приложения делает пользователь
 ([CLAUDE.md](../../CLAUDE.md)).
