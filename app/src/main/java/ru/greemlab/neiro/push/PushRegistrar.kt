@@ -88,6 +88,22 @@ object PushRegistrar {
         }
     }
 
+    /**
+     * То же, что [onAppForeground], но suspend — вызывающий может дождаться
+     * регистрации, прежде чем идти за событиями. Через [onAppForeground] это
+     * не выходит: он уходит в свою корутину и возвращается сразу, из-за чего
+     * догон обгонял регистрацию и стучался по неизвестному серверу device_id.
+     */
+    suspend fun onAppForegroundNow(context: Context): Boolean {
+        if (!PushConfig.isActive) return false
+        val appContext = context.applicationContext
+        val registered = registerIfLoggedIn(appContext)
+        if (registered) {
+            PushKeepAliveCoordinator.schedule(appContext)
+        }
+        return registered
+    }
+
     suspend fun registerNow(context: Context): Boolean {
         return registerIfLoggedIn(context.applicationContext)
     }

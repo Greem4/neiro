@@ -44,7 +44,11 @@ object LiveApiCoordinator {
                     scope.launch {
                         if (!yclientsRepository.isLoggedIn.first()) return@launch
                         if (serverPushActive) {
-                            PushRegistrar.onAppForeground(appContext)
+                            // Дожидаемся регистрации: прежний onAppForeground уходил
+                            // в свою корутину, и догон стартовал параллельно — на
+                            // первом запуске успевал спросить события по device_id,
+                            // которого на сервере ещё нет, и получал 404.
+                            PushRegistrar.onAppForegroundNow(appContext)
                             // Догон рядом с refreshNow: закрывает дыру нуджа при
                             // открытом приложении, когда синка ещё не было (app.md §6.2).
                             runCatching { PushEventsSyncer.syncNow(appContext) }

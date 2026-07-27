@@ -29,12 +29,14 @@ class PushKeepAliveWorker(
         if (!repository.isLoggedIn.first()) return Result.success()
 
         try {
-            // Догон — до регистрации: если пропущенные события есть, показать их
-            // раньше, чем обновится FCM-токен (app.md §6.3).
-            runCatching { PushEventsSyncer.syncNow(applicationContext) }
+            // Регистрация — до догона: пока устройство не известно серверу, догон
+            // отвечает 404, а курсор берётся как раз из ответа регистрации
+            // (app.md §6.4). Выигрыш прежнего порядка — показать события на один
+            // HTTP-запрос раньше — того не стоил.
+            val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
                 .onFailure { if (it is CancellationException) throw it }
 
-            val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
+            runCatching { PushEventsSyncer.syncNow(applicationContext) }
                 .onFailure { if (it is CancellationException) throw it }
 
             val failed = registerOutcome.isFailure || registerOutcome.getOrNull() == false
