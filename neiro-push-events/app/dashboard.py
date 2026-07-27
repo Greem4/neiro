@@ -170,8 +170,10 @@ def render_dashboard_text(data: DashboardData) -> str:
         label = device["label"] or device["device_id"]
         version = device["app_version"] or "—"
         cursor = device["last_ack_event_id"]
+        # Два пробела разделителя: версия вида "0.7.0.0-debug" длиннее поля и
+        # иначе слипается со следующим словом.
         lines.append(
-            f"{label:<20}{version:<10}видели {_hms(device['last_seen_at'])}  "
+            f"{label:<20}{version:<10}  видели {_hms(device['last_seen_at'])}  "
             f"курсор {cursor if cursor is not None else '—'}"
         )
 
