@@ -75,31 +75,21 @@
   </table>
   </div>
 
-  <h2>Аккаунты</h2>
-  <div class="wrap">
-  <table>
-    <tr><th>компания</th><th>специалист</th><th>устройств</th><th>опрос</th><th>статус</th></tr>
-    {% for a in accounts %}
-    <tr>
-      <td>{{ a.company_id }}</td>
-      <td>{{ a.staff_id }}</td>
-      <td>{{ a.device_count }}</td>
-      <td>{{ a.last_polled_hms }}</td>
-      <td class="{{ 'bad' if a.backoff_until or a.last_error else 'ok' }}">{{ a.state }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5" class="muted">нет аккаунтов</td></tr>
-    {% endfor %}
-  </table>
-  </div>
-
-  <h2>Устройства</h2>
+  <h2>Аккаунты и устройства</h2>
+  {% for a in accounts %}
+  <p style="margin: 16px 0 4px;">
+    <strong>company={{ a.company_id }} staff={{ a.staff_id }}</strong>&nbsp;
+    <span class="muted">опрос {{ a.last_polled_hms }}</span>&nbsp;
+    <span class="{{ 'bad' if a.backoff_until or a.last_error else 'ok' }}">{{ a.state }}</span>
+  </p>
   <div class="wrap">
   <table>
     <tr><th>устройство</th><th>версия</th><th>видели</th><th>курсор</th></tr>
-    {% for d in devices %}
+    {% for d in a.devices %}
     <tr>
-      <td>{{ d.label or d.device_id }}</td>
+      {# Относительный href без ведущего "/": абсолютный путь ломается под
+         nginx-префиксом /v2 (см. комментарий у формы логина выше). #}
+      <td><a href="dashboard/devices/{{ d.device_id }}" style="color:#ddd;">{{ d.label or d.device_id }}</a></td>
       <td>{{ d.app_version or "—" }}</td>
       <td>{{ d.last_seen_hms }}</td>
       <td>{{ d.last_ack_event_id if d.last_ack_event_id is not none else "—" }}</td>
@@ -109,6 +99,9 @@
     {% endfor %}
   </table>
   </div>
+  {% else %}
+  <p class="muted">нет аккаунтов</p>
+  {% endfor %}
 
   <h2>Циклы опроса (последние {{ poll_runs|length }})</h2>
   <div class="wrap">
