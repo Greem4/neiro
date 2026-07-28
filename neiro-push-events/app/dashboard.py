@@ -109,28 +109,32 @@ def _plural(count: int, one: str, few: str, many: str) -> str:
     return many
 
 
-def _format_uptime(seconds: int) -> str:
-    """Аптайм словами: «2 дня 4 часа», «5 часов 12 минут», «17 секунд».
+def _uptime_days(seconds: int) -> str | None:
+    """«3 дня» или None, пока суток не набралось."""
+    days = seconds // 86400
+    if not days:
+        return None
+    return f"{days} {_plural(days, 'день', 'дня', 'дней')}"
 
-    Сокращения вида «3д 4ч» читались хуже всего в первые минуты после рестарта:
-    «0м» не отличить от «сервис не поднялся», поэтому до минуты показываем секунды.
+
+def _uptime_clock(seconds: int) -> str:
+    """Часы:минуты:секунды внутри суток — всегда ровно 8 символов.
+
+    Раньше аптайм писался словами («12 часов 16 минут»). В плитке дашборда такая
+    строка не помещалась в одну линию, переносилась и поднимала высоту всего ряда
+    плиток — соседние значения при каждом обновлении прыгали. Часы фиксированной
+    ширины не двигаются, а сутки вынесены отдельной строкой (_uptime_days).
     """
-    days, rem = divmod(seconds, 86400)
-    hours, rem = divmod(rem, 3600)
+    hours, rem = divmod(seconds % 86400, 3600)
     minutes, secs = divmod(rem, 60)
-    if days:
-        return (
-            f"{days} {_plural(days, 'день', 'дня', 'дней')} "
-            f"{hours} {_plural(hours, 'час', 'часа', 'часов')}"
-        )
-    if hours:
-        return (
-            f"{hours} {_plural(hours, 'час', 'часа', 'часов')} "
-            f"{minutes} {_plural(minutes, 'минута', 'минуты', 'минут')}"
-        )
-    if minutes:
-        return f"{minutes} {_plural(minutes, 'минута', 'минуты', 'минут')}"
-    return f"{secs} {_plural(secs, 'секунда', 'секунды', 'секунд')}"
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def _format_uptime(seconds: int) -> str:
+    """Аптайм одной строкой — для текстового дашборда и логов: «3 дня 04:12:07»."""
+    days = _uptime_days(seconds)
+    clock = _uptime_clock(seconds)
+    return f"{days} {clock}" if days else clock
 
 
 def _hms(value: str | None) -> str:
@@ -230,7 +234,10 @@ def build_status_context(data: DashboardData) -> dict:
     """Шапка дашборда — единственный блок, который сам обновляется раз в 10 секунд."""
     return {
         "data": data,
-        "uptime": _format_uptime(data.uptime_seconds),
+        # Дни и часы отдельно: в плитке они идут двумя строками, чтобы значение
+        # не переносилось и не тянуло за собой высоту соседних плиток.
+        "uptime_days": _uptime_days(data.uptime_seconds),
+        "uptime_clock": _uptime_clock(data.uptime_seconds),
         "last_polled_at": _hms(data.last_polled_at),
         "last_poll_duration": (
             "—" if data.last_poll_duration_ms is None else f"{data.last_poll_duration_ms} мс"

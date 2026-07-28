@@ -437,15 +437,23 @@ def test_accounts_summary_counts_and_declines() -> None:
     )
 
 
-def test_uptime_is_written_in_words() -> None:
-    """«3д 4ч» читалось хуже всего в первые минуты после рестарта."""
-    from app.dashboard import _format_uptime
+def test_uptime_splits_days_and_clock() -> None:
+    """Часы — всегда 8 символов: словесный аптайм переносился и двигал плитки."""
+    from app.dashboard import _format_uptime, _uptime_clock, _uptime_days
 
-    assert _format_uptime(2 * 86400 + 4 * 3600) == "2 дня 4 часа"
-    assert _format_uptime(5 * 3600 + 12 * 60) == "5 часов 12 минут"
-    assert _format_uptime(21 * 60) == "21 минута"
-    assert _format_uptime(17) == "17 секунд"
-    assert _format_uptime(11 * 3600) == "11 часов 0 минут"
+    assert _uptime_days(2 * 86400 + 4 * 3600) == "2 дня"
+    assert _uptime_days(21 * 86400) == "21 день"
+    assert _uptime_days(5 * 86400) == "5 дней"
+    # До первых суток строки с днями нет — плитка показывает «меньше суток».
+    assert _uptime_days(23 * 3600) is None
+
+    assert _uptime_clock(2 * 86400 + 4 * 3600 + 12 * 60 + 7) == "04:12:07"
+    assert _uptime_clock(17) == "00:00:17"
+    assert _uptime_clock(11 * 3600) == "11:00:00"
+
+    # Текстовый дашборд и логи — те же части одной строкой.
+    assert _format_uptime(2 * 86400 + 4 * 3600) == "2 дня 04:00:00"
+    assert _format_uptime(5 * 3600 + 12 * 60) == "05:12:00"
 
 
 def test_dashboard_time_is_moscow_not_utc() -> None:
