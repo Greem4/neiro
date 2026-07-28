@@ -127,6 +127,12 @@
   .chip.on {
     background: #2f3644; color: var(--ink); border-color: #46506180;
   }
+  /* Переключатель режима у циклов опроса. Выглядит как чипы компаний, но это
+     ссылки: без JS они должны просто открывать страницу в нужном режиме.
+     Отдельный класс, а не .chips, — фильтр компаний ищется по нему в тестах. */
+  .switch { display: flex; gap: 6px; flex-wrap: wrap; }
+  a.chip { display: inline-block; }
+  a.chip:hover { text-decoration: none; }
   .chip-n {
     display: inline-block; margin-left: 4px;
     color: var(--ink-3); font-variant-numeric: tabular-nums;

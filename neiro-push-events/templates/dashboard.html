@@ -147,16 +147,19 @@
     applyFilters();
   }
 
-  function pageRuns(event, offset) {
+  // Одна функция и на листание, и на переключатель «только важные / все подряд»:
+  // обе ссылки меняют одну и ту же таблицу целиком.
+  function pageRuns(event, offset, showAll) {
     event.preventDefault();
-    fetch('dashboard/poll-runs?offset=' + offset, { credentials: 'same-origin' })
+    var tail = showAll ? '&all=1' : '';
+    fetch('dashboard/poll-runs?offset=' + offset + tail, { credentials: 'same-origin' })
       .then(handle)
       .then(function (html) {
         document.getElementById('poll-runs').innerHTML = html;
       })
       .catch(function () {
         // Не вышло подменить — уходим по обычной ссылке.
-        window.location = 'dashboard?runs_offset=' + offset;
+        window.location = 'dashboard?runs_offset=' + offset + (showAll ? '&runs_all=1' : '');
       });
     return false;
   }

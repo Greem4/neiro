@@ -61,6 +61,9 @@ class DashboardData:
     poll_runs: list[dict]
     poll_runs_total: int
     poll_runs_offset: int
+    # Показываем ли только значимые циклы и сколько пустых при этом скрыто.
+    poll_runs_significant_only: bool
+    poll_runs_hidden: int
 
     @property
     def ok(self) -> bool:
@@ -73,11 +76,16 @@ def collect_dashboard_data(
     settings: Settings,
     started_at: datetime,
     runs_offset: int = 0,
+    runs_significant_only: bool = True,
 ) -> DashboardData:
     """Один источник данных для /dashboard и /v1/admin/dashboard.txt (§8.4 плана) —
     чтобы обе версии не могли разъехаться."""
     summary = db.poll_health_summary()
     uptime_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
+    runs_total_all = db.count_poll_runs()
+    runs_total = (
+        db.count_poll_runs(only_significant=True) if runs_significant_only else runs_total_all
+    )
     return DashboardData(
         fcm_configured=poll_service.fcm_configured,
         uptime_seconds=uptime_seconds,
@@ -91,9 +99,13 @@ def collect_dashboard_data(
         events=db.list_recent_events_admin(EVENTS_LIMIT),
         accounts=db.list_accounts_admin(),
         devices=db.list_devices_admin(),
-        poll_runs=db.list_poll_runs_admin(POLL_RUNS_LIMIT, runs_offset),
-        poll_runs_total=db.count_poll_runs(),
+        poll_runs=db.list_poll_runs_admin(
+            POLL_RUNS_LIMIT, runs_offset, only_significant=runs_significant_only
+        ),
+        poll_runs_total=runs_total,
         poll_runs_offset=runs_offset,
+        poll_runs_significant_only=runs_significant_only,
+        poll_runs_hidden=runs_total_all - runs_total,
     )
 
 
@@ -169,9 +181,14 @@ def _event_type_label(value: str) -> str:
 
 def _error_label(value: str | None) -> str | None:
     """Наши собственные формулировки — по-русски, чужие тексты — как есть."""
-    if not value:
+    if value is None:
         return None
-    return ERROR_LABELS.get(value, value)
+    text = value.strip()
+    if not text:
+        # У таймаутов httpx str(exc) пустой, и в базе остаётся пустая строка.
+        # Цикл при этом сломан, и на экране это должно быть видно, а не «—».
+        return "ошибка без текста (чаще всего таймаут запроса)"
+    return ERROR_LABELS.get(text, text)
 
 
 def _account_state(account: dict) -> tuple[str, str]:
@@ -180,7 +197,9 @@ def _account_state(account: dict) -> tuple[str, str]:
     if account["backoff_until"]:
         errors = account["consecutive_errors"]
         return "critical", f"пауза после {errors} {_plural(errors, 'ошибки', 'ошибок', 'ошибок')}"
-    if account["last_error"]:
+    # Именно `is not None`: у таймаутов текст ошибки пустой, но ошибка была,
+    # и аккаунт с ней не должен числиться исправным.
+    if account["last_error"] is not None:
         return "warning", "ошибка"
     return "good", "работает"
 
@@ -246,8 +265,25 @@ def build_status_context(data: DashboardData) -> dict:
     }
 
 
+def _poll_runs_summary(data: DashboardData) -> str:
+    """Строка над таблицей: что именно показано и сколько осталось за кадром."""
+    total = data.poll_runs_total
+    runs = f"{total} {_plural(total, 'цикл', 'цикла', 'циклов')}"
+    if not data.poll_runs_significant_only:
+        return f"{runs} — все подряд, включая пустые"
+    if not total:
+        return "событий, пушей и ошибок не было"
+    hidden = data.poll_runs_hidden
+    tail = (
+        f", ещё {hidden} {_plural(hidden, 'пустой скрыт', 'пустых скрыто', 'пустых скрыто')}"
+        if hidden
+        else ""
+    )
+    return f"{runs} с событиями, пушами или ошибкой{tail}"
+
+
 def build_poll_runs_context(data: DashboardData) -> dict:
-    """Страница циклов опроса: сколько показано, откуда и куда листать."""
+    """Страница циклов опроса: что показано, сколько показано, куда листать."""
     runs = [
         {
             **run,
@@ -269,6 +305,8 @@ def build_poll_runs_context(data: DashboardData) -> dict:
             if offset + POLL_RUNS_LIMIT < data.poll_runs_total
             else None
         ),
+        "runs_significant_only": data.poll_runs_significant_only,
+        "runs_summary": _poll_runs_summary(data),
     }
 
 
@@ -387,7 +425,7 @@ def render_dashboard_text(data: DashboardData) -> str:
     for account in data.accounts:
         if account["backoff_until"]:
             state = f"backoff (errors={account['consecutive_errors']})"
-        elif account["last_error"]:
+        elif account["last_error"] is not None:
             state = "error"
         else:
             state = "ok"
@@ -408,9 +446,10 @@ def render_dashboard_text(data: DashboardData) -> str:
             f"курсор {cursor if cursor is not None else '—'}"
         )
 
-    lines += ["", "ЦИКЛЫ ОПРОСА"]
+    lines += ["", f"ЦИКЛЫ ОПРОСА ({_poll_runs_summary(data)})"]
     for run in data.poll_runs:
-        error = f"  ошибка: {run['error']}" if run["error"] else ""
+        error_label = _error_label(run["error"])
+        error = f"  ошибка: {error_label}" if error_label else ""
         lines.append(
             f"{_hms(run['started_at'])}  company={run['company_id']}  "
             f"{run['duration_ms']}мс  записей {run['records_fetched']}  "

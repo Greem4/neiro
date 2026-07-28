@@ -293,7 +293,7 @@ def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
 
     db = client.app.state.db
     for _ in range(25):
-        db.record_poll_run(1, utc_now_iso(), 5, 0, 0, 0, None)
+        db.record_poll_run(1, utc_now_iso(), 5, 3, 1, 1, None)
     client.cookies.set("admin_key", "test-admin-key")
 
     first = client.get("/dashboard/poll-runs")
@@ -303,6 +303,41 @@ def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
     assert second.status_code == 200
     assert "1–20 из 25" in first.text
     assert "21–25 из 25" in second.text
+
+
+def test_dashboard_poll_runs_fragment_hides_empty_runs(client: TestClient) -> None:
+    """Пустые циклы — шум: их тысячи в сутки, и за ними не видно ни событий,
+    ни ошибок. По умолчанию в таблице только значимые."""
+    from app.database import utc_now_iso
+
+    db = client.app.state.db
+    for _ in range(5):
+        db.record_poll_run(1, utc_now_iso(), 5, 3, 0, 0, None)
+    db.record_poll_run(1, utc_now_iso(), 7, 3, 1, 1, None)
+    db.record_poll_run(1, utc_now_iso(), 9, 0, 0, 0, "boom")
+    client.cookies.set("admin_key", "test-admin-key")
+
+    only_significant = client.get("/dashboard/poll-runs")
+    everything = client.get("/dashboard/poll-runs", params={"all": 1})
+
+    assert "1–2 из 2" in only_significant.text
+    assert "5 пустых скрыто" in only_significant.text
+    assert "boom" in only_significant.text
+    assert "1–7 из 7" in everything.text
+
+
+def test_dashboard_poll_runs_shows_error_without_text(client: TestClient) -> None:
+    """У таймаутов httpx str(exc) пустой — в базе остаётся пустая строка.
+    Такой цикл всё равно сломан, и на дашборде это должно быть видно."""
+    from app.database import utc_now_iso
+
+    client.app.state.db.record_poll_run(1, utc_now_iso(), 30000, 0, 0, 0, "")
+    client.cookies.set("admin_key", "test-admin-key")
+
+    response = client.get("/dashboard/poll-runs")
+
+    assert "1–1 из 1" in response.text
+    assert "ошибка без текста" in response.text
 
 
 def test_dashboard_device_events_fragment_renders_for_known_device(

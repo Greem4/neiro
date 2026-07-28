@@ -307,6 +307,7 @@ def _dashboard_authenticated(request: Request, settings: Settings) -> bool:
 async def dashboard_page(
     request: Request,
     runs_offset: int = Query(default=0, ge=0),
+    runs_all: bool = Query(default=False),
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
     poll_service: PollService = Depends(get_poll_service),
@@ -315,7 +316,12 @@ async def dashboard_page(
     context = {"authenticated": authenticated, "login_error": False}
     if authenticated:
         data = collect_dashboard_data(
-            db, poll_service, settings, request.app.state.started_at, runs_offset
+            db,
+            poll_service,
+            settings,
+            request.app.state.started_at,
+            runs_offset,
+            runs_significant_only=not runs_all,
         )
         context.update(build_html_context(data))
     return templates.TemplateResponse(request, "dashboard.html", context)
@@ -340,6 +346,7 @@ async def dashboard_status_fragment(
 async def dashboard_poll_runs_fragment(
     request: Request,
     offset: int = Query(default=0, ge=0),
+    show_all: bool = Query(default=False, alias="all"),
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
     poll_service: PollService = Depends(get_poll_service),
@@ -347,7 +354,12 @@ async def dashboard_poll_runs_fragment(
     if not _dashboard_authenticated(request, settings):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
     data = collect_dashboard_data(
-        db, poll_service, settings, request.app.state.started_at, offset
+        db,
+        poll_service,
+        settings,
+        request.app.state.started_at,
+        offset,
+        runs_significant_only=not show_all,
     )
     return templates.TemplateResponse(request, "_poll_runs.html", build_poll_runs_context(data))
 
