@@ -13,11 +13,14 @@
 <div class="tiles">
   <div class="tile">
     <div class="label">Аптайм</div>
-    <div class="value sm">{{ uptime }}</div>
+    {# Сутки — отдельной строкой сверху, и строка эта есть всегда: если рисовать
+       её только со второго дня, плитка в тот момент подрастёт и сдвинет ряд. #}
+    <div class="sub">{{ uptime_days if uptime_days else "меньше суток" }}</div>
+    <div class="value clock">{{ uptime_clock }}</div>
   </div>
   <div class="tile">
     <div class="label">Последний опрос</div>
-    <div class="value">{{ last_polled_at }}</div>
+    <div class="value clock">{{ last_polled_at }}</div>
   </div>
   <div class="tile">
     <div class="label">Длительность</div>
