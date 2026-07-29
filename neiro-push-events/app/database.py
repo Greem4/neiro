@@ -164,6 +164,11 @@ CREATE TABLE IF NOT EXISTS poll_runs (
 CREATE INDEX IF NOT EXISTS idx_poll_runs_started ON poll_runs(started_at);
 """
 
+# Значимый цикл — тот, который что-то изменил или сломался. При опросе раз в
+# 10 секунд пустых циклов набегает несколько тысяч в сутки, и в этой ленте не
+# видно ни ошибок, ни событий: дашборд по умолчанию показывает только значимые.
+SIGNIFICANT_POLL_RUN = "(error IS NOT NULL OR events_created > 0 OR pushes_sent > 0)"
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -665,13 +670,17 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def list_poll_runs_admin(self, limit: int = 20, offset: int = 0) -> list[dict]:
+    def list_poll_runs_admin(
+        self, limit: int = 20, offset: int = 0, only_significant: bool = False
+    ) -> list[dict]:
+        where = f"WHERE {SIGNIFICANT_POLL_RUN}" if only_significant else ""
         with self.connect() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT id, company_id, started_at, duration_ms, records_fetched,
                        events_created, pushes_sent, error
                 FROM poll_runs
+                {where}
                 ORDER BY id DESC
                 LIMIT ? OFFSET ?
                 """,
@@ -679,11 +688,14 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def count_poll_runs(self) -> int:
-        """Сколько всего циклов лежит в базе — дашборд по этому числу решает,
+    def count_poll_runs(self, only_significant: bool = False) -> int:
+        """Сколько циклов лежит в базе — дашборд по этому числу решает,
         показывать ли ссылку «дальше» (хранение ограничено purge_old_data)."""
+        where = f"WHERE {SIGNIFICANT_POLL_RUN}" if only_significant else ""
         with self.connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) AS c FROM poll_runs").fetchone()["c"])
+            return int(
+                conn.execute(f"SELECT COUNT(*) AS c FROM poll_runs {where}").fetchone()["c"]
+            )
 
 
 def _row_to_account(row: sqlite3.Row) -> WatchedAccount:
