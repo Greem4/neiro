@@ -3,6 +3,7 @@ package ru.greemlab.neiro.push
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 
 /**
  * Догон по нуджу сервера (`action = sync_events`): FCM-сервис не подходит для
@@ -15,5 +16,8 @@ class PushEventsSyncWorker(
 
     override suspend fun doWork(): Result =
         runCatching { PushEventsSyncer.syncNow(applicationContext) }
+            // Отмену не глушим: иначе Result.retry() воскресил бы работу,
+            // остановленную логаутом или системой.
+            .onFailure { if (it is CancellationException) throw it }
             .fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
 }
