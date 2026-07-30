@@ -47,8 +47,8 @@ FastAPI-сервис на Raspberry Pi: опрашивает YClients по вс�
 
 `API_KEY` и `ADMIN_API_KEY` — разные ключи. `API_KEY` уходит в приложение
 (`local.properties`), `ADMIN_API_KEY` — только себе, в приложении его нет.
-Если `ADMIN_API_KEY` не задан, admin-эндпоинты принимают `API_KEY` (см.
-`_admin_key` в [app/main.py](app/main.py)).
+`ADMIN_API_KEY` обязателен: без него сервис не стартует. Раньше при пустом
+значении admin-эндпоинты принимали `API_KEY` — тот самый, что лежит в APK.
 
 ## Скрипты (`scripts/`)
 

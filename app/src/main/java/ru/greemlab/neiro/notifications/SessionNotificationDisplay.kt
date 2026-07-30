@@ -48,6 +48,7 @@ object SessionNotificationDisplay {
         if (events.isEmpty()) return emptySet()
         ensureChannel(context)
         InAppNotificationRecorder.recordEvents(context, events)
+        if (!notificationsAllowed(context)) return emptySet()
 
         return if (events.size == 1) {
             showSingleEvent(context, events.first())
@@ -61,6 +62,7 @@ object SessionNotificationDisplay {
         if (sessions.isEmpty()) return emptySet()
         ensureChannel(context)
         InAppNotificationRecorder.recordReminder(context, sessions)
+        if (!notificationsAllowed(context)) return emptySet()
 
         return when (sessions.size) {
             1 -> showSingleReminder(context, sessions.first())
@@ -73,6 +75,7 @@ object SessionNotificationDisplay {
         if (sessions.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordTodayDigest(context, sessions)
+        if (!notificationsAllowed(context)) return false
 
         val sorted = sessions.sortedBy { it.startTime }
         val title = SessionNotificationTexts.todayDigestTitle(context, sorted.size)
@@ -92,6 +95,7 @@ object SessionNotificationDisplay {
         if (sessions.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordTomorrowDigest(context, sessions)
+        if (!notificationsAllowed(context)) return false
 
         val sorted = sessions.sortedBy { it.startTime }
         val title = SessionNotificationTexts.tomorrowDigestTitle(context, sorted.size)
@@ -116,6 +120,7 @@ object SessionNotificationDisplay {
         if (dates.isEmpty()) return false
         ensureChannel(context)
         InAppNotificationRecorder.recordArchiveReminder(context, dates, dayData)
+        if (!notificationsAllowed(context)) return false
 
         return when (dates.size) {
             1 -> showSingleArchiveReminder(context, dates.first(), dayData)
@@ -311,6 +316,14 @@ object SessionNotificationDisplay {
      */
     private fun dynamicNotificationId(key: String): Int =
         NOTIFICATION_ID_DYNAMIC_BASE + stableHash(key) % NOTIFICATION_ID_DYNAMIC_RANGE
+
+    /**
+     * Лента внутри приложения ведётся всегда, системный push — только по разрешению
+     * (принцип N2 аудита 23.07.26). Поэтому проверка стоит здесь, после `record*`,
+     * а не у вызывающего: снаружи она отрезала бы и запись в ленту (N1).
+     */
+    private fun notificationsAllowed(context: Context): Boolean =
+        NotificationManagerCompat.from(context.applicationContext).areNotificationsEnabled()
 
     /** @return false, если система не приняла уведомление (нет разрешения / AppOps). */
     private fun notify(context: Context, id: Int, notification: android.app.Notification): Boolean =

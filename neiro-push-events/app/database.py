@@ -1,7 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Protocol
 
@@ -16,6 +16,18 @@ def utc_now_iso() -> str:
     нет.
     """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def utc_iso_days_ago(days: int) -> str:
+    """Граница окна в формате [utc_now_iso] — для сравнений с колонками, куда
+    пишет именно он. С `datetime('now', '-1 day')` такие сравнения врут: на
+    одинаковой дате `T` больше пробела, поэтому в окно попадали все записи за
+    предыдущую календарную дату целиком — до суток лишку."""
+    return (
+        (datetime.now(timezone.utc) - timedelta(days=days))
+        .replace(microsecond=0)
+        .isoformat()
+    )
 
 
 @dataclass(frozen=True)
@@ -150,6 +162,9 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deliveries_event ON push_deliveries(event_id);
+-- По device_id идут лента устройства (ORDER BY id DESC) и счётчик доставок в
+-- списке устройств; без индекса оба сканировали таблицу за 30 дней целиком.
+CREATE INDEX IF NOT EXISTS idx_deliveries_device ON push_deliveries(device_id, id DESC);
 
 CREATE TABLE IF NOT EXISTS poll_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,12 +177,30 @@ CREATE TABLE IF NOT EXISTS poll_runs (
     error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_poll_runs_started ON poll_runs(started_at);
+-- Частичный индекс под SIGNIFICANT_POLL_RUN: и лента циклов, и счётчик к ней
+-- ходят только за значимыми, а пустых в таблице на два порядка больше.
+-- Предикат обязан совпадать с SIGNIFICANT_POLL_RUN, иначе SQLite индекс не возьмёт.
+CREATE INDEX IF NOT EXISTS idx_poll_runs_significant ON poll_runs(id)
+    WHERE (error IS NOT NULL OR events_created > 0 OR pushes_sent > 0);
 """
 
 # Значимый цикл — тот, который что-то изменил или сломался. При опросе раз в
 # 10 секунд пустых циклов набегает несколько тысяч в сутки, и в этой ленте не
 # видно ни ошибок, ни событий: дашборд по умолчанию показывает только значимые.
 SIGNIFICANT_POLL_RUN = "(error IS NOT NULL OR events_created > 0 OR pushes_sent > 0)"
+
+
+def _record_state_changes(
+    previous: dict[int, RecordState], states: dict[int, RecordState]
+) -> tuple[list[RecordState], list[int]]:
+    """Что из нового снимка реально надо записать: изменившиеся и новые состояния,
+    плюс id тех, что из снимка исчезли. `RecordState` — frozen dataclass, так что
+    сравнение идёт по значению полей."""
+    changed = [
+        state for record_id, state in states.items() if previous.get(record_id) != state
+    ]
+    removed = [record_id for record_id in previous if record_id not in states]
+    return changed, removed
 
 
 class Database:
@@ -181,6 +214,10 @@ class Database:
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout=5000")
+        # Без этого объявленные в схеме ON DELETE CASCADE декоративны: SQLite
+        # проверяет внешние ключи только при включённой прагме, и удаление
+        # аккаунта оставило бы за собой devices, record_states и events.
+        conn.execute("PRAGMA foreign_keys=ON")
         try:
             yield conn
             conn.commit()
@@ -365,17 +402,42 @@ class Database:
             for row in rows
         }
 
-    def _replace_record_states(
-        self, conn: sqlite3.Connection, account_id: int, states: dict[int, RecordState]
+    def _write_record_states(
+        self,
+        conn: sqlite3.Connection,
+        account_id: int,
+        changed: list[RecordState],
+        removed: list[int],
     ) -> None:
+        """Только дифф.
+
+        Раньше здесь был `DELETE` всех состояний аккаунта плюс полный `INSERT`
+        заново — и так каждые 10 секунд, независимо от того, изменилось ли хоть
+        что-то. На SD-карте Pi это самая дорогая операция сервиса, притом почти
+        всегда переписывающая таблицу саму в себя.
+        """
+        if removed:
+            conn.executemany(
+                "DELETE FROM record_states WHERE account_id = ? AND record_id = ?",
+                [(account_id, record_id) for record_id in removed],
+            )
+        if not changed:
+            return
         now = utc_now_iso()
-        conn.execute("DELETE FROM record_states WHERE account_id = ?", (account_id,))
         conn.executemany(
             """
             INSERT INTO record_states (
                 account_id, record_id, date, time, attendance, deleted,
                 client_name, kind, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(account_id, record_id) DO UPDATE SET
+                date = excluded.date,
+                time = excluded.time,
+                attendance = excluded.attendance,
+                deleted = excluded.deleted,
+                client_name = excluded.client_name,
+                kind = excluded.kind,
+                updated_at = excluded.updated_at
             """,
             [
                 (
@@ -389,15 +451,20 @@ class Database:
                     state.kind,
                     now,
                 )
-                for state in states.values()
+                for state in changed
             ],
         )
 
     def replace_record_states(
         self, account_id: int, states: dict[int, RecordState]
     ) -> None:
+        changed, removed = _record_state_changes(
+            self.get_record_states(account_id), states
+        )
+        if not changed and not removed:
+            return
         with self.connect() as conn:
-            self._replace_record_states(conn, account_id, states)
+            self._write_record_states(conn, account_id, changed, removed)
 
     def _insert_events(
         self, conn: sqlite3.Connection, account_id: int, events: list[EventLike]
@@ -437,16 +504,30 @@ class Database:
         account_id: int,
         events: list[EventLike],
         states: dict[int, RecordState],
+        previous_states: dict[int, RecordState] | None = None,
     ) -> list[int]:
         """Журнал и состояния — одной транзакцией (§2.2 разбора Этапа 5).
 
         Либо записано всё, либо ничего: при падении посередине SQLite откатит
         вставку событий вместе со сдвигом состояний, и следующий цикл пересчитает
         тот же дифф. Разделять эти две записи нельзя — см. П2 плана §3.
+
+        `states` — полный желаемый снимок аккаунта; пишется из него только то,
+        что отличается от `previous_states`. Поллер уже держит прежний снимок в
+        руках и передаёт его сюда; без него он читается из базы.
         """
+        previous = (
+            previous_states if previous_states is not None
+            else self.get_record_states(account_id)
+        )
+        changed, removed = _record_state_changes(previous, states)
+        # Инкрементальный цикл без изменений — самый частый случай при опросе раз
+        # в 10 секунд: не открываем транзакцию вообще.
+        if not events and not changed and not removed:
+            return []
         with self.connect() as conn:
             event_ids = self._insert_events(conn, account_id, events)
-            self._replace_record_states(conn, account_id, states)
+            self._write_record_states(conn, account_id, changed, removed)
         return event_ids
 
     def list_events_since(
@@ -555,7 +636,8 @@ class Database:
             accounts = conn.execute("SELECT COUNT(*) AS c FROM accounts").fetchone()["c"]
             devices = conn.execute("SELECT COUNT(*) AS c FROM devices").fetchone()["c"]
             events_today = conn.execute(
-                "SELECT COUNT(*) AS c FROM events WHERE created_at >= datetime('now', '-1 day')"
+                "SELECT COUNT(*) AS c FROM events WHERE created_at >= ?",
+                (utc_iso_days_ago(1),),
             ).fetchone()["c"]
         return {
             "accounts": int(accounts),
@@ -571,8 +653,9 @@ class Database:
             errors_today = conn.execute(
                 """
                 SELECT COUNT(*) AS c FROM poll_runs
-                WHERE error IS NOT NULL AND started_at >= datetime('now', '-1 day')
-                """
+                WHERE error IS NOT NULL AND started_at >= ?
+                """,
+                (utc_iso_days_ago(1),),
             ).fetchone()["c"]
         return {
             "last_polled_at": last["started_at"] if last else None,

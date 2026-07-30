@@ -11,6 +11,7 @@ Android-приложение для педагогов: календарь за�
 | YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Авторизация, сетевой слой, синхронизация, `local.properties` |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |
+| Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |
 | Дорожная карта | [TODO.md](TODO.md) | Что сделано и что в планах |
 
 ## Быстрый старт (разработка)

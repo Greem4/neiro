@@ -299,15 +299,20 @@ class YClientsCalendarSync(
     }
 
     /**
-     * Два режима слияния (осознанное решение, не баг):
+     * Два режима слияния (осознанное решение, не баг). Разница между ними — в том,
+     * пересобирается день с нуля или обновляется по совпадениям; из локального в
+     * обоих случаях выживают только ручные интенсивы ([retainManualLocalEntries]).
      *
      * - **Текущий месяц** — авторитативный снимок API: день пересобирается
-     *   заново из записей YClients ([buildAuthoritativeDayFromApi]); локальные
-     *   ученики/диагностика без пары в API удаляются, выживают только ручные
-     *   интенсивы. Так снятая в YClients запись не висит «призраком» в статусе
-     *   «ожидание».
-     * - **Остальные месяцы** — мягкое слияние: совпавшие записи обновляются
-     *   на месте, локальные правки сохраняются.
+     *   заново из записей YClients ([buildAuthoritativeDayFromApi]). Так снятая
+     *   в YClients запись не висит «призраком» в статусе «ожидание».
+     * - **Остальные месяцы** — день собирается из совпадений: найденная локальная
+     *   строка обновляется на месте ([updateEntryFromRecord]), не найденная в API
+     *   отбрасывается — так же, как в текущем месяце.
+     *
+     * Ученика или диагностику в synced-календаре руками не завести
+     * (`CalendarViewModel.saveNamesForDate` берёт из ввода только интенсивы),
+     * поэтому отбросить может лишь то, что и так пришло из YClients.
      */
     private suspend fun mergeRecordsToCalendar(
         records: List<RecordData>,
@@ -574,6 +579,15 @@ class YClientsCalendarSync(
         }
     }
 
+    /**
+     * @return сколько интенсивов появилось впервые — для тоста «добавлено N записей».
+     *
+     * Считается только слот, которого не было в локальном календаре: раньше каждая
+     * группа безусловно давала `added++`, и повторный синк месяца с двумя
+     * интенсивами всегда рапортовал «добавлено 2» (S4). Изменение уже
+     * существующего интенсива новой записью не считается — так же, как в ветке
+     * учеников выше.
+     */
     private fun mergeIntensivesFromApi(
         records: List<RecordData>,
         userProfile: UserProfile,
@@ -617,7 +631,7 @@ class YClientsCalendarSync(
                 session is Session.Intensive && extractSessionTime(session) == time
             }
             syncedEntries += entry
-            added++
+            if (localMatch == null) added++
         }
         return added
     }
@@ -772,7 +786,13 @@ class YClientsCalendarSync(
         }
 
         if (session !is Session.Student) {
-            return existingEntry
+            // Интенсив правит только mergeIntensivesFromApi — слияние по детям
+            // сюда не переносим.
+            if (session is Session.Intensive) return existingEntry
+            // Локально диагностика, а услугу в YClients сменили на обычное занятие:
+            // без пересборки строка осталась бы диагностикой навсегда — до полного
+            // пересбора дня (U3).
+            return createEntryFromRecord(record, userProfile)
         }
 
         val time = formatRecordTime(record)

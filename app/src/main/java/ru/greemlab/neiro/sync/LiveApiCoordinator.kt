@@ -28,8 +28,16 @@ import ru.greemlab.neiro.push.PushRegistrar
 object LiveApiCoordinator {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
     private var initialized = false
 
+    /**
+     * Вызывается с IO-потока: создание [YClientsRepository] тянет за собой
+     * `TokenStorage` (AndroidKeyStore + дисковый I/O), которому на main делать
+     * нечего. На main остаётся только подписка на [ProcessLifecycleOwner] —
+     * она main-only по контракту.
+     */
     fun initialize(context: Context) {
         if (initialized) return
         initialized = true
@@ -38,26 +46,30 @@ object LiveApiCoordinator {
         val yclientsRepository = YClientsRepository.getInstance(appContext)
         val serverPushActive = PushConfig.isActive
 
-        ProcessLifecycleOwner.get().lifecycle.addObserver(
-            object : DefaultLifecycleObserver {
-                override fun onStart(owner: LifecycleOwner) {
-                    scope.launch {
-                        if (!yclientsRepository.isLoggedIn.first()) return@launch
-                        if (serverPushActive) {
-                            // Дожидаемся регистрации: прежний onAppForeground уходил
-                            // в свою корутину, и догон стартовал параллельно — на
-                            // первом запуске успевал спросить события по device_id,
-                            // которого на сервере ещё нет, и получал 404.
-                            PushRegistrar.onAppForegroundNow(appContext)
-                            // Догон рядом с refreshNow: закрывает дыру нуджа при
-                            // открытом приложении, когда синка ещё не было (app.md §6.2).
-                            runCatching { PushEventsSyncer.syncNow(appContext) }
-                        }
-                        refreshNow(appContext)
+        val observer = object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                scope.launch {
+                    if (!yclientsRepository.isLoggedIn.first()) return@launch
+                    if (serverPushActive) {
+                        // Дожидаемся регистрации: прежний onAppForeground уходил
+                        // в свою корутину, и догон стартовал параллельно — на
+                        // первом запуске успевал спросить события по device_id,
+                        // которого на сервере ещё нет, и получал 404.
+                        PushRegistrar.onAppForegroundNow(appContext)
+                        // Догон рядом с refreshNow: закрывает дыру нуджа при
+                        // открытом приложении, когда синка ещё не было (app.md §6.2).
+                        runCatching { PushEventsSyncer.syncNow(appContext) }
                     }
+                    refreshNow(appContext)
                 }
-            },
-        )
+            }
+        }
+        // addObserver обязан идти с main. Приложение к этому моменту может уже быть
+        // STARTED — LifecycleRegistry догоняет новичка событиями до текущего
+        // состояния, поэтому первый onStart не теряется.
+        scope.launch(Dispatchers.Main) {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
+        }
 
         scope.launch {
             yclientsRepository.isLoggedIn.collect { loggedIn ->

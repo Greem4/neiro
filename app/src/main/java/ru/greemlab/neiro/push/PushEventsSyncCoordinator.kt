@@ -32,4 +32,9 @@ object PushEventsSyncCoordinator {
             request,
         )
     }
+
+    fun cancel(context: Context) {
+        WorkManager.getInstance(context.applicationContext)
+            .cancelUniqueWork(WORK_NAME)
+    }
 }

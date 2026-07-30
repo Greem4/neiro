@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from app.config import Settings
@@ -45,7 +45,10 @@ _STATE_ORDER = {"critical": 0, "warning": 1, "good": 2}
 
 
 @dataclass(frozen=True)
-class DashboardData:
+class StatusData:
+    """Только то, что нужно шапке. Она обновляется раз в 10 секунд, поэтому
+    собирается отдельно от остального дашборда — см. [collect_status_data]."""
+
     fcm_configured: bool
     uptime_seconds: int
     last_polled_at: str | None
@@ -55,6 +58,14 @@ class DashboardData:
     poll_day_seconds: int
     poll_night_seconds: int
     quiet_start_hour: int
+
+    @property
+    def ok(self) -> bool:
+        return self.last_poll_error is None
+
+
+@dataclass(frozen=True)
+class DashboardData(StatusData):
     events: list[dict]
     accounts: list[dict]
     devices: list[dict]
@@ -65,9 +76,32 @@ class DashboardData:
     poll_runs_significant_only: bool
     poll_runs_hidden: int
 
-    @property
-    def ok(self) -> bool:
-        return self.last_poll_error is None
+
+def collect_status_data(
+    db: Database,
+    poll_service: PollService,
+    settings: Settings,
+    started_at: datetime,
+) -> StatusData:
+    """Сбор для шапки: два запроса по `poll_runs` и аптайм, больше ничего.
+
+    Раньше фрагмент `/dashboard/status` звал [collect_dashboard_data] целиком и
+    из полутора десятков запросов брал пять полей — а вкладка дашборда дёргает
+    его каждые 10 секунд, блокируя синхронным sqlite тот же event loop, в котором
+    работает поллер.
+    """
+    summary = db.poll_health_summary()
+    return StatusData(
+        fcm_configured=poll_service.fcm_configured,
+        uptime_seconds=int((datetime.now(timezone.utc) - started_at).total_seconds()),
+        last_polled_at=summary["last_polled_at"],
+        last_poll_duration_ms=summary["last_poll_duration_ms"],
+        last_poll_error=summary["last_poll_error"],
+        errors_today=summary["errors_today"],
+        poll_day_seconds=settings.poll_interval_seconds,
+        poll_night_seconds=settings.poll_night_interval_seconds,
+        quiet_start_hour=settings.quiet_start_hour,
+    )
 
 
 def collect_dashboard_data(
@@ -80,22 +114,13 @@ def collect_dashboard_data(
 ) -> DashboardData:
     """Один источник данных для /dashboard и /v1/admin/dashboard.txt (§8.4 плана) —
     чтобы обе версии не могли разъехаться."""
-    summary = db.poll_health_summary()
-    uptime_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
+    status = collect_status_data(db, poll_service, settings, started_at)
     runs_total_all = db.count_poll_runs()
     runs_total = (
         db.count_poll_runs(only_significant=True) if runs_significant_only else runs_total_all
     )
     return DashboardData(
-        fcm_configured=poll_service.fcm_configured,
-        uptime_seconds=uptime_seconds,
-        last_polled_at=summary["last_polled_at"],
-        last_poll_duration_ms=summary["last_poll_duration_ms"],
-        last_poll_error=summary["last_poll_error"],
-        errors_today=summary["errors_today"],
-        poll_day_seconds=settings.poll_interval_seconds,
-        poll_night_seconds=settings.poll_night_interval_seconds,
-        quiet_start_hour=settings.quiet_start_hour,
+        **asdict(status),
         events=db.list_recent_events_admin(EVENTS_LIMIT),
         accounts=db.list_accounts_admin(),
         devices=db.list_devices_admin(),
@@ -249,7 +274,7 @@ def _format_deliveries(deliveries: list[dict]) -> list[dict]:
     return result
 
 
-def build_status_context(data: DashboardData) -> dict:
+def build_status_context(data: StatusData) -> dict:
     """Шапка дашборда — единственный блок, который сам обновляется раз в 10 секунд."""
     return {
         "data": data,

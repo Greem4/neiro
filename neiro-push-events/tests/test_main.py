@@ -288,6 +288,55 @@ def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClien
     assert "<html" not in response.text
 
 
+def test_events_returns_404_when_account_is_gone(client: TestClient) -> None:
+    """Осиротевшее устройство получает 404, а не 500: причина видна в ответе.
+
+    Сироту создаём в обход каскада: с PRAGMA foreign_keys=ON удаление аккаунта
+    унесло бы и устройство. Ветка нужна для записей, накопившихся до включения
+    прагмы — каскад чистит только новые удаления, старых сирот в базе не трогает.
+    """
+    _register(client)
+    db = client.app.state.db
+    with db.connect() as conn:
+        conn.execute("PRAGMA foreign_keys=OFF")
+        conn.execute("DELETE FROM accounts")
+
+    response = client.get(
+        "/v1/devices/device-1/events",
+        headers={"Authorization": "Bearer test-api-key"},
+        params={"since": 0},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "device account is gone"
+
+
+def test_deleting_account_cascades_to_device(client: TestClient) -> None:
+    """PRAGMA foreign_keys=ON: удаление аккаунта уносит устройство, сирот не остаётся."""
+    _register(client)
+    db = client.app.state.db
+    with db.connect() as conn:
+        conn.execute("DELETE FROM accounts")
+
+    assert db.get_device("device-1") is None
+
+
+def test_dashboard_status_fragment_skips_heavy_queries(client: TestClient) -> None:
+    """Шапка тянется раз в 10 секунд — она не должна собирать весь дашборд."""
+    db = client.app.state.db
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("фрагмент шапки не должен ходить за тяжёлыми выборками")
+
+    db.list_recent_events_admin = _boom
+    db.list_devices_admin = _boom
+    db.list_poll_runs_admin = _boom
+    db.count_poll_runs = _boom
+
+    client.cookies.set("admin_key", "test-admin-key")
+    assert client.get("/dashboard/status").status_code == 200
+
+
 def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
     from app.database import utc_now_iso
 

@@ -205,11 +205,13 @@ class PollService:
         previous_states = self._db.get_record_states(account.id)
         if seeding:
             new_states = merge_states(previous_states, records)
-            self._db.commit_poll_result(account.id, [], new_states)
+            self._db.commit_poll_result(account.id, [], new_states, previous_states)
             return 0, 0, None
 
         events, new_states = derive_events(previous_states, records)
-        event_ids = self._db.commit_poll_result(account.id, events, new_states)
+        event_ids = self._db.commit_poll_result(
+            account.id, events, new_states, previous_states
+        )
 
         if not events:
             return 0, 0, None

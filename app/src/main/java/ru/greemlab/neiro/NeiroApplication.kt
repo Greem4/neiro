@@ -6,7 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
-import ru.greemlab.neiro.data.network.YClientsClient
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
@@ -20,22 +19,19 @@ class NeiroApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Прогрев TokenStorage (KeyStore + EncryptedSharedPreferences) на IO —
-        // без этого создание синглтона синхронно происходит на main из
-        // AutoSyncCoordinator.initialize/LiveApiCoordinator.initialize ниже.
-        appScope.launch { YClientsClient.getTokenStorage(this@NeiroApplication) }
-
         // Синхронный SharedPreferences-кэш заполняет снимок прямо в конструкторе репозитория,
         // поэтому UI стартует с данными без блокировки main-потока.
         val repository = CalendarDataStoreProvider.get(this)
 
-        // ProcessLifecycleOwner.addObserver обязан быть на main thread — оставляем здесь.
-        AutoSyncCoordinator.initialize(this)
-        LiveApiCoordinator.initialize(this)
-
-        // Фоновая гидратация из DataStore + миграции — параллельно со стартом UI.
+        // Всё, что трогает TokenStorage (KeyStore + EncryptedSharedPreferences),
+        // WorkManager и FCM — на IO. Прежний «прогрев» отдельной корутиной гонку
+        // не выигрывал: initialize шли на main следующей же строкой и всё равно
+        // упирались в создание хранилища (D1). Подписку на ProcessLifecycleOwner
+        // координаторы сами возвращают на main.
         appScope.launch {
-            // Эти init делают disk I/O (WorkManager.enqueue, FCM token) — не блокируем main.
+            AutoSyncCoordinator.initialize(this@NeiroApplication)
+            LiveApiCoordinator.initialize(this@NeiroApplication)
+
             SessionNotificationCoordinator.initialize(this@NeiroApplication)
             PushRegistrar.initialize(this@NeiroApplication)
 

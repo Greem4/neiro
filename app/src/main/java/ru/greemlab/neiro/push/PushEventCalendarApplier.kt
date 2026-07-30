@@ -37,7 +37,8 @@ object PushEventCalendarApplier {
         }
     }
 
-    private fun applyOne(
+    /** internal, а не private — единственная точка, где применение события проверяется тестом. */
+    internal fun applyOne(
         dayData: Map<LocalDate, List<String>>,
         event: PushSessionEvent,
         pricePerDiagnostics: Double,

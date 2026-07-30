@@ -51,14 +51,13 @@ def verify_admin_api_key(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> None:
-    admin_key = settings.admin_api_key or settings.api_key
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="missing bearer token",
         )
     token = authorization.removeprefix("Bearer ").strip()
-    if not constant_time_equals(token, admin_key):
+    if not constant_time_equals(token, settings.admin_api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid admin api key",
