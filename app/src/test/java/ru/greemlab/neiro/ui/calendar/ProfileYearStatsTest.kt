@@ -93,6 +93,35 @@ class ProfileYearStatsTest {
     }
 
     @Test
+    fun `intensives are not counted as sessions but their money is`() {
+        val intensive = SessionFormat.serializeIntensive(
+            price = "",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "18:00-18:50",
+            children = listOf(
+                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+            ),
+        )
+        val dayData = mapOf(
+            LocalDate.of(2025, 6, 2) to listOf("Иванов|true", intensive),
+        )
+        val stats = computeProfileYearStats(
+            year = year,
+            dayData = dayData,
+            pricePerSession = pricePerSession,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 0.0,
+            pricePerIntensiveChild = 1400.0,
+            today = LocalDate.of(2026, 7, 30),
+        )
+        assertEquals(1, stats.completedSessions)
+        assertEquals(1, stats.monthlyCompleted[5])
+        assertEquals(1000.0 + 2800.0, stats.monthlyNet[5], 0.0)
+    }
+
+    @Test
     fun `available years includes data years and current`() {
         val dayData = mapOf(
             LocalDate.of(2023, 6, 1) to listOf("Иванов|true"),
