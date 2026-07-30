@@ -114,3 +114,14 @@ def test_day_window_counts_exactly_last_24_hours(tmp_path: Path) -> None:
 
     assert db.stats()["events_today"] == 0
     assert db.poll_health_summary()["errors_today"] == 0
+
+
+def test_deliveries_by_device_go_through_index(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "events.db"))
+    with db.connect() as conn:
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN "
+            "SELECT id FROM push_deliveries WHERE device_id = 'dev1' ORDER BY id DESC"
+        ).fetchall()
+
+    assert any("idx_deliveries_device" in row["detail"] for row in plan)

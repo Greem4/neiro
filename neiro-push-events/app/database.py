@@ -162,6 +162,9 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deliveries_event ON push_deliveries(event_id);
+-- По device_id идут лента устройства (ORDER BY id DESC) и счётчик доставок в
+-- списке устройств; без индекса оба сканировали таблицу за 30 дней целиком.
+CREATE INDEX IF NOT EXISTS idx_deliveries_device ON push_deliveries(device_id, id DESC);
 
 CREATE TABLE IF NOT EXISTS poll_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
