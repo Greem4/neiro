@@ -25,17 +25,45 @@ class ProfileYearStatsTest {
     }
 
     @Test
-    fun `year tax is monthly amount times twelve`() {
+    fun `past year tax covers all twelve months`() {
         val stats = computeProfileYearStats(
             year = year,
             dayData = emptyMap(),
             pricePerSession = pricePerSession,
             pricePerDiagnostics = 0.0,
             monthlyTaxAmount = 6500.0,
+            today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(6500.0 * 12, stats.totalTaxAmount, 0.0)
         assertEquals(0.0, stats.totalNetEarned, 0.0)
         stats.monthlyNet.forEach { assertEquals(0.0, it, 0.0) }
+    }
+
+    @Test
+    fun `current year tax stops at current month`() {
+        val stats = computeProfileYearStats(
+            year = 2026,
+            dayData = emptyMap(),
+            pricePerSession = pricePerSession,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 6500.0,
+            today = LocalDate.of(2026, 7, 30),
+        )
+        // Июль — седьмой платёж; за август и дальше налог ещё не наступил.
+        assertEquals(6500.0 * 7, stats.totalTaxAmount, 0.0)
+    }
+
+    @Test
+    fun `future year has no tax yet`() {
+        val stats = computeProfileYearStats(
+            year = 2027,
+            dayData = emptyMap(),
+            pricePerSession = pricePerSession,
+            pricePerDiagnostics = 0.0,
+            monthlyTaxAmount = 6500.0,
+            today = LocalDate.of(2026, 7, 30),
+        )
+        assertEquals(0.0, stats.totalTaxAmount, 0.0)
     }
 
     @Test
@@ -50,6 +78,7 @@ class ProfileYearStatsTest {
             pricePerSession = pricePerSession,
             pricePerDiagnostics = 0.0,
             monthlyTaxAmount = monthlyTax,
+            today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(3, stats.completedSessions)
         val mayNet = 2000.0 - monthlyTax

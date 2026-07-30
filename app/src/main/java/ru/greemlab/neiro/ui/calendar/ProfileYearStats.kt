@@ -10,8 +10,10 @@ import java.time.YearMonth
  * Сводная статистика за календарный год.
  *
  * @param completedSessions Число проведённых занятий (посещённые ученики и диагностики).
- * @param totalNetEarned Сумма чистой прибыли по месяцам (грязные − [monthlyTaxAmount] × 12).
- * @param totalTaxAmount Суммарный налог за год ([monthlyTaxAmount] × 12).
+ * @param totalNetEarned Сумма чистой прибыли по месяцам года.
+ * @param totalTaxAmount Налог за прошедшие месяцы года: он платится ежемесячно
+ *   независимо от занятости, но будущие месяцы в сумму не входят — в июле за год
+ *   набежало семь платежей, а не двенадцать.
  * @param monthlyNet Чистая прибыль по месяцам, индекс 0 = январь.
  * @param monthlyCompleted Проведённые занятия по месяцам, индекс 0 = январь.
  */
@@ -62,6 +64,16 @@ fun rememberProfileYearStats(
     )
 }
 
+/**
+ * Сколько месяцев года уже прожито на дату [today] — за столько платежей набежал
+ * налог. Текущий месяц считается: платёж за него уже наступил.
+ */
+internal fun elapsedMonthsInYear(year: Int, today: LocalDate): Int = when {
+    year < today.year -> 12
+    year > today.year -> 0
+    else -> today.monthValue
+}
+
 /** Годы с данными в календаре + текущий год (по убыванию). */
 fun availableStatsYears(
     dayData: Map<LocalDate, List<String>>,
@@ -79,6 +91,7 @@ internal fun computeProfileYearStats(
     pricePerDiagnostics: Double,
     monthlyTaxAmount: Double,
     pricePerIntensiveChild: Double = 0.0,
+    today: LocalDate = LocalDate.now(),
 ): ProfileYearStats {
     var completedSessions = 0
     var totalNetEarned = 0.0
@@ -109,7 +122,7 @@ internal fun computeProfileYearStats(
         totalNetEarned += monthStats.netProfit
     }
 
-    val totalTaxAmount = monthlyTaxAmount * 12
+    val totalTaxAmount = monthlyTaxAmount * elapsedMonthsInYear(year, today)
 
     return ProfileYearStats(
         year = year,
