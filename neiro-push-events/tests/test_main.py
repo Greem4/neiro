@@ -289,10 +289,16 @@ def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClien
 
 
 def test_events_returns_404_when_account_is_gone(client: TestClient) -> None:
-    """Осиротевшее устройство получает 404, а не 500: причина видна в ответе."""
+    """Осиротевшее устройство получает 404, а не 500: причина видна в ответе.
+
+    Сироту создаём в обход каскада: с PRAGMA foreign_keys=ON удаление аккаунта
+    унесло бы и устройство. Ветка нужна для записей, накопившихся до включения
+    прагмы — каскад чистит только новые удаления, старых сирот в базе не трогает.
+    """
     _register(client)
     db = client.app.state.db
     with db.connect() as conn:
+        conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("DELETE FROM accounts")
 
     response = client.get(
@@ -303,6 +309,16 @@ def test_events_returns_404_when_account_is_gone(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json()["detail"] == "device account is gone"
+
+
+def test_deleting_account_cascades_to_device(client: TestClient) -> None:
+    """PRAGMA foreign_keys=ON: удаление аккаунта уносит устройство, сирот не остаётся."""
+    _register(client)
+    db = client.app.state.db
+    with db.connect() as conn:
+        conn.execute("DELETE FROM accounts")
+
+    assert db.get_device("device-1") is None
 
 
 def test_dashboard_status_fragment_skips_heavy_queries(client: TestClient) -> None:
