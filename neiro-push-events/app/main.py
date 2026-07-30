@@ -221,7 +221,17 @@ async def get_device_events(
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     account = db.get_account(device.account_id)
-    assert account is not None
+    if account is None:
+        # Устройство пережило свой аккаунт: каскад по внешнему ключу в SQLite не
+        # работает без PRAGMA foreign_keys. Раньше здесь стоял assert — телефон
+        # получал 500 на каждый догон и замолкал навсегда, а в логе был только
+        # AssertionError (и тот исчезал под python -O).
+        logger.warning(
+            "device %s references missing account %s", device_id, device.account_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="device account is gone"
+        )
 
     # Горизонт §6.4 плана: догон не тащит события про уже прошедшие занятия.
     today = datetime.now(MOSCOW).date().isoformat()

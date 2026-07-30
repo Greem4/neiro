@@ -288,6 +288,23 @@ def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClien
     assert "<html" not in response.text
 
 
+def test_events_returns_404_when_account_is_gone(client: TestClient) -> None:
+    """Осиротевшее устройство получает 404, а не 500: причина видна в ответе."""
+    _register(client)
+    db = client.app.state.db
+    with db.connect() as conn:
+        conn.execute("DELETE FROM accounts")
+
+    response = client.get(
+        "/v1/devices/device-1/events",
+        headers={"Authorization": "Bearer test-api-key"},
+        params={"since": 0},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "device account is gone"
+
+
 def test_dashboard_status_fragment_skips_heavy_queries(client: TestClient) -> None:
     """Шапка тянется раз в 10 секунд — она не должна собирать весь дашборд."""
     db = client.app.state.db
