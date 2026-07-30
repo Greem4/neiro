@@ -28,6 +28,7 @@ class PushKeepAliveWorker(
         val repository = YClientsRepository.getInstance(applicationContext)
         if (!repository.isLoggedIn.first()) return Result.success()
 
+        var failed = false
         try {
             // Регистрация — до догона: пока устройство не известно серверу, догон
             // отвечает 404, а курсор берётся как раз из ответа регистрации
@@ -39,12 +40,15 @@ class PushKeepAliveWorker(
             runCatching { PushEventsSyncer.syncNow(applicationContext) }
                 .onFailure { if (it is CancellationException) throw it }
 
-            val failed = registerOutcome.isFailure || registerOutcome.getOrNull() == false
+            failed = registerOutcome.isFailure || registerOutcome.getOrNull() == false
 
-            return if (failed) Result.retry() else Result.success()
+            // Result.retry() здесь был бы вторым планировщиком поверх scheduleNext:
+            // отретраенная работа не в терминальном состоянии, поэтому APPEND_OR_REPLACE
+            // не заменяет её, а дописывает звено — цепочка росла бы с каждой ошибкой.
+            return Result.success()
         } finally {
             if (!isStopped) {
-                PushKeepAliveCoordinator.scheduleNext(applicationContext)
+                PushKeepAliveCoordinator.scheduleNext(applicationContext, afterFailure = failed)
             }
         }
     }
