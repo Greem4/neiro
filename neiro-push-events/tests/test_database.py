@@ -44,13 +44,48 @@ def test_commit_poll_result_rolls_back_events_when_states_write_fails(tmp_path: 
     db = Database(str(tmp_path / "events.db"))
     account_id = db.upsert_account(1, 10, "pt", "ut")
 
-    def _boom(conn, account_id, states):
+    def _boom(conn, account_id, changed, removed):
         raise RuntimeError("boom")
 
-    db._replace_record_states = _boom
+    db._write_record_states = _boom
 
     with pytest.raises(RuntimeError):
         db.commit_poll_result(account_id, [_event()], {1: _state()})
 
     assert db.list_events_since(account_id, 0) == []
     assert db.get_record_states(account_id) == {}
+
+
+def test_commit_poll_result_skips_write_when_nothing_changed(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "events.db"))
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    states = {1: _state()}
+    db.commit_poll_result(account_id, [], states)
+
+    def _boom(conn, account_id, changed, removed):
+        raise AssertionError("запись не должна открываться без изменений")
+
+    db._write_record_states = _boom
+
+    assert db.commit_poll_result(account_id, [], states, states) == []
+
+
+def test_commit_poll_result_writes_only_changed_states(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "events.db"))
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    previous = {1: _state(1), 2: _state(2)}
+    db.commit_poll_result(account_id, [], previous)
+
+    moved = RecordState(
+        record_id=1,
+        date="2026-07-27",
+        time="12:00",
+        attendance=0,
+        deleted=0,
+        client_name="Иванов Ваня",
+        kind="LESSON",
+    )
+    db.commit_poll_result(account_id, [], {1: moved}, previous)
+
+    states = db.get_record_states(account_id)
+    assert states == {1: moved}

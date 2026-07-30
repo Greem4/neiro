@@ -170,6 +170,19 @@ CREATE INDEX IF NOT EXISTS idx_poll_runs_started ON poll_runs(started_at);
 SIGNIFICANT_POLL_RUN = "(error IS NOT NULL OR events_created > 0 OR pushes_sent > 0)"
 
 
+def _record_state_changes(
+    previous: dict[int, RecordState], states: dict[int, RecordState]
+) -> tuple[list[RecordState], list[int]]:
+    """Что из нового снимка реально надо записать: изменившиеся и новые состояния,
+    плюс id тех, что из снимка исчезли. `RecordState` — frozen dataclass, так что
+    сравнение идёт по значению полей."""
+    changed = [
+        state for record_id, state in states.items() if previous.get(record_id) != state
+    ]
+    removed = [record_id for record_id in previous if record_id not in states]
+    return changed, removed
+
+
 class Database:
     def __init__(self, path: str) -> None:
         self.path = path
@@ -365,17 +378,42 @@ class Database:
             for row in rows
         }
 
-    def _replace_record_states(
-        self, conn: sqlite3.Connection, account_id: int, states: dict[int, RecordState]
+    def _write_record_states(
+        self,
+        conn: sqlite3.Connection,
+        account_id: int,
+        changed: list[RecordState],
+        removed: list[int],
     ) -> None:
+        """Только дифф.
+
+        Раньше здесь был `DELETE` всех состояний аккаунта плюс полный `INSERT`
+        заново — и так каждые 10 секунд, независимо от того, изменилось ли хоть
+        что-то. На SD-карте Pi это самая дорогая операция сервиса, притом почти
+        всегда переписывающая таблицу саму в себя.
+        """
+        if removed:
+            conn.executemany(
+                "DELETE FROM record_states WHERE account_id = ? AND record_id = ?",
+                [(account_id, record_id) for record_id in removed],
+            )
+        if not changed:
+            return
         now = utc_now_iso()
-        conn.execute("DELETE FROM record_states WHERE account_id = ?", (account_id,))
         conn.executemany(
             """
             INSERT INTO record_states (
                 account_id, record_id, date, time, attendance, deleted,
                 client_name, kind, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(account_id, record_id) DO UPDATE SET
+                date = excluded.date,
+                time = excluded.time,
+                attendance = excluded.attendance,
+                deleted = excluded.deleted,
+                client_name = excluded.client_name,
+                kind = excluded.kind,
+                updated_at = excluded.updated_at
             """,
             [
                 (
@@ -389,15 +427,20 @@ class Database:
                     state.kind,
                     now,
                 )
-                for state in states.values()
+                for state in changed
             ],
         )
 
     def replace_record_states(
         self, account_id: int, states: dict[int, RecordState]
     ) -> None:
+        changed, removed = _record_state_changes(
+            self.get_record_states(account_id), states
+        )
+        if not changed and not removed:
+            return
         with self.connect() as conn:
-            self._replace_record_states(conn, account_id, states)
+            self._write_record_states(conn, account_id, changed, removed)
 
     def _insert_events(
         self, conn: sqlite3.Connection, account_id: int, events: list[EventLike]
@@ -437,16 +480,30 @@ class Database:
         account_id: int,
         events: list[EventLike],
         states: dict[int, RecordState],
+        previous_states: dict[int, RecordState] | None = None,
     ) -> list[int]:
         """Журнал и состояния — одной транзакцией (§2.2 разбора Этапа 5).
 
         Либо записано всё, либо ничего: при падении посередине SQLite откатит
         вставку событий вместе со сдвигом состояний, и следующий цикл пересчитает
         тот же дифф. Разделять эти две записи нельзя — см. П2 плана §3.
+
+        `states` — полный желаемый снимок аккаунта; пишется из него только то,
+        что отличается от `previous_states`. Поллер уже держит прежний снимок в
+        руках и передаёт его сюда; без него он читается из базы.
         """
+        previous = (
+            previous_states if previous_states is not None
+            else self.get_record_states(account_id)
+        )
+        changed, removed = _record_state_changes(previous, states)
+        # Инкрементальный цикл без изменений — самый частый случай при опросе раз
+        # в 10 секунд: не открываем транзакцию вообще.
+        if not events and not changed and not removed:
+            return []
         with self.connect() as conn:
             event_ids = self._insert_events(conn, account_id, events)
-            self._replace_record_states(conn, account_id, states)
+            self._write_record_states(conn, account_id, changed, removed)
         return event_ids
 
     def list_events_since(
