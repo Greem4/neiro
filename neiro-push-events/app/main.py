@@ -19,6 +19,7 @@ from app.dashboard import (
     build_poll_runs_context,
     build_status_context,
     collect_dashboard_data,
+    collect_status_data,
     render_dashboard_text,
 )
 from app.database import Database
@@ -334,7 +335,7 @@ async def dashboard_status_fragment(
     live-данные обновлялись, не схлопывая раскрытые аккордеоны."""
     if not _dashboard_authenticated(request, settings):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
-    data = collect_dashboard_data(db, poll_service, settings, request.app.state.started_at)
+    data = collect_status_data(db, poll_service, settings, request.app.state.started_at)
     return templates.TemplateResponse(request, "_status.html", build_status_context(data))
 
 

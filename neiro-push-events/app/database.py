@@ -162,6 +162,11 @@ CREATE TABLE IF NOT EXISTS poll_runs (
     error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_poll_runs_started ON poll_runs(started_at);
+-- Частичный индекс под SIGNIFICANT_POLL_RUN: и лента циклов, и счётчик к ней
+-- ходят только за значимыми, а пустых в таблице на два порядка больше.
+-- Предикат обязан совпадать с SIGNIFICANT_POLL_RUN, иначе SQLite индекс не возьмёт.
+CREATE INDEX IF NOT EXISTS idx_poll_runs_significant ON poll_runs(id)
+    WHERE (error IS NOT NULL OR events_created > 0 OR pushes_sent > 0);
 """
 
 # Значимый цикл — тот, который что-то изменил или сломался. При опросе раз в

@@ -288,6 +288,22 @@ def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClien
     assert "<html" not in response.text
 
 
+def test_dashboard_status_fragment_skips_heavy_queries(client: TestClient) -> None:
+    """Шапка тянется раз в 10 секунд — она не должна собирать весь дашборд."""
+    db = client.app.state.db
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("фрагмент шапки не должен ходить за тяжёлыми выборками")
+
+    db.list_recent_events_admin = _boom
+    db.list_devices_admin = _boom
+    db.list_poll_runs_admin = _boom
+    db.count_poll_runs = _boom
+
+    client.cookies.set("admin_key", "test-admin-key")
+    assert client.get("/dashboard/status").status_code == 200
+
+
 def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
     from app.database import utc_now_iso
 
