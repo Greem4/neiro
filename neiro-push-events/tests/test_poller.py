@@ -43,6 +43,7 @@ class FakeFcm:
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
         api_key="test",
+        admin_api_key="test-admin",
         database_path=str(tmp_path / "events.db"),
         poll_interval_seconds=10,
         poll_night_interval_seconds=3600,

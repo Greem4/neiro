@@ -114,10 +114,6 @@ def verify_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key")
 
 
-def _admin_key(settings: Settings) -> str:
-    return settings.admin_api_key or settings.api_key
-
-
 def verify_admin_api_key(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
@@ -127,7 +123,7 @@ def verify_admin_api_key(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token"
         )
     token = authorization.removeprefix("Bearer ").strip()
-    if not constant_time_equals(token, _admin_key(settings)):
+    if not constant_time_equals(token, settings.admin_api_key):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin api key")
 
 
@@ -300,7 +296,7 @@ async def admin_dashboard_text(
 
 def _dashboard_authenticated(request: Request, settings: Settings) -> bool:
     cookie_value = request.cookies.get(DASHBOARD_COOKIE)
-    return bool(cookie_value) and constant_time_equals(cookie_value, _admin_key(settings))
+    return bool(cookie_value) and constant_time_equals(cookie_value, settings.admin_api_key)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -391,7 +387,7 @@ async def dashboard_login(
     db: Database = Depends(get_database),
     poll_service: PollService = Depends(get_poll_service),
 ) -> Response:
-    if not constant_time_equals(key, _admin_key(settings)):
+    if not constant_time_equals(key, settings.admin_api_key):
         context = {"authenticated": False, "login_error": True}
         return templates.TemplateResponse(
             request, "dashboard.html", context, status_code=status.HTTP_401_UNAUTHORIZED
