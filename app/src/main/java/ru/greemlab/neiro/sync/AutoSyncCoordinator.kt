@@ -36,8 +36,16 @@ object AutoSyncCoordinator {
     private const val DAILY_STALE_MS = 24 * 60 * 60 * 1000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
     private var initialized = false
 
+    /**
+     * Вызывается с IO-потока: создание [YClientsRepository] тянет за собой
+     * `TokenStorage` (AndroidKeyStore + дисковый I/O), которому на main делать
+     * нечего. На main остаётся только подписка на [ProcessLifecycleOwner] —
+     * она main-only по контракту.
+     */
     fun initialize(context: Context) {
         if (initialized) return
         initialized = true
@@ -58,15 +66,19 @@ object AutoSyncCoordinator {
             syncPreferences.markInitialFullSyncComplete()
         }
 
-        ProcessLifecycleOwner.get().lifecycle.addObserver(
-            object : DefaultLifecycleObserver {
-                override fun onStart(owner: LifecycleOwner) {
-                    scope.launch {
-                        syncDailyIfStale(appContext, syncPreferences, yclientsRepository, force = false)
-                    }
+        val observer = object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                scope.launch {
+                    syncDailyIfStale(appContext, syncPreferences, yclientsRepository, force = false)
                 }
-            },
-        )
+            }
+        }
+        // addObserver обязан идти с main. Приложение к этому моменту может уже быть
+        // STARTED — LifecycleRegistry догоняет новичка событиями до текущего
+        // состояния, поэтому первый onStart не теряется.
+        scope.launch(Dispatchers.Main) {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
+        }
     }
 
     /**
