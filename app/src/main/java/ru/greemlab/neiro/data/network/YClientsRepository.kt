@@ -14,6 +14,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.sync.YClientsLiveSyncFormat
 
@@ -41,6 +42,14 @@ class YClientsRepository(context: Context) {
     @Volatile
     private var logoutOn401Job: Job? = null
 
+    /**
+     * Номер текущей сессии: растёт на каждом успешном входе. Запрос запоминает его
+     * перед отправкой, и 401 гасит сессию только если она та же самая — иначе
+     * ответ запроса из прошлой сессии, доехавший уже после нового входа, стирал бы
+     * свежие токены.
+     */
+    private val sessionGeneration = AtomicInteger(0)
+
     val isLoggedIn: StateFlow<Boolean> = tokenStorage.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = tokenStorage.userAvatarUrlFlow
 
@@ -67,6 +76,9 @@ class YClientsRepository(context: Context) {
      * Ждёт завершения хвоста logout после 401, если он ещё идёт — иначе его
      * финальные tokenStorage.clear()/clearSyncState() могли бы затереть только
      * что установленную новую сессию (гонка входа с 401-logout).
+     *
+     * Второй барьер той же гонки — [sessionGeneration]: `join()` не помогает
+     * против 401, который ещё летит по сети и до logout пока не дошёл.
      */
     suspend fun login(login: String, password: String): ApiResult<AuthData> {
         logoutOn401Job?.join()
@@ -78,6 +90,9 @@ class YClientsRepository(context: Context) {
                     val body = response.body()
                     val userToken = body?.data?.userToken
                     if (body?.success == true && body.data != null && !userToken.isNullOrBlank()) {
+                        // Поколение поднимаем до записи токенов: всё, что ушло в сеть
+                        // раньше, с этого момента считается хвостом прошлой сессии.
+                        sessionGeneration.incrementAndGet()
                         tokenStorage.userToken = userToken
                         tokenStorage.userLogin = login
                         tokenStorage.userName = body.data.name
@@ -156,6 +171,7 @@ class YClientsRepository(context: Context) {
         endDate: LocalDate,
         changedAfter: String?,
     ): ApiResult<List<RecordData>> {
+        val generation = sessionGeneration.get()
         try {
             val effectiveStaffId = tokenStorage.staffId ?: detectAndSaveStaffId()
             if (effectiveStaffId == null) {
@@ -188,7 +204,7 @@ class YClientsRepository(context: Context) {
                 )
 
                 if (!response.isSuccessful) {
-                    handleUnauthorized(response.code())
+                    handleUnauthorized(response.code(), generation)
                     return ApiResult.Error(
                         message = if (response.code() == 401) {
                             "Сессия истекла. Войдите ещё раз."
@@ -245,8 +261,14 @@ class YClientsRepository(context: Context) {
      * 401 — полный logout через [LogoutCoordinator]: отзыв push-регистрации,
      * остановка воркеров, сброс watermark'ов и состояния уведомлений.
      */
-    private fun handleUnauthorized(code: Int?) {
+    private fun handleUnauthorized(code: Int?, generation: Int) {
         if (code != 401) return
+        // Хвост прошлой сессии: пользователь уже вошёл заново, пока запрос был в пути.
+        // Гасить новую сессию из-за него нельзя — иначе вход «отменяется» сам собой.
+        if (generation != sessionGeneration.get()) {
+            Log.w(TAG, "401 от запроса прошлой сессии — новую не трогаем")
+            return
+        }
         tokenStorage.clear()
         if (logoutOn401InProgress.compareAndSet(false, true)) {
             logoutOn401Job = logoutScope.launch {
@@ -289,10 +311,11 @@ class YClientsRepository(context: Context) {
         val userName = tokenStorage.userName?.trim().orEmpty()
         if (userName.isBlank()) return@withContext null
 
+        val generation = sessionGeneration.get()
         try {
             val response = api.getBookStaff(tokenStorage.companyId)
             if (!response.isSuccessful) {
-                handleUnauthorized(response.code())
+                handleUnauthorized(response.code(), generation)
                 Log.w(TAG, "book_staff вернул HTTP ${response.code()}")
                 return@withContext null
             }
@@ -336,6 +359,7 @@ class YClientsRepository(context: Context) {
      * Получить список клиентов.
      */
     suspend fun getClients(): ApiResult<List<ClientData>> = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.get()
         try {
             val all = mutableListOf<ClientData>()
             var page = 1
@@ -350,7 +374,7 @@ class YClientsRepository(context: Context) {
                 )
 
                 if (!response.isSuccessful) {
-                    handleUnauthorized(response.code())
+                    handleUnauthorized(response.code(), generation)
                     return@withContext ApiResult.Error(
                         message = if (response.code() == 401) {
                             "Сессия истекла. Войдите ещё раз."
