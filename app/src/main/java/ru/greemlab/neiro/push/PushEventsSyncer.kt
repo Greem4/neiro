@@ -50,9 +50,17 @@ object PushEventsSyncer {
                     ok
                 }
 
+                // Логаут мог пройти, пока шёл запрос: события старого аккаунта в календарь
+                // нового не пишем.
+                if (!repository.isLoggedIn.first()) return
+
                 // Порядок независимый: ошибка применения к календарю не должна съесть показ (§5.7).
                 runCatching { PushEventCalendarApplier.apply(appContext, mine) }
                 PushEventNotifier.notify(appContext, mine.mapNotNull { it.toSessionEvent() })
+
+                // Ещё одна проверка: markSeen после сброса курсора в logout вернул бы
+                // позицию чужого аккаунта, и события нового были бы пропущены.
+                if (!repository.isLoggedIn.first()) return
 
                 // Курсор и ack — сразу после показа этой страницы: обрыв сети посреди
                 // догона не должен приводить к повторному показу уже отданных событий.
