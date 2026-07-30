@@ -6,7 +6,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import ru.greemlab.neiro.sync.LiveApiPollSchedule
+import ru.greemlab.neiro.sync.SyncQuietHours
 import java.util.concurrent.TimeUnit
 
 object PushKeepAliveCoordinator {
@@ -62,7 +62,7 @@ object PushKeepAliveCoordinator {
 
     private fun intervalMillis(afterFailure: Boolean): Long = when {
         afterFailure -> TimeUnit.MINUTES.toMillis(RETRY_INTERVAL_MINUTES)
-        LiveApiPollSchedule.isQuietHours() -> TimeUnit.MINUTES.toMillis(NIGHT_INTERVAL_MINUTES)
+        SyncQuietHours.isQuietHours() -> TimeUnit.MINUTES.toMillis(NIGHT_INTERVAL_MINUTES)
         else -> TimeUnit.MINUTES.toMillis(DAY_INTERVAL_MINUTES)
     }
 }

@@ -16,7 +16,7 @@ object YClientsLiveSyncFormat {
 
     fun formatChangedAfter(
         instant: Instant,
-        zone: ZoneId = LiveApiPollSchedule.syncZone,
+        zone: ZoneId = SyncQuietHours.syncZone,
     ): String = instant
         .minusSeconds(CHANGED_AFTER_OVERLAP_SECONDS)
         .atZone(zone)
