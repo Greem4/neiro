@@ -77,11 +77,13 @@
 -keep class ru.greemlab.neiro.notifications.SessionReminderWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionDailyNotificationWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionScheduledDigestWorker { *; }
+# Пакет целиком, а не точечно: рядом с воркерами тут лежат Gson-модели push
+# (PushApi, PushSessionEvent), у части полей нет @SerializedName — сузим правило,
+# и R8 переименует type/date/time/kind, а разбор payload молча сломается в release.
 -keep class ru.greemlab.neiro.push.** { *; }
 -keep class com.google.firebase.messaging.FirebaseMessagingService { *; }
 -keep class * extends com.google.firebase.messaging.FirebaseMessagingService { *; }
 -dontwarn com.google.firebase.**
--keep class ru.greemlab.neiro.sync.LiveApiRefreshWorker { *; }
 -keep class ru.greemlab.neiro.notifications.SessionNotificationBootReceiver { *; }
 # Сохраняем сервисы, чтобы система не теряла связь с UID при запуске Job/Alarm.
 -keep class androidx.work.impl.background.systemjob.SystemJobService { *; }
