@@ -786,7 +786,13 @@ class YClientsCalendarSync(
         }
 
         if (session !is Session.Student) {
-            return existingEntry
+            // Интенсив правит только mergeIntensivesFromApi — слияние по детям
+            // сюда не переносим.
+            if (session is Session.Intensive) return existingEntry
+            // Локально диагностика, а услугу в YClients сменили на обычное занятие:
+            // без пересборки строка осталась бы диагностикой навсегда — до полного
+            // пересбора дня (U3).
+            return createEntryFromRecord(record, userProfile)
         }
 
         val time = formatRecordTime(record)
