@@ -574,6 +574,15 @@ class YClientsCalendarSync(
         }
     }
 
+    /**
+     * @return сколько интенсивов появилось впервые — для тоста «добавлено N записей».
+     *
+     * Считается только слот, которого не было в локальном календаре: раньше каждая
+     * группа безусловно давала `added++`, и повторный синк месяца с двумя
+     * интенсивами всегда рапортовал «добавлено 2» (S4). Изменение уже
+     * существующего интенсива новой записью не считается — так же, как в ветке
+     * учеников выше.
+     */
     private fun mergeIntensivesFromApi(
         records: List<RecordData>,
         userProfile: UserProfile,
@@ -617,7 +626,7 @@ class YClientsCalendarSync(
                 session is Session.Intensive && extractSessionTime(session) == time
             }
             syncedEntries += entry
-            added++
+            if (localMatch == null) added++
         }
         return added
     }
