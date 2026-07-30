@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     api_key: str
-    admin_api_key: str = ""
+    admin_api_key: str
     database_path: str = "/data/neiro_push.db"
     poll_interval_seconds: int = 15
     poll_night_interval_seconds: int = 3600
