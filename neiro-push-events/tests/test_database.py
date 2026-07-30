@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -89,3 +90,27 @@ def test_commit_poll_result_writes_only_changed_states(tmp_path: Path) -> None:
 
     states = db.get_record_states(account_id)
     assert states == {1: moved}
+
+
+def test_day_window_counts_exactly_last_24_hours(tmp_path: Path) -> None:
+    """Событие 25-часовой давности за сутки не считается — даже если это ещё
+    вчерашняя календарная дата."""
+    db = Database(str(tmp_path / "events.db"))
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.commit_poll_result(account_id, [_event()], {})
+
+    old = (datetime.now(timezone.utc) - timedelta(hours=25)).replace(microsecond=0).isoformat()
+    with db.connect() as conn:
+        conn.execute("UPDATE events SET created_at = ?", (old,))
+        conn.execute(
+            """
+            INSERT INTO poll_runs (
+                company_id, started_at, duration_ms, records_fetched,
+                events_created, pushes_sent, error
+            ) VALUES (1, ?, 10, 0, 0, 0, 'boom')
+            """,
+            (old,),
+        )
+
+    assert db.stats()["events_today"] == 0
+    assert db.poll_health_summary()["errors_today"] == 0

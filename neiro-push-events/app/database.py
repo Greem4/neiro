@@ -1,7 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Protocol
 
@@ -16,6 +16,18 @@ def utc_now_iso() -> str:
     нет.
     """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def utc_iso_days_ago(days: int) -> str:
+    """Граница окна в формате [utc_now_iso] — для сравнений с колонками, куда
+    пишет именно он. С `datetime('now', '-1 day')` такие сравнения врут: на
+    одинаковой дате `T` больше пробела, поэтому в окно попадали все записи за
+    предыдущую календарную дату целиком — до суток лишку."""
+    return (
+        (datetime.now(timezone.utc) - timedelta(days=days))
+        .replace(microsecond=0)
+        .isoformat()
+    )
 
 
 @dataclass(frozen=True)
@@ -617,7 +629,8 @@ class Database:
             accounts = conn.execute("SELECT COUNT(*) AS c FROM accounts").fetchone()["c"]
             devices = conn.execute("SELECT COUNT(*) AS c FROM devices").fetchone()["c"]
             events_today = conn.execute(
-                "SELECT COUNT(*) AS c FROM events WHERE created_at >= datetime('now', '-1 day')"
+                "SELECT COUNT(*) AS c FROM events WHERE created_at >= ?",
+                (utc_iso_days_ago(1),),
             ).fetchone()["c"]
         return {
             "accounts": int(accounts),
@@ -633,8 +646,9 @@ class Database:
             errors_today = conn.execute(
                 """
                 SELECT COUNT(*) AS c FROM poll_runs
-                WHERE error IS NOT NULL AND started_at >= datetime('now', '-1 day')
-                """
+                WHERE error IS NOT NULL AND started_at >= ?
+                """,
+                (utc_iso_days_ago(1),),
             ).fetchone()["c"]
         return {
             "last_polled_at": last["started_at"] if last else None,
