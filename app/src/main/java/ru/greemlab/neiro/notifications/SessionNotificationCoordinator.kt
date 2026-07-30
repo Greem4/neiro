@@ -1,7 +1,6 @@
 package ru.greemlab.neiro.notifications
 
 import android.content.Context
-import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -551,10 +550,9 @@ object SessionNotificationCoordinator {
 
         if (toNotify.isEmpty()) return
 
-        if (NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
-            val shown = SessionNotificationDisplay.showReminder(appContext, toNotify)
-            toNotify.filter { it.dedupeKey in shown }.forEach { prefs.markReminderNotified(it.dedupeKey) }
-        }
+        // Разрешение проверяет сам показ — после записи в in-app ленту (N1).
+        val shown = SessionNotificationDisplay.showReminder(appContext, toNotify)
+        toNotify.filter { it.dedupeKey in shown }.forEach { prefs.markReminderNotified(it.dedupeKey) }
     }
 
     /**
@@ -630,11 +628,12 @@ object SessionNotificationCoordinator {
         val todayList = UpcomingSessionsCollector.todaySessions(allToday, today)
         if (todayList.isEmpty()) return
 
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTodayDigest(today.toEpochDay())) return
 
         if (!SessionNotificationDisplay.showTodayDigest(context, todayList)) {
-            // Показ не удался — откатываем claim, иначе сводка потеряна на весь день.
+            // Показ не удался (в том числе из-за отсутствия разрешения) — откатываем
+            // claim, иначе сводка потеряна на весь день. В ленту она к этому моменту
+            // уже записана, повтор отсечётся дедупом по ключу дня.
             prefs.clearTodayDigestShown()
         }
     }
@@ -649,7 +648,6 @@ object SessionNotificationCoordinator {
         val tomorrowList = UpcomingSessionsCollector.tomorrowSessions(upcoming, today)
         if (tomorrowList.isEmpty()) return
 
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         if (!prefs.claimTomorrowDigest(tomorrow.toEpochDay())) return
 
         if (!SessionNotificationDisplay.showTomorrowDigest(context, tomorrowList)) {
@@ -686,7 +684,6 @@ object SessionNotificationCoordinator {
         val candidates = pastDates + listOfNotNull(todayDate)
         if (candidates.isEmpty()) return
 
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val claimed = candidates.filter { prefs.claimArchiveReminder(it.toEpochDay()) }
         if (claimed.isEmpty()) return
 
