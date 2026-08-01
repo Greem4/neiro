@@ -8,6 +8,7 @@ import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.RecordData
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
@@ -236,7 +237,12 @@ class YClientsCalendarSync(
                     diagKeywords.any { kw -> service.title?.contains(kw, ignoreCase = true) == true }
                 }
 
-                if (updated.pricePerSession == 0.0) {
+                // Эвристика по `cost` — последний фолбэк, а не основной источник:
+                // ставку даёт детализация начисления (SalaryHistorySync), а `cost`
+                // это оплата деньгами, у трети записей она `0` из-за абонемента.
+                // Условие «цена ещё не задана» заменено на признак АВТО: своё
+                // подставленное значение приложение обновить может, ручное — нет.
+                if (updated.sessionPriceOrigin == PriceOrigin.AUTO && updated.pricePerSession == 0.0) {
                     val commonPrice = regularServices.mapNotNull { it.cost }
                         .groupBy { it }.maxByOrNull { it.value.size }?.key
                     if (commonPrice != null) {
@@ -245,7 +251,7 @@ class YClientsCalendarSync(
                     }
                 }
 
-                if (updated.pricePerDiagnostics == 0.0) {
+                if (updated.diagnosticsPriceOrigin == PriceOrigin.AUTO && updated.pricePerDiagnostics == 0.0) {
                     val commonDiagPrice = diagServices.mapNotNull { it.cost }
                         .groupBy { it }.maxByOrNull { it.value.size }?.key
                     if (commonDiagPrice != null) {
@@ -254,7 +260,7 @@ class YClientsCalendarSync(
                     }
                 }
 
-                if (updated.pricePerIntensiveChild == 0.0) {
+                if (updated.intensivePriceOrigin == PriceOrigin.AUTO && updated.pricePerIntensiveChild == 0.0) {
                     val intensiveServices = allServices.filter { service ->
                         service.title?.contains("интенсив", ignoreCase = true) == true
                     }

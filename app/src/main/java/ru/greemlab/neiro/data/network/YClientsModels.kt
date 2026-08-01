@@ -86,8 +86,12 @@ data class ClientData(
 data class ServiceData(
     val id: Long,
     val title: String?,
+    /** Сколько клиент заплатил деньгами: `0`, если списано с абонемента. */
     val cost: Double?,
     @SerializedName("cost_to_pay") val costToPay: Double?,
+    /** Базовая цена на момент записи — в отличие от [cost] не зависит от абонемента. */
+    @SerializedName("first_cost") val firstCost: Double?,
+    @SerializedName("cost_per_unit") val costPerUnit: Double?,
     val discount: Double?,
     val amount: Int?,
 )

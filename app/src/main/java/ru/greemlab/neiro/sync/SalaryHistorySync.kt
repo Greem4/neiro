@@ -42,6 +42,7 @@ class SalaryHistorySync private constructor(context: Context) {
     suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()) {
         val staffId = staffIdOrNull() ?: return
         ledgerStore.warmUp()
+        updateAutoProfileRates()
 
         val previousMonth = YearMonth.from(today).minusMonths(1)
         val previousFrozen = ledgerStore.ledger.value.month(staffId, previousMonth)?.frozen == true
@@ -57,7 +58,26 @@ class SalaryHistorySync private constructor(context: Context) {
     suspend fun syncFullHistory(from: LocalDate, today: LocalDate = LocalDate.now()) {
         val staffId = staffIdOrNull() ?: return
         ledgerStore.warmUp()
+        updateAutoProfileRates()
         pull(staffId = staffId, from = from, to = today, today = today)
+    }
+
+    /**
+     * АВТО-цены профиля из детализации последнего начисления (FOUNDATION 6.2).
+     *
+     * Живёт здесь, а не в календарном синке: тот вызывается и live-опросом,
+     * который трогать нельзя. Ручные цены не переписываются никогда.
+     */
+    private suspend fun updateAutoProfileRates() {
+        val rates = when (val result = repository.fetchLatestSalaryRates()) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> {
+                Log.w(TAG, "Ставки из начисления не получены (code=${result.code})")
+                return
+            }
+        }
+        if (rates.isEmpty) return
+        calendarRepository.updateProfile { profile -> applyApiRatesToProfile(profile, rates) }
     }
 
     /**

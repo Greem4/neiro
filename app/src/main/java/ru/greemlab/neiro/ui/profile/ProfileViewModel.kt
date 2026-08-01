@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.DayOfWeek
 
@@ -83,7 +84,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             // Через ту же очередь профиля, что и остальные поля — обходной
             // repository.applySessionPriceChange больше не нужен: RMW внутри
             // dataStore.edit (см. D2) даёт ту же атомарность, что и updateProfile.
-            enqueueUpdate { it.copy(pricePerSession = price) }
+            // Тронул поле — цена становится РУЧНОЙ навсегда: приложение больше
+            // не перезаписывает её из API, только сообщает о расхождении.
+            enqueueUpdate {
+                it.copy(pricePerSession = price, sessionPriceOrigin = PriceOrigin.MANUAL)
+            }
         }
     }
 
@@ -91,9 +96,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         const val PRICE_UPDATE_DEBOUNCE_MS = 600L
     }
 
-    fun updateDiagnosticsPrice(price: Double) = enqueueUpdate { it.copy(pricePerDiagnostics = price) }
+    fun updateDiagnosticsPrice(price: Double) = enqueueUpdate {
+        it.copy(pricePerDiagnostics = price, diagnosticsPriceOrigin = PriceOrigin.MANUAL)
+    }
 
-    fun updateIntensiveChildPrice(price: Double) = enqueueUpdate { it.copy(pricePerIntensiveChild = price) }
+    fun updateIntensiveChildPrice(price: Double) = enqueueUpdate {
+        it.copy(pricePerIntensiveChild = price, intensivePriceOrigin = PriceOrigin.MANUAL)
+    }
 
     fun updateTaxAmount(tax: Double) = enqueueUpdate { it.copy(monthlyTaxAmount = tax) }
 
