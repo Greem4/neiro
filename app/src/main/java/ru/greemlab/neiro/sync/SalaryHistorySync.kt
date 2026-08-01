@@ -22,6 +22,28 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 /**
+ * Чем кончилась попытка достать деньги из YClients.
+ *
+ * Фоновым синкам хватает «получилось/нет» (FOUNDATION 3.5: 403 у сотрудника без
+ * прав владельца пользователю не показывают). Но когда человек сам нажал кнопку,
+ * молчание — худший из ответов: «не нажалось», «нет прав» и «за месяц нет
+ * начислений» выглядят одинаково, и починить по такому непонятно что.
+ */
+sealed interface SalaryPullResult {
+    /** Факт получен и записан в историю. */
+    data object Updated : SalaryPullResult
+
+    /** Ответ пришёл, но начислений за период нет — месяц до найма, например. */
+    data object NoData : SalaryPullResult
+
+    /** Не ответили: нет прав (403), истекла сессия (401), нет сети. */
+    data class Failed(val code: Int?) : SalaryPullResult
+
+    /** `staffId` неизвестен — писать историю некуда. */
+    data object NoStaff : SalaryPullResult
+}
+
+/**
  * Заполнение истории ЗП из YClients (FOUNDATION 4, 7).
  *
  * Вызывается только после успешного календарного синка: цена месяца сверяется
@@ -41,8 +63,8 @@ class SalaryHistorySync private constructor(context: Context) {
     private val syncPreferences = SyncPreferences.get(appContext)
 
     /** Текущий месяц каждый синк + прошлый, пока он не заморожен. */
-    suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()): Boolean {
-        val staffId = staffIdOrNull() ?: return false
+    suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()): SalaryPullResult {
+        val staffId = staffIdOrNull() ?: return SalaryPullResult.NoStaff
         ledgerStore.warmUp()
         updateAutoProfileRates()
 
@@ -59,8 +81,11 @@ class SalaryHistorySync private constructor(context: Context) {
      *
      * @return `true`, если факт реально получен и записан.
      */
-    suspend fun syncFullHistory(from: LocalDate, today: LocalDate = LocalDate.now()): Boolean {
-        val staffId = staffIdOrNull() ?: return false
+    suspend fun syncFullHistory(
+        from: LocalDate,
+        today: LocalDate = LocalDate.now(),
+    ): SalaryPullResult {
+        val staffId = staffIdOrNull() ?: return SalaryPullResult.NoStaff
         ledgerStore.warmUp()
         updateAutoProfileRates()
         return pull(staffId = staffId, from = from, to = today, today = today)
@@ -83,8 +108,8 @@ class SalaryHistorySync private constructor(context: Context) {
         ledgerStore.warmUp()
         reopenAutoMonths(staffId)
         val pulled = syncFullHistory(from = historyStart(today), today = today)
-        if (pulled) syncPreferences.markSalaryHistorySyncComplete()
-        return pulled
+        if (pulled is SalaryPullResult.Updated) syncPreferences.markSalaryHistorySyncComplete()
+        return pulled is SalaryPullResult.Updated
     }
 
     /**
@@ -112,8 +137,11 @@ class SalaryHistorySync private constructor(context: Context) {
      * сначала размораживается: нажатие на кнопку и значит «посчитай заново».
      * Ручная цена переживает и это — её переписывает только человек.
      */
-    suspend fun syncSingleMonth(month: YearMonth, today: LocalDate = LocalDate.now()): Boolean {
-        val staffId = staffIdOrNull() ?: return false
+    suspend fun syncSingleMonth(
+        month: YearMonth,
+        today: LocalDate = LocalDate.now(),
+    ): SalaryPullResult {
+        val staffId = staffIdOrNull() ?: return SalaryPullResult.NoStaff
         ledgerStore.warmUp()
 
         ledgerStore.update { ledger ->
@@ -122,7 +150,7 @@ class SalaryHistorySync private constructor(context: Context) {
         }
 
         val to = minOf(month.atEndOfMonth(), today)
-        if (month.atDay(1).isAfter(to)) return false
+        if (month.atDay(1).isAfter(to)) return SalaryPullResult.NoData
         return pull(staffId = staffId, from = month.atDay(1), to = to, today = today)
     }
 
@@ -176,15 +204,17 @@ class SalaryHistorySync private constructor(context: Context) {
         from: LocalDate,
         to: LocalDate,
         today: LocalDate,
-    ): Boolean {
+    ): SalaryPullResult {
         val facts = when (val result = repository.fetchSalaryDaily(from, to, today)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> {
                 Log.w(TAG, "Факт ЗП не получен (code=${result.code}) — считаем по цене профиля")
-                return false
+                return SalaryPullResult.Failed(result.code)
             }
         }
-        if (facts.isEmpty()) return false
+        if (facts.isEmpty()) return SalaryPullResult.NoData
+
+        var merged = 0
 
         val profile = calendarRepository.userProfileFlow.first().earningsContext()
         val dayData = calendarRepository.dayDataFlow.first()
@@ -208,6 +238,7 @@ class SalaryHistorySync private constructor(context: Context) {
                     gross = days.sumOf { it.value.salary },
                     services = days.sumOf { it.value.servicesCount },
                 )
+
                 val app = MonthAppView(
                     services = local.services,
                     diagnosticsCount = local.diagnosticsCount,
@@ -233,10 +264,11 @@ class SalaryHistorySync private constructor(context: Context) {
                         today = today,
                     ),
                 )
+                merged++
             }
             next
         }
-        return true
+        return if (merged > 0) SalaryPullResult.Updated else SalaryPullResult.NoData
     }
 
     companion object {

@@ -85,6 +85,7 @@ fun ProfileContent(
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
     val ledger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
     val syncingMonth by profileViewModel.syncingMonth.collectAsStateWithLifecycle()
+    val monthSyncNote by profileViewModel.monthSyncNote.collectAsStateWithLifecycle()
     val staffId = profileViewModel.salaryStaffId
     val currentYear = YearMonth.now().year
     val availableYears = remember(dayData, ledger, staffId) {
@@ -122,6 +123,7 @@ fun ProfileContent(
         onMonthUnfrozen = profileViewModel::unfreezeMonth,
         onMonthRefreshed = profileViewModel::refreshMonth,
         syncingMonth = syncingMonth,
+        monthSyncNote = monthSyncNote,
         availableYears = availableYears,
         selectedYear = selectedYear,
         onYearSelected = { selectedYear = it },
@@ -154,6 +156,7 @@ private fun ProfileContentImpl(
     onMonthUnfrozen: (YearMonth) -> Unit = {},
     onMonthRefreshed: (YearMonth) -> Unit = {},
     syncingMonth: YearMonth? = null,
+    monthSyncNote: MonthSyncNote? = null,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     userAvatarUrl: String? = null,
@@ -219,6 +222,7 @@ private fun ProfileContentImpl(
             onMonthUnfrozen = onMonthUnfrozen,
             onMonthRefreshed = onMonthRefreshed,
             syncingMonth = syncingMonth,
+            monthSyncNote = monthSyncNote,
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {

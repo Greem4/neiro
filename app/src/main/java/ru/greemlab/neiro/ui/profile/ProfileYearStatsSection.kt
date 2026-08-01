@@ -88,6 +88,7 @@ fun ProfileYearStatsSection(
     onMonthUnfrozen: (YearMonth) -> Unit = {},
     onMonthRefreshed: (YearMonth) -> Unit = {},
     syncingMonth: YearMonth? = null,
+    monthSyncNote: MonthSyncNote? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val showDiscrepancyMark = display.showDiscrepancy && stats.hasUnresolvedMonths
@@ -267,6 +268,9 @@ fun ProfileYearStatsSection(
                         meta = stats.months.getOrElse(selectedMonthIndex) { MonthPriceMeta() },
                         display = display,
                         isSyncing = syncingMonth == detailsMonth,
+                        // Итог показываем только тому месяцу, к которому он
+                        // относится: переключил месяц — чужой ответ не висит.
+                        syncNote = monthSyncNote?.takeIf { it.month == detailsMonth }?.text,
                         onEditPrice = { priceEditorMonth = selectedMonthIndex },
                         onReviewDiscrepancy = { discrepancyMonth = selectedMonthIndex },
                         onUnfreeze = { onMonthUnfrozen(detailsMonth) },
@@ -341,6 +345,7 @@ private fun MonthPriceDetails(
     onUnfreeze: () -> Unit,
     onRefresh: () -> Unit = {},
     isSyncing: Boolean = false,
+    syncNote: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val showReview = display.showDiscrepancy && meta.needsReview
@@ -407,6 +412,14 @@ private fun MonthPriceDetails(
                 if (meta.frozen) {
                     TextButton(onClick = onUnfreeze) { Text("Разморозить") }
                 }
+            }
+
+            if (syncNote != null) {
+                Text(
+                    text = syncNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (meta.frozen) {

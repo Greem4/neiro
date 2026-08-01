@@ -22,8 +22,30 @@ import ru.greemlab.neiro.domain.models.MonthEntry
 import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.sync.SalaryHistorySync
+import ru.greemlab.neiro.sync.SalaryPullResult
 import java.time.DayOfWeek
 import java.time.YearMonth
+
+/** Итог перетяжки месяца: к какому месяцу относится и что сказать человеку. */
+data class MonthSyncNote(val month: YearMonth, val text: String)
+
+/**
+ * Что показать после нажатия на кружок синхронизации месяца.
+ *
+ * Молчать здесь нельзя, хотя фоновые денежные запросы молчат намеренно
+ * (FOUNDATION 3.5): человек нажал кнопку и ждёт ответа, а «нет прав»,
+ * «нет сети» и «за месяц нет начислений» без текста неразличимы.
+ */
+private fun describePull(result: SalaryPullResult): String = when (result) {
+    is SalaryPullResult.Updated -> "Обновлено из YClients"
+    is SalaryPullResult.NoData -> "За этот месяц начислений нет"
+    is SalaryPullResult.NoStaff -> "Не удалось определить сотрудника в YClients"
+    is SalaryPullResult.Failed -> when (result.code) {
+        401 -> "Сессия истекла — войдите в YClients заново"
+        403 -> "YClients не отдаёт зарплату этому аккаунту"
+        else -> "Не удалось получить — проверьте связь"
+    }
+}
 
 /**
  * ViewModel для управления профилем пользователя.
@@ -43,6 +65,10 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     /** Месяц, который сейчас перетягивается из YClients, — для кружка в разборе. */
     private val _syncingMonth = MutableStateFlow<YearMonth?>(null)
     val syncingMonth: StateFlow<YearMonth?> = _syncingMonth.asStateFlow()
+
+    /** Чем кончилась последняя перетяжка месяца: месяц и текст для человека. */
+    private val _monthSyncNote = MutableStateFlow<MonthSyncNote?>(null)
+    val monthSyncNote: StateFlow<MonthSyncNote?> = _monthSyncNote.asStateFlow()
 
     /**
      * Все денежные данные лежат под ключом сотрудника (FOUNDATION 8.1).
@@ -134,9 +160,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun refreshMonth(month: YearMonth) {
         if (_syncingMonth.value != null) return
         _syncingMonth.value = month
+        _monthSyncNote.value = null
         viewModelScope.launch {
             try {
-                salaryHistorySync.syncSingleMonth(month)
+                val result = runCatching { salaryHistorySync.syncSingleMonth(month) }
+                    .getOrElse { SalaryPullResult.Failed(null) }
+                _monthSyncNote.value = MonthSyncNote(month, describePull(result))
             } finally {
                 // Только в finally: иначе отменённая корутина оставит кружок
                 // крутиться навсегда, и месяц больше не перетянуть.
