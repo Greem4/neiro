@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,6 +86,8 @@ fun ProfileYearStatsSection(
     onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
     onMonthFactAccepted: (YearMonth) -> Unit = {},
     onMonthUnfrozen: (YearMonth) -> Unit = {},
+    onMonthRefreshed: (YearMonth) -> Unit = {},
+    syncingMonth: YearMonth? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val showDiscrepancyMark = display.showDiscrepancy && stats.hasUnresolvedMonths
@@ -258,15 +261,16 @@ fun ProfileYearStatsSection(
                     enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
                     exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
                 ) {
+                    val detailsMonth = YearMonth.of(stats.year, selectedMonthIndex + 1)
                     MonthPriceDetails(
-                        month = YearMonth.of(stats.year, selectedMonthIndex + 1),
+                        month = detailsMonth,
                         meta = stats.months.getOrElse(selectedMonthIndex) { MonthPriceMeta() },
                         display = display,
+                        isSyncing = syncingMonth == detailsMonth,
                         onEditPrice = { priceEditorMonth = selectedMonthIndex },
                         onReviewDiscrepancy = { discrepancyMonth = selectedMonthIndex },
-                        onUnfreeze = {
-                            onMonthUnfrozen(YearMonth.of(stats.year, selectedMonthIndex + 1))
-                        },
+                        onUnfreeze = { onMonthUnfrozen(detailsMonth) },
+                        onRefresh = { onMonthRefreshed(detailsMonth) },
                     )
                 }
             }
@@ -335,6 +339,8 @@ private fun MonthPriceDetails(
     onEditPrice: () -> Unit,
     onReviewDiscrepancy: () -> Unit,
     onUnfreeze: () -> Unit,
+    onRefresh: () -> Unit = {},
+    isSyncing: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val showReview = display.showDiscrepancy && meta.needsReview
@@ -394,6 +400,7 @@ private fun MonthPriceDetails(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onEditPrice) { Text("Поправить цену") }
+                MonthSyncButton(isSyncing = isSyncing, onClick = onRefresh)
                 if (showReview) {
                     TextButton(onClick = onReviewDiscrepancy) { Text("Разобрать") }
                 }
@@ -409,6 +416,36 @@ private fun MonthPriceDetails(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Кружок синхронизации месяца: перетянуть начисление именно за него.
+ *
+ * Нужен рядом с правкой цены: закрытый месяц синк больше не пересчитывает сам,
+ * и это единственный способ сказать «посчитай заново» точечно, не гоняя всю
+ * историю. Во время запроса кнопка гаснет — иначе десять нажатий подряд
+ * запустили бы десять запросов.
+ */
+@Composable
+private fun MonthSyncButton(isSyncing: Boolean, onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        enabled = !isSyncing,
+        modifier = Modifier.size(36.dp),
+    ) {
+        if (isSyncing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Sync,
+                contentDescription = "Обновить месяц из YClients",
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

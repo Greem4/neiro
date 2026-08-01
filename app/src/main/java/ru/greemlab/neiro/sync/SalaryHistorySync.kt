@@ -106,6 +106,27 @@ class SalaryHistorySync private constructor(context: Context) {
     }
 
     /**
+     * Перетянуть один месяц — кружок синхронизации в разборе месяца.
+     *
+     * Закрытый месяц синк обходит стороной (`mergeFact`), поэтому здесь он
+     * сначала размораживается: нажатие на кнопку и значит «посчитай заново».
+     * Ручная цена переживает и это — её переписывает только человек.
+     */
+    suspend fun syncSingleMonth(month: YearMonth, today: LocalDate = LocalDate.now()): Boolean {
+        val staffId = staffIdOrNull() ?: return false
+        ledgerStore.warmUp()
+
+        ledgerStore.update { ledger ->
+            val existing = ledger.month(staffId, month) ?: return@update ledger
+            if (!existing.frozen) ledger else ledger.withMonth(existing.copy(frozen = false))
+        }
+
+        val to = minOf(month.atEndOfMonth(), today)
+        if (month.atDay(1).isAfter(to)) return false
+        return pull(staffId = staffId, from = month.atDay(1), to = to, today = today)
+    }
+
+    /**
      * Начало истории: 36 месяцев назад или первый день локального календаря,
      * если он старше. Та же глубина, что и у полной синхронизации календаря.
      */

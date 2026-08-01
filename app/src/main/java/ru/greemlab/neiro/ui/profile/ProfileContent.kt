@@ -84,6 +84,7 @@ fun ProfileContent(
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
     val ledger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
+    val syncingMonth by profileViewModel.syncingMonth.collectAsStateWithLifecycle()
     val staffId = profileViewModel.salaryStaffId
     val currentYear = YearMonth.now().year
     val availableYears = remember(dayData, ledger, staffId) {
@@ -119,6 +120,8 @@ fun ProfileContent(
         onMonthDiscrepancyResolved = profileViewModel::updateMonthPrice,
         onMonthFactAccepted = profileViewModel::acceptMonthFact,
         onMonthUnfrozen = profileViewModel::unfreezeMonth,
+        onMonthRefreshed = profileViewModel::refreshMonth,
+        syncingMonth = syncingMonth,
         availableYears = availableYears,
         selectedYear = selectedYear,
         onYearSelected = { selectedYear = it },
@@ -149,6 +152,8 @@ private fun ProfileContentImpl(
     onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
     onMonthFactAccepted: (YearMonth) -> Unit = {},
     onMonthUnfrozen: (YearMonth) -> Unit = {},
+    onMonthRefreshed: (YearMonth) -> Unit = {},
+    syncingMonth: YearMonth? = null,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     userAvatarUrl: String? = null,
@@ -212,6 +217,8 @@ private fun ProfileContentImpl(
             onMonthDiscrepancyResolved = onMonthDiscrepancyResolved,
             onMonthFactAccepted = onMonthFactAccepted,
             onMonthUnfrozen = onMonthUnfrozen,
+            onMonthRefreshed = onMonthRefreshed,
+            syncingMonth = syncingMonth,
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {

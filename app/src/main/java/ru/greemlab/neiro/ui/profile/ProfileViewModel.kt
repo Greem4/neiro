@@ -7,8 +7,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
@@ -19,6 +21,7 @@ import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.MonthEntry
 import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.sync.SalaryHistorySync
 import java.time.DayOfWeek
 import java.time.YearMonth
 
@@ -32,9 +35,14 @@ import java.time.YearMonth
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
     private val ledgerStore = SalaryLedgerStore.get(application)
+    private val salaryHistorySync = SalaryHistorySync.get(application)
 
     /** История ЗП: цены прошедших месяцев и факт по дням. */
     val salaryLedger: StateFlow<SalaryLedger> = ledgerStore.ledger
+
+    /** Месяц, который сейчас перетягивается из YClients, — для кружка в разборе. */
+    private val _syncingMonth = MutableStateFlow<YearMonth?>(null)
+    val syncingMonth: StateFlow<YearMonth?> = _syncingMonth.asStateFlow()
 
     /**
      * Все денежные данные лежат под ключом сотрудника (FOUNDATION 8.1).
@@ -112,6 +120,27 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 ledger.withMonth(
                     existing.copy(origin = PriceOrigin.AUTO, resolved = true),
                 )
+            }
+        }
+    }
+
+    /**
+     * Перетянуть один месяц из YClients — кружок синхронизации в разборе месяца.
+     *
+     * Закрытый месяц синк сам не трогает, поэтому здесь он размораживается: это
+     * ровно то, чего человек хочет от кнопки. Ошибка наружу не идёт — при 403 и
+     * офлайне месяц просто остаётся с прежними числами (FOUNDATION 3.5).
+     */
+    fun refreshMonth(month: YearMonth) {
+        if (_syncingMonth.value != null) return
+        _syncingMonth.value = month
+        viewModelScope.launch {
+            try {
+                salaryHistorySync.syncSingleMonth(month)
+            } finally {
+                // Только в finally: иначе отменённая корутина оставит кружок
+                // крутиться навсегда, и месяц больше не перетянуть.
+                _syncingMonth.value = null
             }
         }
     }
