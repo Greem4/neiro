@@ -18,9 +18,16 @@ data class DaySummaryStats(
     val lost: Double = 0.0,
 )
 
+/**
+ * Сводка дня. Если за этот день есть факт из YClients ([dayFact]), заработок
+ * берётся из него: прошедший день должен показывать начисленное, а не
+ * «цена × занятия» (FOUNDATION 3.4). Интенсивы, заведённые руками, в факте
+ * отсутствуют — они к нему прибавляются, а не заменяются им (GAPS 7).
+ */
 internal fun computeDayStats(
     sessions: List<String>,
     rates: EarningsContext,
+    dayFact: Double? = null,
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
@@ -32,6 +39,7 @@ internal fun computeDayStats(
     var earned = 0.0
     var expected = 0.0
     var lost = 0.0
+    var manualIntensiveEarned = 0.0
 
     val parsed = sessions.map(SessionParser::parse)
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
@@ -57,6 +65,7 @@ internal fun computeDayStats(
                 val actual = session.totalAmount(rates.pricePerIntensiveChild, onlyArrived = true)
                 val planned = session.totalAmount(rates.pricePerIntensiveChild, onlyArrived = false)
                 earned += actual
+                if (session.amountFixed) manualIntensiveEarned += actual
                 expected += (planned - actual).coerceAtLeast(0.0)
             }
 
@@ -103,7 +112,7 @@ internal fun computeDayStats(
         confirmedIntensiveChildren = confirmedIntensiveChildren,
         pendingIntensiveChildren = pendingIntensiveChildren,
         hasIntensive = hasIntensive,
-        earned = earned,
+        earned = if (dayFact != null) dayFact + manualIntensiveEarned else earned,
         expected = expected,
         lost = lost,
     )

@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import ru.greemlab.neiro.data.SalaryLedger
 import ru.greemlab.neiro.domain.models.EarningsContext
 import java.time.LocalDate
 import java.time.YearMonth
@@ -43,12 +44,16 @@ data class ProfileYearStats(
 fun rememberProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    rates: EarningsContext,
-): ProfileYearStats = remember(year, dayData, rates) {
+    profileRates: EarningsContext,
+    ledger: SalaryLedger = SalaryLedger.Empty,
+    staffId: Long = 0L,
+): ProfileYearStats = remember(year, dayData, profileRates, ledger, staffId) {
     computeProfileYearStats(
         year = year,
         dayData = dayData,
-        rates = rates,
+        profileRates = profileRates,
+        ledger = ledger,
+        staffId = staffId,
     )
 }
 
@@ -62,12 +67,19 @@ internal fun elapsedMonthsInYear(year: Int, today: LocalDate): Int = when {
     else -> today.monthValue
 }
 
-/** Годы с данными в календаре + текущий год (по убыванию). */
+/**
+ * Годы с данными в календаре + годы из истории ЗП + текущий год (по убыванию).
+ *
+ * Годы истории обязательны: месяцы, которых нет в локальном календаре
+ * (приложение поставили позже), иначе не покажутся вовсе (FOUNDATION 3.3).
+ */
 fun availableStatsYears(
     dayData: Map<LocalDate, List<String>>,
+    ledgerYears: Set<Int> = emptySet(),
     currentYear: Int = YearMonth.now().year,
 ): List<Int> {
     val years = dayData.keys.map { it.year }.toMutableSet()
+    years += ledgerYears
     years.add(currentYear)
     return years.sortedDescending()
 }
@@ -75,7 +87,9 @@ fun availableStatsYears(
 internal fun computeProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    rates: EarningsContext,
+    profileRates: EarningsContext,
+    ledger: SalaryLedger = SalaryLedger.Empty,
+    staffId: Long = 0L,
     today: LocalDate = LocalDate.now(),
 ): ProfileYearStats {
     var completedSessions = 0
@@ -90,10 +104,44 @@ internal fun computeProfileYearStats(
     }
 
     for (month in 1..12) {
-        val monthStats = computeMonthStats(
-            currentMonth = YearMonth.of(year, month),
+        val currentMonth = YearMonth.of(year, month)
+        val entry = ledger.month(staffId, currentMonth)
+        val local = collectMonthLocalFacts(
             dayData = yearDayData,
-            rates = rates,
+            month = currentMonth,
+            diagnosticsPrice = entry.diagnosticsPriceOr(profileRates),
+            intensivePrice = entry.intensivePriceOr(profileRates),
+        )
+        val monthRates = resolveMonthRates(
+            month = currentMonth,
+            entry = entry,
+            profile = profileRates,
+            today = today,
+            diagnosticsCount = local.diagnosticsCount,
+            diagnosticsSum = local.diagnosticsSum,
+            factIntensiveSum = local.factIntensiveSum,
+        ).rates
+
+        val hasLocalRecords = yearDayData.any { (date, sessions) ->
+            date.monthValue == month && sessions.isNotEmpty()
+        }
+        val factGross = entry?.factGross
+        if (!hasLocalRecords && factGross != null) {
+            // Месяца нет в локальном календаре, но в YClients он есть —
+            // показываем цифрами из истории (FOUNDATION 3.3).
+            val net = monthlyNetProfit(factGross, monthRates.monthlyTaxAmount)
+            val sessions = entry?.factSessions ?: 0
+            completedSessions += sessions
+            monthlyNet[month - 1] = net
+            monthlyCompleted[month - 1] = sessions
+            totalNetEarned += net
+            continue
+        }
+
+        val monthStats = computeMonthStats(
+            currentMonth = currentMonth,
+            dayData = yearDayData,
+            rates = monthRates,
         )
         // Интенсивы в счётчик занятий не входят — это отдельный формат.
         // На деньги это не влияет: их сумма уже учтена в netProfit.
@@ -103,7 +151,7 @@ internal fun computeProfileYearStats(
         totalNetEarned += monthStats.netProfit
     }
 
-    val totalTaxAmount = rates.monthlyTaxAmount * elapsedMonthsInYear(year, today)
+    val totalTaxAmount = profileRates.monthlyTaxAmount * elapsedMonthsInYear(year, today)
 
     return ProfileYearStats(
         year = year,

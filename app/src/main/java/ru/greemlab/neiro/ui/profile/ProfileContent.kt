@@ -82,7 +82,7 @@ fun ProfileContent(
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
     val currentYear = YearMonth.now().year
-    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
+    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear = currentYear) }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
     LaunchedEffect(availableYears) {
         if (selectedYear !in availableYears) {
@@ -93,7 +93,7 @@ fun ProfileContent(
     val yearStats = rememberProfileYearStats(
         year = selectedYear,
         dayData = dayData,
-        rates = rates,
+        profileRates = rates,
     )
 
     ProfileContentImpl(
