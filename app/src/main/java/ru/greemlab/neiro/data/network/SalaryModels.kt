@@ -2,6 +2,7 @@ package ru.greemlab.neiro.data.network
 
 import com.google.gson.Gson
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -19,19 +20,48 @@ internal fun String?.toMoneyOrNull(): Double? =
         ?.replace(',', '.')
         ?.toDoubleOrNull()
 
-data class SalaryDailyResponse(
-    val success: Boolean?,
-    /**
-     * Сырой JSON: `data` у посуточного расчёта — **объект, а не массив**
-     * (`Expected BEGIN_ARRAY but was BEGIN_OBJECT at path $.data`). В
-     * документации показана одна позиция без конверта, форма самого `data` не
-     * описана нигде, поэтому разбираем вручную — [salaryDailyItems].
-     */
-    val data: JsonElement?,
-    val meta: SalaryMeta?,
-)
-
 private val salaryGson = Gson()
+
+/**
+ * Конверт зарплатного ответа, разобранный вручную.
+ *
+ * Типизированной модели у посуточного расчёта больше нет намеренно. Живой ответ
+ * не совпал с документацией дважды подряд: `data` оказался объектом, а не
+ * массивом, следом `meta` — массивом, а не объектом. Каждый раз Gson падал на
+ * конверте целиком, и зарплата не доезжала вообще. Здесь ни одно поле не может
+ * уронить разбор: что не поняли — то пусто.
+ */
+internal class SalaryEnvelope(private val root: JsonElement?) {
+
+    private val obj: JsonObject? = root?.takeIf { it.isJsonObject }?.asJsonObject
+
+    /** `false` только если API прямо это сказал: отсутствие поля отказом не считаем. */
+    val isSuccess: Boolean get() = obj?.get("success").asBooleanOrNull() != false
+
+    val data: JsonElement? get() = obj?.get("data")
+
+    /** Текст отказа: на 422 YClients кладёт сюда объяснение (API-HOWTO 1.3). */
+    val message: String?
+        get() = obj?.get("meta")
+            ?.takeIf { it.isJsonObject }
+            ?.get("message")
+            ?.takeIf { it.isJsonPrimitive }
+            ?.asString
+            ?.takeIf { it.isNotBlank() }
+}
+
+/** `true`, `"true"`, `1` — всё это «да»; что угодно другое — `null`. */
+private fun JsonElement?.asBooleanOrNull(): Boolean? {
+    val primitive = this?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return null
+    return when {
+        primitive.isBoolean -> primitive.asBoolean
+        primitive.isNumber -> primitive.asInt != 0
+        primitive.isString -> primitive.asString.equals("true", ignoreCase = true) ||
+            primitive.asString == "1"
+
+        else -> null
+    }
+}
 
 /**
  * Достаёт посуточные позиции из `data` любой из правдоподобных форм.
@@ -100,7 +130,8 @@ data class SalaryPeriodCalculation(
     val salary: String?,
 )
 
-data class SalaryMeta(val message: String?)
+/** `meta` приходит и объектом с текстом, и пустым массивом — потому сырой. */
+typealias SalaryMeta = JsonElement
 
 data class SalaryCalculationListResponse(
     val success: Boolean?,

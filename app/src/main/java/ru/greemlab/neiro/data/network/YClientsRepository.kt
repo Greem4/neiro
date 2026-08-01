@@ -499,13 +499,15 @@ class YClientsRepository(context: Context) {
                     response.code(),
                 )
             }
-            val body = response.body()
-            if (body?.success != true) {
-                val detail = body?.meta?.message.orEmpty()
-                Log.w(TAG, "salary_daily: success=${body?.success}, meta=$detail")
+            val envelope = SalaryEnvelope(response.body())
+            if (!envelope.isSuccess) {
+                val detail = envelope.message.orEmpty()
+                Log.w(TAG, "salary_daily отказал: $detail")
                 return ApiResult.Error(detail.ifBlank { "ответ без данных" })
             }
-            return ApiResult.Success(parseDayFacts(salaryDailyItems(body.data)))
+            val items = salaryDailyItems(envelope.data)
+            if (items.isEmpty()) Log.w(TAG, "salary_daily: позиций не разобрано")
+            return ApiResult.Success(parseDayFacts(items))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

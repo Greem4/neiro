@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.data.network
 
+import com.google.gson.JsonElement
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -84,7 +85,7 @@ interface YClientsApi {
         @Path("staff_id") staffId: Int,
         @Query("date_from") dateFrom: String,
         @Query("date_to") dateTo: String,
-    ): Response<SalaryDailyResponse>
+    ): Response<JsonElement>
 
     /**
      * Список закрытых начислений за период (месяц → id, сумма).
