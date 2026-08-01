@@ -505,7 +505,7 @@ class YClientsRepository(context: Context) {
                 Log.w(TAG, "salary_daily: success=${body?.success}, meta=$detail")
                 return ApiResult.Error(detail.ifBlank { "ответ без данных" })
             }
-            return ApiResult.Success(parseDayFacts(body.data))
+            return ApiResult.Success(parseDayFacts(salaryDailyItems(body.data)))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

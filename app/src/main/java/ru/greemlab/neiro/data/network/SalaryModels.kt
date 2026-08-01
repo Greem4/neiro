@@ -1,5 +1,7 @@
 package ru.greemlab.neiro.data.network
 
+import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -19,9 +21,68 @@ internal fun String?.toMoneyOrNull(): Double? =
 
 data class SalaryDailyResponse(
     val success: Boolean?,
-    val data: List<SalaryDailyItem>?,
+    /**
+     * Сырой JSON: `data` у посуточного расчёта — **объект, а не массив**
+     * (`Expected BEGIN_ARRAY but was BEGIN_OBJECT at path $.data`). В
+     * документации показана одна позиция без конверта, форма самого `data` не
+     * описана нигде, поэтому разбираем вручную — [salaryDailyItems].
+     */
+    val data: JsonElement?,
     val meta: SalaryMeta?,
 )
+
+private val salaryGson = Gson()
+
+/**
+ * Достаёт посуточные позиции из `data` любой из правдоподобных форм.
+ *
+ * Живой ответ никто не видел, а сломаться на форме нельзя: до этого разбора
+ * зарплата не доезжала вообще, и вся история считалась по цене профиля.
+ * Понимаем три варианта:
+ *
+ *  - массив позиций — как в документации;
+ *  - объект `{"2025-01-16": {...}}` — ключ и есть дата;
+ *  - объект-обёртка, внутри которого лежит массив позиций.
+ *
+ * Всё, что не разобралось, молча пропускается: одна незнакомая позиция не
+ * должна уносить с собой остальной месяц.
+ */
+internal fun salaryDailyItems(data: JsonElement?): List<SalaryDailyItem> {
+    if (data == null || data.isJsonNull) return emptyList()
+    if (data.isJsonArray) return data.asJsonArray.mapNotNull { it.toDailyItem(key = null) }
+    if (!data.isJsonObject) return emptyList()
+
+    val obj = data.asJsonObject
+
+    // Карта «дата → расчёт»: ключ становится датой, если внутри её нет.
+    val byKey = obj.entrySet().mapNotNull { (key, value) -> value.toDailyItem(key = key) }
+    if (byKey.isNotEmpty()) return byKey
+
+    // Обёртка: где-то внутри массив позиций.
+    val nested = obj.entrySet().firstOrNull { it.value.isJsonArray }?.value
+    return nested?.asJsonArray?.mapNotNull { it.toDailyItem(key = null) }.orEmpty()
+}
+
+/**
+ * Одна позиция: либо `{date, period_calculation}`, либо сам расчёт, у которого
+ * дата вынесена в ключ объекта.
+ */
+private fun JsonElement.toDailyItem(key: String?): SalaryDailyItem? {
+    if (!isJsonObject) return null
+
+    val asItem = runCatching {
+        salaryGson.fromJson(this, SalaryDailyItem::class.java)
+    }.getOrNull()
+    val date = asItem?.date ?: key ?: return null
+    asItem?.calculation?.let { return SalaryDailyItem(date = date, calculation = it) }
+
+    // Вложенного period_calculation нет — значит расчёт лежит здесь же.
+    val asCalculation = runCatching {
+        salaryGson.fromJson(this, SalaryPeriodCalculation::class.java)
+    }.getOrNull() ?: return null
+    if (asCalculation.salary == null && asCalculation.servicesCount == null) return null
+    return SalaryDailyItem(date = date, calculation = asCalculation)
+}
 
 data class SalaryDailyItem(
     val date: String?,
