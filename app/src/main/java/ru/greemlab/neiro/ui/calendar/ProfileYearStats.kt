@@ -143,27 +143,22 @@ internal fun computeProfileYearStats(
     for (month in 1..12) {
         val currentMonth = YearMonth.of(year, month)
         val entry = ledger.month(staffId, currentMonth)
-        val local = collectMonthLocalFacts(
+        // Тот же расчёт, что и на календарном экране: месяц не может стоить
+        // здесь одного, а в календаре — другого.
+        val earnings = computeMonthEarnings(
+            month = currentMonth,
             dayData = yearDayData,
-            month = currentMonth,
-            diagnosticsPrice = entry.diagnosticsPriceOr(profileRates),
-            intensivePrice = entry.intensivePriceOr(profileRates),
-        )
-        val resolvedRates = resolveMonthRates(
-            month = currentMonth,
+            profileRates = profileRates,
             entry = entry,
-            profile = profileRates,
             today = today,
-            diagnosticsCount = local.diagnosticsCount,
-            diagnosticsSum = local.diagnosticsSum,
-            factIntensiveSum = local.factIntensiveSum,
         )
-        val monthRates = resolvedRates.rates
+        val local = earnings.local
+        val monthRates = earnings.rates
         val factGross = entry?.factGross
         val services = entry?.factSessions ?: local.services
         monthsMeta[month - 1] = MonthPriceMeta(
             origin = entry?.origin ?: PriceOrigin.AUTO,
-            source = resolvedRates.source,
+            source = earnings.source,
             resolved = entry?.resolved ?: true,
             frozen = entry?.frozen ?: false,
             pricePerSession = monthRates.pricePerSession,
@@ -183,50 +178,9 @@ internal fun computeProfileYearStats(
             billableSessions = (services - local.diagnosticsCount).coerceAtLeast(0),
         )
 
-        val monthStats = computeMonthStats(
-            currentMonth = currentMonth,
-            dayData = yearDayData,
-            rates = monthRates,
-        )
-
-        // Деньги прошлого месяца — это начисление YClients целиком, а не
-        // «цена × занятия»: локальный календарь может не досчитать занятий, и
-        // перемножением получилось бы меньше, чем реально заплатили.
-        //
-        // Ручную цену пересчитываем по календарю: её ставят как раз затем, чтобы
-        // разойтись с фактом (февраль–май 2026 — YClients считал по 1500 из-за
-        // старой схемы percent, на руки было 1400, HISTORY §1).
-        val factMoney = factGross?.takeIf {
-            it > 0.0 &&
-                currentMonth.isBefore(YearMonth.from(today)) &&
-                entry?.origin != PriceOrigin.MANUAL
-        }
-        val hasLocalRecords = yearDayData.any { (date, sessions) ->
-            date.monthValue == month && sessions.isNotEmpty()
-        }
-        val factSessions = entry?.factSessions
-        val net = when {
-            // Интенсивы, заведённые руками, в начисление не попали — их деньги
-            // существуют только в приложении и прибавляются к факту.
-            factMoney != null ->
-                monthlyNetProfit(factMoney + local.manualIntensiveSum, monthRates.monthlyTaxAmount)
-
-            // Ручная цена на месяце, которого нет в локальном календаре
-            // (приложение поставили позже): занятия берём из API, иначе правка
-            // цены обнулила бы месяц с живым начислением.
-            !hasLocalRecords && factSessions != null && monthRates.pricePerSession > 0.0 ->
-                monthlyNetProfit(
-                    monthRates.pricePerSession * factSessions,
-                    monthRates.monthlyTaxAmount,
-                )
-
-            else -> monthStats.netProfit
-        }
-
         // Интенсивы в счётчик занятий не входят — это отдельный формат.
-        // Месяц без локальных записей считаем по числу услуг из API: иначе
-        // история до установки приложения покажет деньги без занятий.
-        val completed = if (hasLocalRecords) monthStats.completedCount else factSessions ?: 0
+        val completed = earnings.completedCount
+        val net = earnings.stats.netProfit
 
         completedSessions += completed
         monthlyNet[month - 1] = net

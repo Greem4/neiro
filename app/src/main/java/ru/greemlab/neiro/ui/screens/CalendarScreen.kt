@@ -46,7 +46,7 @@ import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
-import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
+import ru.greemlab.neiro.ui.calendar.rememberMonthEarnings
 import ru.greemlab.neiro.ui.components.*
 import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
@@ -189,19 +189,26 @@ fun CalendarScreen(
         highlightSlotKey = null
     }
 
-    val rates = remember(profile) { profile.earningsContext() }
     val salaryLedger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
     val salaryStaffId = profileViewModel.salaryStaffId
+    val profileRates = remember(profile) { profile.earningsContext() }
+    // Цены и деньги месяца: за прошлое их называет начисление YClients, профиль
+    // правит только текущий и будущие месяцы. Правка цены в профиле не должна
+    // переписывать историю (RUN-LOG, «Смена модели после прогона»).
+    val monthEarnings = rememberMonthEarnings(
+        month = currentMonth,
+        dayData = currentMonthDayData,
+        profileRates = profileRates,
+        ledger = salaryLedger,
+        staffId = salaryStaffId,
+    )
+    val rates = monthEarnings.rates
+    val stats = monthEarnings.stats
     // Прошедший день показывает начисленное YClients, а не «цена × занятия»
     // (FOUNDATION 3.4). Факта за будущее в истории нет по определению.
     val selectedDayFact = remember(salaryLedger, salaryStaffId, selectedDate) {
         selectedDate?.let { salaryLedger.dayFact(salaryStaffId, it) }
     }
-    val stats = rememberCalendarMonthStats(
-        currentMonth = currentMonth,
-        dayData = currentMonthDayData,
-        rates = rates,
-    )
 
     val context = LocalContext.current
     val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
@@ -442,7 +449,7 @@ fun CalendarScreen(
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayContext.effective,
-                    userProfile = profile,
+                    rates = rates,
                     isArchived = isArchived,
                     archiveMismatch = archiveMismatch,
                     archiveMismatchDetails = archiveMismatchDetails,
