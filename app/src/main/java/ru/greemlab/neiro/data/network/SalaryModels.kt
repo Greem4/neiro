@@ -42,12 +42,13 @@ internal class SalaryEnvelope(private val root: JsonElement?) {
 
     /** Текст отказа: на 422 YClients кладёт сюда объяснение (API-HOWTO 1.3). */
     val message: String?
-        get() = obj?.get("meta")
-            ?.takeIf { it.isJsonObject }
-            ?.get("message")
-            ?.takeIf { it.isJsonPrimitive }
-            ?.asString
-            ?.takeIf { it.isNotBlank() }
+        get() {
+            // `meta` бывает и объектом с текстом, и пустым массивом — приводим
+            // к объекту, иначе `get` брать не у чего.
+            val meta = obj?.get("meta")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+            val text = meta.get("message")?.takeIf { it.isJsonPrimitive } ?: return null
+            return text.asString.takeIf { it.isNotBlank() }
+        }
 }
 
 /** `true`, `"true"`, `1` — всё это «да»; что угодно другое — `null`. */

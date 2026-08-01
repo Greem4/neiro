@@ -537,7 +537,8 @@ class YClientsRepository(context: Context) {
         today: LocalDate = LocalDate.now(),
     ): Map<YearMonth, SalaryRatesFromApi> = withContext(Dispatchers.IO) {
         val generation = sessionGeneration.get()
-        val staff = tokenStorage.staffId ?: return@withContext emptyMap()
+        val staff = tokenStorage.staffId
+            ?: return@withContext emptyMap<YearMonth, SalaryRatesFromApi>()
 
         val rates = mutableMapOf<YearMonth, SalaryRatesFromApi>()
         for (period in splitSalaryPeriods(from, to, today)) {
