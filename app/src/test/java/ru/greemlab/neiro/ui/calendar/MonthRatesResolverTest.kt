@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.MonthEntry
@@ -208,6 +209,95 @@ class MonthRatesResolverTest {
         assertEquals(2000.0, resolved.rates.pricePerDiagnostics, 0.0)
         assertEquals(1250.0, resolved.rates.pricePerIntensiveChild, 0.0)
         assertEquals(6000.0, resolved.rates.monthlyTaxAmount, 0.0)
+    }
+
+    @Test
+    fun `frozen month keeps its stored price instead of recomputing`() {
+        // «Закрыт» значит «не пересчитывай»: месяц заморожен по цене приложения
+        // 1400, хотя из факта вышло бы 1500 (FOUNDATION 4).
+        val frozen = MonthEntry(
+            staffId = 1L,
+            year = 2026,
+            month = 3,
+            sessions = 80,
+            pricePerSession = 1400.0,
+            factGross = 120_000.0,
+            factSessions = 80,
+            frozen = true,
+            resolved = false,
+        )
+        val resolved = resolveMonthRates(
+            month = YearMonth.of(2026, 3),
+            entry = frozen,
+            profile = profile,
+            today = today,
+        )
+        assertEquals(1400.0, resolved.rates.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `session price from fact returns null when there is nothing to divide`() {
+        assertNull(
+            sessionPriceFromFact(
+                factGross = 12_050.0,
+                services = 1,
+                diagnosticsCount = 1,
+                diagnosticsSum = 2250.0,
+                factIntensiveSum = 0.0,
+            ),
+        )
+        assertNull(
+            sessionPriceFromFact(
+                factGross = 2250.0,
+                services = 8,
+                diagnosticsCount = 1,
+                diagnosticsSum = 2250.0,
+                factIntensiveSum = 0.0,
+            ),
+        )
+        assertEquals(
+            1400.0,
+            sessionPriceFromFact(
+                factGross = 12_050.0,
+                services = 8,
+                diagnosticsCount = 1,
+                diagnosticsSum = 2250.0,
+                factIntensiveSum = 0.0,
+            )!!,
+            0.0,
+        )
+    }
+
+    @Test
+    fun `local facts count services like yclients does`() {
+        val intensive = SessionFormat.serializeIntensive(
+            price = "",
+            name = "Интенсив",
+            status = AttendanceStatus.ARRIVED,
+            time = "18:00-18:50",
+            children = listOf(Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED)),
+        )
+        val dayData = mapOf(
+            LocalDate.of(2026, 6, 19) to listOf(
+                "Иванов|3",
+                "Петров|3",
+                "Сидоров|0", // ещё не пришёл — в услуги месяца не идёт
+                "__DIAGNOSTICS__:2250|Аня|3",
+                intensive,
+                // Ученик на слоте интенсива — та же услуга, второй раз не считаем.
+                "Дима|3|18:00-18:50",
+            ),
+        )
+
+        val facts = collectMonthLocalFacts(
+            dayData = dayData,
+            month = YearMonth.of(2026, 6),
+            diagnosticsPrice = 2250.0,
+            intensivePrice = 1400.0,
+        )
+
+        assertEquals(3, facts.services)
+        assertEquals(1, facts.diagnosticsCount)
     }
 
     @Test

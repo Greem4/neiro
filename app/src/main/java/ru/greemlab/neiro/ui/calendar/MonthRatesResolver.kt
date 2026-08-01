@@ -19,6 +19,11 @@ data class ResolvedRates(val rates: EarningsContext, val source: PriceSource)
  * + 11 200), заведённые руками — нет (GAPS 7).
  */
 data class MonthLocalFacts(
+    /**
+     * Занятия и диагностики вместе — как `services_count` в YClients.
+     * Интенсивы сюда не входят: у них свой счётчик `group_services_count`.
+     */
+    val services: Int = 0,
     val diagnosticsCount: Int = 0,
     val diagnosticsSum: Double = 0.0,
     /** Интенсивы из API: их деньги уже внутри `factGross`, до деления вычитаются. */
@@ -51,12 +56,21 @@ fun resolveMonthRates(
     if (entry == null) return byProfile
     if (entry.origin == PriceOrigin.MANUAL) return ResolvedRates(entry.rates(), PriceSource.MANUAL)
 
+    // Закрытый месяц не пересчитывается — у него уже есть своя цена (FOUNDATION 4).
+    if (entry.frozen && entry.pricePerSession > 0.0) {
+        return ResolvedRates(entry.rates(), PriceSource.PROFILE)
+    }
+
     // factGross == 0.0 — это факт «за месяц ноль», а не «факта нет».
     val factGross = entry.factGross ?: return byProfile
 
-    val base = factGross - diagnosticsSum - factIntensiveSum
-    val divisor = (entry.factSessions ?: entry.sessions) - diagnosticsCount
-    val sessionPrice = if (divisor > 0 && base > 0.0) base / divisor else profile.pricePerSession
+    val sessionPrice = sessionPriceFromFact(
+        factGross = factGross,
+        services = entry.factSessions ?: entry.sessions,
+        diagnosticsCount = diagnosticsCount,
+        diagnosticsSum = diagnosticsSum,
+        factIntensiveSum = factIntensiveSum,
+    ) ?: profile.pricePerSession
 
     return ResolvedRates(
         rates = EarningsContext(
@@ -67,6 +81,26 @@ fun resolveMonthRates(
         ),
         source = PriceSource.FACT,
     )
+}
+
+/**
+ * Цена занятия, вытекающая из факта YClients:
+ * `(факт − диагностики − интенсивы) ÷ занятия`.
+ *
+ * Контрольный день 19.06.2026: `(12 050 − 2250) ÷ 7 = 1400`, а не `12 050 ÷ 8 = 1506`.
+ * Возвращает `null`, если делить нечего или не на что — тогда цену даёт профиль.
+ */
+fun sessionPriceFromFact(
+    factGross: Double,
+    services: Int,
+    diagnosticsCount: Int,
+    diagnosticsSum: Double,
+    factIntensiveSum: Double,
+): Double? {
+    val base = factGross - diagnosticsSum - factIntensiveSum
+    val divisor = services - diagnosticsCount
+    if (divisor <= 0 || base <= 0.0) return null
+    return base / divisor
 }
 
 /** Цена диагностики месяца: из записи, если задана, иначе из профиля. */
@@ -91,6 +125,7 @@ internal fun collectMonthLocalFacts(
     diagnosticsPrice: Double,
     intensivePrice: Double,
 ): MonthLocalFacts {
+    var services = 0
     var diagnosticsCount = 0
     var diagnosticsSum = 0.0
     var factIntensiveSum = 0.0
@@ -98,11 +133,13 @@ internal fun collectMonthLocalFacts(
 
     for ((date, sessions) in dayData) {
         if (date.year != month.year || date.monthValue != month.monthValue) continue
-        for (raw in sessions) {
-            val session = SessionParser.parse(raw)
+        val parsed = sessions.map(SessionParser::parse)
+        val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
+        for (session in parsed) {
             if (!session.countsTowardEarnings()) continue
             when (session) {
                 is Session.Diagnostics -> {
+                    services++
                     diagnosticsCount++
                     // Цену берём из самой записи: в ней лежит ставка, актуальная
                     // на момент синхронизации, а не сегодняшняя из профиля.
@@ -118,12 +155,17 @@ internal fun collectMonthLocalFacts(
                     }
                 }
 
-                is Session.Student -> Unit
+                is Session.Student -> {
+                    // Ученик на слоте интенсива — та же запись, что и ребёнок
+                    // интенсива: в индивидуальные услуги он не входит.
+                    if (!isStudentCoveredByIntensive(session, intensiveChildrenByTime)) services++
+                }
             }
         }
     }
 
     return MonthLocalFacts(
+        services = services,
         diagnosticsCount = diagnosticsCount,
         diagnosticsSum = diagnosticsSum,
         factIntensiveSum = factIntensiveSum,
