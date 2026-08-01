@@ -35,8 +35,13 @@ data class MonthAppView(
     val diagnosticsCount: Int = 0,
     /** Цена занятия, по которой приложение показывало этот месяц. */
     val pricePerSession: Double = 0.0,
-    /** Цена занятия, вытекающая из факта YClients (после вычетов). */
+    /**
+     * Цена занятия по данным YClients: самая частая ставка среди позиций
+     * начисления, а если позиций не достали — деление начисления на занятия.
+     */
     val factPricePerSession: Double? = null,
+    /** Цена диагностики из позиций начисления, если она там была. */
+    val factPriceDiagnostics: Double? = null,
 )
 
 /** Расхождение факта YClients и цены приложения (FOUNDATION 4). */
@@ -142,7 +147,10 @@ fun mergeFact(
         month = fact.month.monthValue,
         sessions = if (app.services > 0) app.services else existing?.sessions ?: 0,
         pricePerSession = pricePerSession,
-        priceDiagnostics = existing?.priceDiagnostics?.takeIf { it > 0.0 }
+        // Диагностика тоже приходит из позиций начисления — отдельной услугой
+        // со своей ставкой. Цена профиля остаётся запасным вариантом.
+        priceDiagnostics = app.factPriceDiagnostics
+            ?: existing?.priceDiagnostics?.takeIf { it > 0.0 }
             ?: profile.pricePerDiagnostics,
         priceIntensiveChild = existing?.priceIntensiveChild?.takeIf { it > 0.0 }
             ?: profile.pricePerIntensiveChild,

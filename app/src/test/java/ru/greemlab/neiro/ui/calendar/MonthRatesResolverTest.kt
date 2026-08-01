@@ -244,26 +244,41 @@ class MonthRatesResolverTest {
     }
 
     @Test
-    fun `reopened month is recalculated from the fact again`() {
-        // Разморозили — значит попросили посчитать заново: 120 000 ÷ 80 = 1500.
-        val reopened = MonthEntry(
+    fun `price from calculation items wins over dividing the fact`() {
+        // Август 2025 живьём: 70 занятий по 1400 и 30 по 1250, начислено 135 500.
+        // Деление дало бы 1355 — цену, которой не было ни у одного занятия.
+        // В записи лежит 1400, взятая из позиций начисления, — её и показываем.
+        val august = MonthEntry(
             staffId = 1L,
-            year = 2026,
-            month = 3,
-            sessions = 80,
+            year = 2025,
+            month = 8,
+            sessions = 100,
             pricePerSession = 1400.0,
-            factGross = 120_000.0,
-            factSessions = 80,
+            factGross = 135_500.0,
+            factSessions = 100,
             frozen = false,
         )
         val resolved = resolveMonthRates(
-            month = YearMonth.of(2026, 3),
-            entry = reopened,
+            month = YearMonth.of(2025, 8),
+            entry = august,
             profile = profile,
             today = today,
         )
         assertEquals(PriceSource.FACT, resolved.source)
-        assertEquals(1500.0, resolved.rates.pricePerSession, 0.0)
+        assertEquals(1400.0, resolved.rates.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `division is the fallback when the month has no price of its own`() {
+        // Позиции начисления не достали — нет прав, офлайн или месяц не проведён.
+        val resolved = resolveMonthRates(
+            month = YearMonth.of(2026, 3),
+            entry = entry(sessions = 80, factGross = 112_000.0, factSessions = 80),
+            profile = profile,
+            today = today,
+        )
+        assertEquals(PriceSource.FACT, resolved.source)
+        assertEquals(1400.0, resolved.rates.pricePerSession, 0.0)
     }
 
     @Test

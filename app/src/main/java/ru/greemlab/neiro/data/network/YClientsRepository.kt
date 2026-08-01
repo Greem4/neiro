@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -520,6 +521,48 @@ class YClientsRepository(context: Context) {
     }
 
     /**
+     * Ставки каждого месяца из позиций его начисления.
+     *
+     * Единственный честный источник цены занятия. Делить начисление на число
+     * услуг нельзя: в августе 2025 внутри 70 занятий по 1400 и 30 по 1250 (люди
+     * доходили по старым абонементам), и деление даёт 1355 — число, которого
+     * не существовало ни у одного занятия. В позициях же видно каждую ставку,
+     * диагностика отличается названием, а интенсив — типом `activity`.
+     *
+     * Молчит при любой ошибке: не вышло — останется расчёт делением.
+     */
+    suspend fun fetchMonthlySalaryRates(
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate = LocalDate.now(),
+    ): Map<YearMonth, SalaryRatesFromApi> = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.get()
+        val staff = tokenStorage.staffId ?: return@withContext emptyMap()
+
+        val rates = mutableMapOf<YearMonth, SalaryRatesFromApi>()
+        for (period in splitSalaryPeriods(from, to, today)) {
+            val calculations = when (val result = requestCalculations(staff, period, generation)) {
+                is ApiResult.Success -> result.data
+                is ApiResult.Error -> continue
+            }
+            for (calculation in calculations) {
+                val id = calculation.id ?: continue
+                // Непроведённое начисление ещё меняется — ставку из него не берём.
+                if (!calculation.isConfirmed) continue
+                val month = calculation.dateFrom?.take(7)?.let { raw ->
+                    runCatching { YearMonth.parse(raw) }.getOrNull()
+                } ?: continue
+                if (rates.containsKey(month)) continue
+                val monthRates = requestCalculationRates(staff, id, generation)
+                if (monthRates is ApiResult.Success && !monthRates.data.isEmpty) {
+                    rates[month] = monthRates.data
+                }
+            }
+        }
+        rates
+    }
+
+    /**
      * Ставки из детализации последнего закрытого начисления (FOUNDATION 6.2).
      *
      * Начисление создаётся в конце месяца, поэтому за текущий месяц список
@@ -552,6 +595,34 @@ class YClientsRepository(context: Context) {
         period: ClosedRange<LocalDate>,
         generation: Int,
     ): ApiResult<Long?> {
+        val all = when (val result = requestCalculations(staffId, period, generation)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> return result
+        }
+        // Ставки берём из проведённого начисления: у закрытых месяцев
+        // status = confirmed. Если проведённых нет — смотрим все, лучше
+        // приблизительная ставка, чем никакой.
+        val items = all.filter { it.isConfirmed }.ifEmpty { all }
+        // Свежесть — по date_to; если его нет, берём наибольший id.
+        val latest = items.maxWithOrNull(
+            compareBy<SalaryCalculationSummary>(
+                { summary ->
+                    summary.dateTo?.take(10)?.let { raw ->
+                        runCatching { LocalDate.parse(raw) }.getOrNull()
+                    }
+                },
+                { summary -> summary.id },
+            ),
+        )
+        return ApiResult.Success(latest?.id)
+    }
+
+    /** Начисления периода: месяц, сумма, признак «проведено». */
+    private suspend fun requestCalculations(
+        staffId: Int,
+        period: ClosedRange<LocalDate>,
+        generation: Int,
+    ): ApiResult<List<SalaryCalculationSummary>> {
         try {
             val response = api.getSalaryCalculations(
                 companyId = tokenStorage.companyId,
@@ -564,29 +635,11 @@ class YClientsRepository(context: Context) {
                 Log.w(TAG, "salary calculation list вернул HTTP ${response.code()}")
                 return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
             }
-            val envelope = SalaryEnvelope(response.body())
-            val all = salaryCalculations(envelope.data)
-            // Ставки берём только из проведённого начисления: у закрытых месяцев
-            // status = confirmed. Если проведённых нет — смотрим все, лучше
-            // приблизительная ставка, чем никакой.
-            val items = all.filter { it.isConfirmed }.ifEmpty { all }
-            // Свежесть — по date_to; если его нет, берём наибольший id.
-            val latest = items
-                .maxWithOrNull(
-                    compareBy<SalaryCalculationSummary>(
-                        { summary ->
-                            summary.dateTo?.take(10)?.let { raw ->
-                                runCatching { LocalDate.parse(raw) }.getOrNull()
-                            }
-                        },
-                        { summary -> summary.id },
-                    ),
-                )
-            return ApiResult.Success(latest?.id)
+            return ApiResult.Success(salaryCalculations(SalaryEnvelope(response.body()).data))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Запрос зарплаты не удался", e)
+            Log.w(TAG, "Запрос списка начислений не удался", e)
             return ApiResult.Error("")
         }
     }

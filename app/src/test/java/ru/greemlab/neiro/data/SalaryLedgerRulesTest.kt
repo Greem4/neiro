@@ -261,6 +261,29 @@ class SalaryLedgerRulesTest {
     }
 
     @Test
+    fun `rates from calculation items win over the profile`() {
+        // Июнь 2026 живьём: 103 занятия по 1400 и одна диагностика по 2250.
+        // Обе ставки видны в позициях начисления — цена профиля тут ни при чём.
+        val merged = mergeFact(
+            existing = null,
+            fact = fact(174_450.0, 116),
+            app = MonthAppView(
+                services = 116,
+                diagnosticsCount = 1,
+                pricePerSession = 9_999.0,
+                factPricePerSession = 1_400.0,
+                factPriceDiagnostics = 2_250.0,
+            ),
+            profile = profile.copy(pricePerDiagnostics = 4_500.0),
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 10),
+        )
+
+        assertEquals(1_400.0, merged.pricePerSession, 0.0)
+        assertEquals(2_250.0, merged.priceDiagnostics, 0.0)
+    }
+
+    @Test
     fun `closed month is never rewritten by sync`() {
         // Месяц кончился, ЗП выдана, начисление получено — считать заново нечего.
         // Даже если YClients вдруг отдаст другие числа, закрытый месяц молчит:

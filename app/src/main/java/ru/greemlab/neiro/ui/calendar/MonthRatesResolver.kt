@@ -69,23 +69,20 @@ fun resolveMonthRates(
     if (entry == null) return byProfile
     if (entry.origin == PriceOrigin.MANUAL) return ResolvedRates(entry.rates(), PriceSource.MANUAL)
 
-    // Закрытый месяц уже посчитан и лежит в истории числом — его и показываем,
-    // ничего не выводя заново. Цена там та самая, что вывелась из начисления
-    // при закрытии месяца, а число занятий в календаре с тех пор могло съехать.
-    if (entry.frozen && entry.pricePerSession > 0.0) {
+    // Цена месяца уже посчитана и лежит в истории — её и показываем, ничего не
+    // выводя заново. Она взята из позиций начисления, где видна ставка каждого
+    // занятия. Делить начисление на число занятий здесь нельзя: в августе 2025
+    // прошло 70 занятий по 1400 и 30 по 1250, и деление дало бы 1355 — цену,
+    // которой не было ни у одного занятия.
+    if (entry.pricePerSession > 0.0) {
         return ResolvedRates(
             rates = entry.ratesOr(profile),
             source = if (entry.factGross != null) PriceSource.FACT else PriceSource.PROFILE,
         )
     }
 
-    // Цена, которой закрылся месяц, — на случай, когда факта не будет.
-    val storedRates = if (entry.pricePerSession > 0.0) {
-        ResolvedRates(entry.ratesOr(profile), PriceSource.PROFILE)
-    } else {
-        byProfile
-    }
-
+    // Своей цены у месяца нет — позиции начисления не достали (нет прав,
+    // офлайн, месяц ещё не проведён). Тогда только и остаётся деление.
     val factPrice = entry.factGross?.let { factGross ->
         sessionPriceFromFact(
             factGross = factGross,
@@ -94,7 +91,7 @@ fun resolveMonthRates(
             diagnosticsSum = diagnosticsSum,
             factIntensiveSum = factIntensiveSum,
         )
-    } ?: return storedRates
+    } ?: return byProfile
 
     return ResolvedRates(
         rates = EarningsContext(

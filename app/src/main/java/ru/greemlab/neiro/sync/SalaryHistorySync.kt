@@ -220,6 +220,11 @@ class SalaryHistorySync private constructor(context: Context) {
 
         var merged = 0
 
+        // Ставки из позиций начисления — единственный честный источник цены
+        // занятия: в месяце со смесью ставок деление даёт число, которого не
+        // было ни у одного занятия. Не достали — останется деление.
+        val ratesByMonth = repository.fetchMonthlySalaryRates(from, to, today)
+
         val profile = calendarRepository.userProfileFlow.first().earningsContext()
         val dayData = calendarRepository.dayDataFlow.first()
         val factsByMonth = facts.entries.groupBy { YearMonth.from(it.key) }
@@ -255,6 +260,7 @@ class SalaryHistorySync private constructor(context: Context) {
                 val hasAnything = fact.gross > 0.0 || fact.services > 0 || local.services > 0
                 if (existing == null && !hasAnything) continue
 
+                val apiRates = ratesByMonth[month]
                 val app = MonthAppView(
                     services = local.services,
                     diagnosticsCount = local.diagnosticsCount,
@@ -262,13 +268,15 @@ class SalaryHistorySync private constructor(context: Context) {
                     // иначе текущая из профиля.
                     pricePerSession = existing?.pricePerSession?.takeIf { it > 0.0 }
                         ?: profile.pricePerSession,
-                    factPricePerSession = sessionPriceFromFact(
-                        factGross = fact.gross,
-                        services = fact.services,
-                        diagnosticsCount = local.diagnosticsCount,
-                        diagnosticsSum = local.diagnosticsSum,
-                        factIntensiveSum = local.factIntensiveSum,
-                    ),
+                    factPricePerSession = apiRates?.pricePerSession
+                        ?: sessionPriceFromFact(
+                            factGross = fact.gross,
+                            services = fact.services,
+                            diagnosticsCount = local.diagnosticsCount,
+                            diagnosticsSum = local.diagnosticsSum,
+                            factIntensiveSum = local.factIntensiveSum,
+                        ),
+                    factPriceDiagnostics = apiRates?.pricePerDiagnostics,
                 )
                 next = next.withMonth(
                     mergeFact(
