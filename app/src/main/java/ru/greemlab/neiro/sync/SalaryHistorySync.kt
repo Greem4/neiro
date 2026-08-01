@@ -12,6 +12,7 @@ import ru.greemlab.neiro.data.SalaryLedgerStore
 import ru.greemlab.neiro.data.mergeFact
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.ui.calendar.collectMonthLocalFacts
 import ru.greemlab.neiro.ui.calendar.diagnosticsPriceOr
@@ -37,10 +38,11 @@ class SalaryHistorySync private constructor(context: Context) {
     private val repository = YClientsRepository.getInstance(appContext)
     private val ledgerStore = SalaryLedgerStore.get(appContext)
     private val calendarRepository: CalendarRepository = CalendarDataStoreProvider.get(appContext)
+    private val syncPreferences = SyncPreferences.get(appContext)
 
     /** Текущий месяц каждый синк + прошлый, пока он не заморожен. */
-    suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()) {
-        val staffId = staffIdOrNull() ?: return
+    suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()): Boolean {
+        val staffId = staffIdOrNull() ?: return false
         ledgerStore.warmUp()
         updateAutoProfileRates()
 
@@ -48,18 +50,73 @@ class SalaryHistorySync private constructor(context: Context) {
         val previousFrozen = ledgerStore.ledger.value.month(staffId, previousMonth)?.frozen == true
         val from = if (previousFrozen) YearMonth.from(today).atDay(1) else previousMonth.atDay(1)
 
-        pull(staffId = staffId, from = from, to = today, today = today)
+        return pull(staffId = staffId, from = from, to = today, today = today)
     }
 
     /**
      * Вся история: первый логин и кнопка «перетянуть». `factGross`
-     * перезаписывается свежим значением, ручное не трогается.
+     * перезаписывается свежим значением, ручное и закрытые месяцы не трогаются.
+     *
+     * @return `true`, если факт реально получен и записан.
      */
-    suspend fun syncFullHistory(from: LocalDate, today: LocalDate = LocalDate.now()) {
-        val staffId = staffIdOrNull() ?: return
+    suspend fun syncFullHistory(from: LocalDate, today: LocalDate = LocalDate.now()): Boolean {
+        val staffId = staffIdOrNull() ?: return false
         ledgerStore.warmUp()
         updateAutoProfileRates()
-        pull(staffId = staffId, from = from, to = today, today = today)
+        return pull(staffId = staffId, from = from, to = today, today = today)
+    }
+
+    /**
+     * Первое заполнение истории — один раз за установку.
+     *
+     * Не зависит ни от календарного синка, ни от [SyncPreferences.hasCompletedInitialFullSync]:
+     * деньги приходят из начисления YClients, локальные записи им не нужны, а
+     * старый флаг у всех уже взведён — по нему история не заполнилась бы никогда.
+     * Флаг ставится только при реально полученном факте, иначе офлайн при первом
+     * запуске оставил бы статистику пустой навсегда.
+     *
+     * @return `true`, если историю подтянули именно сейчас.
+     */
+    suspend fun ensureHistoryPulledOnce(today: LocalDate = LocalDate.now()): Boolean {
+        if (syncPreferences.hasCompletedSalaryHistorySync) return false
+        val staffId = staffIdOrNull() ?: return false
+        ledgerStore.warmUp()
+        reopenAutoMonths(staffId)
+        val pulled = syncFullHistory(from = historyStart(today), today = today)
+        if (pulled) syncPreferences.markSalaryHistorySyncComplete()
+        return pulled
+    }
+
+    /**
+     * Снимает заморозку со всех АВТО-месяцев перед первым заполнением.
+     *
+     * Ранние сборки закрывали месяц по цене профиля, а не по начислению, и такая
+     * запись уже лежит в истории. Заморозка теперь означает «не пересчитывать»,
+     * и без этого шага неверная цена законсервировалась бы навсегда. Ручные
+     * месяцы не трогаем: их цену ставил человек, она правде не подлежит.
+     */
+    private suspend fun reopenAutoMonths(staffId: Long) {
+        ledgerStore.update { ledger ->
+            val reopened = ledger.months.values.filter {
+                it.staffId == staffId && it.frozen && it.origin != PriceOrigin.MANUAL
+            }
+            if (reopened.isEmpty()) return@update ledger
+            reopened.fold(ledger) { acc, entry -> acc.withMonth(entry.copy(frozen = false)) }
+        }
+    }
+
+    /**
+     * Начало истории: 36 месяцев назад или первый день локального календаря,
+     * если он старше. Та же глубина, что и у полной синхронизации календаря.
+     */
+    private suspend fun historyStart(today: LocalDate): LocalDate {
+        val default = YearMonth.from(today).minusMonths(HISTORY_DEPTH_MONTHS).atDay(1)
+        val earliestLocal = calendarRepository.dayDataFlow.first().keys.minOrNull()
+        return if (earliestLocal != null) {
+            minOf(earliestLocal.withDayOfMonth(1), default)
+        } else {
+            default
+        }
     }
 
     /**
@@ -93,15 +150,20 @@ class SalaryHistorySync private constructor(context: Context) {
         return staffId
     }
 
-    private suspend fun pull(staffId: Long, from: LocalDate, to: LocalDate, today: LocalDate) {
+    private suspend fun pull(
+        staffId: Long,
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate,
+    ): Boolean {
         val facts = when (val result = repository.fetchSalaryDaily(from, to, today)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> {
                 Log.w(TAG, "Факт ЗП не получен (code=${result.code}) — считаем по цене профиля")
-                return
+                return false
             }
         }
-        if (facts.isEmpty()) return
+        if (facts.isEmpty()) return false
 
         val profile = calendarRepository.userProfileFlow.first().earningsContext()
         val dayData = calendarRepository.dayDataFlow.first()
@@ -153,10 +215,14 @@ class SalaryHistorySync private constructor(context: Context) {
             }
             next
         }
+        return true
     }
 
     companion object {
         private const val TAG = "SalaryHistorySync"
+
+        /** Глубина первого заполнения истории — как у полного синка календаря. */
+        private const val HISTORY_DEPTH_MONTHS = 36L
 
         @Volatile
         private var instance: SalaryHistorySync? = null

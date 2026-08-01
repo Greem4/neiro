@@ -178,6 +178,14 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
      * пользователю не показывается (FOUNDATION 3.5).
      */
     private suspend fun syncSalaryHistory(outcome: SyncOutcome, fullHistory: Boolean = false) {
+        // Первое заполнение истории календарного синка не ждёт: деньги приходят
+        // из начисления YClients, а обрыв трёхлетней выгрузки записей раньше
+        // оставлял статистику вовсе без факта — и весь 2025 считался по
+        // сегодняшней цене профиля.
+        val pulledInitial = runCatching { salaryHistorySync.ensureHistoryPulledOnce() }
+            .getOrDefault(false)
+        if (pulledInitial) return
+
         if (outcome !is SyncOutcome.Success) return
         runCatching {
             if (fullHistory) {
