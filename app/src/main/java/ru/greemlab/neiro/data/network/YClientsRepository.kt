@@ -437,6 +437,7 @@ class YClientsRepository(context: Context) {
         if (periods.isEmpty()) return@withContext ApiResult.Success(emptyMap())
 
         val facts = mutableMapOf<LocalDate, DayFact>()
+        var failure: ApiResult.Error? = null
         for (period in periods) {
             val chunk = requestSalaryDaily(
                 staffId = staff,
@@ -447,11 +448,22 @@ class YClientsRepository(context: Context) {
                 allowRetry = true,
             )
             when (chunk) {
-                is ApiResult.Error -> return@withContext chunk
+                // Год, по которому не ответили, не должен уносить с собой
+                // остальные: период режется по календарным годам, и первым
+                // куском идёт самый старый — тот, где сотрудника могло ещё не
+                // быть. Раньше его ошибка обрывала всю историю на первом же шаге.
+                is ApiResult.Error -> {
+                    // 401 — сессия мертва, дальнейшие куски осмысленного не дадут.
+                    if (chunk.code == 401) return@withContext chunk
+                    if (failure == null) failure = chunk
+                }
+
                 is ApiResult.Success -> facts += chunk.data
             }
         }
-        ApiResult.Success(facts)
+        // Ошибку отдаём, только если не собрали вообще ничего: иначе половина
+        // истории лучше, чем ничего, а недостающие годы дотянутся потом.
+        failure?.takeIf { facts.isEmpty() } ?: ApiResult.Success(facts)
     }
 
     private suspend fun requestSalaryDaily(
