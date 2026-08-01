@@ -130,27 +130,54 @@ data class SalaryPeriodCalculation(
     val salary: String?,
 )
 
-/** `meta` приходит и объектом с текстом, и пустым массивом — потому сырой. */
-typealias SalaryMeta = JsonElement
-
-data class SalaryCalculationListResponse(
-    val success: Boolean?,
-    val data: List<SalaryCalculationSummary>?,
-    val meta: SalaryMeta?,
-)
-
+/**
+ * Одно начисление в списке (живой ответ, фирма 520135).
+ *
+ * Сумма лежит в `amount` — **не** в `sum`, как предполагала первая модель, и
+ * приходит числом. `status` — тот самый признак «начисление закрыто», который
+ * считался непроверенным: у всех проведённых месяцев там `confirmed`.
+ */
 data class SalaryCalculationSummary(
     val id: Long?,
     @SerializedName("date_from") val dateFrom: String?,
     @SerializedName("date_to") val dateTo: String?,
-    val sum: String?,
-)
+    val amount: String?,
+    val status: String?,
+) {
+    val isConfirmed: Boolean get() = status.equals("confirmed", ignoreCase = true)
+}
 
-data class SalaryCalculationDetailsResponse(
-    val success: Boolean?,
-    val data: List<SalaryCalculationItem>?,
-    val meta: SalaryMeta?,
-)
+/** Список начислений: `data` — массив. */
+internal fun salaryCalculations(data: JsonElement?): List<SalaryCalculationSummary> =
+    data?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { element ->
+        runCatching {
+            salaryGson.fromJson(element, SalaryCalculationSummary::class.java)
+        }.getOrNull()?.takeIf { it.id != null }
+    }.orEmpty()
+
+/**
+ * Позиции начисления: `data` — **объект**, а позиции внутри, в `salary_items`.
+ *
+ * Модель ждала здесь массив, и разбор падал молча — из-за этого автоподстановка
+ * ставок из API не работала ни разу. Массив тоже принимаем: вдруг у другого
+ * начисления форма окажется прежней.
+ */
+internal fun salaryCalculationItems(data: JsonElement?): List<SalaryCalculationItem> {
+    val array = when {
+        data == null -> null
+        data.isJsonArray -> data.asJsonArray
+        data.isJsonObject -> data.asJsonObject.get("salary_items")
+            ?.takeIf { it.isJsonArray }?.asJsonArray
+            ?: data.asJsonObject.entrySet().firstOrNull { it.value.isJsonArray }
+                ?.value?.asJsonArray
+
+        else -> null
+    } ?: return emptyList()
+
+    return array.mapNotNull { element ->
+        runCatching { salaryGson.fromJson(element, SalaryCalculationItem::class.java) }.getOrNull()
+    }
+}
 
 data class SalaryCalculationItem(
     val date: String?,

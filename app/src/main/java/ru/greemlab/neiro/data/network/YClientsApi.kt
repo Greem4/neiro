@@ -97,7 +97,7 @@ interface YClientsApi {
         @Path("staff_id") staffId: Int,
         @Query("date_from") dateFrom: String,
         @Query("date_to") dateTo: String,
-    ): Response<SalaryCalculationListResponse>
+    ): Response<JsonElement>
 
     /**
      * Детализация начисления: каждая позиция со своей ставкой (API-HOWTO 5.2).
@@ -108,5 +108,5 @@ interface YClientsApi {
         @Path("company_id") companyId: Int,
         @Path("staff_id") staffId: Int,
         @Path("calculation_id") calculationId: Long,
-    ): Response<SalaryCalculationDetailsResponse>
+    ): Response<JsonElement>
 }

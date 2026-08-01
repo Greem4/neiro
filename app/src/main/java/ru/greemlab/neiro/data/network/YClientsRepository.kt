@@ -564,10 +564,14 @@ class YClientsRepository(context: Context) {
                 Log.w(TAG, "salary calculation list вернул HTTP ${response.code()}")
                 return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
             }
-            val items = response.body()?.data.orEmpty()
+            val envelope = SalaryEnvelope(response.body())
+            val all = salaryCalculations(envelope.data)
+            // Ставки берём только из проведённого начисления: у закрытых месяцев
+            // status = confirmed. Если проведённых нет — смотрим все, лучше
+            // приблизительная ставка, чем никакой.
+            val items = all.filter { it.isConfirmed }.ifEmpty { all }
             // Свежесть — по date_to; если его нет, берём наибольший id.
             val latest = items
-                .filter { it.id != null }
                 .maxWithOrNull(
                     compareBy<SalaryCalculationSummary>(
                         { summary ->
@@ -603,7 +607,8 @@ class YClientsRepository(context: Context) {
                 Log.w(TAG, "salary calculation details вернул HTTP ${response.code()}")
                 return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
             }
-            return ApiResult.Success(extractSalaryRates(response.body()?.data))
+            val envelope = SalaryEnvelope(response.body())
+            return ApiResult.Success(extractSalaryRates(salaryCalculationItems(envelope.data)))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
