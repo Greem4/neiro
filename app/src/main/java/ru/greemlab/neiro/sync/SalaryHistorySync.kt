@@ -225,9 +225,14 @@ class SalaryHistorySync private constructor(context: Context) {
         val factsByMonth = facts.entries.groupBy { YearMonth.from(it.key) }
 
         ledgerStore.update { ledger ->
+            // Дни без работы API отдаёт нулями за весь период — за 2023 и 2024
+            // это тысяча пустых записей, которые копились бы в хранилище
+            // навсегда. Ноль денег и ноль услуг — это «не работал», хранить нечего.
             var next: SalaryLedger = ledger.withDayFacts(
                 staffId = staffId,
-                facts = facts.mapValues { (_, fact) -> fact.salary },
+                facts = facts
+                    .filterValues { it.salary != 0.0 || it.servicesCount > 0 }
+                    .mapValues { (_, fact) -> fact.salary },
             )
             for ((month, days) in factsByMonth) {
                 val existing = next.month(staffId, month)
