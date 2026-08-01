@@ -1,10 +1,13 @@
 package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.greemlab.neiro.data.SalaryLedger
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.MonthEntry
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import java.time.LocalDate
 
 class ProfileYearStatsTest {
@@ -201,6 +204,50 @@ class ProfileYearStatsTest {
         )
         // Цена месяца из факта: 2500 ÷ 2 = 1250 за занятие, а не 1400 из профиля.
         assertEquals(2500.0, stats.monthlyNet[3], 0.0)
+    }
+
+    @Test
+    fun `month metadata comes from history`() {
+        val ledger = SalaryLedger.Empty.withMonth(
+            MonthEntry(
+                staffId = staffId,
+                year = 2025,
+                month = 4,
+                sessions = 102,
+                pricePerSession = 1250.0,
+                priceDiagnostics = 2250.0,
+                tax = 6500.0,
+                factGross = 127_500.0,
+                factSessions = 102,
+                origin = PriceOrigin.MANUAL,
+                frozen = true,
+                resolved = false,
+            ),
+        )
+        val stats = computeProfileYearStats(
+            year = 2025,
+            dayData = mapOf(LocalDate.of(2025, 4, 10) to listOf("Иванов|3")),
+            profileRates = EarningsContext(pricePerSession = 1400.0, monthlyTaxAmount = 6500.0),
+            ledger = ledger,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 30),
+        )
+
+        val april = stats.months[3]
+        assertEquals(PriceOrigin.MANUAL, april.origin)
+        assertEquals(PriceSource.MANUAL, april.source)
+        assertTrue(april.frozen)
+        assertFalse(april.resolved)
+        assertEquals(1250.0, april.pricePerSession, 0.0)
+        assertEquals(127_500.0, april.factGross!!, 0.0)
+        assertEquals(1250.0, april.factPricePerSession!!, 0.0)
+        assertTrue(stats.hasUnresolvedMonths)
+
+        // Месяц без истории молчит.
+        val may = stats.months[4]
+        assertEquals(PriceOrigin.AUTO, may.origin)
+        assertTrue(may.resolved)
+        assertFalse(may.frozen)
     }
 
     @Test

@@ -48,11 +48,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.ui.calendar.MonthPriceMeta
+import ru.greemlab.neiro.ui.calendar.PriceSource
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
 import ru.greemlab.neiro.ui.calendar.getChartMonthAbbreviation
 import ru.greemlab.neiro.ui.calendar.getMonthName
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Month
@@ -76,8 +80,24 @@ fun ProfileYearStatsSection(
     selectedYear: Int,
     onYearSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    display: ProfitDisplaySettings = ProfitDisplaySettings(),
+    onMonthPriceEdited: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthUnfrozen: (YearMonth) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val showDiscrepancyMark = display.showDiscrepancy && stats.hasUnresolvedMonths
+
+    val peakIndex = remember(stats.monthlyNet) {
+        stats.monthlyNet.indices.maxByOrNull { stats.monthlyNet.getOrElse(it) { 0.0 } } ?: 0
+    }
+    var selectedMonthIndex by remember(stats.year) { mutableIntStateOf(peakIndex) }
+    var detailsExpanded by remember(stats.year) { mutableStateOf(false) }
+    var priceEditorMonth by remember(stats.year) { mutableStateOf<Int?>(null) }
+    var discrepancyMonth by remember(stats.year) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(stats.year, peakIndex) {
+        selectedMonthIndex = peakIndex
+    }
     val chartProgress = remember { Animatable(0f) }
     LaunchedEffect(expanded, stats.year) {
         if (expanded) {
@@ -119,7 +139,14 @@ fun ProfileYearStatsSection(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Статистика", style = MaterialTheme.typography.bodyLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Статистика", style = MaterialTheme.typography.bodyLarge)
+                    // Человек должен видеть, что месяц чего-то ждёт, не разворачивая секцию.
+                    if (showDiscrepancyMark) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        DiscrepancyBadge()
+                    }
+                }
                 Text(
                     text = if (expanded) "За ${stats.year} год" else collapsedSubtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -211,13 +238,343 @@ fun ProfileYearStatsSection(
                     year = stats.year,
                     monthlyNet = stats.monthlyNet,
                     monthlyCompleted = stats.monthlyCompleted,
+                    months = stats.months,
+                    peakIndex = peakIndex,
+                    selectedMonthIndex = selectedMonthIndex,
+                    onMonthSelected = { selectedMonthIndex = it },
+                    onSummaryClick = { detailsExpanded = !detailsExpanded },
+                    showDiscrepancy = display.showDiscrepancy,
                     progress = chartProgress.value,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(188.dp),
+                        .height(CHART_HEIGHT),
+                )
+
+                // Раскрытие месяца — рядом с графиком, а не внутри него:
+                // геометрия Canvas от этого не зависит.
+                AnimatedVisibility(
+                    visible = detailsExpanded,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                ) {
+                    MonthPriceDetails(
+                        month = YearMonth.of(stats.year, selectedMonthIndex + 1),
+                        meta = stats.months.getOrElse(selectedMonthIndex) { MonthPriceMeta() },
+                        display = display,
+                        onEditPrice = { priceEditorMonth = selectedMonthIndex },
+                        onReviewDiscrepancy = { discrepancyMonth = selectedMonthIndex },
+                        onUnfreeze = {
+                            onMonthUnfrozen(YearMonth.of(stats.year, selectedMonthIndex + 1))
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    priceEditorMonth?.let { index ->
+        val month = YearMonth.of(stats.year, index + 1)
+        MonthPriceEditorDialog(
+            month = month,
+            currentPrice = stats.months.getOrElse(index) { MonthPriceMeta() }.pricePerSession,
+            onDismiss = { priceEditorMonth = null },
+            onConfirm = { price ->
+                priceEditorMonth = null
+                onMonthPriceEdited(month, price)
+            },
+        )
+    }
+
+    discrepancyMonth?.let { index ->
+        val month = YearMonth.of(stats.year, index + 1)
+        val meta = stats.months.getOrElse(index) { MonthPriceMeta() }
+        // Без цены из факта разбирать нечего: кнопка «Разобрать» и появляется
+        // только при расхождении, но состояние переживает смену года.
+        meta.factPricePerSession?.let { factPrice ->
+            MonthDiscrepancyDialog(
+                month = month,
+                meta = meta,
+                factPricePerSession = factPrice,
+                onDismiss = { discrepancyMonth = null },
+                onConfirm = { price ->
+                    discrepancyMonth = null
+                    onMonthDiscrepancyResolved(month, price)
+                },
+            )
+        }
+    }
+}
+
+/** Высота области графика: Canvas считает геометрию от неё. */
+private val CHART_HEIGHT = 188.dp
+
+/** Точка о расхождении: заметнее дисклеймера, но не крик. */
+@Composable
+private fun DiscrepancyBadge() {
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .background(MaterialTheme.colorScheme.error, CircleShape),
+    )
+}
+
+/**
+ * Раскрытые данные месяца: цена, откуда она, диагностики, интенсивы, налог,
+ * «закрыт» и кнопки правки/разбора (FOUNDATION 5).
+ */
+@Composable
+private fun MonthPriceDetails(
+    month: YearMonth,
+    meta: MonthPriceMeta,
+    display: ProfitDisplaySettings,
+    onEditPrice: () -> Unit,
+    onReviewDiscrepancy: () -> Unit,
+    onUnfreeze: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val showReview = display.showDiscrepancy && meta.needsReview
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = getMonthName(month),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            MonthDetailRow("Цена занятия", formatRubles(meta.pricePerSession))
+            MonthDetailRow("Откуда цена", priceSourceLabel(meta))
+            if (meta.priceDiagnostics > 0.0) {
+                MonthDetailRow("Диагностика", formatRubles(meta.priceDiagnostics))
+            }
+            if (meta.priceIntensiveChild > 0.0) {
+                MonthDetailRow("Интенсив за ребёнка", formatRubles(meta.priceIntensiveChild))
+            }
+            if (display.showTax && meta.tax > 0.0) {
+                MonthDetailRow("Налог", formatRubles(meta.tax))
+            }
+            if (display.showDiscrepancy && meta.factGross != null) {
+                MonthDetailRow("В YClients за месяц", formatRubles(meta.factGross))
+            }
+
+            if (meta.origin == PriceOrigin.AUTO) {
+                Text(
+                    text = "Цена рассчитана автоматически — проверьте",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (showReview) {
+                Text(
+                    text = "В YClients другая сумма",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onEditPrice) { Text("Поправить цену") }
+                if (showReview) {
+                    TextButton(onClick = onReviewDiscrepancy) { Text("Разобрать") }
+                }
+                if (meta.frozen) {
+                    TextButton(onClick = onUnfreeze) { Text("Разморозить") }
+                }
+            }
+
+            if (meta.frozen) {
+                Text(
+                    text = "Месяц закрыт и больше не пересчитывается",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MonthDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+private fun priceSourceLabel(meta: MonthPriceMeta): String = when {
+    meta.origin == PriceOrigin.MANUAL -> "вы поправили"
+    meta.source == PriceSource.FACT -> "из YClients"
+    else -> "по вашей цене"
+}
+
+/** Правка цены месяца — одно поле: сумма пересчитывается сама (FOUNDATION 3.1). */
+@Composable
+private fun MonthPriceEditorDialog(
+    month: YearMonth,
+    currentPrice: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit,
+) {
+    var text by remember(month, currentPrice) {
+        mutableStateOf(if (currentPrice > 0.0) currentPrice.toLong().toString() else "")
+    }
+    val price = text.filter { it.isDigit() }.toDoubleOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text("Цена занятия · ${getMonthName(month)}") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { input -> text = input.filter { it.isDigit() }.take(7) },
+                label = { Text("Цена за занятие, ₽") },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { price?.let(onConfirm) },
+                enabled = price != null && price > 0.0,
+            ) {
+                Text("Сохранить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        },
+    )
+}
+
+/**
+ * Разбор расхождения (FOUNDATION 4): три варианта, решение уходит в историю
+ * и больше не спрашивается.
+ */
+@Composable
+private fun MonthDiscrepancyDialog(
+    month: YearMonth,
+    meta: MonthPriceMeta,
+    factPricePerSession: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit,
+) {
+    val appPrice = meta.pricePerSession
+    val sessions = meta.billableSessions
+    var choice by remember(month) { mutableStateOf(DiscrepancyChoice.APP) }
+    var customText by remember(month) { mutableStateOf("") }
+    val customPrice = customText.filter { it.isDigit() }.toDoubleOrNull()
+
+    val chosenPrice = when (choice) {
+        DiscrepancyChoice.APP -> appPrice
+        DiscrepancyChoice.FACT -> factPricePerSession
+        DiscrepancyChoice.CUSTOM -> customPrice
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text("${getMonthName(month)} — расхождение") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Приложение считало ${formatRubles(appPrice)} × $sessions " +
+                        "= ${formatRubles(appPrice * sessions)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "YClients начислил ${formatRubles(factPricePerSession)} × $sessions " +
+                        "= ${formatRubles(factPricePerSession * sessions)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "Разница ${formatRubles((factPricePerSession - appPrice) * sessions)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                )
+                Text("Что отправляем в историю?", style = MaterialTheme.typography.bodySmall)
+
+                DiscrepancyOptionRow(
+                    selected = choice == DiscrepancyChoice.APP,
+                    label = "${formatRubles(appPrice)} — как считало приложение",
+                    onClick = { choice = DiscrepancyChoice.APP },
+                )
+                DiscrepancyOptionRow(
+                    selected = choice == DiscrepancyChoice.FACT,
+                    label = "${formatRubles(factPricePerSession)} — как в YClients",
+                    onClick = { choice = DiscrepancyChoice.FACT },
+                )
+                DiscrepancyOptionRow(
+                    selected = choice == DiscrepancyChoice.CUSTOM,
+                    label = "Другая цена",
+                    onClick = { choice = DiscrepancyChoice.CUSTOM },
+                )
+                if (choice == DiscrepancyChoice.CUSTOM) {
+                    OutlinedTextField(
+                        value = customText,
+                        onValueChange = { input -> customText = input.filter { it.isDigit() }.take(7) },
+                        label = { Text("Цена за занятие, ₽") },
+                        singleLine = true,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { chosenPrice?.let(onConfirm) },
+                enabled = chosenPrice != null && chosenPrice > 0.0,
+            ) {
+                Text("В историю")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Позже") }
+        },
+    )
+}
+
+private enum class DiscrepancyChoice { APP, FACT, CUSTOM }
+
+@Composable
+private fun DiscrepancyOptionRow(
+    selected: Boolean,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(text = label, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -325,9 +682,16 @@ private fun YearNetProfitChart(
     year: Int,
     monthlyNet: List<Double>,
     monthlyCompleted: List<Int>,
+    months: List<MonthPriceMeta>,
+    peakIndex: Int,
+    selectedMonthIndex: Int,
+    onMonthSelected: (Int) -> Unit,
+    onSummaryClick: () -> Unit,
+    showDiscrepancy: Boolean,
     progress: Float,
     modifier: Modifier = Modifier,
 ) {
+    val errorColor = MaterialTheme.colorScheme.error
     val primary = MaterialTheme.colorScheme.primary
     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
     val accent = ScheduleHeaderGreen
@@ -338,14 +702,6 @@ private fun YearNetProfitChart(
     val chartBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
     val maxValue = remember(monthlyNet) { monthlyNet.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0 }
-    val peakIndex = remember(monthlyNet) {
-        monthlyNet.indices.maxByOrNull { monthlyNet.getOrElse(it) { 0.0 } } ?: 0
-    }
-
-    var selectedMonthIndex by remember(year, monthlyNet) { mutableIntStateOf(peakIndex) }
-    LaunchedEffect(year, peakIndex) {
-        selectedMonthIndex = peakIndex
-    }
 
     val monthLabels = remember {
         Month.entries.map { getChartMonthAbbreviation(it) }
@@ -537,6 +893,23 @@ private fun YearNetProfitChart(
                         }
                     }
                 }
+
+                // Отметка о расхождении — отдельным проходом после всей отрисовки,
+                // чтобы не задевать расчёт геометрии столбцов.
+                if (showDiscrepancy) {
+                    val markerRadius = 2.5.dp.toPx()
+                    months.take(barCount).forEachIndexed { index, meta ->
+                        if (!meta.needsReview) return@forEachIndexed
+                        drawCircle(
+                            color = errorColor,
+                            radius = markerRadius,
+                            center = Offset(
+                                x = slotWidth * index + slotWidth / 2f,
+                                y = chartTop + markerRadius,
+                            ),
+                        )
+                    }
+                }
             }
 
             Row(modifier = Modifier.matchParentSize()) {
@@ -548,7 +921,7 @@ private fun YearNetProfitChart(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { selectedMonthIndex = index },
+                            ) { onMonthSelected(index) },
                     )
                 }
             }
@@ -582,11 +955,14 @@ private fun YearNetProfitChart(
 
         val selectedNet = monthlyNet.getOrElse(selectedMonthIndex) { 0.0 }
         val selectedSessions = monthlyCompleted.getOrElse(selectedMonthIndex) { 0 }
+        val selectedMeta = months.getOrElse(selectedMonthIndex) { MonthPriceMeta() }
         SelectedMonthSummary(
             monthName = getMonthName(YearMonth.of(year, selectedMonthIndex + 1)),
             netAmount = formatRubles(selectedNet),
             sessions = selectedSessions,
             isPeakMonth = selectedMonthIndex == peakIndex && selectedNet > 0.0,
+            needsReview = showDiscrepancy && selectedMeta.needsReview,
+            onClick = onSummaryClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 6.dp),
@@ -600,6 +976,8 @@ private fun SelectedMonthSummary(
     netAmount: String,
     sessions: Int,
     isPeakMonth: Boolean,
+    needsReview: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedContent(
@@ -608,19 +986,25 @@ private fun SelectedMonthSummary(
             fadeIn(tween(180)) togetherWith fadeOut(tween(120))
         },
         label = "selectedMonthStats",
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
     ) { (name, sessionCount, amount) ->
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = if (isPeakMonth) "$name · лучший месяц" else name,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = if (isPeakMonth) "$name · лучший месяц" else name,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                if (needsReview) DiscrepancyBadge()
+            }
             Text(
                 text = "$sessionCount ${pluralSessions(sessionCount)}",
                 style = MaterialTheme.typography.bodyMedium,

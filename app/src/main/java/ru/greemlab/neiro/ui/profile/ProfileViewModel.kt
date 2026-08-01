@@ -13,9 +13,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
+import ru.greemlab.neiro.data.SalaryLedger
+import ru.greemlab.neiro.data.SalaryLedgerStore
+import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.domain.models.MonthEntry
 import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.DayOfWeek
+import java.time.YearMonth
 
 /**
  * ViewModel для управления профилем пользователя.
@@ -26,6 +31,17 @@ import java.time.DayOfWeek
  */
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
+    private val ledgerStore = SalaryLedgerStore.get(application)
+
+    /** История ЗП: цены прошедших месяцев и факт по дням. */
+    val salaryLedger: StateFlow<SalaryLedger> = ledgerStore.ledger
+
+    /**
+     * Все денежные данные лежат под ключом сотрудника (FOUNDATION 8.1).
+     * `0` — сотрудник неизвестен, истории нет.
+     */
+    val salaryStaffId: Long
+        get() = YClientsRepository.getInstance(getApplication()).staffId?.toLong() ?: 0L
 
     val userProfile: StateFlow<UserProfile> = repository.userProfileFlow
         .stateIn(
@@ -50,6 +66,46 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             updateChannel.collect { transform ->
                 repository.updateProfile(transform)
+            }
+        }
+        // История нужна статистике при первом же открытии профиля.
+        viewModelScope.launch { ledgerStore.warmUp() }
+    }
+
+    /**
+     * Правка цены месяца из статистики: цена становится ручной навсегда,
+     * а расхождение считается разобранным (FOUNDATION 5).
+     */
+    fun updateMonthPrice(month: YearMonth, price: Double) {
+        if (price <= 0.0) return
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month)
+                val entry = existing?.copy(
+                    pricePerSession = price,
+                    origin = PriceOrigin.MANUAL,
+                    resolved = true,
+                ) ?: MonthEntry(
+                    staffId = staffId,
+                    year = month.year,
+                    month = month.monthValue,
+                    pricePerSession = price,
+                    origin = PriceOrigin.MANUAL,
+                    resolved = true,
+                )
+                ledger.withMonth(entry)
+            }
+        }
+    }
+
+    /** Разморозка месяца: «пересчитывай снова». Ничего не удаляет (FOUNDATION 4). */
+    fun unfreezeMonth(month: YearMonth) {
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month) ?: return@update ledger
+                ledger.withMonth(existing.copy(frozen = false))
             }
         }
     }

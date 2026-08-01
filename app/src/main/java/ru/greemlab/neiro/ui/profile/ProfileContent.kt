@@ -50,6 +50,8 @@ import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.ArchiveIconPickerDialog
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.ProfileAvatar
+import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import java.time.LocalDate
 import java.time.YearMonth
@@ -81,8 +83,12 @@ fun ProfileContent(
     val syncState by syncViewModel.uiState.collectAsStateWithLifecycle()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
+    val ledger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
+    val staffId = profileViewModel.salaryStaffId
     val currentYear = YearMonth.now().year
-    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear = currentYear) }
+    val availableYears = remember(dayData, ledger, staffId) {
+        availableStatsYears(dayData, ledger.years(staffId), currentYear)
+    }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
     LaunchedEffect(availableYears) {
         if (selectedYear !in availableYears) {
@@ -94,11 +100,24 @@ fun ProfileContent(
         year = selectedYear,
         dayData = dayData,
         profileRates = rates,
+        ledger = ledger,
+        staffId = staffId,
     )
+    val context = LocalContext.current
+    var profitDisplay by remember(context) {
+        mutableStateOf(ProfitDisplayPreferences.get(context).read())
+    }
+    LaunchedEffect(context) {
+        profitDisplay = ProfitDisplayPreferences.get(context).read()
+    }
 
     ProfileContentImpl(
         profile = profile,
         yearStats = yearStats,
+        profitDisplay = profitDisplay,
+        onMonthPriceEdited = profileViewModel::updateMonthPrice,
+        onMonthDiscrepancyResolved = profileViewModel::updateMonthPrice,
+        onMonthUnfrozen = profileViewModel::unfreezeMonth,
         availableYears = availableYears,
         selectedYear = selectedYear,
         onYearSelected = { selectedYear = it },
@@ -124,6 +143,10 @@ private fun ProfileContentImpl(
     availableYears: List<Int>,
     selectedYear: Int,
     onYearSelected: (Int) -> Unit,
+    profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
+    onMonthPriceEdited: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthUnfrozen: (YearMonth) -> Unit = {},
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     userAvatarUrl: String? = null,
@@ -182,6 +205,10 @@ private fun ProfileContentImpl(
             selectedYear = selectedYear,
             onYearSelected = onYearSelected,
             modifier = Modifier.padding(bottom = 24.dp),
+            display = profitDisplay,
+            onMonthPriceEdited = onMonthPriceEdited,
+            onMonthDiscrepancyResolved = onMonthDiscrepancyResolved,
+            onMonthUnfrozen = onMonthUnfrozen,
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {

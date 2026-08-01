@@ -5,8 +5,38 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import ru.greemlab.neiro.data.SalaryLedger
 import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import java.time.LocalDate
 import java.time.YearMonth
+
+/**
+ * Что известно про цену одного месяца — для дисклеймера, отметки о расхождении
+ * и разбора в статистике (FOUNDATION 4–5).
+ *
+ * Один носитель вместо десятка параллельных списков по 12 элементов: добавить
+ * поле в разбор месяца не должно быть правкой пяти сигнатур.
+ */
+@Immutable
+data class MonthPriceMeta(
+    val origin: PriceOrigin = PriceOrigin.AUTO,
+    val source: PriceSource = PriceSource.PROFILE,
+    /** Расхождение разобрано — отметку не показываем. */
+    val resolved: Boolean = true,
+    val frozen: Boolean = false,
+    val pricePerSession: Double = 0.0,
+    val priceDiagnostics: Double = 0.0,
+    val priceIntensiveChild: Double = 0.0,
+    val tax: Double = 0.0,
+    /** Что говорит YClients за месяц. */
+    val factGross: Double? = null,
+    /** Цена занятия, вытекающая из факта — вторая строка в разборе расхождения. */
+    val factPricePerSession: Double? = null,
+    /** Занятий для сверки: услуги месяца минус диагностики. */
+    val billableSessions: Int = 0,
+) {
+    /** Есть что разбирать: факт расходится с ценой приложения и человек ещё не решил. */
+    val needsReview: Boolean get() = !resolved && factPricePerSession != null
+}
 
 /**
  * Сводная статистика за календарный год.
@@ -27,7 +57,12 @@ data class ProfileYearStats(
     val totalTaxAmount: Double,
     val monthlyNet: List<Double>,
     val monthlyCompleted: List<Int>,
+    /** По одному элементу на месяц, индекс 0 = январь. */
+    val months: List<MonthPriceMeta> = List(12) { MonthPriceMeta() },
 ) {
+    /** Хоть один месяц года ждёт разбора — бейдж в заголовке секции. */
+    val hasUnresolvedMonths: Boolean get() = months.any { it.needsReview }
+
     companion object {
         fun empty(year: Int): ProfileYearStats = ProfileYearStats(
             year = year,
@@ -36,6 +71,7 @@ data class ProfileYearStats(
             totalTaxAmount = 0.0,
             monthlyNet = List(12) { 0.0 },
             monthlyCompleted = List(12) { 0 },
+            months = List(12) { MonthPriceMeta() },
         )
     }
 }
@@ -96,6 +132,7 @@ internal fun computeProfileYearStats(
     var totalNetEarned = 0.0
     val monthlyNet = Array(12) { 0.0 }
     val monthlyCompleted = Array(12) { 0 }
+    val monthsMeta = Array(12) { MonthPriceMeta() }
 
     val yearDayData = buildMap {
         for ((date, sessions) in dayData) {
@@ -112,7 +149,7 @@ internal fun computeProfileYearStats(
             diagnosticsPrice = entry.diagnosticsPriceOr(profileRates),
             intensivePrice = entry.intensivePriceOr(profileRates),
         )
-        val monthRates = resolveMonthRates(
+        val resolvedRates = resolveMonthRates(
             month = currentMonth,
             entry = entry,
             profile = profileRates,
@@ -120,12 +157,35 @@ internal fun computeProfileYearStats(
             diagnosticsCount = local.diagnosticsCount,
             diagnosticsSum = local.diagnosticsSum,
             factIntensiveSum = local.factIntensiveSum,
-        ).rates
+        )
+        val monthRates = resolvedRates.rates
+        val factGross = entry?.factGross
+        val services = entry?.factSessions ?: local.services
+        monthsMeta[month - 1] = MonthPriceMeta(
+            origin = entry?.origin ?: PriceOrigin.AUTO,
+            source = resolvedRates.source,
+            resolved = entry?.resolved ?: true,
+            frozen = entry?.frozen ?: false,
+            pricePerSession = monthRates.pricePerSession,
+            priceDiagnostics = monthRates.pricePerDiagnostics,
+            priceIntensiveChild = monthRates.pricePerIntensiveChild,
+            tax = monthRates.monthlyTaxAmount,
+            factGross = factGross,
+            factPricePerSession = factGross?.let {
+                sessionPriceFromFact(
+                    factGross = it,
+                    services = services,
+                    diagnosticsCount = local.diagnosticsCount,
+                    diagnosticsSum = local.diagnosticsSum,
+                    factIntensiveSum = local.factIntensiveSum,
+                )
+            },
+            billableSessions = (services - local.diagnosticsCount).coerceAtLeast(0),
+        )
 
         val hasLocalRecords = yearDayData.any { (date, sessions) ->
             date.monthValue == month && sessions.isNotEmpty()
         }
-        val factGross = entry?.factGross
         if (!hasLocalRecords && factGross != null) {
             // Месяца нет в локальном календаре, но в YClients он есть —
             // показываем цифрами из истории (FOUNDATION 3.3).
@@ -158,6 +218,7 @@ internal fun computeProfileYearStats(
         completedSessions = completedSessions,
         totalNetEarned = totalNetEarned,
         totalTaxAmount = totalTaxAmount,
+        months = monthsMeta.toList(),
         monthlyNet = monthlyNet.toList(),
         monthlyCompleted = monthlyCompleted.toList(),
     )

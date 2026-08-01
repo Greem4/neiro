@@ -14,6 +14,12 @@ data class ProfitDisplaySettings(
     val showDiagnosticsEarnings: Boolean = true,
     val showTotalProfit: Boolean = false,
     val expectedIncludesNet: Boolean = false,
+    /**
+     * Показывать отметку о расхождении с YClients. Прячет только показ:
+     * сверка и запись в `note` продолжаются, иначе через полгода не останется
+     * следов (FOUNDATION 5).
+     */
+    val showDiscrepancy: Boolean = true,
 )
 
 class ProfitDisplayPreferences(context: Context) {
@@ -31,6 +37,7 @@ class ProfitDisplayPreferences(context: Context) {
         showDiagnosticsEarnings = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, true),
         showTotalProfit = prefs.getBoolean(KEY_SHOW_TOTAL, false),
         expectedIncludesNet = prefs.getBoolean(KEY_EXPECTED_INCLUDES_NET, false),
+        showDiscrepancy = prefs.getBoolean(KEY_SHOW_DISCREPANCY, true),
     )
 
     fun save(settings: ProfitDisplaySettings) {
@@ -45,6 +52,7 @@ class ProfitDisplayPreferences(context: Context) {
             .putBoolean(KEY_SHOW_DIAGNOSTICS, settings.showDiagnosticsEarnings)
             .putBoolean(KEY_SHOW_TOTAL, settings.showTotalProfit)
             .putBoolean(KEY_EXPECTED_INCLUDES_NET, settings.expectedIncludesNet)
+            .putBoolean(KEY_SHOW_DISCREPANCY, settings.showDiscrepancy)
             .apply()
     }
 
@@ -64,6 +72,7 @@ class ProfitDisplayPreferences(context: Context) {
         private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
         private const val KEY_SHOW_TOTAL = "show_total_profit"
         private const val KEY_EXPECTED_INCLUDES_NET = "expected_includes_net"
+        private const val KEY_SHOW_DISCREPANCY = "show_discrepancy"
 
         @Volatile
         private var instance: ProfitDisplayPreferences? = null
