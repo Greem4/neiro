@@ -64,6 +64,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -886,8 +887,7 @@ private fun calculateStats(
     entries: List<ScheduleEntry>,
     userProfile: UserProfile,
 ): DayStats {
-    val pricePerSession = userProfile.pricePerSession
-    val pricePerDiagnostics = userProfile.pricePerDiagnostics
+    val rates = userProfile.earningsContext()
     var expected = 0
     var confirmed = 0
     var arrived = 0
@@ -903,9 +903,9 @@ private fun calculateStats(
             AttendanceStatus.ARRIVED -> {
                 if (!isIntensive) arrived++
                 money += if (!entry.isExtra) {
-                    pricePerSession
+                    rates.pricePerSession
                 } else if (entry.extraType == "Диагностика") {
-                    if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
+                    if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else entry.extraAmount
                 } else {
                     entry.extraAmount
                 }

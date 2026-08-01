@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.settings
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.ui.screens.buildOverviewProfitSubtitle
 
 class ProfitDisplaySettingsTest {
@@ -17,7 +18,7 @@ class ProfitDisplaySettingsTest {
             expectedIncome = 5000.0,
             expectedIncomeText = "5 000 ₽",
             netProfit = 10000.0,
-            pricePerSession = 1400.0,
+            rates = EarningsContext(pricePerSession = 1400.0),
             sessionPriceText = "1 400 ₽",
         )
         assertEquals("Ожидается 5 000 ₽ · занятие 1 400 ₽", subtitle)
@@ -34,7 +35,7 @@ class ProfitDisplaySettingsTest {
             expectedIncome = 5000.0,
             expectedIncomeText = "5 000 ₽",
             netProfit = 12000.0,
-            pricePerSession = 0.0,
+            rates = EarningsContext.Empty,
             sessionPriceText = "",
         )
         assertEquals("Ожидается 17 000 ₽", subtitle)
@@ -51,7 +52,7 @@ class ProfitDisplaySettingsTest {
             expectedIncome = 5000.0,
             expectedIncomeText = "5 000 ₽",
             netProfit = 10000.0,
-            pricePerSession = 1400.0,
+            rates = EarningsContext(pricePerSession = 1400.0),
             sessionPriceText = "1 400 ₽",
         )
         assertEquals("", subtitle)

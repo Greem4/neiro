@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
+import ru.greemlab.neiro.domain.models.EarningsContext
 
 /** Сводка по одному дню для панели под календарём. */
 @Immutable
@@ -19,9 +20,7 @@ data class DaySummaryStats(
 
 internal fun computeDayStats(
     sessions: List<String>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext,
 ): DaySummaryStats {
     var totalLessons = 0
     var attendedLessons = 0
@@ -41,9 +40,10 @@ internal fun computeDayStats(
         if (session.isEffectivelyDeleted()) {
             if (session is Session.Intensive) hasIntensive = true
             val price = when (session) {
-                is Session.Intensive -> session.totalAmount(pricePerIntensiveChild, onlyArrived = false)
-                is Session.Diagnostics -> if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
-                is Session.Student -> pricePerSession
+                is Session.Intensive -> session.totalAmount(rates.pricePerIntensiveChild, onlyArrived = false)
+                is Session.Diagnostics ->
+                    if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
+                is Session.Student -> rates.pricePerSession
             }
             lost += price
             continue
@@ -54,15 +54,15 @@ internal fun computeDayStats(
                 hasIntensive = true
                 confirmedIntensiveChildren += session.confirmedChildCount()
                 pendingIntensiveChildren += session.pendingChildCount()
-                val actual = session.totalAmount(pricePerIntensiveChild, onlyArrived = true)
-                val planned = session.totalAmount(pricePerIntensiveChild, onlyArrived = false)
+                val actual = session.totalAmount(rates.pricePerIntensiveChild, onlyArrived = true)
+                val planned = session.totalAmount(rates.pricePerIntensiveChild, onlyArrived = false)
                 earned += actual
                 expected += (planned - actual).coerceAtLeast(0.0)
             }
 
             is Session.Diagnostics -> {
                 totalLessons++
-                val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
+                val price = if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
                 if (session.countsTowardEarnings()) {
                     attendedLessons++
                     earned += price
@@ -79,7 +79,7 @@ internal fun computeDayStats(
             is Session.Student -> {
                 if (isStudentCoveredByIntensive(session, intensiveChildrenByTime)) continue
                 totalLessons++
-                val pay = pricePerSession
+                val pay = rates.pricePerSession
                 if (session.countsTowardEarnings()) {
                     attendedLessons++
                     earned += pay

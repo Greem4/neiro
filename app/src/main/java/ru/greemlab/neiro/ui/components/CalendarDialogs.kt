@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
@@ -131,7 +132,7 @@ fun LessonsDetailsDialog(
 fun ProfitDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
-    pricePerSession: Double,
+    rates: EarningsContext,
     salaryAdvanceOnCard: Double,
     salaryMainOnCard: Double,
     salaryOnCardFallback: Double,
@@ -213,10 +214,10 @@ fun ProfitDetailsDialog(
                     )
                 }
 
-                if (display.showPricePerSession && pricePerSession > 0.0) {
+                if (display.showPricePerSession && rates.pricePerSession > 0.0) {
                     ProfitRow(
                         label = "Стоимость одного занятия",
-                        value = pricePerSession,
+                        value = rates.pricePerSession,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

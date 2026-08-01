@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import ru.greemlab.neiro.domain.models.EarningsContext
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -42,25 +43,12 @@ data class ProfileYearStats(
 fun rememberProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
-): ProfileYearStats = remember(
-    year,
-    dayData,
-    pricePerSession,
-    pricePerDiagnostics,
-    monthlyTaxAmount,
-    pricePerIntensiveChild,
-) {
+    rates: EarningsContext,
+): ProfileYearStats = remember(year, dayData, rates) {
     computeProfileYearStats(
         year = year,
         dayData = dayData,
-        pricePerSession = pricePerSession,
-        pricePerDiagnostics = pricePerDiagnostics,
-        monthlyTaxAmount = monthlyTaxAmount,
-        pricePerIntensiveChild = pricePerIntensiveChild,
+        rates = rates,
     )
 }
 
@@ -87,10 +75,7 @@ fun availableStatsYears(
 internal fun computeProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext,
     today: LocalDate = LocalDate.now(),
 ): ProfileYearStats {
     var completedSessions = 0
@@ -108,10 +93,7 @@ internal fun computeProfileYearStats(
         val monthStats = computeMonthStats(
             currentMonth = YearMonth.of(year, month),
             dayData = yearDayData,
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = pricePerDiagnostics,
-            monthlyTaxAmount = monthlyTaxAmount,
-            pricePerIntensiveChild = pricePerIntensiveChild,
+            rates = rates,
         )
         // Интенсивы в счётчик занятий не входят — это отдельный формат.
         // На деньги это не влияет: их сумма уже учтена в netProfit.
@@ -121,7 +103,7 @@ internal fun computeProfileYearStats(
         totalNetEarned += monthStats.netProfit
     }
 
-    val totalTaxAmount = monthlyTaxAmount * elapsedMonthsInYear(year, today)
+    val totalTaxAmount = rates.monthlyTaxAmount * elapsedMonthsInYear(year, today)
 
     return ProfileYearStats(
         year = year,

@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
 import ru.greemlab.neiro.notifications.SessionNotificationSyncSimulation
 import kotlinx.coroutines.launch
@@ -88,13 +89,11 @@ fun ProfileContent(
             selectedYear = availableYears.first()
         }
     }
+    val rates = remember(profile) { profile.earningsContext() }
     val yearStats = rememberProfileYearStats(
         year = selectedYear,
         dayData = dayData,
-        pricePerSession = profile.pricePerSession,
-        pricePerDiagnostics = profile.pricePerDiagnostics,
-        monthlyTaxAmount = profile.monthlyTaxAmount,
-        pricePerIntensiveChild = profile.pricePerIntensiveChild,
+        rates = rates,
     )
 
     ProfileContentImpl(

@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.EarningsContext
 import java.time.LocalDate
 
 class ProfileYearStatsTest {
@@ -15,9 +16,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = year,
             dayData = emptyMap(),
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = monthlyTax,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = monthlyTax,
+            ),
         )
         assertEquals(0, stats.completedSessions)
         assertEquals(0.0, stats.totalNetEarned, 0.0)
@@ -29,9 +31,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = year,
             dayData = emptyMap(),
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 6500.0,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = 6500.0,
+            ),
             today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(6500.0 * 12, stats.totalTaxAmount, 0.0)
@@ -44,9 +47,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = 2026,
             dayData = emptyMap(),
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 6500.0,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = 6500.0,
+            ),
             today = LocalDate.of(2026, 7, 30),
         )
         // Июль — седьмой платёж; за август и дальше налог ещё не наступил.
@@ -58,9 +62,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = 2027,
             dayData = emptyMap(),
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 6500.0,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = 6500.0,
+            ),
             today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(0.0, stats.totalTaxAmount, 0.0)
@@ -75,9 +80,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = year,
             dayData = dayData,
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = monthlyTax,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = monthlyTax,
+            ),
             today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(3, stats.completedSessions)
@@ -110,10 +116,10 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = year,
             dayData = dayData,
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 0.0,
-            pricePerIntensiveChild = 1400.0,
+            rates = EarningsContext(
+                pricePerSession = pricePerSession,
+                pricePerIntensiveChild = 1400.0,
+            ),
             today = LocalDate.of(2026, 7, 30),
         )
         assertEquals(1, stats.completedSessions)
@@ -140,9 +146,7 @@ class ProfileYearStatsTest {
         val stats = computeProfileYearStats(
             year = year,
             dayData = dayData,
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 0.0,
+            rates = EarningsContext(pricePerSession = pricePerSession),
         )
         assertEquals(1, stats.completedSessions)
         assertEquals(1000.0, stats.totalNetEarned, 0.0)

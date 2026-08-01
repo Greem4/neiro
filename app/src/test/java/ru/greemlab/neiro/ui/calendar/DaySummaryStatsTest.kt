@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.EarningsContext
 
 class DaySummaryStatsTest {
 
@@ -9,8 +10,7 @@ class DaySummaryStatsTest {
     fun `computeDayStats counts attended students`() {
         val stats = computeDayStats(
             listOf("Иванов|true", "Петров|false"),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
+            rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(2, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)
@@ -22,8 +22,7 @@ class DaySummaryStatsTest {
     fun `intensive does not count as student lesson`() {
         val stats = computeDayStats(
             listOf("__INTENSIVE__:1500|Дима|true", "Иванов|true"),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
+            rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)
@@ -47,9 +46,7 @@ class DaySummaryStatsTest {
         )
         val stats = computeDayStats(
             listOf(intensive),
-            pricePerSession = 0.0,
-            pricePerDiagnostics = 0.0,
-            pricePerIntensiveChild = 1000.0,
+            rates = EarningsContext(pricePerIntensiveChild = 1000.0),
         )
         assertEquals(1, stats.confirmedIntensiveChildren)
         assertEquals(1, stats.pendingIntensiveChildren)
@@ -70,9 +67,10 @@ class DaySummaryStatsTest {
         )
         val stats = computeDayStats(
             listOf(intensive, "Дима|3|18:00-18:50"),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
-            pricePerIntensiveChild = 800.0,
+            rates = EarningsContext(
+                pricePerSession = 1000.0,
+                pricePerIntensiveChild = 800.0,
+            ),
         )
         assertEquals(0, stats.totalLessons)
         assertEquals(1, stats.confirmedIntensiveChildren)
@@ -91,9 +89,7 @@ class DaySummaryStatsTest {
         )
         val stats = computeDayStats(
             listOf(intensive),
-            pricePerSession = 0.0,
-            pricePerDiagnostics = 0.0,
-            pricePerIntensiveChild = 1400.0,
+            rates = EarningsContext(pricePerIntensiveChild = 1400.0),
         )
         assertEquals(5600.0, stats.earned, 0.0)
         assertEquals(0.0, stats.expected, 0.0)
@@ -103,8 +99,7 @@ class DaySummaryStatsTest {
     fun `attended diagnostics adds to earned`() {
         val stats = computeDayStats(
             listOf("__DIAGNOSTICS__:500|Аня|true"),
-            pricePerSession = 0.0,
-            pricePerDiagnostics = 0.0,
+            rates = EarningsContext.Empty,
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(500.0, stats.earned, 0.0)
@@ -115,8 +110,7 @@ class DaySummaryStatsTest {
     fun `cancelled student does not count as lesson`() {
         val stats = computeDayStats(
             listOf("Иванов|2", "Петров|3"),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
+            rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)
@@ -128,8 +122,7 @@ class DaySummaryStatsTest {
     fun `diagnostics uses global price if provided`() {
         val stats = computeDayStats(
             listOf("__DIAGNOSTICS__:500|Аня|true"),
-            pricePerSession = 0.0,
-            pricePerDiagnostics = 2000.0,
+            rates = EarningsContext(pricePerDiagnostics = 2000.0),
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(2000.0, stats.earned, 0.0)
@@ -143,8 +136,7 @@ class DaySummaryStatsTest {
                 "Петров|0", // EXPECTED
                 "Сидоров|3", // ARRIVED
             ),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
+            rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(3, stats.totalLessons)
         assertEquals(1, stats.attendedLessons)

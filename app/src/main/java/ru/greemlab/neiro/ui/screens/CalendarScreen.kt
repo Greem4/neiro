@@ -38,6 +38,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
@@ -187,13 +189,11 @@ fun CalendarScreen(
         highlightSlotKey = null
     }
 
+    val rates = remember(profile) { profile.earningsContext() }
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
         dayData = currentMonthDayData,
-        pricePerSession = profile.pricePerSession,
-        pricePerDiagnostics = profile.pricePerDiagnostics,
-        monthlyTaxAmount = profile.monthlyTaxAmount,
-        pricePerIntensiveChild = profile.pricePerIntensiveChild,
+        rates = rates,
     )
 
     val context = LocalContext.current
@@ -330,9 +330,7 @@ fun CalendarScreen(
                     }
                 },
                 isSyncing = syncState.isLoading,
-                pricePerSession = profile.pricePerSession,
-                pricePerDiagnostics = profile.pricePerDiagnostics,
-                pricePerIntensiveChild = profile.pricePerIntensiveChild,
+                rates = rates,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -480,7 +478,7 @@ fun CalendarScreen(
         is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
-            pricePerSession = profile.pricePerSession,
+            rates = rates,
             salaryAdvanceOnCard = profile.salaryAdvanceOnCard,
             salaryMainOnCard = profile.salaryMainOnCard,
             salaryOnCardFallback = profile.salaryOnCard,
@@ -611,9 +609,7 @@ fun CalendarScreenContent(
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
-    pricePerSession: Double = 0.0,
-    pricePerDiagnostics: Double = 0.0,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext = EarningsContext.Empty,
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -628,20 +624,9 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(
-        selectedDate,
-        selectedDaySessions,
-        pricePerSession,
-        pricePerDiagnostics,
-        pricePerIntensiveChild,
-    ) {
+    val daySummaryStats = remember(selectedDate, selectedDaySessions, rates) {
         if (selectedDate == null) return@remember null
-        computeDayStats(
-            selectedDaySessions,
-            pricePerSession,
-            pricePerDiagnostics,
-            pricePerIntensiveChild,
-        )
+        computeDayStats(selectedDaySessions, rates)
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
@@ -683,7 +668,7 @@ fun CalendarScreenContent(
 
                         MonthOverviewCard(
                             stats = stats,
-                            pricePerSession = pricePerSession,
+                            rates = rates,
                             display = profitDisplay,
                             onLessonsClick = onLessonsClick,
                             onProfitClick = onProfitClick,
@@ -774,7 +759,7 @@ fun CalendarScreenContent(
 @Composable
 private fun MonthOverviewCard(
     stats: CalendarMonthStats,
-    pricePerSession: Double,
+    rates: EarningsContext,
     display: ProfitDisplaySettings,
     onLessonsClick: () -> Unit,
     onProfitClick: () -> Unit,
@@ -795,11 +780,11 @@ private fun MonthOverviewCard(
     val expectedIncomeText = remember(stats.expectedIncome) {
         formatRubles(stats.expectedIncome)
     }
-    val sessionPriceText = remember(pricePerSession) { formatRubles(pricePerSession) }
+    val sessionPriceText = remember(rates.pricePerSession) { formatRubles(rates.pricePerSession) }
     val overviewSubtitle = remember(
         stats.expectedIncome,
         stats.netProfit,
-        pricePerSession,
+        rates,
         display,
         expectedIncomeText,
         sessionPriceText,
@@ -809,7 +794,7 @@ private fun MonthOverviewCard(
             expectedIncome = stats.expectedIncome,
             expectedIncomeText = expectedIncomeText,
             netProfit = stats.netProfit,
-            pricePerSession = pricePerSession,
+            rates = rates,
             sessionPriceText = sessionPriceText,
         )
     }
@@ -899,7 +884,7 @@ internal fun buildOverviewProfitSubtitle(
     expectedIncome: Double,
     expectedIncomeText: String,
     netProfit: Double,
-    pricePerSession: Double,
+    rates: EarningsContext,
     sessionPriceText: String,
 ): String {
     val parts = mutableListOf<String>()
@@ -913,7 +898,7 @@ internal fun buildOverviewProfitSubtitle(
         }
     }
 
-    if (display.showPricePerSession && pricePerSession > 0.0) {
+    if (display.showPricePerSession && rates.pricePerSession > 0.0) {
         parts += "занятие $sessionPriceText"
     }
     return parts.joinToString(" · ")
