@@ -213,15 +213,16 @@ class MonthRatesResolverTest {
     }
 
     @Test
-    fun `frozen month still takes price from fact`() {
-        // Закрытый месяц не защищён от факта: начисление и есть правда о нём,
-        // а сохранённая цена 1400 пришла из профиля.
+    fun `closed month shows the number it was closed with`() {
+        // Месяц закрыт: его цена уже выведена из начисления и лежит в истории.
+        // Делить факт заново нельзя — число занятий в календаре с тех пор могло
+        // дозаполниться, и цена поехала бы вниз на ровном месте.
         val frozen = MonthEntry(
             staffId = 1L,
             year = 2026,
             month = 3,
             sessions = 80,
-            pricePerSession = 1400.0,
+            pricePerSession = 1500.0,
             factGross = 120_000.0,
             factSessions = 80,
             frozen = true,
@@ -229,6 +230,35 @@ class MonthRatesResolverTest {
         val resolved = resolveMonthRates(
             month = YearMonth.of(2026, 3),
             entry = frozen,
+            profile = profile,
+            today = today,
+            // Календарь дозаполнился до 100 занятий — на закрытый месяц это
+            // больше не влияет.
+            diagnosticsCount = 20,
+            diagnosticsSum = 45_000.0,
+        )
+        assertEquals(PriceSource.FACT, resolved.source)
+        assertEquals(1500.0, resolved.rates.pricePerSession, 0.0)
+        // Недостающие ставки всё равно доберутся из профиля.
+        assertEquals(2250.0, resolved.rates.pricePerDiagnostics, 0.0)
+    }
+
+    @Test
+    fun `reopened month is recalculated from the fact again`() {
+        // Разморозили — значит попросили посчитать заново: 120 000 ÷ 80 = 1500.
+        val reopened = MonthEntry(
+            staffId = 1L,
+            year = 2026,
+            month = 3,
+            sessions = 80,
+            pricePerSession = 1400.0,
+            factGross = 120_000.0,
+            factSessions = 80,
+            frozen = false,
+        )
+        val resolved = resolveMonthRates(
+            month = YearMonth.of(2026, 3),
+            entry = reopened,
             profile = profile,
             today = today,
         )

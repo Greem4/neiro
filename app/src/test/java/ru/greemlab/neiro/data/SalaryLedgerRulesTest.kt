@@ -204,7 +204,6 @@ class SalaryLedgerRulesTest {
             pricePerSession = 1450.0,
             tax = 6000.0,
             origin = PriceOrigin.MANUAL,
-            frozen = true,
             resolved = true,
             note = "договорённость с центром",
         )
@@ -245,7 +244,6 @@ class SalaryLedgerRulesTest {
             pricePerSession = 1400.0,
             factGross = 161_000.0,
             factSessions = 115,
-            frozen = true,
         )
 
         val merged = mergeFact(
@@ -260,6 +258,72 @@ class SalaryLedgerRulesTest {
         assertEquals(161_000.0, merged.factGross!!, 0.0)
         assertEquals(115, merged.factSessions)
         assertEquals(1400.0, merged.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `closed month is never rewritten by sync`() {
+        // Месяц кончился, ЗП выдана, начисление получено — считать заново нечего.
+        // Даже если YClients вдруг отдаст другие числа, закрытый месяц молчит:
+        // вернуть его в расчёт может только человек кнопкой синка месяца.
+        val closed = MonthEntry(
+            staffId = staffId,
+            year = 2026,
+            month = 6,
+            sessions = 115,
+            pricePerSession = 1400.0,
+            factGross = 161_000.0,
+            factSessions = 115,
+            frozen = true,
+            note = "разобрано",
+        )
+
+        val merged = mergeFact(
+            existing = closed,
+            fact = fact(180_000.0, 120),
+            app = MonthAppView(
+                services = 120,
+                pricePerSession = 1500.0,
+                factPricePerSession = 1500.0,
+            ),
+            profile = profile.copy(pricePerSession = 9999.0),
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 20),
+        )
+
+        assertEquals(closed, merged)
+    }
+
+    @Test
+    fun `unfrozen month is pulled again`() {
+        // Разморозка (или кружок синка месяца) возвращает месяц в расчёт —
+        // иначе поправить ошибочно закрытый месяц было бы нечем.
+        val reopened = MonthEntry(
+            staffId = staffId,
+            year = 2026,
+            month = 6,
+            sessions = 115,
+            pricePerSession = 1400.0,
+            factGross = 161_000.0,
+            factSessions = 115,
+            frozen = false,
+        )
+
+        val merged = mergeFact(
+            existing = reopened,
+            fact = fact(180_000.0, 120),
+            app = MonthAppView(
+                services = 120,
+                pricePerSession = 1400.0,
+                factPricePerSession = 1500.0,
+            ),
+            profile = profile,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 20),
+        )
+
+        assertEquals(180_000.0, merged.factGross!!, 0.0)
+        assertEquals(1500.0, merged.pricePerSession, 0.0)
+        assertTrue(merged.frozen)
     }
 
     @Test

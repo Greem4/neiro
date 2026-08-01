@@ -40,9 +40,11 @@ data class MonthLocalFacts(
  * Профиль отвечает только за текущий и будущие месяцы — правка цены в профиле
  * не переписывает историю.
  *
- * Заморозка не отменяет пересчёт из факта: начисление за закрытый месяц уже не
- * меняется, а вот число занятий в локальном календаре может дозаполниться. Своя
- * цена закрытого месяца идёт в дело только когда факта нет вовсе (403, офлайн).
+ * Закрытый месяц (`frozen`) — уже посчитанное число: он отдаёт свою сохранённую
+ * цену и заново не выводится. Так и задумано: месяц кончился, ЗП выдана,
+ * начисление получено — пересчитывать его при каждой отрисовке незачем, а
+ * число занятий в локальном календаре с тех пор могло дозаполниться и увело бы
+ * цену вниз. Вернуть месяц в расчёт можно кнопкой синка месяца или разморозкой.
  *
  * Ставка «X с даты Y» историю не восстанавливает: переходы прайса размазаны по
  * клиентам на 2,5 месяца, и в августе 2025 занятия шли одновременно по 1250 и
@@ -67,9 +69,19 @@ fun resolveMonthRates(
     if (entry == null) return byProfile
     if (entry.origin == PriceOrigin.MANUAL) return ResolvedRates(entry.rates(), PriceSource.MANUAL)
 
+    // Закрытый месяц уже посчитан и лежит в истории числом — его и показываем,
+    // ничего не выводя заново. Цена там та самая, что вывелась из начисления
+    // при закрытии месяца, а число занятий в календаре с тех пор могло съехать.
+    if (entry.frozen && entry.pricePerSession > 0.0) {
+        return ResolvedRates(
+            rates = entry.ratesOr(profile),
+            source = if (entry.factGross != null) PriceSource.FACT else PriceSource.PROFILE,
+        )
+    }
+
     // Цена, которой закрылся месяц, — на случай, когда факта не будет.
     val storedRates = if (entry.pricePerSession > 0.0) {
-        ResolvedRates(entry.rates(), PriceSource.PROFILE)
+        ResolvedRates(entry.ratesOr(profile), PriceSource.PROFILE)
     } else {
         byProfile
     }
@@ -114,6 +126,19 @@ fun sessionPriceFromFact(
     if (divisor <= 0 || base <= 0.0) return null
     return base / divisor
 }
+
+/**
+ * Ставки месяца из записи, с добором недостающего из профиля.
+ *
+ * `entry.rates()` брать нельзя: у записи, заведённой до появления поля, цена
+ * диагностики или налог лежат нулями, и месяц показал бы диагностику по 0 ₽.
+ */
+internal fun MonthEntry.ratesOr(profile: EarningsContext): EarningsContext = EarningsContext(
+    pricePerSession = pricePerSession,
+    pricePerDiagnostics = diagnosticsPriceOr(profile),
+    pricePerIntensiveChild = intensivePriceOr(profile),
+    monthlyTaxAmount = taxOr(profile),
+)
 
 /** Цена диагностики месяца: из записи, если задана, иначе из профиля. */
 internal fun MonthEntry?.diagnosticsPriceOr(profile: EarningsContext): Double =
