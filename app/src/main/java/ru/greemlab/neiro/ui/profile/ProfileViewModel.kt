@@ -43,7 +43,14 @@ private fun describePull(result: SalaryPullResult): String = when (result) {
     is SalaryPullResult.Failed -> when (result.code) {
         401 -> "Сессия истекла — войдите в YClients заново"
         403 -> "YClients не отдаёт зарплату этому аккаунту"
-        else -> "Не удалось получить — проверьте связь"
+        // Про связь наугад больше не пишем: раз причина неизвестна, показываем
+        // ровно то, что ответил YClients или сказало исключение. Догадка вместо
+        // факта уводит поиск не туда — «проверьте связь» при рабочем интернете.
+        else -> listOfNotNull(
+            "Не получилось",
+            result.code?.let { "HTTP $it" },
+            result.reason.takeIf { it.isNotBlank() },
+        ).joinToString(" · ")
     }
 }
 
@@ -164,7 +171,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val result = runCatching { salaryHistorySync.syncSingleMonth(month) }
-                    .getOrElse { SalaryPullResult.Failed(null) }
+                    .getOrElse { SalaryPullResult.Failed(null, it.javaClass.simpleName) }
                 _monthSyncNote.value = MonthSyncNote(month, describePull(result))
             } finally {
                 // Только в finally: иначе отменённая корутина оставит кружок

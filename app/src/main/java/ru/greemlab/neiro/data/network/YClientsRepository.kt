@@ -490,17 +490,30 @@ class YClientsRepository(context: Context) {
                         return requestSalaryDaily(staffId, from, trimmed, today, generation, allowRetry = false)
                     }
                 }
-                Log.w(TAG, "salary_daily вернул HTTP ${response.code()}")
-                return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
+                // Текст ошибки YClients — единственная подсказка, почему не отдал:
+                // на 422 там осмысленное объяснение про параметры (API-HOWTO 1.3).
+                val detail = runCatching { response.errorBody()?.string() }.getOrNull()
+                Log.w(TAG, "salary_daily вернул HTTP ${response.code()}: $detail")
+                return ApiResult.Error(
+                    salaryErrorMessage(response.code()).ifBlank { detail.orEmpty().take(200) },
+                    response.code(),
+                )
             }
             val body = response.body()
-            if (body?.success != true) return ApiResult.Error("")
+            if (body?.success != true) {
+                val detail = body?.meta?.message.orEmpty()
+                Log.w(TAG, "salary_daily: success=${body?.success}, meta=$detail")
+                return ApiResult.Error(detail.ifBlank { "ответ без данных" })
+            }
             return ApiResult.Success(parseDayFacts(body.data))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Запрос зарплаты не удался", e)
-            return ApiResult.Error("")
+            // Имя исключения различает «нет сети» (IOException) и «ответ не
+            // разобрался» (JsonSyntaxException) — без него обе беды выглядят
+            // одинаково, и чинить приходится вслепую.
+            return ApiResult.Error("${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(200))
         }
     }
 

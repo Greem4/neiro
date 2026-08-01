@@ -36,8 +36,12 @@ sealed interface SalaryPullResult {
     /** Ответ пришёл, но начислений за период нет — месяц до найма, например. */
     data object NoData : SalaryPullResult
 
-    /** Не ответили: нет прав (403), истекла сессия (401), нет сети. */
-    data class Failed(val code: Int?) : SalaryPullResult
+    /**
+     * Не ответили: нет прав (403), истекла сессия (401), нет сети, не разобрался
+     * ответ. [reason] — то, что сказал сам YClients или исключение: без него все
+     * эти беды выглядят одинаково и чинятся вслепую.
+     */
+    data class Failed(val code: Int?, val reason: String = "") : SalaryPullResult
 
     /** `staffId` неизвестен — писать историю некуда. */
     data object NoStaff : SalaryPullResult
@@ -208,8 +212,8 @@ class SalaryHistorySync private constructor(context: Context) {
         val facts = when (val result = repository.fetchSalaryDaily(from, to, today)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> {
-                Log.w(TAG, "Факт ЗП не получен (code=${result.code}) — считаем по цене профиля")
-                return SalaryPullResult.Failed(result.code)
+                Log.w(TAG, "Факт ЗП не получен (code=${result.code}): ${result.message}")
+                return SalaryPullResult.Failed(result.code, result.message)
             }
         }
         if (facts.isEmpty()) return SalaryPullResult.NoData
