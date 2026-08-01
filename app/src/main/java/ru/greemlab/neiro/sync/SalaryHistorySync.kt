@@ -239,6 +239,13 @@ class SalaryHistorySync private constructor(context: Context) {
                     services = days.sumOf { it.value.servicesCount },
                 )
 
+                // Месяц до найма: YClients отдаёт по нему нули, локальных записей
+                // тоже нет. Заводить на него запись незачем — иначе в
+                // переключателе лет всплывают годы, в которых человек ещё не
+                // работал, а месяцы показывают сегодняшнюю цену профиля.
+                val hasAnything = fact.gross > 0.0 || fact.services > 0 || local.services > 0
+                if (existing == null && !hasAnything) continue
+
                 val app = MonthAppView(
                     services = local.services,
                     diagnosticsCount = local.diagnosticsCount,
