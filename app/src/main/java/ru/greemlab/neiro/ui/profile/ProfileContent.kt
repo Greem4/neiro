@@ -117,6 +117,7 @@ fun ProfileContent(
         profitDisplay = profitDisplay,
         onMonthPriceEdited = profileViewModel::updateMonthPrice,
         onMonthDiscrepancyResolved = profileViewModel::updateMonthPrice,
+        onMonthFactAccepted = profileViewModel::acceptMonthFact,
         onMonthUnfrozen = profileViewModel::unfreezeMonth,
         availableYears = availableYears,
         selectedYear = selectedYear,
@@ -146,6 +147,7 @@ private fun ProfileContentImpl(
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onMonthPriceEdited: (YearMonth, Double) -> Unit = { _, _ -> },
     onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthFactAccepted: (YearMonth) -> Unit = {},
     onMonthUnfrozen: (YearMonth) -> Unit = {},
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
@@ -208,6 +210,7 @@ private fun ProfileContentImpl(
             display = profitDisplay,
             onMonthPriceEdited = onMonthPriceEdited,
             onMonthDiscrepancyResolved = onMonthDiscrepancyResolved,
+            onMonthFactAccepted = onMonthFactAccepted,
             onMonthUnfrozen = onMonthUnfrozen,
         )
 

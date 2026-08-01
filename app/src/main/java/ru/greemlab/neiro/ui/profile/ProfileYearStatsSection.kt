@@ -83,6 +83,7 @@ fun ProfileYearStatsSection(
     display: ProfitDisplaySettings = ProfitDisplaySettings(),
     onMonthPriceEdited: (YearMonth, Double) -> Unit = { _, _ -> },
     onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthFactAccepted: (YearMonth) -> Unit = {},
     onMonthUnfrozen: (YearMonth) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -296,9 +297,13 @@ fun ProfileYearStatsSection(
                 meta = meta,
                 factPricePerSession = factPrice,
                 onDismiss = { discrepancyMonth = null },
-                onConfirm = { price ->
+                onConfirmPrice = { price ->
                     discrepancyMonth = null
                     onMonthDiscrepancyResolved(month, price)
+                },
+                onAcceptFact = {
+                    discrepancyMonth = null
+                    onMonthFactAccepted(month)
                 },
             )
         }
@@ -365,9 +370,11 @@ private fun MonthPriceDetails(
                 MonthDetailRow("В YClients за месяц", formatRubles(meta.factGross))
             }
 
-            if (meta.origin == PriceOrigin.AUTO) {
+            if (meta.origin == PriceOrigin.AUTO && meta.source != PriceSource.FACT) {
+                // Про цену из YClients так писать нельзя: она и есть начисление,
+                // а не прикидка приложения.
                 Text(
-                    text = "Цена рассчитана автоматически — проверьте",
+                    text = "Считано по цене из профиля — проверьте",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -397,7 +404,7 @@ private fun MonthPriceDetails(
 
             if (meta.frozen) {
                 Text(
-                    text = "Месяц закрыт и больше не пересчитывается",
+                    text = "Месяц закрыт — начисление получено",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -480,7 +487,8 @@ private fun MonthDiscrepancyDialog(
     meta: MonthPriceMeta,
     factPricePerSession: Double,
     onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit,
+    onConfirmPrice: (Double) -> Unit,
+    onAcceptFact: () -> Unit,
 ) {
     val appPrice = meta.pricePerSession
     val sessions = meta.billableSessions
@@ -488,6 +496,7 @@ private fun MonthDiscrepancyDialog(
     var customText by remember(month) { mutableStateOf("") }
     val customPrice = customText.filter { it.isDigit() }.toDoubleOrNull()
 
+    // FACT цены не фиксирует: месяц уходит под начисление и следит за ним дальше.
     val chosenPrice = when (choice) {
         DiscrepancyChoice.APP -> appPrice
         DiscrepancyChoice.FACT -> factPricePerSession
@@ -501,7 +510,7 @@ private fun MonthDiscrepancyDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Приложение считало ${formatRubles(appPrice)} × $sessions " +
+                    text = "Ваша цена ${formatRubles(appPrice)} × $sessions " +
                         "= ${formatRubles(appPrice * sessions)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -522,7 +531,7 @@ private fun MonthDiscrepancyDialog(
 
                 DiscrepancyOptionRow(
                     selected = choice == DiscrepancyChoice.APP,
-                    label = "${formatRubles(appPrice)} — как считало приложение",
+                    label = "${formatRubles(appPrice)} — оставить свою",
                     onClick = { choice = DiscrepancyChoice.APP },
                 )
                 DiscrepancyOptionRow(
@@ -547,7 +556,13 @@ private fun MonthDiscrepancyDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { chosenPrice?.let(onConfirm) },
+                onClick = {
+                    if (choice == DiscrepancyChoice.FACT) {
+                        onAcceptFact()
+                    } else {
+                        chosenPrice?.let(onConfirmPrice)
+                    }
+                },
                 enabled = chosenPrice != null && chosenPrice > 0.0,
             ) {
                 Text("В историю")

@@ -99,7 +99,24 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Разморозка месяца: «пересчитывай снова». Ничего не удаляет (FOUNDATION 4). */
+    /**
+     * «Считать как в YClients»: месяц возвращается в АВТО, и цену ему снова
+     * даёт начисление. Без этого выбор «как в YClients» в разборе расхождения
+     * зафиксировал бы сегодняшний факт ручной ценой, и месяц замер бы навсегда.
+     */
+    fun acceptMonthFact(month: YearMonth) {
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month) ?: return@update ledger
+                ledger.withMonth(
+                    existing.copy(origin = PriceOrigin.AUTO, resolved = true),
+                )
+            }
+        }
+    }
+
+    /** Разморозка месяца: «дотяни начисление снова». Ничего не удаляет (FOUNDATION 4). */
     fun unfreezeMonth(month: YearMonth) {
         val staffId = salaryStaffId
         viewModelScope.launch {

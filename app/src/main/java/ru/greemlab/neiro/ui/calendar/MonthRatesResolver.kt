@@ -33,9 +33,20 @@ data class MonthLocalFacts(
 )
 
 /**
- * Цена месяца по приоритету FOUNDATION 3.2:
+ * Цена месяца: **факт YClients — главный источник за прошлое.**
+ *
  *   MANUAL → его цена; есть факт → factGross ÷ занятия; иначе → профиль.
- * Текущий и будущие месяцы всегда считаются по профилю.
+ *
+ * Профиль отвечает только за текущий и будущие месяцы — правка цены в профиле
+ * не переписывает историю.
+ *
+ * Заморозка не отменяет пересчёт из факта: начисление за закрытый месяц уже не
+ * меняется, а вот число занятий в локальном календаре может дозаполниться. Своя
+ * цена закрытого месяца идёт в дело только когда факта нет вовсе (403, офлайн).
+ *
+ * Ставка «X с даты Y» историю не восстанавливает: переходы прайса размазаны по
+ * клиентам на 2,5 месяца, и в августе 2025 занятия шли одновременно по 1250 и
+ * 1400 (HISTORY §1). Где факт врёт — месяц правится руками и становится MANUAL.
  *
  * Деление идёт на [MonthEntry.factSessions] (число из API), а не на локальное:
  * при расхождении локальное число меньше, и цена завысилась бы.
@@ -56,25 +67,26 @@ fun resolveMonthRates(
     if (entry == null) return byProfile
     if (entry.origin == PriceOrigin.MANUAL) return ResolvedRates(entry.rates(), PriceSource.MANUAL)
 
-    // Закрытый месяц не пересчитывается — у него уже есть своя цена (FOUNDATION 4).
-    if (entry.frozen && entry.pricePerSession > 0.0) {
-        return ResolvedRates(entry.rates(), PriceSource.PROFILE)
+    // Цена, которой закрылся месяц, — на случай, когда факта не будет.
+    val storedRates = if (entry.pricePerSession > 0.0) {
+        ResolvedRates(entry.rates(), PriceSource.PROFILE)
+    } else {
+        byProfile
     }
 
-    // factGross == 0.0 — это факт «за месяц ноль», а не «факта нет».
-    val factGross = entry.factGross ?: return byProfile
-
-    val sessionPrice = sessionPriceFromFact(
-        factGross = factGross,
-        services = entry.factSessions ?: entry.sessions,
-        diagnosticsCount = diagnosticsCount,
-        diagnosticsSum = diagnosticsSum,
-        factIntensiveSum = factIntensiveSum,
-    ) ?: profile.pricePerSession
+    val factPrice = entry.factGross?.let { factGross ->
+        sessionPriceFromFact(
+            factGross = factGross,
+            services = entry.factSessions ?: entry.sessions,
+            diagnosticsCount = diagnosticsCount,
+            diagnosticsSum = diagnosticsSum,
+            factIntensiveSum = factIntensiveSum,
+        )
+    } ?: return storedRates
 
     return ResolvedRates(
         rates = EarningsContext(
-            pricePerSession = sessionPrice,
+            pricePerSession = factPrice,
             pricePerDiagnostics = entry.diagnosticsPriceOr(profile),
             pricePerIntensiveChild = entry.intensivePriceOr(profile),
             monthlyTaxAmount = entry.taxOr(profile),

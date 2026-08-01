@@ -134,7 +134,7 @@ class SalaryLedgerRulesTest {
     }
 
     @Test
-    fun `discrepancy freezes at app price and asks to review`() {
+    fun `auto month takes fact price and does not ask to review`() {
         val merged = mergeFact(
             existing = null,
             fact = fact(172_500.0, 115),
@@ -149,10 +149,49 @@ class SalaryLedgerRulesTest {
         )
 
         assertTrue(merged.frozen)
-        assertFalse(merged.resolved)
-        // Замораживаем по цене приложения: до разбора правда за человеком.
-        assertEquals(1400.0, merged.pricePerSession, 0.0)
+        // Цена приходит из начисления, а не из профиля.
+        assertEquals(1500.0, merged.pricePerSession, 0.0)
+        // Разбирать нечего: приложение и YClients теперь говорят одно и то же.
+        assertTrue(merged.resolved)
+        // След расхождения всё равно остаётся — по нему и находят такие истории.
         assertTrue(merged.note.contains("факт YClients"))
+    }
+
+    @Test
+    fun `manual price is asked to review only when fact changes`() {
+        val manual = MonthEntry(
+            staffId = staffId,
+            year = 2026,
+            month = 6,
+            sessions = 115,
+            pricePerSession = 1400.0,
+            factGross = 172_500.0,
+            factSessions = 115,
+            origin = PriceOrigin.MANUAL,
+            resolved = true,
+        )
+        val app = MonthAppView(services = 115, pricePerSession = 1400.0, factPricePerSession = 1500.0)
+
+        val sameFact = mergeFact(
+            existing = manual,
+            fact = fact(172_500.0, 115),
+            app = app,
+            profile = profile,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 10),
+        )
+        assertTrue(sameFact.resolved)
+
+        val changedFact = mergeFact(
+            existing = manual,
+            fact = fact(180_000.0, 120),
+            app = app,
+            profile = profile,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 10),
+        )
+        assertFalse(changedFact.resolved)
+        assertEquals(1400.0, changedFact.pricePerSession, 0.0)
     }
 
     @Test
@@ -189,12 +228,42 @@ class SalaryLedgerRulesTest {
         assertTrue(merged.note.startsWith("договорённость с центром"))
         // Факт всё равно обновился — сверять есть с чем.
         assertEquals(172_500.0, merged.factGross!!, 0.0)
-        // Разобранный месяц молчит.
-        assertTrue(merged.resolved)
+        // Цену человек ставил, ещё не зная начисления: теперь оно пришло и
+        // спорит с ней — просим сверить. Дальше тот же факт будет молчать.
+        assertFalse(merged.resolved)
     }
 
     @Test
-    fun `zero fact is stored as a fact`() {
+    fun `empty answer is not a fact and does not erase the old one`() {
+        // Ноль рублей и ни одной услуги — это «не ответили», а не «месяц нулевой»:
+        // деньги месяца теперь берутся из факта, и обнулять его нельзя.
+        val existing = MonthEntry(
+            staffId = staffId,
+            year = 2026,
+            month = 6,
+            sessions = 115,
+            pricePerSession = 1400.0,
+            factGross = 161_000.0,
+            factSessions = 115,
+            frozen = true,
+        )
+
+        val merged = mergeFact(
+            existing = existing,
+            fact = fact(0.0, 0),
+            app = MonthAppView(services = 115, pricePerSession = 1400.0),
+            profile = profile,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 10),
+        )
+
+        assertEquals(161_000.0, merged.factGross!!, 0.0)
+        assertEquals(115, merged.factSessions)
+        assertEquals(1400.0, merged.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `empty answer on a brand new month leaves no fact`() {
         val merged = mergeFact(
             existing = null,
             fact = fact(0.0, 0),
@@ -204,9 +273,9 @@ class SalaryLedgerRulesTest {
             today = LocalDate.of(2026, 7, 10),
         )
 
-        assertNotNull(merged.factGross)
-        assertEquals(0.0, merged.factGross!!, 0.0)
-        assertTrue(merged.frozen)
+        assertNull(merged.factGross)
+        // Без факта морозить нечего — месяц ещё дотянется.
+        assertFalse(merged.frozen)
     }
 
     @Test

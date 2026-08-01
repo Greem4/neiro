@@ -109,16 +109,25 @@ fun mergeFact(
     staffId: Long,
     today: LocalDate,
 ): MonthEntry {
-    val manual = existing != null && existing.origin == PriceOrigin.MANUAL
+    val manual = existing?.takeIf { it.origin == PriceOrigin.MANUAL }
+
+    // Ноль рублей и ни одной услуги — это «данных нет» (403, пустой период,
+    // начисление ещё не проведено), а не «месяц нулевой». Затирать таким ответом
+    // уже полученный факт нельзя: месяц обнулился бы в статистике.
+    val hasFact = fact.gross > 0.0 || fact.services > 0
+
+    val factPrice = app.factPricePerSession
 
     val pricePerSession = when {
-        manual -> existing.pricePerSession
-        // Месяц, который приложение прожило само: замораживается по своей цене —
-        // именно её человек видел весь месяц (FOUNDATION 4).
+        manual != null -> manual.pricePerSession
+        // Факт YClients — главный источник за прошлое. Ставка «X с даты Y»
+        // историю не восстанавливает: переходы прайса размазаны по клиентам,
+        // и в одном месяце занятия идут по двум ценам (HISTORY §1).
+        factPrice != null -> factPrice
+        // Факт есть, но делить не на что — остаётся цена, по которой приложение
+        // этот месяц показывало.
         app.services > 0 -> app.pricePerSession
-        // Месяца в локальном календаре нет (приложение поставили позже) —
-        // единственная правда о нём это факт (FOUNDATION 7).
-        else -> app.factPricePerSession ?: profile.pricePerSession
+        else -> existing?.pricePerSession?.takeIf { it > 0.0 } ?: profile.pricePerSession
     }
 
     val merged = MonthEntry(
@@ -132,24 +141,36 @@ fun mergeFact(
         priceIntensiveChild = existing?.priceIntensiveChild?.takeIf { it > 0.0 }
             ?: profile.pricePerIntensiveChild,
         tax = existing?.tax?.takeIf { it > 0.0 } ?: profile.monthlyTaxAmount,
-        factGross = fact.gross,
-        factSessions = fact.services,
+        factGross = if (hasFact) fact.gross else existing?.factGross,
+        factSessions = if (hasFact) fact.services else existing?.factSessions,
         origin = existing?.origin ?: PriceOrigin.AUTO,
         // Морозим, как только настал срок. Запись месяца появляется ещё до
         // заморозки (текущий месяц пишется каждый синк), поэтому «уже есть
         // запись с frozen = false» не значит «человек разморозил» — иначе
-        // такой месяц не закрылся бы никогда. Разморозка живёт до следующего
-        // синка: у ручной цены это ничего не меняет (её никто не переписывает),
-        // а АВТО-месяц ровно за этим и размораживают — чтобы пересчитался.
+        // такой месяц не закрылся бы никогда.
+        //
+        // Заморозка означает «месяц закрыт, начисление получено», а не «не
+        // пересчитывать»: расчёт и так идёт от факта. Она лишь убирает месяц из
+        // ежедневного дотягивания, а разморозка возвращает его туда.
         frozen = existing?.frozen == true ||
-            shouldFreeze(fact.month, hasFact = true, today = today),
+            shouldFreeze(fact.month, hasFact = hasFact, today = today),
         resolved = true,
         note = existing?.note.orEmpty(),
     )
 
     val gap = discrepancy(merged, app) ?: return merged
+
+    // Человек соглашался с тем начислением, которое видел. Пришло другое —
+    // спрашиваем снова; то же самое молчит (FOUNDATION 5).
+    val previousFact = existing?.factGross
+    val factIsNew = hasFact &&
+        (previousFact == null || abs(fact.gross - previousFact) >= PRICE_TOLERANCE)
+
     return merged.copy(
-        resolved = existing?.resolved ?: false,
+        // АВТО-цена теперь и есть факт — разбирать там нечего, след в `note`
+        // остаётся историей наблюдений. Спрашиваем только когда с начислением
+        // спорит собственная цена человека.
+        resolved = if (manual != null) manual.resolved && !factIsNew else true,
         note = appendNote(merged.note, describeDiscrepancy(gap)),
     )
 }

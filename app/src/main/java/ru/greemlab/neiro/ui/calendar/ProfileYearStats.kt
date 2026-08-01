@@ -183,32 +183,55 @@ internal fun computeProfileYearStats(
             billableSessions = (services - local.diagnosticsCount).coerceAtLeast(0),
         )
 
-        val hasLocalRecords = yearDayData.any { (date, sessions) ->
-            date.monthValue == month && sessions.isNotEmpty()
-        }
-        if (!hasLocalRecords && factGross != null) {
-            // Месяца нет в локальном календаре, но в YClients он есть —
-            // показываем цифрами из истории (FOUNDATION 3.3).
-            val net = monthlyNetProfit(factGross, monthRates.monthlyTaxAmount)
-            val sessions = entry?.factSessions ?: 0
-            completedSessions += sessions
-            monthlyNet[month - 1] = net
-            monthlyCompleted[month - 1] = sessions
-            totalNetEarned += net
-            continue
-        }
-
         val monthStats = computeMonthStats(
             currentMonth = currentMonth,
             dayData = yearDayData,
             rates = monthRates,
         )
+
+        // Деньги прошлого месяца — это начисление YClients целиком, а не
+        // «цена × занятия»: локальный календарь может не досчитать занятий, и
+        // перемножением получилось бы меньше, чем реально заплатили.
+        //
+        // Ручную цену пересчитываем по календарю: её ставят как раз затем, чтобы
+        // разойтись с фактом (февраль–май 2026 — YClients считал по 1500 из-за
+        // старой схемы percent, на руки было 1400, HISTORY §1).
+        val factMoney = factGross?.takeIf {
+            it > 0.0 &&
+                currentMonth.isBefore(YearMonth.from(today)) &&
+                entry?.origin != PriceOrigin.MANUAL
+        }
+        val hasLocalRecords = yearDayData.any { (date, sessions) ->
+            date.monthValue == month && sessions.isNotEmpty()
+        }
+        val factSessions = entry?.factSessions
+        val net = when {
+            // Интенсивы, заведённые руками, в начисление не попали — их деньги
+            // существуют только в приложении и прибавляются к факту.
+            factMoney != null ->
+                monthlyNetProfit(factMoney + local.manualIntensiveSum, monthRates.monthlyTaxAmount)
+
+            // Ручная цена на месяце, которого нет в локальном календаре
+            // (приложение поставили позже): занятия берём из API, иначе правка
+            // цены обнулила бы месяц с живым начислением.
+            !hasLocalRecords && factSessions != null && monthRates.pricePerSession > 0.0 ->
+                monthlyNetProfit(
+                    monthRates.pricePerSession * factSessions,
+                    monthRates.monthlyTaxAmount,
+                )
+
+            else -> monthStats.netProfit
+        }
+
         // Интенсивы в счётчик занятий не входят — это отдельный формат.
-        // На деньги это не влияет: их сумма уже учтена в netProfit.
-        completedSessions += monthStats.completedCount
-        monthlyNet[month - 1] = monthStats.netProfit
-        monthlyCompleted[month - 1] = monthStats.completedCount
-        totalNetEarned += monthStats.netProfit
+        // Месяц без локальных записей считаем по числу услуг из API: иначе
+        // история до установки приложения покажет деньги без занятий.
+        val completed = if (hasLocalRecords) monthStats.completedCount else factSessions ?: 0
+
+        completedSessions += completed
+        monthlyNet[month - 1] = net
+        monthlyCompleted[month - 1] = completed
+        totalNetEarned += net
     }
 
     val totalTaxAmount = profileRates.monthlyTaxAmount * elapsedMonthsInYear(year, today)

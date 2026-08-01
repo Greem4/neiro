@@ -146,12 +146,13 @@ class MonthRatesResolverTest {
             profile = profile,
             today = today,
         )
-        assertEquals(PriceSource.FACT, resolved.source)
+        // Делить не на что — цену даёт профиль, и «откуда» это честно показывает.
+        assertEquals(PriceSource.PROFILE, resolved.source)
         assertEquals(1400.0, resolved.rates.pricePerSession, 0.0)
     }
 
     @Test
-    fun `zero fact is a fact and not an absence`() {
+    fun `zero fact falls back to profile price`() {
         val emptyProfile = EarningsContext.Empty
         val resolved = resolveMonthRates(
             month = YearMonth.of(2026, 3),
@@ -159,7 +160,7 @@ class MonthRatesResolverTest {
             profile = emptyProfile,
             today = today,
         )
-        assertEquals(PriceSource.FACT, resolved.source)
+        assertEquals(PriceSource.PROFILE, resolved.source)
         assertEquals(0.0, resolved.rates.pricePerSession, 0.0)
     }
 
@@ -212,9 +213,9 @@ class MonthRatesResolverTest {
     }
 
     @Test
-    fun `frozen month keeps its stored price instead of recomputing`() {
-        // «Закрыт» значит «не пересчитывай»: месяц заморожен по цене приложения
-        // 1400, хотя из факта вышло бы 1500 (FOUNDATION 4).
+    fun `frozen month still takes price from fact`() {
+        // Закрытый месяц не защищён от факта: начисление и есть правда о нём,
+        // а сохранённая цена 1400 пришла из профиля.
         val frozen = MonthEntry(
             staffId = 1L,
             year = 2026,
@@ -224,7 +225,6 @@ class MonthRatesResolverTest {
             factGross = 120_000.0,
             factSessions = 80,
             frozen = true,
-            resolved = false,
         )
         val resolved = resolveMonthRates(
             month = YearMonth.of(2026, 3),
@@ -232,7 +232,29 @@ class MonthRatesResolverTest {
             profile = profile,
             today = today,
         )
-        assertEquals(1400.0, resolved.rates.pricePerSession, 0.0)
+        assertEquals(PriceSource.FACT, resolved.source)
+        assertEquals(1500.0, resolved.rates.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `stored price is used when there is no fact at all`() {
+        // 403 у сотрудника без прав владельца или офлайн: факта нет, но месяц
+        // когда-то закрылся по своей цене — она и остаётся, а не сегодняшняя.
+        val frozen = MonthEntry(
+            staffId = 1L,
+            year = 2025,
+            month = 4,
+            sessions = 102,
+            pricePerSession = 1250.0,
+            frozen = true,
+        )
+        val resolved = resolveMonthRates(
+            month = YearMonth.of(2025, 4),
+            entry = frozen,
+            profile = profile,
+            today = today,
+        )
+        assertEquals(1250.0, resolved.rates.pricePerSession, 0.0)
     }
 
     @Test
