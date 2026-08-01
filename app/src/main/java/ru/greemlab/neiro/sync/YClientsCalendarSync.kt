@@ -13,7 +13,11 @@ import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
+import ru.greemlab.neiro.data.SessionMeta
+import ru.greemlab.neiro.data.SessionMetaStore
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
+import ru.greemlab.neiro.notifications.SessionSlotKey
+import ru.greemlab.neiro.notifications.UpcomingSessionKind
 import ru.greemlab.neiro.ui.calendar.SessionParser
 import java.time.Instant
 import java.time.LocalDate
@@ -327,6 +331,7 @@ class YClientsCalendarSync(
         clearMissingDaysInRange: Boolean = true,
     ): DayMergeStats {
         val userProfile = calendarRepository.userProfileFlow.first()
+        rememberRecordsMeta(records)
         var newlyAdded = 0
         var changedDays = 0
 
@@ -698,6 +703,49 @@ class YClientsCalendarSync(
             .filter { it.isNotEmpty() }
             .sorted()
             .joinToString(" ")
+
+    /**
+     * Копит метаданные записей рядом с календарём (FOUNDATION 8.3): формат
+     * строки дня расширить нельзя, а `record_id` и `service_id` через полгода
+     * понадобятся. Пока никем не читается.
+     *
+     * Только полный синк: live-опрос трогать нельзя, а те же записи всё равно
+     * приезжают в следующем полном синке.
+     */
+    private fun rememberRecordsMeta(records: List<RecordData>) {
+        if (records.isEmpty()) return
+        val metaByKey = HashMap<String, SessionMeta>(records.size)
+        for (record in records) {
+            val date = parseRecordDate(record.date) ?: continue
+            val startTime = parseRecordStartTime(record) ?: continue
+            val isDiagnostics = record.services?.any {
+                it.title?.contains("диагностика", ignoreCase = true) == true
+            } == true
+            val key = SessionSlotKey.build(
+                clientName = extractClientName(record),
+                date = date,
+                startTime = startTime,
+                kind = if (isDiagnostics) {
+                    UpcomingSessionKind.DIAGNOSTICS
+                } else {
+                    UpcomingSessionKind.LESSON
+                },
+            )
+            val service = record.services?.firstOrNull()
+            metaByKey[key] = SessionMeta(
+                recordId = record.id,
+                serviceId = service?.id,
+                activityId = record.activityId,
+                firstCost = service?.firstCost ?: service?.costPerUnit,
+            )
+        }
+        SessionMetaStore.get(appContext).putAll(metaByKey)
+    }
+
+    private fun parseRecordStartTime(record: RecordData): LocalTime? {
+        val raw = recordStartTimeKey(record).takeIf { it.isNotBlank() } ?: return null
+        return runCatching { LocalTime.parse(raw) }.getOrNull()
+    }
 
     private fun parseRecordDate(dateString: String?): LocalDate? {
         if (dateString.isNullOrBlank()) return null

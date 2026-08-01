@@ -61,6 +61,8 @@ data class RecordData(
     @SerializedName("visit_attendance") val visitAttendance: Int?,
     val deleted: Boolean? = null,
     @SerializedName("last_change_date") val lastChangeDate: String? = null,
+    /** Групповое событие (интенсив и прочие группы). У обычной записи `null`. */
+    @SerializedName("activity_id") val activityId: Long? = null,
     val client: ClientData?,
     val services: List<ServiceData>?,
 )

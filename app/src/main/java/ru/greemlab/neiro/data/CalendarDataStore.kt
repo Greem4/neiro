@@ -305,6 +305,8 @@ class CalendarDataStore(context: Context) : CalendarRepository {
             ARCHIVE_EXPORTED_AT_KEY to LocalDateTime.now().format(archiveExportDateTimeFormatter),
             "saved_day_data" to savedDayJson,
             ArchiveNotificationStore.EXPORT_KEY to ArchiveNotificationStore.get(appContext).exportJson(),
+            // Ручные правки цен из API не восстановить — история обязана быть в бэкапе.
+            SalaryLedgerStore.EXPORT_KEY to SalaryLedgerStore.get(appContext).exportJson(),
         )
         gson.toJson(data)
     }
@@ -338,6 +340,12 @@ class CalendarDataStore(context: Context) : CalendarRepository {
 
         parsed[ArchiveNotificationStore.EXPORT_KEY]?.let { notificationsJson ->
             ArchiveNotificationStore.get(appContext).importJson(notificationsJson)
+        }
+
+        // Ключа нет — историю ЗП не трогаем (не очищаем): старый файл бэкапа
+        // ничего про неё не знает, а ручные правки восстановить нечем.
+        parsed[SalaryLedgerStore.EXPORT_KEY]?.let { ledgerJson ->
+            SalaryLedgerStore.get(appContext).importJson(ledgerJson)
         }
 
         return ImportResult.Success

@@ -19,4 +19,14 @@ object SalaryLedgerJson {
         return runCatching { gson.fromJson<SalaryLedger>(json, type) }
             .getOrNull() ?: SalaryLedger.Empty
     }
+
+    /**
+     * История из бэкапа, годная к применению, или `null`.
+     *
+     * Отсутствие ключа и битый JSON означают «не трогать историю», а не
+     * «очистить»: ручные правки — самая невосстановимая часть данных
+     * (FOUNDATION 8.4).
+     */
+    fun restorable(json: String?): SalaryLedger? =
+        fromJson(json).takeIf { it != SalaryLedger.Empty }
 }

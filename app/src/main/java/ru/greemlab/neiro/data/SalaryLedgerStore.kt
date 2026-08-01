@@ -80,8 +80,7 @@ class SalaryLedgerStore private constructor(context: Context) {
      * @return `true`, если данные применены.
      */
     suspend fun importJson(json: String): Boolean {
-        val parsed = SalaryLedgerJson.fromJson(json)
-        if (parsed == SalaryLedger.Empty) return false
+        val parsed = SalaryLedgerJson.restorable(json) ?: return false
         writeMutex.withLock {
             appContext.salaryLedgerDataStore.edit { prefs ->
                 prefs[ledgerKey] = SalaryLedgerJson.toJson(parsed)
