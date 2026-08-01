@@ -190,6 +190,13 @@ fun CalendarScreen(
     }
 
     val rates = remember(profile) { profile.earningsContext() }
+    val salaryLedger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
+    val salaryStaffId = profileViewModel.salaryStaffId
+    // Прошедший день показывает начисленное YClients, а не «цена × занятия»
+    // (FOUNDATION 3.4). Факта за будущее в истории нет по определению.
+    val selectedDayFact = remember(salaryLedger, salaryStaffId, selectedDate) {
+        selectedDate?.let { salaryLedger.dayFact(salaryStaffId, it) }
+    }
     val stats = rememberCalendarMonthStats(
         currentMonth = currentMonth,
         dayData = currentMonthDayData,
@@ -331,6 +338,7 @@ fun CalendarScreen(
                 },
                 isSyncing = syncState.isLoading,
                 rates = rates,
+                selectedDayFact = selectedDayFact,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -610,6 +618,8 @@ fun CalendarScreenContent(
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
     rates: EarningsContext = EarningsContext.Empty,
+    /** Начислено YClients за выбранный день, если факт уже загружен. */
+    selectedDayFact: Double? = null,
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -624,9 +634,9 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, selectedDaySessions, rates) {
+    val daySummaryStats = remember(selectedDate, selectedDaySessions, rates, selectedDayFact) {
         if (selectedDate == null) return@remember null
-        computeDayStats(selectedDaySessions, rates)
+        computeDayStats(selectedDaySessions, rates, selectedDayFact)
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
