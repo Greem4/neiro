@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -94,7 +93,7 @@ fun CalendarHeader(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(CalendarHeaderLayout.rowHeight),
+                .heightIn(min = CalendarHeaderLayout.rowHeight),
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -110,15 +109,16 @@ fun CalendarHeader(
                     )
                 }
 
-                Text(
+                // Ширина подписи фиксирована ради неподвижных стрелок, поэтому
+                // длинный месяц при крупном шрифте ужимается, а не обрезается.
+                AutoShrinkText(
                     text = "${getMonthName(currentMonth)} ${currentMonth.year}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontSize = CalendarHeaderLayout.monthTitleFontSize,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = CalendarHeaderLayout.monthTitleFontSize,
+                        fontWeight = FontWeight.Bold,
+                    ),
                     color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .width(CalendarHeaderLayout.monthTitleWidth)
                         .clip(RoundedCornerShape(8.dp))

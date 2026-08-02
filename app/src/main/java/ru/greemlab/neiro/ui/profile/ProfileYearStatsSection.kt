@@ -17,8 +17,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -64,8 +66,10 @@ import ru.greemlab.neiro.ui.calendar.PriceSource
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
 import ru.greemlab.neiro.ui.calendar.getChartMonthAbbreviation
 import ru.greemlab.neiro.ui.calendar.getMonthName
+import ru.greemlab.neiro.ui.components.LabelValueRow
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import ru.greemlab.neiro.ui.util.cappedSp
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Month
 import java.time.YearMonth
@@ -74,10 +78,12 @@ private val StatsContentPadding = PaddingValues(horizontal = 8.dp, vertical = 12
 /** Доля высоты области графика под столбцы (линия использует [ChartLineHeightFraction]). */
 private const val ChartBarHeightFraction = 0.85f
 private const val ChartLineHeightFraction = 0.96f
+// Подписи месяцев стоят в 12 колонках фиксированной ширины, поэтому их рост
+// ограничен: при системном шрифте 150%+ они иначе наезжают друг на друга.
 private val ChartMonthLabelStyle
     @Composable get() = MaterialTheme.typography.labelSmall.copy(
-        fontSize = 9.sp,
-        lineHeight = 11.sp,
+        fontSize = cappedSp(9.dp),
+        lineHeight = cappedSp(11.dp),
         letterSpacing = 0.sp,
     )
 
@@ -257,9 +263,7 @@ fun ProfileYearStatsSection(
                     onSummaryClick = { detailsExpanded = !detailsExpanded },
                     showDiscrepancy = display.showDiscrepancy,
                     progress = chartProgress.value,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(CHART_HEIGHT),
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 // Раскрытие месяца — рядом с графиком, а не внутри него:
@@ -325,8 +329,14 @@ fun ProfileYearStatsSection(
     }
 }
 
-/** Высота области графика: Canvas считает геометрию от неё. */
-private val CHART_HEIGHT = 188.dp
+/**
+ * Высота полотна графика: Canvas считает геометрию от неё.
+ *
+ * Задана именно полотну, а не всему блоку: подписи месяцев и сводка под графиком
+ * растут вместе с системным шрифтом, и при общей фиксированной высоте они
+ * съедали полотно — при 150%+ столбцы схлопывались в полоску.
+ */
+private val ChartCanvasHeight = 88.dp
 
 /** Точка о расхождении: заметнее дисклеймера, но не крик. */
 @Composable
@@ -548,15 +558,15 @@ private fun MonthActionChip(
     Surface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(34.dp),
+        modifier = modifier.heightIn(min = 34.dp),
         shape = RoundedCornerShape(10.dp),
         color = tint.copy(alpha = if (enabled) 0.12f else 0.06f),
         contentColor = contentColor,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(horizontal = 12.dp),
+            // Без fillMaxHeight: при неограниченной высоте он схлопнул бы строку
+            // до минимальных 34.dp и обрезал подпись на крупном шрифте.
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -587,21 +597,23 @@ private fun MonthActionChip(
 
 @Composable
 private fun MonthDetailRow(label: String, value: String) {
-    Row(
+    LabelValueRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-        )
-    }
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        value = {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+            )
+        },
+    )
 }
 
 private fun priceSourceLabel(meta: MonthPriceMeta): String = when {
@@ -680,7 +692,12 @@ private fun MonthDiscrepancyDialog(
         shape = RoundedCornerShape(28.dp),
         title = { Text("${getMonthName(month)} — расхождение") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                // Разбор расхождения — самый длинный диалог: при крупном
+                // системном шрифте варианты внизу иначе не поместились бы.
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     text = "Ваша цена ${formatRubles(appPrice)} × $sessions " +
                         "= ${formatRubles(appPrice * sessions)}",
@@ -904,7 +921,7 @@ private fun YearNetProfitChart(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .height(ChartCanvasHeight),
         ) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 val chartBottom = size.height

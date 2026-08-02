@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,9 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.zIndex
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -75,8 +77,12 @@ private object MonthPickerLayout {
     val tileCorner: Dp = 12.dp
     val tileInnerPadding: Dp = 4.dp
     val monthLabelHeight: Dp = 20.dp
-    val monthLabelFontSize = 11.sp
-    val dayFontSize = 8.sp
+    // Плитка — уменьшенная копия месяца с жёсткой сеткой 7×6, поэтому её шрифты
+    // растут вместе с системным лишь до предела: иначе числа налезают друг на друга.
+    val monthLabelFontSize: TextUnit
+        @Composable get() = cappedSp(11.dp)
+    val dayFontSize: TextUnit
+        @Composable get() = cappedSp(8.dp)
 }
 
 @Immutable
@@ -222,7 +228,7 @@ private fun MonthPickerYearBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(MonthPickerLayout.yearBarHeight),
+            .heightIn(min = MonthPickerLayout.yearBarHeight),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -241,13 +247,11 @@ private fun MonthPickerYearBar(
                 )
             }
 
-            Text(
+            AutoShrinkText(
                 text = year.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
-                maxLines = 1,
                 modifier = Modifier.width(MonthPickerLayout.yearLabelWidth),
             )
 
