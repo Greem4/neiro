@@ -37,6 +37,11 @@ val hasReleaseSigning: Boolean =
         releaseStorePassword.isNotBlank() &&
         releaseKeyAlias.isNotBlank() &&
         releaseKeyPassword.isNotBlank()
+// Считаем здесь, а не внутри buildTypes { release { … } }: там `any` цепляется
+// к неявному ресиверу вложенных лямбд DSL, и IDE справедливо подсвечивает это
+// как подозрительный вызов.
+val releaseTaskRequested: Boolean =
+    gradle.startParameter.taskNames.any { it.contains("Release") }
 
 if (hasGoogleServices) {
     plugins.apply("com.google.gms.google-services")
@@ -123,7 +128,7 @@ android {
             signingConfig =
                 when {
                     hasReleaseSigning -> signingConfigs.getByName("release")
-                    gradle.startParameter.taskNames.any { it.contains("Release") } ->
+                    releaseTaskRequested ->
                         throw GradleException(
                             "Release требует RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, " +
                                 "RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD в local.properties. " +
