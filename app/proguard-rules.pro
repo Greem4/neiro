@@ -19,7 +19,13 @@
 }
 
 # --- Модели, сериализуемые Gson через рефлексию ---
+# Одного @SerializedName тут мало: R8 сохраняет атрибут Signature только у классов
+# под keep-правилом. Без keep у поля Map<String, MonthEntry> стираются параметры
+# типа, Gson читает его как сырой Map и кладёт LinkedTreeMap вместо MonthEntry —
+# профиль в release падал с ClassCastException, а debug (minify off) работал.
 -keep class ru.greemlab.neiro.domain.models.** { *; }
+-keep class ru.greemlab.neiro.data.SalaryLedger { *; }
+-keep class ru.greemlab.neiro.data.SessionMeta { *; }
 -keep class ru.greemlab.neiro.data.UserProfileJson { *; }
 -keep class ru.greemlab.neiro.data.StoreSnapshot { *; }
 -keep class ru.greemlab.neiro.data.network.** { *; }

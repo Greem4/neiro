@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,7 +44,7 @@ fun CalendarToolbar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(ToolbarHeight)
+            .heightIn(min = ToolbarHeight)
             .padding(horizontal = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -66,7 +66,7 @@ private fun CalendarSourceSwitcher(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.height(ToolbarHeight),
+        modifier = modifier.heightIn(min = ToolbarHeight),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
@@ -127,7 +127,7 @@ private fun SourceTab(
 
     Surface(
         modifier = modifier
-            .height(ToolbarHeight - 6.dp)
+            .heightIn(min = ToolbarHeight - 6.dp)
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
@@ -146,13 +146,17 @@ private fun SourceTab(
                 modifier = Modifier.size(16.dp),
                 tint = contentColor,
             )
-            Text(
+            // Вкладок ровно две и они делят ширину поровну: при крупном шрифте
+            // подпись ужимается по кеглю, но не обрезается и не выдавливает бейдж.
+            AutoShrinkText(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                ),
                 color = contentColor,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 5.dp),
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(start = 5.dp),
             )
             if (badgeCount > 0) {
                 TabBadge(

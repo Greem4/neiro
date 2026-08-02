@@ -85,6 +85,8 @@
     <string name="settings_profit_expected_overview_hint">Под полосой прогресса на главном экране</string>
     <string name="settings_profit_total">Строка «Всего» в финансах</string>
     <string name="settings_profit_total_hint">Показывать итоговую сумму в самом диалоге</string>
+    <string name="settings_profit_discrepancy">Расхождение с YClients</string>
+    <string name="settings_profit_discrepancy_hint">Отметка в статистике, когда в YClients другая сумма. Сверка идёт всегда</string>
     <string name="settings_profit_session_price">Стоимость одного занятия</string>
     <string name="settings_profit_session_price_hint">Рядом с ожидаемым доходом (для проверки расчётов)</string>
     <string name="settings_profit_intensive">Заработано интенсив</string>

@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -68,6 +70,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.StatusRedBody
+import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalTime
 import kotlin.math.abs
 
@@ -315,7 +318,9 @@ private fun IntensiveTimeScrollPicker(
                 Text(
                     text = formatTimeSlotLabel(slots[index]),
                     modifier = Modifier.width(hourItemWidth),
-                    style = MaterialTheme.typography.bodyLarge,
+                    // Ширина слота фиксирована расчётом прокрутки, поэтому шрифт
+                    // здесь растёт ограниченно — иначе время не влезает в слот.
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = cappedSp(16.dp)),
                     fontWeight = FontWeight.Medium,
                     color = mutedColor,
                     textAlign = TextAlign.Center,
@@ -327,8 +332,8 @@ private fun IntensiveTimeScrollPicker(
         Surface(
             modifier = Modifier
                 .align(Alignment.Center)
-                .width(80.dp)
-                .height(44.dp)
+                .widthIn(min = 80.dp)
+                .heightIn(min = 44.dp)
                 .intensiveTimeChipScrollTap(
                     listState = listState,
                     onTap = { manualPickerOpen = true },
@@ -348,7 +353,7 @@ private fun IntensiveTimeScrollPicker(
             ) {
                 Text(
                     text = displayLabel,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = cappedSp(16.dp)),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     textAlign = TextAlign.Center,

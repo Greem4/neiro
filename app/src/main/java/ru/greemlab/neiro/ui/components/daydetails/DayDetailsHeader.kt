@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.ui.util.NBSP
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -63,7 +64,7 @@ fun DayDetailsHeader(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "Итого: ${totalMoney.toInt()} ₽",
+                            text = "Итого: ${totalMoney.toInt()}$NBSP₽",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,

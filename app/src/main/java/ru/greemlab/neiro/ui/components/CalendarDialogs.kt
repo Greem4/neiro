@@ -4,7 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -17,14 +20,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+
+/**
+ * Диалоги статистики шире платформенного умолчания (~320.dp): пары
+ * «подпись — сумма» должны вставать в одну строку и при крупном системном
+ * шрифте, а не переноситься. На планшете ширина упирается в [StatsDialogMaxWidth].
+ */
+private val StatsDialogMaxWidth: Dp = 560.dp
+private val StatsDialogProperties = DialogProperties(usePlatformDefaultWidth = false)
+
+private val StatsDialogModifier: Modifier
+    get() = Modifier
+        .widthIn(max = StatsDialogMaxWidth)
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 24.dp)
 
 /** Диалог с подробной статистикой занятий за месяц. */
 @Composable
@@ -37,6 +57,8 @@ fun LessonsDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = StatsDialogModifier,
+        properties = StatsDialogProperties,
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Закрыть") }
         },
@@ -50,7 +72,11 @@ fun LessonsDetailsDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                // Скролл: при крупном системном шрифте контент выше диалога, и без
+                // него AlertDialog просто обрезал бы нижние строки.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Column(
@@ -131,7 +157,7 @@ fun LessonsDetailsDialog(
 fun ProfitDetailsDialog(
     currentMonth: YearMonth,
     stats: CalendarMonthStats,
-    pricePerSession: Double,
+    rates: EarningsContext,
     salaryAdvanceOnCard: Double,
     salaryMainOnCard: Double,
     salaryOnCardFallback: Double,
@@ -142,6 +168,8 @@ fun ProfitDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = StatsDialogModifier,
+        properties = StatsDialogProperties,
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Закрыть") }
         },
@@ -155,7 +183,11 @@ fun ProfitDetailsDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                // Скролл: при крупном системном шрифте контент выше диалога, и без
+                // него AlertDialog просто обрезал бы нижние строки.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (display.showNetProfit) {
@@ -213,10 +245,10 @@ fun ProfitDetailsDialog(
                     )
                 }
 
-                if (display.showPricePerSession && pricePerSession > 0.0) {
+                if (display.showPricePerSession && rates.pricePerSession > 0.0) {
                     ProfitRow(
                         label = "Стоимость одного занятия",
-                        value = pricePerSession,
+                        value = rates.pricePerSession,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

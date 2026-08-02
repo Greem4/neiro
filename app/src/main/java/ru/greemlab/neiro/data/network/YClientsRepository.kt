@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -416,6 +417,285 @@ class YClientsRepository(context: Context) {
         }
     }
 
+    /**
+     * Начисленная ЗП по дням за период (FOUNDATION 3.4).
+     *
+     * Период режется под ограничения YClients ([splitSalaryPeriods]), поэтому
+     * будущее сюда не уходит. Ошибки денежных запросов пользователю не
+     * показываются: при 403 и офлайне расчёт просто остаётся по цене профиля
+     * (FOUNDATION 3.5).
+     */
+    suspend fun fetchSalaryDaily(
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate = LocalDate.now(),
+    ): ApiResult<Map<LocalDate, DayFact>> = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.get()
+        val staff = tokenStorage.staffId ?: detectAndSaveStaffId()
+        if (staff == null) return@withContext ApiResult.Error(STAFF_UNKNOWN_MESSAGE)
+
+        val periods = splitSalaryPeriods(from, to, today)
+        if (periods.isEmpty()) return@withContext ApiResult.Success(emptyMap())
+
+        val facts = mutableMapOf<LocalDate, DayFact>()
+        var failure: ApiResult.Error? = null
+        for (period in periods) {
+            val chunk = requestSalaryDaily(
+                staffId = staff,
+                from = period.start,
+                to = period.endInclusive,
+                today = today,
+                generation = generation,
+                allowRetry = true,
+            )
+            when (chunk) {
+                // Год, по которому не ответили, не должен уносить с собой
+                // остальные: период режется по календарным годам, и первым
+                // куском идёт самый старый — тот, где сотрудника могло ещё не
+                // быть. Раньше его ошибка обрывала всю историю на первом же шаге.
+                is ApiResult.Error -> {
+                    // 401 — сессия мертва, дальнейшие куски осмысленного не дадут.
+                    if (chunk.code == 401) return@withContext chunk
+                    if (failure == null) failure = chunk
+                }
+
+                is ApiResult.Success -> facts += chunk.data
+            }
+        }
+        // Ошибку отдаём, только если не собрали вообще ничего: иначе половина
+        // истории лучше, чем ничего, а недостающие годы дотянутся потом.
+        failure?.takeIf { facts.isEmpty() } ?: ApiResult.Success(facts)
+    }
+
+    private suspend fun requestSalaryDaily(
+        staffId: Int,
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate,
+        generation: Int,
+        allowRetry: Boolean,
+    ): ApiResult<Map<LocalDate, DayFact>> {
+        try {
+            val response = api.getSalaryDaily(
+                companyId = tokenStorage.companyId,
+                staffId = staffId,
+                dateFrom = from.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                dateTo = to.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            )
+            if (!response.isSuccessful) {
+                handleUnauthorized(response.code(), generation)
+                if (response.code() == 422 && allowRetry) {
+                    // 422 — период залез в будущее или длиннее года. Обрезаем и пробуем один раз.
+                    val trimmed = minOf(today, from.plusDays(364), to)
+                    if (trimmed != to && !from.isAfter(trimmed)) {
+                        return requestSalaryDaily(staffId, from, trimmed, today, generation, allowRetry = false)
+                    }
+                }
+                // Текст ошибки YClients — единственная подсказка, почему не отдал:
+                // на 422 там осмысленное объяснение про параметры (API-HOWTO 1.3).
+                val detail = runCatching { response.errorBody()?.string() }.getOrNull()
+                Log.w(TAG, "salary_daily вернул HTTP ${response.code()}: $detail")
+                return ApiResult.Error(
+                    salaryErrorMessage(response.code()).ifBlank { detail.orEmpty().take(200) },
+                    response.code(),
+                )
+            }
+            val envelope = SalaryEnvelope(response.body())
+            if (!envelope.isSuccess) {
+                val detail = envelope.message.orEmpty()
+                Log.w(TAG, "salary_daily отказал: $detail")
+                return ApiResult.Error(detail.ifBlank { "ответ без данных" })
+            }
+            val items = salaryDailyItems(envelope.data)
+            if (items.isEmpty()) Log.w(TAG, "salary_daily: позиций не разобрано")
+            return ApiResult.Success(parseDayFacts(items))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Запрос зарплаты не удался", e)
+            // Имя исключения различает «нет сети» (IOException) и «ответ не
+            // разобрался» (JsonSyntaxException) — без него обе беды выглядят
+            // одинаково, и чинить приходится вслепую.
+            return ApiResult.Error("${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(200))
+        }
+    }
+
+    /**
+     * Ставки каждого месяца из позиций его начисления.
+     *
+     * Единственный честный источник цены занятия. Делить начисление на число
+     * услуг нельзя: в августе 2025 внутри 70 занятий по 1400 и 30 по 1250 (люди
+     * доходили по старым абонементам), и деление даёт 1355 — число, которого
+     * не существовало ни у одного занятия. В позициях же видно каждую ставку,
+     * диагностика отличается названием, а интенсив — типом `activity`.
+     *
+     * Молчит при любой ошибке: не вышло — останется расчёт делением.
+     */
+    suspend fun fetchMonthlySalaryRates(
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate = LocalDate.now(),
+    ): Map<YearMonth, SalaryRatesFromApi> = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.get()
+        val staff = tokenStorage.staffId
+            ?: return@withContext emptyMap<YearMonth, SalaryRatesFromApi>()
+
+        val rates = mutableMapOf<YearMonth, SalaryRatesFromApi>()
+        for (period in splitSalaryPeriods(from, to, today)) {
+            val calculations = when (val result = requestCalculations(staff, period, generation)) {
+                is ApiResult.Success -> result.data
+                is ApiResult.Error -> continue
+            }
+            for (calculation in calculations) {
+                val id = calculation.id ?: continue
+                // Непроведённое начисление ещё меняется — ставку из него не берём.
+                if (!calculation.isConfirmed) continue
+                val month = calculation.dateFrom?.take(7)?.let { raw ->
+                    runCatching { YearMonth.parse(raw) }.getOrNull()
+                } ?: continue
+                if (rates.containsKey(month)) continue
+                val monthRates = requestCalculationRates(staff, id, generation)
+                if (monthRates is ApiResult.Success && !monthRates.data.isEmpty) {
+                    rates[month] = monthRates.data
+                }
+            }
+        }
+        rates
+    }
+
+    /**
+     * Ставки из детализации последнего закрытого начисления (FOUNDATION 6.2).
+     *
+     * Начисление создаётся в конце месяца, поэтому за текущий месяц список
+     * пуст — идём по кускам периода от свежего к старому до первого непустого.
+     */
+    suspend fun fetchLatestSalaryRates(
+        today: LocalDate = LocalDate.now(),
+    ): ApiResult<SalaryRatesFromApi> = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.get()
+        val staff = tokenStorage.staffId ?: detectAndSaveStaffId()
+        if (staff == null) return@withContext ApiResult.Error(STAFF_UNKNOWN_MESSAGE)
+
+        val periods = splitSalaryPeriods(today.minusYears(1).plusDays(1), today, today)
+        for (period in periods.reversed()) {
+            val latest = requestLatestCalculation(staff, period, generation)
+            when (latest) {
+                is ApiResult.Error -> return@withContext latest
+                is ApiResult.Success -> {
+                    val id = latest.data ?: continue
+                    return@withContext requestCalculationRates(staff, id, generation)
+                }
+            }
+        }
+        ApiResult.Success(SalaryRatesFromApi())
+    }
+
+    /** id самого свежего начисления периода или `null`, если начислений нет. */
+    private suspend fun requestLatestCalculation(
+        staffId: Int,
+        period: ClosedRange<LocalDate>,
+        generation: Int,
+    ): ApiResult<Long?> {
+        val all = when (val result = requestCalculations(staffId, period, generation)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> return result
+        }
+        // Ставки берём из проведённого начисления: у закрытых месяцев
+        // status = confirmed. Если проведённых нет — смотрим все, лучше
+        // приблизительная ставка, чем никакой.
+        val items = all.filter { it.isConfirmed }.ifEmpty { all }
+        // Свежесть — по date_to; если его нет, берём наибольший id.
+        val latest = items.maxWithOrNull(
+            compareBy<SalaryCalculationSummary>(
+                { summary ->
+                    summary.dateTo?.take(10)?.let { raw ->
+                        runCatching { LocalDate.parse(raw) }.getOrNull()
+                    }
+                },
+                { summary -> summary.id },
+            ),
+        )
+        return ApiResult.Success(latest?.id)
+    }
+
+    /** Начисления периода: месяц, сумма, признак «проведено». */
+    private suspend fun requestCalculations(
+        staffId: Int,
+        period: ClosedRange<LocalDate>,
+        generation: Int,
+    ): ApiResult<List<SalaryCalculationSummary>> {
+        try {
+            val response = api.getSalaryCalculations(
+                companyId = tokenStorage.companyId,
+                staffId = staffId,
+                dateFrom = period.start.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                dateTo = period.endInclusive.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            )
+            if (!response.isSuccessful) {
+                handleUnauthorized(response.code(), generation)
+                Log.w(TAG, "salary calculation list вернул HTTP ${response.code()}")
+                return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
+            }
+            return ApiResult.Success(salaryCalculations(SalaryEnvelope(response.body()).data))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Запрос списка начислений не удался", e)
+            return ApiResult.Error("")
+        }
+    }
+
+    private suspend fun requestCalculationRates(
+        staffId: Int,
+        calculationId: Long,
+        generation: Int,
+    ): ApiResult<SalaryRatesFromApi> {
+        try {
+            val response = api.getSalaryCalculationDetails(
+                companyId = tokenStorage.companyId,
+                staffId = staffId,
+                calculationId = calculationId,
+            )
+            if (!response.isSuccessful) {
+                handleUnauthorized(response.code(), generation)
+                Log.w(TAG, "salary calculation details вернул HTTP ${response.code()}")
+                return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
+            }
+            val envelope = SalaryEnvelope(response.body())
+            return ApiResult.Success(extractSalaryRates(salaryCalculationItems(envelope.data)))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Запрос зарплаты не удался", e)
+            return ApiResult.Error("")
+        }
+    }
+
+    private fun parseDayFacts(items: List<SalaryDailyItem>?): Map<LocalDate, DayFact> {
+        val facts = mutableMapOf<LocalDate, DayFact>()
+        for (item in items.orEmpty()) {
+            val date = item.date?.take(10)?.let { raw ->
+                runCatching { LocalDate.parse(raw) }.getOrNull()
+            } ?: continue
+            val calculation = item.calculation ?: continue
+            val salary = calculation.salary.toMoneyOrNull() ?: continue
+            facts[date] = DayFact(
+                salary = salary,
+                servicesCount = calculation.servicesCount ?: 0,
+                groupServicesCount = calculation.groupServicesCount ?: 0,
+            )
+        }
+        return facts
+    }
+
+    /**
+     * Текст ошибки денежного запроса. Пустая строка — «пользователю не
+     * показывать»: 403 у сотрудника без прав владельца это штатный случай,
+     * а не поломка (FOUNDATION 3.5).
+     */
+    private fun salaryErrorMessage(code: Int): String =
+        if (code == 401) "Сессия истекла. Войдите ещё раз." else ""
+
     private fun String.normalizeNameTokens(): Set<String> =
         lowercase()
             .replace('ё', 'е')
@@ -448,6 +728,9 @@ class YClientsRepository(context: Context) {
 
     companion object {
         private const val TAG = "YClientsRepository"
+
+        private const val STAFF_UNKNOWN_MESSAGE =
+            "Не удалось определить сотрудника YClients"
 
         /** Размер страницы для запроса /records. */
         private const val PAGE_SIZE = 200

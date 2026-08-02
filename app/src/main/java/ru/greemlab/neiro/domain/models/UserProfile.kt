@@ -11,7 +11,12 @@ import java.time.DayOfWeek
  * @param pricePerSession Ставка сотрудника за одно занятие.
  * @param pricePerDiagnostics Цена за диагностику.
  * @param pricePerIntensiveChild Ставка за одного ребёнка в интенсиве.
- * @param monthlyTaxAmount Налог в рублях за месяц.
+ * @param monthlyTaxAmount Налог в рублях за месяц. Признака происхождения не
+ *   имеет: YClients про налог не знает, он всегда ручной.
+ * @param sessionPriceOrigin Кто выставил [pricePerSession]: приложение или человек.
+ *   АВТО обновляется при синке, РУЧНОЕ — никогда (FOUNDATION 6.1).
+ * @param diagnosticsPriceOrigin То же для [pricePerDiagnostics].
+ * @param intensivePriceOrigin То же для [pricePerIntensiveChild].
  * @param salaryOnCard Устаревшее поле: сумма на карту, если не заданы части ниже.
  * @param salaryAdvanceOnCard Аванс на карту (примерная сумма, каждый месяц).
  * @param salaryMainOnCard Основная выплата на карту (примерная сумма, каждый месяц).
@@ -27,6 +32,9 @@ data class UserProfile(
     val pricePerDiagnostics: Double = 0.0,
     val pricePerIntensiveChild: Double = 0.0,
     val monthlyTaxAmount: Double = 0.0,
+    val sessionPriceOrigin: PriceOrigin = PriceOrigin.AUTO,
+    val diagnosticsPriceOrigin: PriceOrigin = PriceOrigin.AUTO,
+    val intensivePriceOrigin: PriceOrigin = PriceOrigin.AUTO,
     val salaryOnCard: Double = 33_000.0,
     val salaryAdvanceOnCard: Double = 11_206.0,
     val salaryMainOnCard: Double = 21_854.0,

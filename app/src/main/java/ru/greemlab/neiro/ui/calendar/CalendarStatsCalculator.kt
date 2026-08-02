@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
 import java.time.Month
@@ -58,35 +59,15 @@ internal fun monthlyNetProfit(grossEarned: Double, monthlyTaxAmount: Double): Do
 fun rememberCalendarMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
-): CalendarMonthStats = remember(
-    currentMonth,
-    dayData,
-    pricePerSession,
-    pricePerDiagnostics,
-    monthlyTaxAmount,
-    pricePerIntensiveChild,
-) {
-    computeMonthStats(
-        currentMonth,
-        dayData,
-        pricePerSession,
-        pricePerDiagnostics,
-        monthlyTaxAmount,
-        pricePerIntensiveChild,
-    )
+    rates: EarningsContext,
+): CalendarMonthStats = remember(currentMonth, dayData, rates) {
+    computeMonthStats(currentMonth, dayData, rates)
 }
 
 internal fun computeMonthStats(
     currentMonth: YearMonth,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext,
 ): CalendarMonthStats {
     var completed = 0
     var completedSessions = 0
@@ -115,7 +96,7 @@ internal fun computeMonthStats(
                 is Session.Intensive -> {
                     if (session.countsTowardEarnings()) {
                         val intensiveAmount = session.totalAmount(
-                            pricePerIntensiveChild,
+                            rates.pricePerIntensiveChild,
                             onlyArrived = true,
                         )
                         completedIntensives++
@@ -130,7 +111,7 @@ internal fun computeMonthStats(
                         )
                     } else {
                         expectedIncome += session.totalAmount(
-                            pricePerIntensiveChild,
+                            rates.pricePerIntensiveChild,
                             onlyArrived = false,
                         )
                     }
@@ -138,7 +119,7 @@ internal fun computeMonthStats(
 
                 is Session.Diagnostics -> {
                     scheduled++
-                    val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
+                    val price = if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
                     if (session.countsTowardEarnings()) {
                         completed++
                         completedDiagnostics++
@@ -151,7 +132,7 @@ internal fun computeMonthStats(
 
                 is Session.Student -> {
                     scheduled++
-                    val pay = pricePerSession
+                    val pay = rates.pricePerSession
                     val isAttended = session.countsTowardEarnings()
                     if (isAttended) {
                         completed++
@@ -174,7 +155,7 @@ internal fun computeMonthStats(
         }
     }
 
-    val netProfit = monthlyNetProfit(grossEarned, monthlyTaxAmount)
+    val netProfit = monthlyNetProfit(grossEarned, rates.monthlyTaxAmount)
 
     return CalendarMonthStats(
         completedCount = completed,
@@ -188,7 +169,7 @@ internal fun computeMonthStats(
         intensiveEarnings = intensiveEarnings,
         diagnosticsEarnings = diagnosticsEarnings,
         expectedIncome = expectedIncome,
-        taxAmount = monthlyTaxAmount,
+        taxAmount = rates.monthlyTaxAmount,
         statsByStudent = studentStatsMap,
         completedIntensives = completedIntensivesList.sortedBy { it.date },
     )

@@ -51,9 +51,14 @@ import kotlin.time.Duration.Companion.milliseconds
 private val NowLineRed = Color(0xFFE53935)
 private val HourLabelColor = Color(0xFF9E9E9E)
 
-/** Высота одного часа на шкале. */
+/** Высота одного часа на шкале при системном шрифте 100%. */
 private val TimelineHourHeight: Dp = 72.dp
-private val TimelineMinuteHeight: Dp = TimelineHourHeight / 60
+/**
+ * Насколько шкала растягивается вслед за системным шрифтом. Высота карточки
+ * занятия задана его длительностью, поэтому без растяжения при 150%+ имя с
+ * комментарием переставали в неё влезать.
+ */
+private const val TimelineMaxFontScale = 1.6f
 /** Максимальная высота прокручиваемой области расписания. */
 private val TimelineViewportMaxHeight: Dp = 420.dp
 private val TimeAxisWidth: Dp = 54.dp
@@ -83,6 +88,9 @@ fun DayScheduleTimeline(
     val isToday = date == LocalDate.now()
     val density = LocalDensity.current
     val context = LocalContext.current
+    val pxPerMinute = with(density) {
+        (TimelineHourHeight * density.fontScale.coerceIn(1f, TimelineMaxFontScale) / 60).toPx()
+    }
 
     val onStudentClick = remember(context) {
         { name: String ->
@@ -95,7 +103,6 @@ fun DayScheduleTimeline(
         val currentLayout = layout ?: return@LaunchedEffect
         val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
         delay(80.milliseconds)
-        val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
         val offsetMinutes = minutesFromAxisStart(currentLayout.axisStart, target.layoutAppointment.start)
         val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
             .toInt()
@@ -118,7 +125,6 @@ fun DayScheduleTimeline(
             delay(16.milliseconds)
             layoutAttempts++
         }
-        val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
         val nowLinePx = minutesFromAxisStart(currentLayout.axisStart, now) * pxPerMinute
         val viewportPx = scrollState.viewportSize.takeIf { it > 0 }
             ?: with(density) { TimelineViewportMaxHeight.toPx() }.toInt()
@@ -169,7 +175,6 @@ fun DayScheduleTimeline(
                 ),
         ) {
             if (layout != null) {
-                val pxPerMinute = with(density) { TimelineMinuteHeight.toPx() }
                 val timelineHeight = with(density) {
                     (layout.totalMinutes * pxPerMinute).toDp()
                 }

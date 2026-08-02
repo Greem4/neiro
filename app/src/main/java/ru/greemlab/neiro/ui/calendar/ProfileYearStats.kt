@@ -3,8 +3,40 @@ package ru.greemlab.neiro.ui.calendar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import ru.greemlab.neiro.data.SalaryLedger
+import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import java.time.LocalDate
 import java.time.YearMonth
+
+/**
+ * Что известно про цену одного месяца — для дисклеймера, отметки о расхождении
+ * и разбора в статистике (FOUNDATION 4–5).
+ *
+ * Один носитель вместо десятка параллельных списков по 12 элементов: добавить
+ * поле в разбор месяца не должно быть правкой пяти сигнатур.
+ */
+@Immutable
+data class MonthPriceMeta(
+    val origin: PriceOrigin = PriceOrigin.AUTO,
+    val source: PriceSource = PriceSource.PROFILE,
+    /** Расхождение разобрано — отметку не показываем. */
+    val resolved: Boolean = true,
+    val frozen: Boolean = false,
+    val pricePerSession: Double = 0.0,
+    val priceDiagnostics: Double = 0.0,
+    val priceIntensiveChild: Double = 0.0,
+    val tax: Double = 0.0,
+    /** Что говорит YClients за месяц. */
+    val factGross: Double? = null,
+    /** Цена занятия, вытекающая из факта — вторая строка в разборе расхождения. */
+    val factPricePerSession: Double? = null,
+    /** Занятий для сверки: услуги месяца минус диагностики. */
+    val billableSessions: Int = 0,
+) {
+    /** Есть что разбирать: факт расходится с ценой приложения и человек ещё не решил. */
+    val needsReview: Boolean get() = !resolved && factPricePerSession != null
+}
 
 /**
  * Сводная статистика за календарный год.
@@ -25,7 +57,12 @@ data class ProfileYearStats(
     val totalTaxAmount: Double,
     val monthlyNet: List<Double>,
     val monthlyCompleted: List<Int>,
+    /** По одному элементу на месяц, индекс 0 = январь. */
+    val months: List<MonthPriceMeta> = List(12) { MonthPriceMeta() },
 ) {
+    /** Хоть один месяц года ждёт разбора — бейдж в заголовке секции. */
+    val hasUnresolvedMonths: Boolean get() = months.any { it.needsReview }
+
     companion object {
         fun empty(year: Int): ProfileYearStats = ProfileYearStats(
             year = year,
@@ -34,6 +71,7 @@ data class ProfileYearStats(
             totalTaxAmount = 0.0,
             monthlyNet = List(12) { 0.0 },
             monthlyCompleted = List(12) { 0 },
+            months = List(12) { MonthPriceMeta() },
         )
     }
 }
@@ -42,25 +80,16 @@ data class ProfileYearStats(
 fun rememberProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
-): ProfileYearStats = remember(
-    year,
-    dayData,
-    pricePerSession,
-    pricePerDiagnostics,
-    monthlyTaxAmount,
-    pricePerIntensiveChild,
-) {
+    profileRates: EarningsContext,
+    ledger: SalaryLedger = SalaryLedger.Empty,
+    staffId: Long = 0L,
+): ProfileYearStats = remember(year, dayData, profileRates, ledger, staffId) {
     computeProfileYearStats(
         year = year,
         dayData = dayData,
-        pricePerSession = pricePerSession,
-        pricePerDiagnostics = pricePerDiagnostics,
-        monthlyTaxAmount = monthlyTaxAmount,
-        pricePerIntensiveChild = pricePerIntensiveChild,
+        profileRates = profileRates,
+        ledger = ledger,
+        staffId = staffId,
     )
 }
 
@@ -74,12 +103,19 @@ internal fun elapsedMonthsInYear(year: Int, today: LocalDate): Int = when {
     else -> today.monthValue
 }
 
-/** Годы с данными в календаре + текущий год (по убыванию). */
+/**
+ * Годы с данными в календаре + годы из истории ЗП + текущий год (по убыванию).
+ *
+ * Годы истории обязательны: месяцы, которых нет в локальном календаре
+ * (приложение поставили позже), иначе не покажутся вовсе (FOUNDATION 3.3).
+ */
 fun availableStatsYears(
     dayData: Map<LocalDate, List<String>>,
+    ledgerYears: Set<Int> = emptySet(),
     currentYear: Int = YearMonth.now().year,
 ): List<Int> {
     val years = dayData.keys.map { it.year }.toMutableSet()
+    years += ledgerYears
     years.add(currentYear)
     return years.sortedDescending()
 }
@@ -87,16 +123,16 @@ fun availableStatsYears(
 internal fun computeProfileYearStats(
     year: Int,
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
-    monthlyTaxAmount: Double,
-    pricePerIntensiveChild: Double = 0.0,
+    profileRates: EarningsContext,
+    ledger: SalaryLedger = SalaryLedger.Empty,
+    staffId: Long = 0L,
     today: LocalDate = LocalDate.now(),
 ): ProfileYearStats {
     var completedSessions = 0
     var totalNetEarned = 0.0
     val monthlyNet = Array(12) { 0.0 }
     val monthlyCompleted = Array(12) { 0 }
+    val monthsMeta = Array(12) { MonthPriceMeta() }
 
     val yearDayData = buildMap {
         for ((date, sessions) in dayData) {
@@ -105,29 +141,61 @@ internal fun computeProfileYearStats(
     }
 
     for (month in 1..12) {
-        val monthStats = computeMonthStats(
-            currentMonth = YearMonth.of(year, month),
+        val currentMonth = YearMonth.of(year, month)
+        val entry = ledger.month(staffId, currentMonth)
+        // Тот же расчёт, что и на календарном экране: месяц не может стоить
+        // здесь одного, а в календаре — другого.
+        val earnings = computeMonthEarnings(
+            month = currentMonth,
             dayData = yearDayData,
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = pricePerDiagnostics,
-            monthlyTaxAmount = monthlyTaxAmount,
-            pricePerIntensiveChild = pricePerIntensiveChild,
+            profileRates = profileRates,
+            entry = entry,
+            today = today,
         )
+        val local = earnings.local
+        val monthRates = earnings.rates
+        val factGross = entry?.factGross
+        val services = entry?.factSessions ?: local.services
+        monthsMeta[month - 1] = MonthPriceMeta(
+            origin = entry?.origin ?: PriceOrigin.AUTO,
+            source = earnings.source,
+            resolved = entry?.resolved ?: true,
+            frozen = entry?.frozen ?: false,
+            pricePerSession = monthRates.pricePerSession,
+            priceDiagnostics = monthRates.pricePerDiagnostics,
+            priceIntensiveChild = monthRates.pricePerIntensiveChild,
+            tax = monthRates.monthlyTaxAmount,
+            factGross = factGross,
+            factPricePerSession = factGross?.let {
+                sessionPriceFromFact(
+                    factGross = it,
+                    services = services,
+                    diagnosticsCount = local.diagnosticsCount,
+                    diagnosticsSum = local.diagnosticsSum,
+                    factIntensiveSum = local.factIntensiveSum,
+                )
+            },
+            billableSessions = (services - local.diagnosticsCount).coerceAtLeast(0),
+        )
+
         // Интенсивы в счётчик занятий не входят — это отдельный формат.
-        // На деньги это не влияет: их сумма уже учтена в netProfit.
-        completedSessions += monthStats.completedCount
-        monthlyNet[month - 1] = monthStats.netProfit
-        monthlyCompleted[month - 1] = monthStats.completedCount
-        totalNetEarned += monthStats.netProfit
+        val completed = earnings.completedCount
+        val net = earnings.stats.netProfit
+
+        completedSessions += completed
+        monthlyNet[month - 1] = net
+        monthlyCompleted[month - 1] = completed
+        totalNetEarned += net
     }
 
-    val totalTaxAmount = monthlyTaxAmount * elapsedMonthsInYear(year, today)
+    val totalTaxAmount = profileRates.monthlyTaxAmount * elapsedMonthsInYear(year, today)
 
     return ProfileYearStats(
         year = year,
         completedSessions = completedSessions,
         totalNetEarned = totalNetEarned,
         totalTaxAmount = totalTaxAmount,
+        months = monthsMeta.toList(),
         monthlyNet = monthlyNet.toList(),
         monthlyCompleted = monthlyCompleted.toList(),
     )

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,8 +44,17 @@ import java.time.format.TextStyle
 private val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
-/** Фиксированная высота слота — календарь не прыгает при смене даты. */
-val DaySummarySlotHeight: Dp = 166.dp
+/** Базовая высота слота при системном шрифте 100%. */
+private val DaySummarySlotBaseHeight: Dp = 166.dp
+
+/**
+ * Высота слота: фиксированная — календарь не прыгает при смене даты, — но
+ * растущая вместе с системным шрифтом (до 1.6×). В карточке три яруса текста,
+ * и при 150%+ они переставали помещаться в базовую высоту.
+ */
+private val daySummarySlotHeight: Dp
+    @Composable get() = DaySummarySlotBaseHeight *
+        LocalDensity.current.fontScale.coerceIn(1f, 1.6f)
 
 /** Высота строки даты — не даёт контенту раздувать карточку. */
 private val DaySummaryHeaderRowHeight: Dp = 26.dp
@@ -59,7 +70,7 @@ fun DaySummarySlot(
         stats = stats,
         modifier = modifier
             .fillMaxWidth()
-            .height(DaySummarySlotHeight),
+            .height(daySummarySlotHeight),
     )
 }
 
@@ -106,7 +117,7 @@ private fun DaySummaryCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(DaySummaryHeaderRowHeight),
+                    .heightIn(min = DaySummaryHeaderRowHeight),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -206,13 +217,13 @@ private fun DayMoneyCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            // Половина ширины карточки на сумму — при крупном шрифте кегль
+            // подбирается по месту, чтобы «161 500 ₽» не превращалось в «161 5…».
+            AutoShrinkText(
                 text = amountText,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = amountColor.copy(alpha = amountAlpha),
                 textAlign = TextAlign.Center,
-                maxLines = 1,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -245,13 +256,12 @@ private fun DaySummaryMetric(
                 tint = tint,
                 modifier = Modifier.size(14.dp),
             )
-            Text(
+            AutoShrinkText(
                 text = value,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
             Text(
                 text = label,

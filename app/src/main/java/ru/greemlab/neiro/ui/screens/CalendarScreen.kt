@@ -38,13 +38,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
+import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.computeDayStats
-import ru.greemlab.neiro.ui.calendar.rememberCalendarMonthStats
+import ru.greemlab.neiro.ui.calendar.rememberMonthEarnings
 import ru.greemlab.neiro.ui.components.*
 import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
@@ -187,14 +189,26 @@ fun CalendarScreen(
         highlightSlotKey = null
     }
 
-    val stats = rememberCalendarMonthStats(
-        currentMonth = currentMonth,
+    val salaryLedger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
+    val salaryStaffId = profileViewModel.salaryStaffId
+    val profileRates = remember(profile) { profile.earningsContext() }
+    // Цены и деньги месяца: за прошлое их называет начисление YClients, профиль
+    // правит только текущий и будущие месяцы. Правка цены в профиле не должна
+    // переписывать историю (RUN-LOG, «Смена модели после прогона»).
+    val monthEarnings = rememberMonthEarnings(
+        month = currentMonth,
         dayData = currentMonthDayData,
-        pricePerSession = profile.pricePerSession,
-        pricePerDiagnostics = profile.pricePerDiagnostics,
-        monthlyTaxAmount = profile.monthlyTaxAmount,
-        pricePerIntensiveChild = profile.pricePerIntensiveChild,
+        profileRates = profileRates,
+        ledger = salaryLedger,
+        staffId = salaryStaffId,
     )
+    val rates = monthEarnings.rates
+    val stats = monthEarnings.stats
+    // Прошедший день показывает начисленное YClients, а не «цена × занятия»
+    // (FOUNDATION 3.4). Факта за будущее в истории нет по определению.
+    val selectedDayFact = remember(salaryLedger, salaryStaffId, selectedDate) {
+        selectedDate?.let { salaryLedger.dayFact(salaryStaffId, it) }
+    }
 
     val context = LocalContext.current
     val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
@@ -330,9 +344,8 @@ fun CalendarScreen(
                     }
                 },
                 isSyncing = syncState.isLoading,
-                pricePerSession = profile.pricePerSession,
-                pricePerDiagnostics = profile.pricePerDiagnostics,
-                pricePerIntensiveChild = profile.pricePerIntensiveChild,
+                rates = rates,
+                selectedDayFact = selectedDayFact,
                 profitDisplay = profitDisplay,
                 onDateClick = { date ->
                     if (!profile.isRegistered) {
@@ -436,7 +449,7 @@ fun CalendarScreen(
                 DayDetailsDialog(
                     date = date,
                     initialNames = dayContext.effective,
-                    userProfile = profile,
+                    rates = rates,
                     isArchived = isArchived,
                     archiveMismatch = archiveMismatch,
                     archiveMismatchDetails = archiveMismatchDetails,
@@ -480,7 +493,7 @@ fun CalendarScreen(
         is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
-            pricePerSession = profile.pricePerSession,
+            rates = rates,
             salaryAdvanceOnCard = profile.salaryAdvanceOnCard,
             salaryMainOnCard = profile.salaryMainOnCard,
             salaryOnCardFallback = profile.salaryOnCard,
@@ -611,9 +624,9 @@ fun CalendarScreenContent(
     stats: CalendarMonthStats,
     workingDays: Set<DayOfWeek> = emptySet(),
     isRegistered: Boolean = true,
-    pricePerSession: Double = 0.0,
-    pricePerDiagnostics: Double = 0.0,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext = EarningsContext.Empty,
+    /** Начислено YClients за выбранный день, если факт уже загружен. */
+    selectedDayFact: Double? = null,
     profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -628,20 +641,9 @@ fun CalendarScreenContent(
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(
-        selectedDate,
-        selectedDaySessions,
-        pricePerSession,
-        pricePerDiagnostics,
-        pricePerIntensiveChild,
-    ) {
+    val daySummaryStats = remember(selectedDate, selectedDaySessions, rates, selectedDayFact) {
         if (selectedDate == null) return@remember null
-        computeDayStats(
-            selectedDaySessions,
-            pricePerSession,
-            pricePerDiagnostics,
-            pricePerIntensiveChild,
-        )
+        computeDayStats(selectedDaySessions, rates, selectedDayFact)
     }
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
@@ -683,7 +685,7 @@ fun CalendarScreenContent(
 
                         MonthOverviewCard(
                             stats = stats,
-                            pricePerSession = pricePerSession,
+                            rates = rates,
                             display = profitDisplay,
                             onLessonsClick = onLessonsClick,
                             onProfitClick = onProfitClick,
@@ -759,7 +761,7 @@ fun CalendarScreenContent(
             ) {
                 ExtendedFloatingActionButton(
                     onClick = onTodayClick,
-                    modifier = Modifier.height(40.dp),
+                    modifier = Modifier.heightIn(min = 40.dp),
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     shape = RoundedCornerShape(12.dp),
@@ -774,7 +776,7 @@ fun CalendarScreenContent(
 @Composable
 private fun MonthOverviewCard(
     stats: CalendarMonthStats,
-    pricePerSession: Double,
+    rates: EarningsContext,
     display: ProfitDisplaySettings,
     onLessonsClick: () -> Unit,
     onProfitClick: () -> Unit,
@@ -795,11 +797,11 @@ private fun MonthOverviewCard(
     val expectedIncomeText = remember(stats.expectedIncome) {
         formatRubles(stats.expectedIncome)
     }
-    val sessionPriceText = remember(pricePerSession) { formatRubles(pricePerSession) }
+    val sessionPriceText = remember(rates.pricePerSession) { formatRubles(rates.pricePerSession) }
     val overviewSubtitle = remember(
         stats.expectedIncome,
         stats.netProfit,
-        pricePerSession,
+        rates,
         display,
         expectedIncomeText,
         sessionPriceText,
@@ -809,7 +811,7 @@ private fun MonthOverviewCard(
             expectedIncome = stats.expectedIncome,
             expectedIncomeText = expectedIncomeText,
             netProfit = stats.netProfit,
-            pricePerSession = pricePerSession,
+            rates = rates,
             sessionPriceText = sessionPriceText,
         )
     }
@@ -851,23 +853,24 @@ private fun MonthOverviewCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Row(
+                LabelValueRow(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "Прогресс",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = progressLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+                    label = {
+                        Text(
+                            text = "Прогресс",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    value = {
+                        Text(
+                            text = progressLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                )
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier
@@ -899,7 +902,7 @@ internal fun buildOverviewProfitSubtitle(
     expectedIncome: Double,
     expectedIncomeText: String,
     netProfit: Double,
-    pricePerSession: Double,
+    rates: EarningsContext,
     sessionPriceText: String,
 ): String {
     val parts = mutableListOf<String>()
@@ -913,7 +916,7 @@ internal fun buildOverviewProfitSubtitle(
         }
     }
 
-    if (display.showPricePerSession && pricePerSession > 0.0) {
+    if (display.showPricePerSession && rates.pricePerSession > 0.0) {
         parts += "занятие $sessionPriceText"
     }
     return parts.joinToString(" · ")
@@ -965,13 +968,11 @@ private fun CompactStatTile(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
-                Text(
+                AutoShrinkText(
                     text = value,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }

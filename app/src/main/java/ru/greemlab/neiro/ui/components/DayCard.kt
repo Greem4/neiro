@@ -23,9 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalDate
 
 /**
@@ -118,7 +118,9 @@ fun DayCard(
                     else -> MaterialTheme.colorScheme.onSurface
                 },
                 fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-                style = MaterialTheme.typography.bodyMedium,
+                // Ячейка квадратная и её сторона равна 1/7 ширины экрана, поэтому
+                // число дня растёт вместе с системным шрифтом, но ограниченно.
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = cappedSp(14.dp, maxScale = 1.3f)),
             )
 
             if (namesLabel.isNotEmpty() || hasIntensive) {
@@ -145,7 +147,7 @@ fun DayCard(
                         Text(
                             text = namesLabel,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 8.sp,
+                                fontSize = cappedSp(8.dp),
                                 fontWeight = FontWeight.Bold,
                             ),
                             color = MaterialTheme.colorScheme.primary,

@@ -96,6 +96,13 @@ fun ProfitDisplaySettingsScreen(
                         onCheckedChange = { enabled -> updateProfit { it.copy(showTotalProfit = enabled) } },
                         showDivider = true,
                     )
+                    ProfitDisplaySwitch(
+                        title = stringResource(R.string.settings_profit_discrepancy),
+                        subtitle = stringResource(R.string.settings_profit_discrepancy_hint),
+                        checked = profitDisplay.showDiscrepancy,
+                        onCheckedChange = { enabled -> updateProfit { it.copy(showDiscrepancy = enabled) } },
+                        showDivider = true,
+                    )
                 }
             }
 

@@ -41,10 +41,27 @@ class SyncPreferences(context: Context) {
         hasCompletedInitialFullSync = true
     }
 
+    /**
+     * История ЗП за всё прошлое уже подтянута.
+     *
+     * Отдельный флаг от [hasCompletedInitialFullSync] намеренно: тот стоит `true`
+     * у всех, кто хоть раз синхронизировал календарь (его же взводит
+     * `AutoSyncCoordinator.initialize` по наличию локальных дней), и денежная
+     * история по нему не заполнилась бы никогда.
+     */
+    var hasCompletedSalaryHistorySync: Boolean
+        get() = prefs.getBoolean(KEY_SALARY_HISTORY_SYNC_DONE, false)
+        set(value) = prefs.edit().putBoolean(KEY_SALARY_HISTORY_SYNC_DONE, value).apply()
+
+    fun markSalaryHistorySyncComplete() {
+        hasCompletedSalaryHistorySync = true
+    }
+
     fun clearSyncState() {
         prefs.edit()
             .remove(KEY_LAST_SYNC_EPOCH)
             .remove(KEY_INITIAL_FULL_SYNC_DONE)
+            .remove(KEY_SALARY_HISTORY_SYNC_DONE)
             .remove(KEY_LAST_LIVE_POLL_EPOCH)
             .remove(KEY_LAST_FULL_LIVE_SYNC_EPOCH)
             .apply()
@@ -76,6 +93,7 @@ class SyncPreferences(context: Context) {
         private const val KEY_AUTO_SYNC = "auto_sync_enabled"
         private const val KEY_LAST_SYNC_EPOCH = "last_sync_epoch"
         private const val KEY_INITIAL_FULL_SYNC_DONE = "initial_full_sync_done"
+        private const val KEY_SALARY_HISTORY_SYNC_DONE = "salary_history_sync_done"
         private const val KEY_LAST_LIVE_POLL_EPOCH = "last_live_poll_epoch"
         private const val KEY_LAST_FULL_LIVE_SYNC_EPOCH = "last_full_live_sync_epoch"
 

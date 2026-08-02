@@ -7,14 +7,52 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.data.CalendarRepository
+import ru.greemlab.neiro.data.SalaryLedger
+import ru.greemlab.neiro.data.SalaryLedgerStore
+import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.domain.models.MonthEntry
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.sync.SalaryHistorySync
+import ru.greemlab.neiro.sync.SalaryPullResult
 import java.time.DayOfWeek
+import java.time.YearMonth
+
+/** Итог перетяжки месяца: к какому месяцу относится и что сказать человеку. */
+data class MonthSyncNote(val month: YearMonth, val text: String)
+
+/**
+ * Что показать после нажатия на кружок синхронизации месяца.
+ *
+ * Молчать здесь нельзя, хотя фоновые денежные запросы молчат намеренно
+ * (FOUNDATION 3.5): человек нажал кнопку и ждёт ответа, а «нет прав»,
+ * «нет сети» и «за месяц нет начислений» без текста неразличимы.
+ */
+private fun describePull(result: SalaryPullResult): String = when (result) {
+    is SalaryPullResult.Updated -> "Обновлено из YClients"
+    is SalaryPullResult.NoData -> "За этот месяц начислений нет"
+    is SalaryPullResult.NoStaff -> "Не удалось определить сотрудника в YClients"
+    is SalaryPullResult.Failed -> when (result.code) {
+        401 -> "Сессия истекла — войдите в YClients заново"
+        403 -> "YClients не отдаёт зарплату этому аккаунту"
+        // Про связь наугад больше не пишем: раз причина неизвестна, показываем
+        // ровно то, что ответил YClients или сказало исключение. Догадка вместо
+        // факта уводит поиск не туда — «проверьте связь» при рабочем интернете.
+        else -> listOfNotNull(
+            "Не получилось",
+            result.code?.let { "HTTP $it" },
+            result.reason.takeIf { it.isNotBlank() },
+        ).joinToString(" · ")
+    }
+}
 
 /**
  * ViewModel для управления профилем пользователя.
@@ -25,6 +63,26 @@ import java.time.DayOfWeek
  */
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: CalendarRepository = CalendarDataStoreProvider.get(application)
+    private val ledgerStore = SalaryLedgerStore.get(application)
+    private val salaryHistorySync = SalaryHistorySync.get(application)
+
+    /** История ЗП: цены прошедших месяцев и факт по дням. */
+    val salaryLedger: StateFlow<SalaryLedger> = ledgerStore.ledger
+
+    /** Месяц, который сейчас перетягивается из YClients, — для кружка в разборе. */
+    private val _syncingMonth = MutableStateFlow<YearMonth?>(null)
+    val syncingMonth: StateFlow<YearMonth?> = _syncingMonth.asStateFlow()
+
+    /** Чем кончилась последняя перетяжка месяца: месяц и текст для человека. */
+    private val _monthSyncNote = MutableStateFlow<MonthSyncNote?>(null)
+    val monthSyncNote: StateFlow<MonthSyncNote?> = _monthSyncNote.asStateFlow()
+
+    /**
+     * Все денежные данные лежат под ключом сотрудника (FOUNDATION 8.1).
+     * `0` — сотрудник неизвестен, истории нет.
+     */
+    val salaryStaffId: Long
+        get() = YClientsRepository.getInstance(getApplication()).staffId?.toLong() ?: 0L
 
     val userProfile: StateFlow<UserProfile> = repository.userProfileFlow
         .stateIn(
@@ -49,6 +107,87 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             updateChannel.collect { transform ->
                 repository.updateProfile(transform)
+            }
+        }
+        // История нужна статистике при первом же открытии профиля.
+        viewModelScope.launch { ledgerStore.warmUp() }
+    }
+
+    /**
+     * Правка цены месяца из статистики: цена становится ручной навсегда,
+     * а расхождение считается разобранным (FOUNDATION 5).
+     */
+    fun updateMonthPrice(month: YearMonth, price: Double) {
+        if (price <= 0.0) return
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month)
+                val entry = existing?.copy(
+                    pricePerSession = price,
+                    origin = PriceOrigin.MANUAL,
+                    resolved = true,
+                ) ?: MonthEntry(
+                    staffId = staffId,
+                    year = month.year,
+                    month = month.monthValue,
+                    pricePerSession = price,
+                    origin = PriceOrigin.MANUAL,
+                    resolved = true,
+                )
+                ledger.withMonth(entry)
+            }
+        }
+    }
+
+    /**
+     * «Считать как в YClients»: месяц возвращается в АВТО, и цену ему снова
+     * даёт начисление. Без этого выбор «как в YClients» в разборе расхождения
+     * зафиксировал бы сегодняшний факт ручной ценой, и месяц замер бы навсегда.
+     */
+    fun acceptMonthFact(month: YearMonth) {
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month) ?: return@update ledger
+                ledger.withMonth(
+                    existing.copy(origin = PriceOrigin.AUTO, resolved = true),
+                )
+            }
+        }
+    }
+
+    /**
+     * Перетянуть один месяц из YClients — кружок синхронизации в разборе месяца.
+     *
+     * Закрытый месяц синк сам не трогает, поэтому здесь он размораживается: это
+     * ровно то, чего человек хочет от кнопки. Ошибка наружу не идёт — при 403 и
+     * офлайне месяц просто остаётся с прежними числами (FOUNDATION 3.5).
+     */
+    fun refreshMonth(month: YearMonth) {
+        if (_syncingMonth.value != null) return
+        _syncingMonth.value = month
+        _monthSyncNote.value = null
+        viewModelScope.launch {
+            try {
+                val result = runCatching { salaryHistorySync.syncSingleMonth(month) }
+                    .getOrElse { SalaryPullResult.Failed(null, it.javaClass.simpleName) }
+                _monthSyncNote.value = MonthSyncNote(month, describePull(result))
+            } finally {
+                // Только в finally: иначе отменённая корутина оставит кружок
+                // крутиться навсегда, и месяц больше не перетянуть.
+                _syncingMonth.value = null
+            }
+        }
+    }
+
+    /** Разморозка месяца: «дотяни начисление снова». Ничего не удаляет (FOUNDATION 4). */
+    fun unfreezeMonth(month: YearMonth) {
+        val staffId = salaryStaffId
+        viewModelScope.launch {
+            ledgerStore.update { ledger ->
+                val existing = ledger.month(staffId, month) ?: return@update ledger
+                ledger.withMonth(existing.copy(frozen = false))
             }
         }
     }
@@ -83,7 +222,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             // Через ту же очередь профиля, что и остальные поля — обходной
             // repository.applySessionPriceChange больше не нужен: RMW внутри
             // dataStore.edit (см. D2) даёт ту же атомарность, что и updateProfile.
-            enqueueUpdate { it.copy(pricePerSession = price) }
+            // Тронул поле — цена становится РУЧНОЙ навсегда: приложение больше
+            // не перезаписывает её из API, только сообщает о расхождении.
+            enqueueUpdate {
+                it.copy(pricePerSession = price, sessionPriceOrigin = PriceOrigin.MANUAL)
+            }
         }
     }
 
@@ -91,9 +234,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         const val PRICE_UPDATE_DEBOUNCE_MS = 600L
     }
 
-    fun updateDiagnosticsPrice(price: Double) = enqueueUpdate { it.copy(pricePerDiagnostics = price) }
+    fun updateDiagnosticsPrice(price: Double) = enqueueUpdate {
+        it.copy(pricePerDiagnostics = price, diagnosticsPriceOrigin = PriceOrigin.MANUAL)
+    }
 
-    fun updateIntensiveChildPrice(price: Double) = enqueueUpdate { it.copy(pricePerIntensiveChild = price) }
+    fun updateIntensiveChildPrice(price: Double) = enqueueUpdate {
+        it.copy(pricePerIntensiveChild = price, intensivePriceOrigin = PriceOrigin.MANUAL)
+    }
 
     fun updateTaxAmount(tax: Double) = enqueueUpdate { it.copy(monthlyTaxAmount = tax) }
 

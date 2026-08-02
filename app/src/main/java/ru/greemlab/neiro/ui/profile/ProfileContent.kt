@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.notifications.SessionNotificationDevPreview
 import ru.greemlab.neiro.notifications.SessionNotificationSyncSimulation
 import kotlinx.coroutines.launch
@@ -49,6 +50,8 @@ import ru.greemlab.neiro.ui.calendar.rememberProfileYearStats
 import ru.greemlab.neiro.ui.components.ArchiveIconPickerDialog
 import ru.greemlab.neiro.ui.components.NeiroLogo
 import ru.greemlab.neiro.ui.components.ProfileAvatar
+import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import java.time.LocalDate
 import java.time.YearMonth
@@ -80,26 +83,47 @@ fun ProfileContent(
     val syncState by syncViewModel.uiState.collectAsStateWithLifecycle()
     val isLoggedIn by syncViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val userAvatarUrl by syncViewModel.userAvatarUrl.collectAsStateWithLifecycle()
+    val ledger by profileViewModel.salaryLedger.collectAsStateWithLifecycle()
+    val syncingMonth by profileViewModel.syncingMonth.collectAsStateWithLifecycle()
+    val monthSyncNote by profileViewModel.monthSyncNote.collectAsStateWithLifecycle()
+    val staffId = profileViewModel.salaryStaffId
     val currentYear = YearMonth.now().year
-    val availableYears = remember(dayData) { availableStatsYears(dayData, currentYear) }
+    val availableYears = remember(dayData, ledger, staffId) {
+        availableStatsYears(dayData, ledger.years(staffId), currentYear)
+    }
     var selectedYear by rememberSaveable { mutableIntStateOf(currentYear) }
     LaunchedEffect(availableYears) {
         if (selectedYear !in availableYears) {
             selectedYear = availableYears.first()
         }
     }
+    val rates = remember(profile) { profile.earningsContext() }
     val yearStats = rememberProfileYearStats(
         year = selectedYear,
         dayData = dayData,
-        pricePerSession = profile.pricePerSession,
-        pricePerDiagnostics = profile.pricePerDiagnostics,
-        monthlyTaxAmount = profile.monthlyTaxAmount,
-        pricePerIntensiveChild = profile.pricePerIntensiveChild,
+        profileRates = rates,
+        ledger = ledger,
+        staffId = staffId,
     )
+    val context = LocalContext.current
+    var profitDisplay by remember(context) {
+        mutableStateOf(ProfitDisplayPreferences.get(context).read())
+    }
+    LaunchedEffect(context) {
+        profitDisplay = ProfitDisplayPreferences.get(context).read()
+    }
 
     ProfileContentImpl(
         profile = profile,
         yearStats = yearStats,
+        profitDisplay = profitDisplay,
+        onMonthPriceEdited = profileViewModel::updateMonthPrice,
+        onMonthDiscrepancyResolved = profileViewModel::updateMonthPrice,
+        onMonthFactAccepted = profileViewModel::acceptMonthFact,
+        onMonthUnfrozen = profileViewModel::unfreezeMonth,
+        onMonthRefreshed = profileViewModel::refreshMonth,
+        syncingMonth = syncingMonth,
+        monthSyncNote = monthSyncNote,
         availableYears = availableYears,
         selectedYear = selectedYear,
         onYearSelected = { selectedYear = it },
@@ -125,6 +149,14 @@ private fun ProfileContentImpl(
     availableYears: List<Int>,
     selectedYear: Int,
     onYearSelected: (Int) -> Unit,
+    profitDisplay: ProfitDisplaySettings = ProfitDisplaySettings(),
+    onMonthPriceEdited: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthDiscrepancyResolved: (YearMonth, Double) -> Unit = { _, _ -> },
+    onMonthFactAccepted: (YearMonth) -> Unit = {},
+    onMonthUnfrozen: (YearMonth) -> Unit = {},
+    onMonthRefreshed: (YearMonth) -> Unit = {},
+    syncingMonth: YearMonth? = null,
+    monthSyncNote: MonthSyncNote? = null,
     syncState: SyncUiState,
     isLoggedInToYClients: Boolean,
     userAvatarUrl: String? = null,
@@ -183,6 +215,14 @@ private fun ProfileContentImpl(
             selectedYear = selectedYear,
             onYearSelected = onYearSelected,
             modifier = Modifier.padding(bottom = 24.dp),
+            display = profitDisplay,
+            onMonthPriceEdited = onMonthPriceEdited,
+            onMonthDiscrepancyResolved = onMonthDiscrepancyResolved,
+            onMonthFactAccepted = onMonthFactAccepted,
+            onMonthUnfrozen = onMonthUnfrozen,
+            onMonthRefreshed = onMonthRefreshed,
+            syncingMonth = syncingMonth,
+            monthSyncNote = monthSyncNote,
         )
 
         SettingsGroupCard(modifier = Modifier.padding(bottom = 24.dp)) {

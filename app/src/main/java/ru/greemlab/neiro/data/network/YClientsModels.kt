@@ -61,6 +61,8 @@ data class RecordData(
     @SerializedName("visit_attendance") val visitAttendance: Int?,
     val deleted: Boolean? = null,
     @SerializedName("last_change_date") val lastChangeDate: String? = null,
+    /** Групповое событие (интенсив и прочие группы). У обычной записи `null`. */
+    @SerializedName("activity_id") val activityId: Long? = null,
     val client: ClientData?,
     val services: List<ServiceData>?,
 )
@@ -86,8 +88,12 @@ data class ClientData(
 data class ServiceData(
     val id: Long,
     val title: String?,
+    /** Сколько клиент заплатил деньгами: `0`, если списано с абонемента. */
     val cost: Double?,
     @SerializedName("cost_to_pay") val costToPay: Double?,
+    /** Базовая цена на момент записи — в отличие от [cost] не зависит от абонемента. */
+    @SerializedName("first_cost") val firstCost: Double?,
+    @SerializedName("cost_per_unit") val costPerUnit: Double?,
     val discount: Double?,
     val amount: Int?,
 )

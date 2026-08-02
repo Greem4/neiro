@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.greemlab.neiro.ui.util.cappedSp
 
 /**
  * Логотип приложения: синий круг с буквой «N» и опционально подпись «Neiro».
@@ -65,7 +66,9 @@ fun NeiroLogo(
             Text(
                 text = "N",
                 color = Color.White,
-                fontSize = (size.value * 0.6).sp,
+                // «N» — часть знака, а не читаемый текст: её размер задан кругом
+                // логотипа и системный шрифт его не меняет.
+                fontSize = cappedSp((size.value * 0.6f).dp, maxScale = 1f),
                 fontWeight = FontWeight.Black
             )
         }

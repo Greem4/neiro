@@ -63,7 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
-import ru.greemlab.neiro.domain.models.UserProfile
+import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
@@ -125,7 +125,11 @@ private data class ScheduleEntry(
 fun DayDetailsDialog(
     date: LocalDate,
     initialNames: List<String>,
-    userProfile: UserProfile,
+    /**
+     * Цены месяца, к которому относится [date]: за прошлое их называет
+     * начисление YClients, профиль отвечает только за текущий и будущие месяцы.
+     */
+    rates: EarningsContext,
     isArchived: Boolean = false,
     archiveMismatch: Boolean = false,
     archiveMismatchDetails: List<String> = emptyList(),
@@ -150,7 +154,7 @@ fun DayDetailsDialog(
         DayDetailsContent(
             date = date,
             initialNames = initialNames,
-            userProfile = userProfile,
+            rates = rates,
             isArchived = isArchived,
             archiveMismatch = archiveMismatch,
             archiveMismatchDetails = archiveMismatchDetails,
@@ -173,7 +177,7 @@ fun DayDetailsDialog(
 private fun DayDetailsContent(
     date: LocalDate,
     initialNames: List<String>,
-    userProfile: UserProfile,
+    rates: EarningsContext,
     isArchived: Boolean,
     archiveMismatch: Boolean,
     archiveMismatchDetails: List<String>,
@@ -223,12 +227,12 @@ private fun DayDetailsContent(
 
     // derivedStateOf вместо key = currentNames.toList(): без аллокации списка
     // на каждый рекомпоз, пересчёт только при реальном изменении содержимого (E9).
-    val entries by remember(userProfile, date) {
-        derivedStateOf { parseEntries(currentNames.toList(), userProfile) }
+    val entries by remember(rates, date) {
+        derivedStateOf { parseEntries(currentNames.toList(), rates) }
     }
 
-    val stats = remember(entries, userProfile, date) {
-        calculateStats(entries, userProfile)
+    val stats = remember(entries, rates, date) {
+        calculateStats(entries, rates)
     }
 
     val dateText = remember(date) { date.format(DATE_FORMAT) }
@@ -793,7 +797,7 @@ private data class DayStats(
 
 private fun parseEntries(
     rawNames: List<String>,
-    userProfile: UserProfile,
+    rates: EarningsContext,
 ): List<ScheduleEntry> {
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(
         rawNames.map(SessionParser::parse),
@@ -845,7 +849,7 @@ private fun parseEntries(
                         isExtra = true,
                         extraType = "Интенсив",
                         extraAmount = session.totalAmount(
-                            userProfile.pricePerIntensiveChild,
+                            rates.pricePerIntensiveChild,
                             onlyArrived = true,
                         ),
                         intensiveChildren = session.children,
@@ -884,10 +888,8 @@ private fun parseEntries(
 
 private fun calculateStats(
     entries: List<ScheduleEntry>,
-    userProfile: UserProfile,
+    rates: EarningsContext,
 ): DayStats {
-    val pricePerSession = userProfile.pricePerSession
-    val pricePerDiagnostics = userProfile.pricePerDiagnostics
     var expected = 0
     var confirmed = 0
     var arrived = 0
@@ -903,9 +905,9 @@ private fun calculateStats(
             AttendanceStatus.ARRIVED -> {
                 if (!isIntensive) arrived++
                 money += if (!entry.isExtra) {
-                    pricePerSession
+                    rates.pricePerSession
                 } else if (entry.extraType == "Диагностика") {
-                    if (pricePerDiagnostics > 0.0) pricePerDiagnostics else entry.extraAmount
+                    if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else entry.extraAmount
                 } else {
                     entry.extraAmount
                 }
@@ -939,7 +941,7 @@ private fun DayDetailsLightPreview() {
                         "Савельев Михаил|3|13:00-13:50|+79621234582|5л",
                         "Якуборов Рашит|2|14:00-14:50|+79681234569|6,11л",
                     ),
-                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    rates = EarningsContext(pricePerSession = 1400.0),
                     isArchived = false,
                     archiveMismatch = false,
                     archiveMismatchDetails = emptyList(),
@@ -969,7 +971,7 @@ private fun DayDetailsDarkPreview() {
                         "Сухова Мария|0|15:00-15:50|+79931234500|5 лет",
                         "Моторнов Егор|3|16:00-16:50|+79631234575|5л",
                     ),
-                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    rates = EarningsContext(pricePerSession = 1400.0),
                     isArchived = true,
                     archiveMismatch = true,
                     archiveMismatchDetails = listOf(
@@ -998,7 +1000,7 @@ private fun DayDetailsEmptyPreview() {
                 DayDetailsContent(
                     date = LocalDate.now(),
                     initialNames = emptyList(),
-                    userProfile = UserProfile(pricePerSession = 1400.0),
+                    rates = EarningsContext(pricePerSession = 1400.0),
                     isArchived = true,
                     archiveMismatch = true,
                     archiveMismatchDetails = listOf(

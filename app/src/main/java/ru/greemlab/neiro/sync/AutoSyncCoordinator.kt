@@ -99,7 +99,13 @@ object AutoSyncCoordinator {
             return null
         }
 
-        return YClientsCalendarSync.get(context).syncDefaultAutoRange()
+        val outcome = YClientsCalendarSync.get(context).syncDefaultAutoRange()
+        // Одноразовое заполнение истории денег: у тех, кто вошёл в YClients
+        // давно, экрана логина больше не будет, и другого случая подтянуть
+        // 2025 год не представится. Внутри стоит свой флаг — повторов нет.
+        // Деньги не должны ломать календарь: ошибка остаётся здесь.
+        runCatching { SalaryHistorySync.get(context).ensureHistoryPulledOnce() }
+        return outcome
     }
 
     fun cancelLegacyPeriodicSync(context: Context) {

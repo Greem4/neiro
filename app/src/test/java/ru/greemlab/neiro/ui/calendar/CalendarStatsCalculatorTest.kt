@@ -2,6 +2,7 @@ package ru.greemlab.neiro.ui.calendar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.EarningsContext
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -10,6 +11,10 @@ class CalendarStatsCalculatorTest {
     private val month: YearMonth = YearMonth.of(2025, 5)
     private val pricePerSession = 1000.0
     private val monthlyTax = 200.0
+    private val rates = EarningsContext(
+        pricePerSession = pricePerSession,
+        monthlyTaxAmount = monthlyTax,
+    )
 
     @Test
     fun `computeRecentStudents ranks by frequency in given map only`() {
@@ -37,9 +42,7 @@ class CalendarStatsCalculatorTest {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = emptyMap(),
-            pricePerSession = pricePerSession,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = monthlyTax,
+            rates = rates,
         )
         assertEquals(0, stats.completedCount)
         assertEquals(0, stats.totalScheduled)
@@ -53,7 +56,7 @@ class CalendarStatsCalculatorTest {
             LocalDate.of(2025, 5, 10) to listOf("Иванов|true", "Петров|false"),
             LocalDate.of(2025, 4, 10) to listOf("Сидоров|true"), // другой месяц
         )
-        val stats = computeMonthStats(month, dayData, pricePerSession, 0.0, monthlyTax)
+        val stats = computeMonthStats(month, dayData, rates)
         assertEquals(1, stats.completedCount)
         assertEquals(2, stats.totalScheduled)
         assertEquals(1000.0, stats.totalEarned, 0.0)
@@ -69,7 +72,7 @@ class CalendarStatsCalculatorTest {
                 "Иванов|true",
             ),
         )
-        val stats = computeMonthStats(month, dayData, pricePerSession, 0.0, monthlyTax)
+        val stats = computeMonthStats(month, dayData, rates)
         assertEquals(1, stats.completedCount)
         assertEquals(2, stats.totalScheduled)
         assertEquals(2000.0, stats.intensiveEarnings, 0.0)
@@ -103,10 +106,7 @@ class CalendarStatsCalculatorTest {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = dayData,
-            pricePerSession = 0.0,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 0.0,
-            pricePerIntensiveChild = 1400.0,
+            rates = EarningsContext(pricePerIntensiveChild = 1400.0),
         )
         assertEquals(2800.0 + 5600.0, stats.intensiveEarnings, 0.0)
         assertEquals(2800.0 + 5600.0, stats.totalEarned, 0.0)
@@ -119,7 +119,7 @@ class CalendarStatsCalculatorTest {
                 "__DIAGNOSTICS__:500|Аня|true",
             ),
         )
-        val stats = computeMonthStats(month, dayData, 0.0, 3000.0, 0.0)
+        val stats = computeMonthStats(month, dayData, EarningsContext(pricePerDiagnostics = 3000.0))
         assertEquals(1, stats.completedCount)
         assertEquals(3000.0, stats.diagnosticsEarnings, 0.0)
     }
@@ -132,9 +132,7 @@ class CalendarStatsCalculatorTest {
         val aprilStats = computeMonthStats(
             YearMonth.of(2025, 4),
             april,
-            pricePerSession = 1400.0,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 0.0,
+            rates = EarningsContext(pricePerSession = 1400.0),
         )
         assertEquals(1400.0, aprilStats.totalEarned, 0.0)
     }
@@ -146,9 +144,7 @@ class CalendarStatsCalculatorTest {
             dayData = mapOf(
                 LocalDate.of(2025, 5, 10) to listOf("Иванов|true"),
             ),
-            pricePerSession = 500.0,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 1000.0,
+            rates = EarningsContext(pricePerSession = 500.0, monthlyTaxAmount = 1000.0),
         )
         assertEquals(500.0, stats.totalEarned, 0.0)
         assertEquals(0.0, stats.netProfit, 0.0)
@@ -159,9 +155,7 @@ class CalendarStatsCalculatorTest {
         val stats = computeMonthStats(
             currentMonth = month,
             dayData = emptyMap(),
-            pricePerSession = 1000.0,
-            pricePerDiagnostics = 0.0,
-            monthlyTaxAmount = 6500.0,
+            rates = EarningsContext(pricePerSession = 1000.0, monthlyTaxAmount = 6500.0),
         )
         assertEquals(0.0, stats.totalEarned, 0.0)
         assertEquals(0.0, stats.netProfit, 0.0)

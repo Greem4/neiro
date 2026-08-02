@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.ui.util.NBSP
 
 /**
  * Строка ученика/интенсива/диагностики для **ручного** редактирования списка дня.
@@ -177,7 +178,7 @@ fun StudentItemRow(
                 }
             } else {
                 val displayText = if (student.type == StudentItemType.INTENSIVE) {
-                    "Интенсив: ${student.price} ₽"
+                    "Интенсив: ${student.price}$NBSP₽"
                 } else {
                     student.name.ifEmpty { if (student.type == StudentItemType.DIAGNOSTICS) "Диагностика" else "Без имени" }
                 }

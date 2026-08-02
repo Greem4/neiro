@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.calendar
 
 import androidx.compose.runtime.Immutable
+import ru.greemlab.neiro.domain.models.EarningsContext
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -11,7 +12,7 @@ import java.time.YearMonth
  * - [futureSessions] — будущие запланированные занятия
  * - [attendedSessions] — посещённые ученики (любая дата)
  * - [totalEarned] — фактически заработано (грязными)
- * - [netEarned] — чистыми (грязные минус [monthlyTaxAmount] за каждый месяц, в котором есть записи)
+ * - [netEarned] — чистыми (грязные минус налог за каждый месяц, в котором есть записи)
  * - [expectedFromFuture] — деньги, ожидаемые от будущих занятий
  */
 @Immutable
@@ -32,18 +33,13 @@ data class ProfileTotals(
  * Считает сводку по всем записям за один проход.
  *
  * @param dayData Полные данные календаря (дата → список записей).
- * @param pricePerSession Стоимость одного занятия ученика.
- * @param pricePerDiagnostics Стоимость одной диагностики.
  * @param today Сегодняшняя дата — нужна, чтобы разделить «прошлое» и «будущее».
- * @param monthlyTaxAmount Налог в рублях за каждый календарный месяц (как в профиле).
+ * @param rates Цены, по которым считаются деньги.
  */
 internal fun computeProfileTotals(
     dayData: Map<LocalDate, List<String>>,
-    pricePerSession: Double,
-    pricePerDiagnostics: Double,
     today: LocalDate,
-    monthlyTaxAmount: Double = 0.0,
-    pricePerIntensiveChild: Double = 0.0,
+    rates: EarningsContext,
 ): ProfileTotals {
     var pastSessions = 0
     var futureSessions = 0
@@ -61,7 +57,7 @@ internal fun computeProfileTotals(
             when (session) {
                 is Session.Student -> {
                     if (isFuture) futureSessions++ else pastSessions++
-                    val pay = pricePerSession
+                    val pay = rates.pricePerSession
                     if (session.countsTowardEarnings()) {
                         attended++
                         earned += pay
@@ -74,14 +70,14 @@ internal fun computeProfileTotals(
                 is Session.Intensive -> {
                     if (session.countsTowardEarnings()) {
                         val intensiveAmount = session.totalAmount(
-                            pricePerIntensiveChild,
+                            rates.pricePerIntensiveChild,
                             onlyArrived = true,
                         )
                         earned += intensiveAmount
                         addGross(grossByMonth, date, intensiveAmount)
                     } else if (isFuture) {
                         expectedFuture += session.totalAmount(
-                            pricePerIntensiveChild,
+                            rates.pricePerIntensiveChild,
                             onlyArrived = false,
                         )
                     }
@@ -89,7 +85,7 @@ internal fun computeProfileTotals(
 
                 is Session.Diagnostics -> {
                     if (isFuture) futureSessions++ else pastSessions++
-                    val price = if (pricePerDiagnostics > 0.0) pricePerDiagnostics else session.amount
+                    val price = if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
                     if (session.countsTowardEarnings()) {
                         attended++
                         earned += price
@@ -104,7 +100,7 @@ internal fun computeProfileTotals(
 
     val monthsWithEntries = dayData.keys.map { YearMonth.from(it) }.toSet()
     val netEarned = monthsWithEntries.sumOf { month ->
-        monthlyNetProfit(grossByMonth[month] ?: 0.0, monthlyTaxAmount)
+        monthlyNetProfit(grossByMonth[month] ?: 0.0, rates.monthlyTaxAmount)
     }
 
     return ProfileTotals(

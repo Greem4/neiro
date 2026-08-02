@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
 import java.time.DayOfWeek
 
@@ -69,6 +70,35 @@ class UserProfileJsonTest {
     fun `normalizeLegacy keeps unregistered when empty`() {
         val empty = UserProfile()
         assertFalse(empty.normalizeLegacy().isRegistered)
+    }
+
+    @Test
+    fun `old json without origin fields reads as AUTO`() {
+        // Gson не вызывает конструктор: без подстановки в non-null поле
+        // остался бы null, и первое же обращение к признаку уронило бы приложение.
+        val json = """
+            {"name":"Иван","activityType":"Нейропсихолог","pricePerSession":1400.0,
+             "pricePerDiagnostics":2250.0,"monthlyTaxAmount":6500.0,"isRegistered":true}
+        """.trimIndent()
+
+        val parsed = UserProfileJson.fromJson(json)
+
+        assertEquals(PriceOrigin.AUTO, parsed.sessionPriceOrigin)
+        assertEquals(PriceOrigin.AUTO, parsed.diagnosticsPriceOrigin)
+        assertEquals(PriceOrigin.AUTO, parsed.intensivePriceOrigin)
+        assertEquals(1400.0, parsed.pricePerSession, 0.0)
+    }
+
+    @Test
+    fun `manual origin survives round trip`() {
+        val original = UserProfile(
+            pricePerSession = 1400.0,
+            sessionPriceOrigin = PriceOrigin.MANUAL,
+            isRegistered = true,
+        )
+        val parsed = UserProfileJson.fromJson(UserProfileJson.toJson(original))
+        assertEquals(PriceOrigin.MANUAL, parsed.sessionPriceOrigin)
+        assertEquals(PriceOrigin.AUTO, parsed.diagnosticsPriceOrigin)
     }
 
     @Test

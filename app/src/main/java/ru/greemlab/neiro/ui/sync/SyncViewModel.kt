@@ -17,6 +17,7 @@ import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
+import ru.greemlab.neiro.sync.SalaryHistorySync
 import ru.greemlab.neiro.sync.SyncOutcome
 import ru.greemlab.neiro.sync.SyncPreferences
 import ru.greemlab.neiro.sync.YClientsCalendarSync
@@ -45,6 +46,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     private val calendarRepository: CalendarRepository =
         CalendarDataStoreProvider.get(application)
     private val calendarSync = YClientsCalendarSync.get(application)
+    private val salaryHistorySync = SalaryHistorySync.get(application)
     private val syncPreferences = SyncPreferences.get(application)
 
     private val _uiState = MutableStateFlow(
@@ -141,9 +143,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     /** Текущий + следующий месяц (ежедневный авто и после повторного входа). */
     fun syncDailyEdgeMonths(showUi: Boolean = true) {
         viewModelScope.launch {
-            runSync(showUi = showUi) {
+            val outcome = runSync(showUi = showUi) {
                 calendarSync.syncDefaultAutoRange()
             }
+            syncSalaryHistory(outcome)
         }
     }
 
@@ -160,8 +163,35 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 outcome
             }
+            syncSalaryHistory(outcome, fullHistory = true)
             if (isFirstFullSync && outcome is SyncOutcome.Success) {
                 maybeShowProfileReviewReminder()
+            }
+        }
+    }
+
+    /**
+     * История ЗП — после календарного синка, а не вместо него: цена месяца
+     * сверяется с локальными записями, они должны быть уже загружены.
+     *
+     * Деньги не должны ломать календарь: любая ошибка здесь остаётся внутри и
+     * пользователю не показывается (FOUNDATION 3.5).
+     */
+    private suspend fun syncSalaryHistory(outcome: SyncOutcome, fullHistory: Boolean = false) {
+        // Первое заполнение истории календарного синка не ждёт: деньги приходят
+        // из начисления YClients, а обрыв трёхлетней выгрузки записей раньше
+        // оставлял статистику вовсе без факта — и весь 2025 считался по
+        // сегодняшней цене профиля.
+        val pulledInitial = runCatching { salaryHistorySync.ensureHistoryPulledOnce() }
+            .getOrDefault(false)
+        if (pulledInitial) return
+
+        if (outcome !is SyncOutcome.Success) return
+        runCatching {
+            if (fullHistory) {
+                salaryHistorySync.syncFullHistory(from = resolveFullSyncStartDate())
+            } else {
+                salaryHistorySync.syncRecentMonths()
             }
         }
     }
@@ -186,9 +216,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncMonth(yearMonth: YearMonth) {
         viewModelScope.launch {
-            runSync(showUi = true) {
+            val outcome = runSync(showUi = true) {
                 calendarSync.syncMonth(yearMonth)
             }
+            syncSalaryHistory(outcome)
         }
     }
 
