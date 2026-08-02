@@ -23,9 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
@@ -42,10 +45,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -399,18 +406,40 @@ private fun MonthPriceDetails(
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            // Карточка узкая, а действий до четырёх: обычный Row рвал подписи
+            // по буквам. Чипы переносятся целиком, строкой ниже.
+            ChipFlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
             ) {
-                TextButton(onClick = onEditPrice) { Text("Поправить цену") }
-                MonthSyncButton(isSyncing = isSyncing, onClick = onRefresh)
+                MonthActionChip(
+                    text = "Поправить цену",
+                    icon = Icons.Rounded.Edit,
+                    onClick = onEditPrice,
+                )
+                MonthActionChip(
+                    text = if (isSyncing) "Обновляю" else "Обновить",
+                    icon = Icons.Rounded.Sync,
+                    onClick = onRefresh,
+                    enabled = !isSyncing,
+                    loading = isSyncing,
+                    contentDescription = "Обновить месяц из YClients",
+                )
                 if (showReview) {
-                    TextButton(onClick = onReviewDiscrepancy) { Text("Разобрать") }
+                    MonthActionChip(
+                        text = "Разобрать",
+                        icon = Icons.Rounded.PriorityHigh,
+                        onClick = onReviewDiscrepancy,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 }
                 if (meta.frozen) {
-                    TextButton(onClick = onUnfreeze) { Text("Разморозить") }
+                    MonthActionChip(
+                        text = "Разморозить",
+                        icon = Icons.Rounded.LockOpen,
+                        onClick = onUnfreeze,
+                    )
                 }
             }
 
@@ -434,30 +463,123 @@ private fun MonthPriceDetails(
 }
 
 /**
- * Кружок синхронизации месяца: перетянуть начисление именно за него.
+ * Ряд с переносом: что не влезло — уходит строкой ниже целиком.
  *
- * Нужен рядом с правкой цены: закрытый месяц синк больше не пересчитывает сам,
+ * Написан руками намеренно, вместо `FlowRow` из foundation: у него в 1.8
+ * сменилась сигнатура, и вызов падал с NoSuchMethodError, пока компиляция шла
+ * по 1.7.4 из BOM, а в APK приезжала 1.9.0. Версии ядра Compose с тех пор
+ * закреплены явно (`composeCore` в libs.versions.toml), но `Layout` —
+ * стабильный API, и такой перекос ему не страшен в принципе.
+ */
+@Composable
+private fun ChipFlowRow(
+    modifier: Modifier = Modifier,
+    horizontalSpacing: Dp = 8.dp,
+    verticalSpacing: Dp = 8.dp,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val hGap = horizontalSpacing.roundToPx()
+        val vGap = verticalSpacing.roundToPx()
+        val lineLimit = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+        val placeables = measurables.map {
+            it.measure(
+                constraints.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity),
+            )
+        }
+
+        val rows = mutableListOf<List<Placeable>>()
+        var row = mutableListOf<Placeable>()
+        var rowWidth = 0
+        placeables.forEach { placeable ->
+            val added = if (row.isEmpty()) placeable.width else placeable.width + hGap
+            if (row.isNotEmpty() && rowWidth + added > lineLimit) {
+                rows += row
+                row = mutableListOf()
+                rowWidth = 0
+            }
+            rowWidth += if (row.isEmpty()) placeable.width else placeable.width + hGap
+            row += placeable
+        }
+        if (row.isNotEmpty()) rows += row
+
+        val rowHeights = rows.map { line -> line.maxOfOrNull { it.height } ?: 0 }
+        val contentWidth = rows.maxOfOrNull { line ->
+            line.sumOf { it.width } + hGap * (line.size - 1).coerceAtLeast(0)
+        } ?: 0
+        val height = rowHeights.sum() + vGap * (rows.size - 1).coerceAtLeast(0)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else contentWidth
+
+        layout(width, height) {
+            var y = 0
+            rows.forEachIndexed { index, line ->
+                var x = 0
+                val rowHeight = rowHeights[index]
+                line.forEach { placeable ->
+                    placeable.placeRelative(x, y + (rowHeight - placeable.height) / 2)
+                    x += placeable.width + hGap
+                }
+                y += rowHeight + vGap
+            }
+        }
+    }
+}
+
+/**
+ * Действие над месяцем: иконка плюс подпись в одну строку.
+ *
+ * Про «Обновить» отдельно: закрытый месяц синк больше не пересчитывает сам,
  * и это единственный способ сказать «посчитай заново» точечно, не гоняя всю
- * историю. Во время запроса кнопка гаснет — иначе десять нажатий подряд
+ * историю. Во время запроса чип гаснет — иначе десять нажатий подряд
  * запустили бы десять запросов.
  */
 @Composable
-private fun MonthSyncButton(isSyncing: Boolean, onClick: () -> Unit) {
-    IconButton(
+private fun MonthActionChip(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    contentDescription: String? = null,
+) {
+    val contentColor = if (enabled) tint else tint.copy(alpha = 0.45f)
+    Surface(
         onClick = onClick,
-        enabled = !isSyncing,
-        modifier = Modifier.size(36.dp),
+        enabled = enabled,
+        modifier = modifier.height(34.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = tint.copy(alpha = if (enabled) 0.12f else 0.06f),
+        contentColor = contentColor,
     ) {
-        if (isSyncing) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Rounded.Sync,
-                contentDescription = "Обновить месяц из YClients",
-                modifier = Modifier.size(20.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(15.dp),
+                    strokeWidth = 2.dp,
+                    color = contentColor,
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = contentColor,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -1094,6 +1216,35 @@ private fun pluralSessions(count: Int): String {
         mod10 == 1 && mod100 != 11 -> "занятие"
         mod10 in 2..4 && mod100 !in 12..14 -> "занятия"
         else -> "занятий"
+    }
+}
+
+@Preview(showBackground = true, name = "Month details", widthDp = 300)
+@Composable
+private fun MonthPriceDetailsPreview() {
+    NeiroTheme(darkTheme = true) {
+        Surface {
+            MonthPriceDetails(
+                month = YearMonth.of(2026, 1),
+                meta = MonthPriceMeta(
+                    origin = PriceOrigin.AUTO,
+                    source = PriceSource.FACT,
+                    resolved = false,
+                    frozen = true,
+                    pricePerSession = 1_400.0,
+                    priceDiagnostics = 2_250.0,
+                    priceIntensiveChild = 1_400.0,
+                    factGross = 102_200.0,
+                    factPricePerSession = 1_500.0,
+                    billableSessions = 73,
+                ),
+                display = ProfitDisplaySettings(),
+                onEditPrice = {},
+                onReviewDiscrepancy = {},
+                onUnfreeze = {},
+                modifier = Modifier.padding(12.dp),
+            )
+        }
     }
 }
 

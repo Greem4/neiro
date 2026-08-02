@@ -31,7 +31,7 @@ private val salaryGson = Gson()
  * конверте целиком, и зарплата не доезжала вообще. Здесь ни одно поле не может
  * уронить разбор: что не поняли — то пусто.
  */
-internal class SalaryEnvelope(private val root: JsonElement?) {
+internal class SalaryEnvelope(root: JsonElement?) {
 
     private val obj: JsonObject? = root?.takeIf { it.isJsonObject }?.asJsonObject
 
