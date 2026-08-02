@@ -2,6 +2,7 @@ package ru.greemlab.neiro.data
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 
 /**
@@ -10,12 +11,20 @@ import com.google.gson.reflect.TypeToken
  * Формат строки расширить нельзя: `SessionParser.parseStudent` делает
  * `split("|", limit = 5)`, и `comment` намеренно глотает весь хвост — дописать
  * `service_id` в конец физически невозможно.
+ *
+ * Имена полей в JSON закреплены аннотациями: иначе в release их даёт R8, и
+ * накопленная история перестаёт читаться после каждой пересборки — а копить её
+ * годами и есть весь смысл этого хранилища.
  */
 data class SessionMeta(
+    @SerializedName("recordId")
     val recordId: Long? = null,
+    @SerializedName("serviceId")
     val serviceId: Long? = null,
+    @SerializedName("activityId")
     val activityId: Long? = null,
     /** Базовая цена на момент записи — не оплата клиента. */
+    @SerializedName("firstCost")
     val firstCost: Double? = null,
 )
 

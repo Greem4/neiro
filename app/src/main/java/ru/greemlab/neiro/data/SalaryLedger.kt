@@ -1,5 +1,6 @@
 package ru.greemlab.neiro.data
 
+import com.google.gson.annotations.SerializedName
 import ru.greemlab.neiro.domain.models.MonthEntry
 import java.time.LocalDate
 import java.time.YearMonth
@@ -7,10 +8,17 @@ import java.time.YearMonth
 /**
  * История денег: записи месяцев + факт по дням (FOUNDATION 3.4).
  * Чистая структура — тестируется без Android.
+ *
+ * Имена полей в JSON закреплены аннотациями, а сам класс держится keep-правилом
+ * (см. proguard-rules.pro). Без keep R8 стирает у [months] параметры типа, Gson
+ * видит просто `Map` и кладёт в значения свой LinkedTreeMap — release падал с
+ * ClassCastException на первом же обращении к записям месяцев.
  */
 data class SalaryLedger(
+    @SerializedName("months")
     val months: Map<String, MonthEntry> = emptyMap(),
     /** Ключ — "staffId|ISO-дата", значение — salary за день из API. */
+    @SerializedName("dailyFact")
     val dailyFact: Map<String, Double> = emptyMap(),
 ) {
     fun month(staffId: Long, ym: YearMonth): MonthEntry? = months[monthKey(staffId, ym)]
