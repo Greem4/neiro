@@ -1,0 +1,190 @@
+# Инфраструктура нового `neiro-push`
+
+Где сервис живёт, какие порты и маршруты занимает и как встаёт рядом с
+работающим `neiro-push-events`, ничего не задевая. Порядок запуска во времени —
+[ROLLOUT.md](ROLLOUT.md).
+
+## Три поколения сервиса
+
+Имя `neiro-push` уже носил первый сервис. Он погашен 02.08.2026, но его следы
+на Pi остались, и новый сервис занимает то же имя — значит следы нужно убрать
+осознанно, а не наткнуться на них при первом деплое.
+
+| Поколение | Каталог в репозитории | На Pi | Порт | Публичный путь | Состояние |
+|---|---|---|---|---|---|
+| 1. `neiro-push` (старый) | `server/` | `~/neiro-push` | 8010 | `/` (корень) | Погашен, код и данные лежат |
+| 2. `neiro-push-events` | `neiro-push-events/` | `~/neiro-push-events` | 8011 | `/v2` | Работает, обслуживает установленное приложение |
+| 3. `neiro-push` (новый) | `neiro-push/` | `~/neiro-push` | **8012** | **`/v1`** | Проектируется |
+
+Второе поколение живёт до конца перехода и гасится последним. Первое —
+освобождает имя перед тем, как третье займёт его каталог.
+
+## Занятые ресурсы и что берёт новый сервис
+
+| Ресурс | Занято | Новый берёт | Почему так |
+|---|---|---|---|
+| Порт на Pi | 8010 (старый, свободен фактически), 8011 (events) | `8012` | 8010 формально свободен, но занят конфигами старого поколения. Отдельный порт позволяет поднять новый сервис, пока старый ещё не разобран |
+| Имя контейнера | `neiro-push` (остановлен), `neiro-push-events` | `neiro-push` | Имя освобождается на шаге уборки: `docker rm neiro-push` |
+| Docker volume | `neiro_push_data`, `neiro_push_events_data` | `neiro_push_data` | После архивации старой БД том удаляется и создаётся заново пустым |
+| Каталог на Pi | `~/neiro-push`, `~/neiro-push-events` | `~/neiro-push` | Старый переезжает в `~/neiro-push-legacy-2026-08` |
+| Туннельный порт на VPS | 18082 (events) | `18083` | |
+| systemd-юнит на Pi | `neiro-push-events-tunnel.service` | `neiro-push-tunnel.service` | Проверить, что одноимённого юнита от первого поколения нет |
+| Публичный путь | `/` (первое поколение), `/v2` (events) | `/v1` | |
+
+## Публичный маршрут
+
+```
+https://push.neiro.greemlab.ru/v1/*
+        │
+        ▼  DNS → 176.12.65.86 (VPS)
+   ┌──────────────────────────────────────┐
+   │ VPS: nginx, TLS от Certbot           │
+   │   location /v1/ {                    │
+   │     proxy_pass http://127.0.0.1:18083;  ← БЕЗ слеша в конце
+   │   }                                  │
+   └──────────────────────────────────────┘
+        │  путь уходит целиком: /v1/auth/login
+        ▼  reverse SSH-туннель neiro-push-tunnel.service
+   ┌──────────────────────────────────────┐
+   │ Pi: 127.0.0.1:8012 → контейнер       │
+   │   FastAPI отвечает на /v1/auth/login │
+   └──────────────────────────────────────┘
+```
+
+**Отсутствие слеша в `proxy_pass` — главное отличие от `/v2`.** У сервиса
+второго поколения `proxy_pass … :18082/` срезает префикс, поэтому внутри
+контейнера пути начинаются с `/v1`, а публично получается `/v2/v1/...`. Здесь
+префикс не срезается: что написано в приложении, то и обрабатывает FastAPI.
+Один путь, один смысл, никаких «почему тут два номера версии».
+
+Отсюда конфигурация клиента:
+
+```properties
+NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru
+```
+
+и пути в Retrofit — `v1/auth/login`, `v1/events`, `v1/yclients/records`.
+
+Caddy на Pi в маршруте не участвует — как и у второго поколения. У него есть
+спящий блок через cloudflared, но DNS смотрит на VPS
+([deploy.md](../deploy.md#про-caddy-почему-его-тут-нет)).
+
+## Структура сервиса
+
+```
+neiro-push/
+  app/
+    main.py        — приложение FastAPI, монтирование роутеров
+    config.py      — Settings: ключи, партнёрский токен, интервалы
+    database.py    — SQLite: accounts, devices, record_states, events, deliveries, poll_runs
+    security.py    — SecretBox (Fernet), хэш device_token, сравнение ключей
+    auth.py        — вход, выпуск и проверка device_token          ← новое
+    proxy.py       — семь прокси-эндпоинтов YClients                ← новое
+    ratelimit.py   — лимиты входа и запросов                        ← новое
+    yclients.py    — клиент YClients: login, staff, records, clients, salary
+    poller.py      — опрос YClients, генерация событий
+    events.py      — сравнение снимков, типы событий
+    fcm.py         — отправка push
+    dashboard.py   — данные для дашборда
+  templates/       — дашборд
+  scripts/         — deploy.sh, dev.sh, logs.sh, backup.sh, restore.sh,
+                     install-tunnel.sh, patch-vps-nginx-v1.sh, _ssh.sh
+  tests/
+  docker-compose.yml, docker-compose.dev.yml, Dockerfile, requirements.txt
+```
+
+Что берётся из `neiro-push-events` практически как есть: `poller.py`,
+`events.py`, `fcm.py`, `dashboard.py`, `templates/`, скрипты. Это работающий,
+обкатанный код — переписывать его «раз уж с чистого листа» значит потерять
+полгода отладки на границах YClients (даты, часовые пояса, `changed_after`,
+пагинация). Чистый лист здесь — про схему доступа, а не про то, что уже
+проверено боем.
+
+Что меняется по существу: `partner_token` берётся из настроек, а не из
+аккаунта; появляются `auth.py`, `proxy.py`, `ratelimit.py`; в `database.py` —
+поля `token_hash`, `revoked_at`, `reauth_required`, `user_login`, `last_auth_at`;
+у поллера — пропуск аккаунтов с `reauth_required`.
+
+## Переменные окружения
+
+`~/neiro-push/.env` на Pi, права `600`, генерируется деплоем при первом
+запуске:
+
+```bash
+API_KEY=…                  # ключ приложения: только POST /v1/auth/login
+ADMIN_API_KEY=…            # дашборд, /health, /v1/admin/*
+TOKEN_ENCRYPTION_KEY=…     # Fernet: шифрование user_token в БД
+YCLIENTS_PARTNER_TOKEN=…   # единственное место, где он теперь живёт
+YCLIENTS_COMPANY_ID=…      # филиал по умолчанию при входе
+POLL_INTERVAL_SECONDS=10
+POLL_NIGHT_INTERVAL_SECONDS=3600
+QUIET_START_HOUR=23
+FCM_CREDENTIALS_PATH=/secrets/fcm-service-account.json
+FCM_PROJECT_ID=…
+DATABASE_PATH=/data/neiro_push.db
+LOG_LEVEL=info
+```
+
+Ключ FCM (`secrets/fcm-service-account.json`) — тот же service account, что у
+второго поколения; деплой копирует его из `~/neiro-push-events/secrets/`, если
+своего ещё нет. Проект Firebase один, устройства различаются по FCM-токену,
+конфликта между сервисами нет.
+
+`YCLIENTS_PARTNER_TOKEN` при первом запуске **не генерируется** — его нужно
+положить руками, значение берётся из `local.properties` на Mac. Деплой обязан
+падать с внятным сообщением, если переменная пуста: сервис без партнёрского
+токена не сможет ни залогинить пользователя, ни опросить YClients.
+
+## Скрипты
+
+Клонируются из `neiro-push-events/scripts` с заменой имён, портов и юнита:
+
+| Скрипт | Что делает | Что меняется относительно events |
+|---|---|---|
+| `deploy.sh` | rsync на Pi, `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля, ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
+| `install-tunnel.sh` | systemd --user юнит Pi → VPS | Порт 18083, юнит `neiro-push-tunnel.service`, локальная цель 8012 |
+| `patch-vps-nginx-v1.sh` | Добавляет `location /v1/` в сайт nginx на VPS, идемпотентно | **`proxy_pass` без завершающего слеша** |
+| `dev.sh`, `logs.sh`, `backup.sh`, `restore.sh` | Локальный запуск, логи, резервные копии | Имена контейнера и БД |
+
+Отдельно нужен `scripts/revoke-device.sh` — отзыв `device_token` из командной
+строки: кнопка в дашборде появится, но в момент, когда она понадобится,
+удобнее одна команда.
+
+## Проверка после развёртывания
+
+```bash
+BASE=https://push.neiro.greemlab.ru/v1
+ADMIN=$(ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-')
+
+curl -fsS -H "Authorization: Bearer $ADMIN" "$BASE/health"          # 200
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/auth/login"      # 401: путь жив, ключа нет
+ssh roster-b3 'systemctl --user is-active neiro-push-tunnel.service'
+ssh roster-b3 'docker ps --format "{{.Names}}\t{{.Ports}}" | grep neiro'
+```
+
+Последняя команда — главная проверка сосуществования: должны быть видны **оба**
+контейнера, `neiro-push` на 8012 и `neiro-push-events` на 8011, и ни один из
+них не должен перезапускаться по кругу.
+
+## Уборка первого поколения
+
+Делается **до** первого деплоя нового сервиса — иначе rsync ляжет поверх чужих
+файлов в `~/neiro-push`.
+
+```bash
+# 1. Забрать данные и ключи старого сервиса на Mac
+./server/scripts/backup.sh                       # если скрипт ещё работает
+ssh roster-b3 'tar czf ~/neiro-push-legacy.tgz -C ~ neiro-push'
+scp roster-b3:~/neiro-push-legacy.tgz ~/backups/
+
+# 2. Освободить имена
+ssh roster-b3 'docker rm -f neiro-push 2>/dev/null; \
+               mv ~/neiro-push ~/neiro-push-legacy-2026-08'
+
+# 3. Том со старой БД — только после того, как архив лежит на Mac
+ssh roster-b3 'docker volume rm neiro_push_data'
+```
+
+Из репозитория каталог `server/` удаляется на шаге уборки в
+[ROLLOUT.md](ROLLOUT.md#шаг-6--уборка): код остаётся в истории git, вернуть его
+можно в любой момент, а два мёртвых сервиса рядом с живым только путают.
