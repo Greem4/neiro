@@ -236,7 +236,7 @@ FCM, когда Firebase его перевыпустил. Заменяет ча�
 | `GET /v1/devices/{device_id}/events` | `GET /v1/events` |
 | `POST /v1/devices/{device_id}/events/ack` | `POST /v1/events/ack` |
 | `DELETE /v1/devices/{device_id}` | `POST /v1/auth/logout` |
-| — | `GET /v1/session`, `POST /v1/devices/fcm`, семь `/v1/yclients/*` |
+| — | `GET /v1/session`, `POST /v1/devices/fcm`, шесть `/v1/yclients/*` |
 
 Админские эндпоинты, `/health` и дашборд переносятся как есть, плюс две
 кнопки: отзыв устройства и сброс аккаунта.
