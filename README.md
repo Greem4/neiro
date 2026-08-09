@@ -80,24 +80,36 @@ GitHub Actions собирает подписанный APK, считает ко�
 
 ## Быстрый старт (разработка)
 
-1. `local.properties` — SDK, YClients, push (см. [yclients-integration.md](docs/yclients-integration.md) и [push-setup.md](docs/push-setup.md)).
+1. `local.properties` — SDK, адрес и ключ сервиса Neiro
+   (см. [yclients-integration.md](docs/yclients-integration.md#настройка)):
+
+   ```properties
+   NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru
+   NEIRO_PUSH_API_KEY=<API_KEY из ~/neiro-push/.env>
+   ```
+
 2. `app/google-services.json` — для FCM ([push-setup.md § Firebase](docs/push-setup.md#2-firebase-fcm)).
 3. Сборка — Android Studio / Gradle на машине разработчика.
 
-Без `local.properties` приложение соберётся, но API не заработает, пока Partner
-Token не введён вручную; без `google-services.json` соберётся тоже — с
-выключенным FCM.
+Без `local.properties` приложение соберётся, но вход не пройдёт: сервис
+неизвестен. Без `google-services.json` соберётся тоже — с выключенным FCM,
+локальный режим и синхронизация при этом работают.
 
 ## Push-сервер
 
 Публичный URL: `https://push.neiro.greemlab.ru`
 
+Приложение работает с третьим поколением сервиса — `neiro-push` (маршрут `/v1`,
+порт 8012). Второе поколение `neiro-push-events` (`/v2`) остаётся включённым как
+страховка до конца перехода, первое (`server/`) погашено.
+
 | Действие | Команда / ссылка |
 |----------|------------------|
-| Деплой на Pi | `server/scripts/deploy.sh` — [подробнее](docs/push-setup.md#1-сервер-на-pi) |
-| Health и устройства | `server/scripts/admin-status.sh` — [доступ](docs/push-setup.md#кто-может-заходить-на-health) |
-| Тестовый push | `server/scripts/test-push.sh` — [подробнее](docs/push-setup.md#1-сервер-на-pi) |
-| Где хранятся аккаунты и телефоны | [push-setup.md § хранение данных](docs/push-setup.md#где-лежат-аккаунты-и-устройства) |
+| Деплой и обновление на Pi | `./neiro-push/scripts/deploy.sh` — [подробнее](docs/neiro-push/DEPLOY.md#обновление-развёрнутого-сервиса) |
+| Логи | `./neiro-push/scripts/logs.sh` |
+| Бэкап и восстановление БД | `./neiro-push/scripts/backup.sh`, `restore.sh` |
+| Отзыв устройства | `./neiro-push/scripts/revoke-device.sh` или кнопка в дашборде |
+| Дашборд | `https://push.neiro.greemlab.ru/dashboard`, вход по `ADMIN_API_KEY` |
 
 Ключи на Pi:
 
@@ -111,10 +123,10 @@ ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только адми�
 | Тема | Документ | О чём |
 |------|----------|--------|
 | Релизы и самообновление | [docs/updater/](docs/updater/README.md) | Версии, выпуск по тегам, как приложение обновляет себя, риски и план работ |
-| Новый сервис `neiro-push` | [docs/neiro-push/](docs/neiro-push/README.md) | Токены YClients уезжают на сервер, приложение ходит через прокси: архитектура, API, деплой, порядок запуска |
-| Push и FCM | [docs/push-setup.md](docs/push-setup.md) | Сервер на Pi, домен, Firebase, регистрация телефонов, тестовый push, `ADMIN_API_KEY`, где лежит БД |
-| Сервис событий (работает) | [docs/push-events/](docs/push-events/README.md) | Действующий push-сервис `neiro-push-events`: план, журнал работ, разбор находок, правки приложения |
-| YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Авторизация, сетевой слой, синхронизация, `local.properties` |
+| Сервис `neiro-push` (текущий) | [docs/neiro-push/](docs/neiro-push/README.md) | Токены YClients на сервере, приложение ходит через прокси: архитектура, API, деплой, порядок запуска |
+| YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Вход, сетевой слой, синхронизация, `local.properties` |
+| Push и FCM | [docs/push-setup.md](docs/push-setup.md) | Архив первого поколения: домен, Firebase, где лежит БД |
+| Сервис событий (архив) | [docs/push-events/](docs/push-events/README.md) | Второе поколение `neiro-push-events`: план, журнал работ, разбор находок |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |
