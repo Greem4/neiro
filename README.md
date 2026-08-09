@@ -136,11 +136,14 @@ docs/                Документация
 
 | Файл | Содержимое |
 |------|------------|
-| `local.properties` | SDK, YClients, `NEIRO_PUSH_*`, подпись release |
+| `local.properties` | SDK, `NEIRO_PUSH_*`, подпись release |
 | `app/google-services.json` | Firebase |
 | `.signing/` | Ключи публикации |
-| `~/neiro-push/.env` на Pi | `API_KEY`, `ADMIN_API_KEY`, шифрование токенов |
+| `~/neiro-push/.env` на Pi | `API_KEY`, `ADMIN_API_KEY`, шифрование токенов, `YCLIENTS_PARTNER_TOKEN` |
 | `~/neiro-push/secrets/` на Pi | FCM service account JSON |
+
+Ключей YClients в сборке нет: `partner_token` и `user_token` живут только на
+Pi, приложение ходит к ним через прокси ([docs/neiro-push/](docs/neiro-push/README.md)).
 
 Те же значения, что нужны сборке релиза, лежат в секретах GitHub Actions —
 список в [docs/updater/RELEASE.md](docs/updater/RELEASE.md#секреты). Ключ

@@ -159,8 +159,6 @@ jobs:
           RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
-          YCLIENTS_PARTNER_TOKEN=${{ secrets.YCLIENTS_PARTNER_TOKEN }}
-          YCLIENTS_COMPANY_ID=${{ secrets.YCLIENTS_COMPANY_ID }}
           NEIRO_PUSH_API_BASE_URL=${{ secrets.NEIRO_PUSH_API_BASE_URL }}
           NEIRO_PUSH_API_KEY=${{ secrets.NEIRO_PUSH_API_KEY }}
           EOF
@@ -247,8 +245,6 @@ base64 -i app/google-services.json  | tr -d '\n' | gh secret set GOOGLE_SERVICES
 gh secret set RELEASE_STORE_PASSWORD   -R Greem4/neiro
 gh secret set RELEASE_KEY_ALIAS        -R Greem4/neiro
 gh secret set RELEASE_KEY_PASSWORD     -R Greem4/neiro
-gh secret set YCLIENTS_PARTNER_TOKEN   -R Greem4/neiro
-gh secret set YCLIENTS_COMPANY_ID      -R Greem4/neiro
 gh secret set NEIRO_PUSH_API_BASE_URL  -R Greem4/neiro
 gh secret set NEIRO_PUSH_API_KEY       -R Greem4/neiro
 ```
@@ -258,7 +254,6 @@ gh secret set NEIRO_PUSH_API_KEY       -R Greem4/neiro
 | `RELEASE_KEYSTORE_BASE64` | Файл из `RELEASE_STORE_FILE` в `local.properties` |
 | `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` | `local.properties` |
 | `GOOGLE_SERVICES_JSON_BASE64` | `app/google-services.json` |
-| `YCLIENTS_PARTNER_TOKEN`, `YCLIENTS_COMPANY_ID` | `local.properties` |
 | `NEIRO_PUSH_API_BASE_URL`, `NEIRO_PUSH_API_KEY` | `local.properties`, ключ также `ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'` |
 
 **Keystore незаменим.** Потеряется файл или пароль — обновить установленное
@@ -266,9 +261,14 @@ gh secret set NEIRO_PUSH_API_KEY       -R Greem4/neiro
 ставить заново, теряя локальный архив. Копия ключа должна лежать не только на
 рабочем Mac.
 
-Про то, что часть этих ключей уезжает в публичный APK, — [RISKS.md § Секреты в
-публичном APK](RISKS.md#секреты-в-публичном-apk). Это верно и сегодня, просто
-GitHub делает APK доступным всем.
+Секретов `YCLIENTS_PARTNER_TOKEN` и `YCLIENTS_COMPANY_ID` в сборке больше нет:
+ключи YClients живут только в `.env` на Pi, приложение ходит к ним через прокси
+([docs/neiro-push/](../neiro-push/README.md)). Заведённые ранее секреты GitHub
+workflow не читает — их можно удалить.
+
+В публичный APK уезжает один секрет — `NEIRO_PUSH_API_KEY`, и он открывает
+ровно попытку входа по логину и паролю ([RISKS.md § Секреты в публичном
+APK](RISKS.md#секреты-в-публичном-apk)).
 
 ## Как выпустить версию
 

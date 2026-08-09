@@ -152,17 +152,35 @@ LOG_LEVEL=info
 строки: кнопка в дашборде появится, но в момент, когда она понадобится,
 удобнее одна команда.
 
+## Обновление развёрнутого сервиса
+
+Тот же `deploy.sh`: он делает rsync кода, пересобирает образ и поднимает
+контейнер. `.env` при этом не трогается — ключи и токен на Pi остаются как
+были, поэтому обновление безопасно повторять.
+
+```bash
+./neiro-push/scripts/deploy.sh
+./neiro-push/scripts/logs.sh --tail 50      # ошибок старта нет
+```
+
+Данные живут в томе `neiro_push_data` и обновление переживают. Перед заметными
+изменениями — `./neiro-push/scripts/backup.sh`.
+
 ## Проверка после развёртывания
 
 ```bash
-BASE=https://push.neiro.greemlab.ru/v1
+BASE=https://push.neiro.greemlab.ru
 ADMIN=$(ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-')
 
 curl -fsS -H "Authorization: Bearer $ADMIN" "$BASE/health"          # 200
 curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/auth/login"      # 401: путь жив, ключа нет
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/events"          # 401, а не 404
 ssh roster-b3 'systemctl --user is-active neiro-push-tunnel.service'
 ssh roster-b3 'docker ps --format "{{.Names}}\t{{.Ports}}" | grep neiro'
 ```
+
+`404` на `/v1/events` означает, что на Pi версия до этапа 5а — нужен
+передеплой, иначе новое приложение останется без догона пропущенных событий.
 
 Последняя команда — главная проверка сосуществования: должны быть видны **оба**
 контейнера, `neiro-push` на 8012 и `neiro-push-events` на 8011, и ни один из
