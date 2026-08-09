@@ -223,8 +223,9 @@ TOKEN_ENCRYPTION_KEY=…     # прежний, шифрование user_token
 | `data/network/YClientsApi.kt` | Пути меняются на прокси-эндпоинты, из сигнатур уходят `companyId` и `staffId` |
 | `data/network/TokenStorage.kt` | `partnerToken` и `companyId` удаляются, появляется `deviceToken`; `userToken` уходит |
 | `data/network/YClientsRepository.kt` | `login` идёт в Pi; `detectAndSaveStaffId` удаляется (делает сервер); обработка `401`/`409` |
-| `push/PushRegistrar.kt` | Регистрация устройства сливается со входом; `partner_token`/`user_token` из запроса уходят; остаётся обновление `fcm_token` |
-| `push/PushApi.kt`, `push/PushClient.kt` | Авторизация по `device_token`, `device_id` больше не в пути |
+| `data/network/NeiroApi.kt` | Новый: `login`, `logout`, `session`, `devices/fcm` — всё, что про сессию, а не про данные |
+| `push/PushRegistrar.kt` | Регистрация устройства слита со входом; остаётся обновление `fcm_token`, сверка сессии и отзыв устройства при выходе |
+| `push/PushApi.kt` | Только лента событий, `device_id` из путей ушёл; `PushClient.kt` удалён — Retrofit на сервис один, заголовок ставит интерцептор |
 | `ui/auth/AuthScreen.kt`, `AuthViewModel.kt` | Форма `PartnerTokenSetup` удаляется целиком — вводить нечего |
 | `app/build.gradle.kts` | `YCLIENTS_PARTNER_TOKEN` и `YCLIENTS_COMPANY_ID` из `BuildConfig` удаляются |
 

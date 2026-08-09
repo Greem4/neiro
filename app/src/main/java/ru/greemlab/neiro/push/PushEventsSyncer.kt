@@ -6,6 +6,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import ru.greemlab.neiro.data.network.YClientsClient
 import ru.greemlab.neiro.data.network.YClientsRepository
 
 /**
@@ -32,13 +33,12 @@ object PushEventsSyncer {
         val myStaffId = repository.staffId ?: return
 
         mutex.withLock {
-            val api = PushClient.getApi() ?: return
-            val deviceId = PushDeviceId.get(appContext)
+            val api = YClientsClient.getPushApi(appContext)
 
             for (page in 0 until MAX_PAGES) {
                 val since = PushEventsCursor.get(appContext)
                 val response = runCatching {
-                    api.getEvents(PushClient.authHeader(), deviceId, since, PAGE_LIMIT)
+                    api.getEvents(since, PAGE_LIMIT)
                 }.rethrowCancellation().getOrNull()
                 // Ошибку сети — проглотить и выйти; следующий тик keepalive повторит.
                 val body = response?.takeIf { it.isSuccessful }?.body() ?: return
@@ -76,7 +76,7 @@ object PushEventsSyncer {
                 // догона не должен приводить к повторному показу уже отданных событий.
                 PushEventsCursor.markSeen(appContext, body.lastEventId)
                 runCatching {
-                    api.ackEvents(PushClient.authHeader(), deviceId, AckEventsRequest(body.lastEventId))
+                    api.ackEvents(AckEventsRequest(body.lastEventId))
                 }.rethrowCancellation()
 
                 if (!body.hasMore) return

@@ -30,17 +30,16 @@ class PushKeepAliveWorker(
 
         var failed = false
         try {
-            // Регистрация — до догона: пока устройство не известно серверу, догон
-            // отвечает 404, а курсор берётся как раз из ответа регистрации
-            // (app.md §6.4). Выигрыш прежнего порядка — показать события на один
-            // HTTP-запрос раньше — того не стоил.
-            val registerOutcome = runCatching { PushRegistrar.registerNow(applicationContext) }
+            // Сверка с сервером — до догона: заодно выясняется, не отозван ли
+            // доступ и не нужен ли повторный вход, и тогда за событиями идти
+            // уже незачем.
+            val refreshOutcome = runCatching { PushRegistrar.refreshDeviceState(applicationContext) }
                 .onFailure { if (it is CancellationException) throw it }
 
             runCatching { PushEventsSyncer.syncNow(applicationContext) }
                 .onFailure { if (it is CancellationException) throw it }
 
-            failed = registerOutcome.isFailure || registerOutcome.getOrNull() == false
+            failed = refreshOutcome.isFailure || refreshOutcome.getOrNull() == false
 
             // Result.retry() здесь был бы вторым планировщиком поверх scheduleNext:
             // отретраенная работа не в терминальном состоянии, поэтому APPEND_OR_REPLACE

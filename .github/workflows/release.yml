@@ -44,7 +44,8 @@ jobs:
 
       # Секреты восстанавливаются в файлы, которых нет в репозитории.
       # local.properties собирается целиком здесь: build.gradle.kts читает
-      # ключи YClients и push именно оттуда.
+      # адрес и ключ сервиса Neiro именно оттуда. Ключей YClients в сборке
+      # больше нет — они живут только на Pi.
       - name: Восстановить секреты
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -57,8 +58,6 @@ jobs:
           RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
-          YCLIENTS_PARTNER_TOKEN=${{ secrets.YCLIENTS_PARTNER_TOKEN }}
-          YCLIENTS_COMPANY_ID=${{ secrets.YCLIENTS_COMPANY_ID }}
           NEIRO_PUSH_API_BASE_URL=${{ secrets.NEIRO_PUSH_API_BASE_URL }}
           NEIRO_PUSH_API_KEY=${{ secrets.NEIRO_PUSH_API_KEY }}
           EOF

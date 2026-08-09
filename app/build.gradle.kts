@@ -7,26 +7,28 @@ plugins {
 }
 
 // ------------------------------------------------------------
-// Секреты YClients из local.properties → BuildConfig.
+// Настройки сервиса Neiro из local.properties → BuildConfig.
 // Сам local.properties в .gitignore, ключи не уезжают в репозиторий.
-// При пустых значениях приложение собирается, но API не заработает,
-// пока пользователь не введёт Partner Token вручную (через UI).
+//
+// Ключей YClients здесь больше нет: partner_token и user_token живут на Pi,
+// приложение ходит только в свой сервис (docs/neiro-push/ARCHITECTURE.md).
+// Ключ приложения открывает ровно одну дверь — вход по логину и паролю.
 // ------------------------------------------------------------
 val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val yclientsPartnerToken: String = localProps.getProperty("YCLIENTS_PARTNER_TOKEN", "")
-val yclientsCompanyId: String = localProps.getProperty("YCLIENTS_COMPANY_ID", "0")
 val devLogin: String = localProps.getProperty("DEV_LOGIN", "")
 val devPassword: String = localProps.getProperty("DEV_PASSWORD", "")
 val releaseStoreFile: String = localProps.getProperty("RELEASE_STORE_FILE", "")
 val releaseStorePassword: String = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
 val releaseKeyAlias: String = localProps.getProperty("RELEASE_KEY_ALIAS", "")
 val releaseKeyPassword: String = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+// Публичный адрес сервиса; пути в приложении начинаются с v1/, поэтому номера
+// версии в базовом URL быть не должно (API.md § Про префиксы).
 val neiroPushApiBaseUrl: String = localProps.getProperty(
     "NEIRO_PUSH_API_BASE_URL",
-    "https://push.neiro.greemlab.ru/v2",
+    "https://push.neiro.greemlab.ru",
 )
 val neiroPushApiKey: String = localProps.getProperty("NEIRO_PUSH_API_KEY", "")
 val hasGoogleServices = file("google-services.json").exists()
@@ -87,10 +89,6 @@ android {
 
         vectorDrawables { useSupportLibrary = true }
 
-        // YClients: Partner Token и ID филиала прокидываются из local.properties.
-        // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
-        buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
-        buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
         buildConfigField("String", "NEIRO_PUSH_API_BASE_URL", "\"$neiroPushApiBaseUrl\"")
         buildConfigField("String", "NEIRO_PUSH_API_KEY", "\"$neiroPushApiKey\"")
         buildConfigField("boolean", "PUSH_FCM_ENABLED", hasGoogleServices.toString())
@@ -178,7 +176,7 @@ android {
     }
 
     // Сразу отключаем всё, что приложению не нужно — экономит время сборки и размер APK.
-    // buildConfig включён намеренно: пробрасываем секреты YClients (Partner Token, Company ID)
+    // buildConfig включён намеренно: пробрасываем адрес и ключ сервиса Neiro
     // из local.properties в скомпилированный класс BuildConfig.
     buildFeatures {
         compose = true
