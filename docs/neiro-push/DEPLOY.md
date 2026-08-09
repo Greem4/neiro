@@ -114,7 +114,7 @@ neiro-push/
 
 ```bash
 API_KEY=…                  # ключ приложения: только POST /v1/auth/login
-ADMIN_API_KEY=…            # дашборд, /health, /v1/admin/*
+ADMIN_API_KEY=…            # ПАРОЛЬ ОТ ДАШБОРДА, плюс /health и /v1/admin/*
 TOKEN_ENCRYPTION_KEY=…     # Fernet: шифрование user_token в БД
 YCLIENTS_PARTNER_TOKEN=…   # единственное место, где он теперь живёт
 YCLIENTS_COMPANY_ID=…      # филиал по умолчанию при входе
@@ -126,6 +126,20 @@ FCM_PROJECT_ID=…
 DATABASE_PATH=/data/neiro_push.db
 LOG_LEVEL=info
 ```
+
+### Как зайти в дашборд
+
+`https://push.neiro.greemlab.ru/` (голый адрес сам ведёт на `/dashboard`).
+Форма спрашивает «ключ» — это **`ADMIN_API_KEY` целиком**, никакого отдельного
+пароля у дашборда нет. Посмотреть рабочее значение:
+
+```bash
+ssh roster-pi-remote "grep ^ADMIN_API_KEY= ~/neiro-push/.env"
+```
+
+Вход ставит куку на 30 дней, так что вводить ключ каждый раз не придётся.
+Сменить его можно правкой `.env` и `docker compose up -d` — приложение этот
+ключ не знает и не заметит.
 
 Ключ FCM (`secrets/fcm-service-account.json`) — тот же service account, что у
 второго поколения; деплой копирует его из `~/neiro-push-events/secrets/`, если
