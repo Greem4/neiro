@@ -145,7 +145,7 @@ LOG_LEVEL=info
 |---|---|---|
 | `deploy.sh` | rsync на Pi, `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля, ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
 | `install-tunnel.sh` | systemd --user юнит Pi → VPS | Порт 18083, юнит `neiro-push-tunnel.service`, локальная цель 8012 |
-| `patch-vps-nginx-v1.sh` | Добавляет `location /v1/` в сайт nginx на VPS, идемпотентно | **`proxy_pass` без завершающего слеша** |
+| `patch-vps-nginx-v1.sh` | Добавляет `location /v1/`, `/dashboard`, `/health` в сайт nginx на VPS и переводит корень на редирект к дашборду, идемпотентно | **`proxy_pass` без завершающего слеша** |
 | `dev.sh`, `logs.sh`, `backup.sh`, `restore.sh` | Локальный запуск, логи, резервные копии | Имена контейнера и БД |
 
 Отдельно нужен `scripts/revoke-device.sh` — отзыв `device_token` из командной

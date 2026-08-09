@@ -9,8 +9,11 @@
 #
 # Локаций три, а не одна. В DEPLOY.md описана только /v1/, но /health и
 # /dashboard в приложении лежат вне этого префикса — с одной локацией они
-# остались бы недоступны снаружи, а `location /` на этом сайте всё ещё смотрит
-# на туннель мёртвого первого поколения (18080). Его не трогаем.
+# остались бы недоступны снаружи.
+#
+# Плюс корень: `location /` смотрел на туннель первого поколения (18080), тот
+# погашен, и https://push.neiro.greemlab.ru/ отдавал 502. Скрипт переводит
+# корень на редирект к дашборду — другого содержимого по этому адресу нет.
 set -euo pipefail
 
 VPS_SSH="${NEIRO_PUSH_VPS_SSH:-roster-vps}"
@@ -63,9 +66,29 @@ for needle, block in wanted:
     text = text[:idx] + block + text[idx:]
     added.append(needle)
 
+# Корень: снимаем проксирование на мёртвый 18080. Трогаем только этот случай —
+# если в `location /` появится что-то осмысленное, скрипт пройдёт мимо.
+dead_root = (
+    "    location / {\n"
+    "        proxy_pass http://127.0.0.1:18080;\n"
+)
+root_fixed = False
+if dead_root in text:
+    start = text.find(dead_root)
+    end = text.find("    }\n", start) + len("    }\n")
+    text = text[:start] + (
+        "    # 18080 — туннель первого поколения сервиса, он погашен, и корень\n"
+        "    # отдавал 502. Другого содержимого по этому адресу нет.\n"
+        "    location / {\n"
+        "        return 302 /dashboard;\n"
+        "    }\n"
+    ) + text[end:]
+    root_fixed = True
+
 with open(site_path, "w", encoding="utf-8") as f:
     f.write(text)
-print("added:" + (",".join(added) if added else "nothing"))
+print("added:" + (",".join(added) if added else "nothing")
+      + (" root:->/dashboard" if root_fixed else ""))
 PY
 
 sudo nginx -t
