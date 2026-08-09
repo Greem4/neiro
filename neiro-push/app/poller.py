@@ -222,7 +222,13 @@ class PollService:
         if not events:
             return 0, 0, None
 
-        devices = self._db.list_devices_for_account(account.id)
+        # Устройство без FCM-токена слать некуда: отправка вернула бы
+        # token_invalid, и оно было бы удалено вместе с рабочим device_token.
+        devices = [
+            device
+            for device in self._db.list_devices_for_account(account.id)
+            if device.fcm_token
+        ]
 
         for event, event_id in zip(events, event_ids):
             logger.info(

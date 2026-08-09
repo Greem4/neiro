@@ -40,7 +40,11 @@ class LoginRequest(BaseModel):
     # который отдаётся наружу.
     password: str = Field(min_length=1, max_length=200)
     device_id: str = Field(min_length=8, max_length=128)
-    fcm_token: str = Field(min_length=20, max_length=4096)
+    # Пустой допустим: Firebase выдаёт токен не всегда (нет Google-сервисов,
+    # сбой, сборка без google-services.json). Вход от этого зависеть не должен —
+    # расписание и деньги работают и без пушей, а токен донесёт
+    # POST /v1/devices/fcm, когда появится.
+    fcm_token: str = Field(default="", max_length=4096)
     label: str | None = Field(default=None, max_length=120)
     app_version: str | None = Field(default=None, max_length=40)
 

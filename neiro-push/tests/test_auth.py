@@ -343,3 +343,23 @@ def test_fcm_token_can_be_refreshed(client: TestClient) -> None:
 def test_fcm_refresh_requires_device_token(client: TestClient) -> None:
     response = client.post("/v1/devices/fcm", headers=APP_KEY, json={"fcm_token": "n" * 40})
     assert response.status_code == 401
+
+
+def test_login_works_without_fcm_token(client: TestClient) -> None:
+    """Firebase выдаёт токен не всегда, а расписание и деньги нужны и без пушей.
+    Токен донесёт POST /v1/devices/fcm, когда появится."""
+    response = client.post(
+        "/v1/auth/login",
+        headers=APP_KEY,
+        json={
+            "login": "+79991234567",
+            "password": PASSWORD,
+            "device_id": "device-no-fcm",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    with client.app.state.db.connect() as conn:
+        assert conn.execute(
+            "SELECT fcm_token FROM devices WHERE device_id = 'device-no-fcm'"
+        ).fetchone()["fcm_token"] == ""

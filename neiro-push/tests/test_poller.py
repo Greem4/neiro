@@ -132,6 +132,27 @@ def test_status_change_sends_push_and_records_delivery(tmp_path: Path) -> None:
     assert deliveries == [(events[0].id, "dev1", "sent")]
 
 
+def test_device_without_fcm_token_is_skipped(tmp_path: Path) -> None:
+    """Вход разрешён и без токена Firebase. Слать такому устройству нечего, а
+    попытка вернула бы token_invalid и снесла бы вместе с ним рабочий доступ."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev-no-fcm", "hash1", "", None, None)
+
+    yclients = FakeYClients([[_record(1, 10, attendance=0)], [_record(1, 10, attendance=2)]])
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())
+    asyncio.run(service.poll_once())
+
+    assert fcm.calls == []
+    # Событие в журнале осталось: телефон заберёт его догоном.
+    assert [e.type for e in db.list_events_since(account_id, 0)] == ["CLIENT_CONFIRMED"]
+    assert db.get_device("dev-no-fcm") is not None
+
+
 def test_one_fetch_per_company_for_multiple_staff(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     db = Database(settings.database_path)
