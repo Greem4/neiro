@@ -26,6 +26,7 @@ from app.dashboard import (
 from app.database import Database
 from app.fcm import FcmSender
 from app.poller import MOSCOW, PollService
+from app.ratelimit import RateLimiter
 from app.schemas import HealthResponse
 from app.security import SecretBox, constant_time_equals
 from app.yclients import YClientsClient
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
     app.state.db = db
     app.state.secret_box = secret_box
     app.state.yclients = yclients_client
+    app.state.limiter = RateLimiter()
     app.state.poll_service = poll_service
     app.state.started_at = datetime.now(timezone.utc)
 
@@ -160,6 +162,46 @@ async def admin_poll_log(
     db: Database = Depends(get_database),
 ) -> dict:
     return {"poll_runs": db.list_poll_runs_admin(limit)}
+
+
+@app.post(
+    "/v1/admin/devices/{device_id}/revoke",
+    dependencies=[Depends(verify_admin_api_key)],
+)
+async def admin_revoke_device(
+    device_id: str,
+    db: Database = Depends(get_database),
+) -> dict:
+    """Отобрать доступ у телефона. До этого сделать это было нечем.
+
+    Строка устройства остаётся — за ней тянется история доставок, по которой
+    ещё надо будет понять, куда уходили пуши. Умирает только токен.
+    """
+    if db.get_device_admin(device_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="device not found")
+    revoked = db.revoke_device(device_id)
+    logger.warning("device %s revoked via admin API", device_id)
+    return {"device_id": device_id, "revoked": revoked}
+
+
+@app.post(
+    "/v1/admin/accounts/{account_id}/reset",
+    dependencies=[Depends(verify_admin_api_key)],
+)
+async def admin_reset_account(
+    account_id: int,
+    db: Database = Depends(get_database),
+) -> dict:
+    """Потребовать повторный вход паролем.
+
+    Устройства и их токены живы, пуши продолжают идти — приложение просто
+    попросит пароль при следующем обращении к прокси.
+    """
+    if db.get_account(account_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="account not found")
+    db.set_reauth_required(account_id, True)
+    logger.warning("account %s marked reauth_required via admin API", account_id)
+    return {"account_id": account_id, "reauth_required": True}
 
 
 @app.get(
@@ -293,6 +335,57 @@ async def dashboard_login(
         samesite="lax",
     )
     return response
+
+
+def _render_device_page(
+    request: Request,
+    device_id: str,
+    db: Database,
+    **flags,
+) -> HTMLResponse:
+    device = db.get_device_admin(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    deliveries = db.list_deliveries_for_device(device_id)
+    context = {"authenticated": True}
+    context.update(build_device_html_context(device, deliveries))
+    context.update(flags)
+    return templates.TemplateResponse(request, "dashboard_device.html", context)
+
+
+@app.post("/dashboard/devices/{device_id}/revoke", response_class=HTMLResponse)
+async def dashboard_revoke_device(
+    device_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+) -> HTMLResponse:
+    """Кнопка «отозвать устройство». Раньше отобрать доступ у телефона было нечем."""
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    if db.get_device_admin(device_id) is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    db.revoke_device(device_id)
+    logger.warning("device %s revoked from dashboard", device_id)
+    return _render_device_page(request, device_id, db, revoked=True)
+
+
+@app.post("/dashboard/devices/{device_id}/reset-account", response_class=HTMLResponse)
+async def dashboard_reset_account(
+    device_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+) -> HTMLResponse:
+    """Кнопка «сбросить аккаунт»: устройства живы, но потребуется пароль."""
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    device = db.get_device_admin(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    db.set_reauth_required(int(device["account_id"]), True)
+    logger.warning("account %s marked reauth_required from dashboard", device["account_id"])
+    return _render_device_page(request, device_id, db, reset_done=True)
 
 
 @app.get("/dashboard/devices/{device_id}", response_class=HTMLResponse)

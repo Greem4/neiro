@@ -52,6 +52,27 @@
       </div>
     </div>
 
+    {% if revoked %}
+    <p class="banner">Устройство отозвано: его <code>device_token</code> больше не работает.
+       Телефон уйдёт в локальный режим — календарь и деньги останутся, свежих данных не будет.</p>
+    {% elif reset_done %}
+    <p class="banner">Аккаунту потребуется повторный вход паролем. Устройства и пуши живы.</p>
+    {% endif %}
+
+    <h2>Доступ</h2>
+    <div class="listbar">
+      {# Относительные action — как у формы логина выше: абсолютный путь
+         сломается, если сервис однажды окажется под префиксом. #}
+      <form method="post" action="revoke" style="display:inline"
+            onsubmit="return confirm('Отозвать доступ у этого устройства? Телефону придётся входить заново.')">
+        <button type="submit">Отозвать устройство</button>
+      </form>
+      <form method="post" action="reset-account" style="display:inline"
+            onsubmit="return confirm('Потребовать повторный вход паролем для всего аккаунта?')">
+        <button type="submit">Сбросить аккаунт</button>
+      </form>
+    </div>
+
     <h2>Уведомления (последние {{ deliveries | length }})</h2>
     <div class="wrap">
     <table>

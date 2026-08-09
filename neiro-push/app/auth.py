@@ -15,6 +15,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 
 from app.config import Settings, get_settings
 from app.database import Database, RegisteredDevice, WatchedAccount
+from app.ratelimit import (
+    LOGIN_LIMIT,
+    LOGIN_WINDOW_SECONDS,
+    PROXY_LIMIT,
+    PROXY_WINDOW_SECONDS,
+    client_ip,
+)
 from app.schemas import (
     AccountPayload,
     FcmTokenRequest,
@@ -67,6 +74,10 @@ def get_yclients(request: Request) -> YClientsClient:
     return request.app.state.yclients
 
 
+def get_limiter(request: Request):
+    return request.app.state.limiter
+
+
 def require_app_key(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
@@ -77,6 +88,7 @@ def require_app_key(
 
 
 def require_device(
+    request: Request,
     authorization: str | None = Header(default=None),
     db: Database = Depends(get_database),
 ) -> DeviceContext:
@@ -103,6 +115,17 @@ def require_device(
         logger.warning("device %s references missing account %s", device.device_id, device.account_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_device_token"
+        )
+    retry_after = request.app.state.limiter.check(
+        f"device:{device.device_id}", PROXY_LIMIT, PROXY_WINDOW_SECONDS
+    )
+    if retry_after is not None:
+        # Зациклившийся клиент не должен ни положить Pi, ни сжечь квоту YClients.
+        logger.warning("rate limit hit by device %s", device.device_id)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="rate_limited",
+            headers={"Retry-After": str(retry_after)},
         )
     db.touch_device_seen(device.device_id)
     return DeviceContext(device=device, account=account)
@@ -131,6 +154,7 @@ def _account_payload(profile: dict) -> AccountPayload:
 
 @router.post("/auth/login", response_model=LoginResponse, dependencies=[Depends(require_app_key)])
 async def login(
+    request: Request,
     body: LoginRequest,
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
@@ -138,6 +162,25 @@ async def login(
     yclients: YClientsClient = Depends(get_yclients),
 ) -> LoginResponse:
     company_id = settings.yclients_company_id
+    limiter = request.app.state.limiter
+    ip = client_ip(request)
+    # Ключ приложения лежит в APK открытым текстом, так что без лимита это
+    # открытая дверь к перебору паролей YClients (API.md § Лимиты). Считаем и
+    # по устройству, и по адресу: первый ключ ловит один упорный телефон,
+    # второй — попытки менять device_id на каждом запросе.
+    for scope, key in (("device", f"login:device:{body.device_id}"), ("ip", f"login:ip:{ip}")):
+        retry_after = limiter.check(key, LOGIN_LIMIT, LOGIN_WINDOW_SECONDS)
+        if retry_after is not None:
+            # Единственный способ вообще заметить перебор — эта строка в логе.
+            logger.warning(
+                "login rate limit hit by %s (device %s), retry after %ss",
+                scope, body.device_id, retry_after,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="too_many_attempts",
+                headers={"Retry-After": str(retry_after)},
+            )
 
     try:
         auth_data = await yclients.login(body.login, body.password)
@@ -201,6 +244,9 @@ async def login(
         # Известное устройство курсор сохраняет — иначе события, накопившиеся
         # за время без связи, потерялись бы молча.
         last_event_id = existing.last_ack_event_id or 0
+
+    limiter.reset(f"login:device:{body.device_id}")
+    limiter.reset(f"login:ip:{ip}")
 
     profile = db.get_account_profile(account_id)
     assert profile is not None
