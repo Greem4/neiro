@@ -29,6 +29,12 @@ object LiveApiCoordinator {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * Пока сервер не отвечает, каждое возвращение в приложение означало новый
+     * запрос и то же ожидание. Теперь между попытками копится пауза (Этап 8).
+     */
+    private val backoff = NetworkRetryBackoff()
+
     @Volatile
     private var initialized = false
 
@@ -50,6 +56,9 @@ object LiveApiCoordinator {
             override fun onStart(owner: LifecycleOwner) {
                 scope.launch {
                     if (!yclientsRepository.isLoggedIn.first()) return@launch
+                    // Сервер не отвечал только что — не ходим в него на каждое
+                    // переключение приложения, ждём паузу.
+                    if (!backoff.allowsAttempt()) return@launch
                     if (serverPushActive) {
                         // Дожидаемся регистрации: прежний onAppForeground уходил
                         // в свою корутину, и догон стартовал параллельно — на
@@ -88,6 +97,14 @@ object LiveApiCoordinator {
     private suspend fun refreshNow(context: Context) {
         val yclientsRepository = YClientsRepository.getInstance(context)
         if (!yclientsRepository.isLoggedIn.first()) return
-        YClientsCalendarSync.get(context).refreshLiveRange()
+        val outcome = YClientsCalendarSync.get(context).refreshLiveRange()
+        // Пауза копится только на отсутствии связи: отказ по существу (пустой
+        // ответ, права) повторной попыткой не лечится, но и не значит, что
+        // сервер недоступен.
+        if (outcome is SyncOutcome.Failure && outcome.offline) {
+            backoff.onFailure()
+        } else {
+            backoff.onSuccess()
+        }
     }
 }

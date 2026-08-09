@@ -194,7 +194,7 @@ class YClientsCalendarSync(
                 return SyncOutcome.Success(merge.newlyAdded)
             }
 
-            is ApiResult.Error -> return SyncOutcome.Failure(result.message)
+            is ApiResult.Error -> return SyncOutcome.Failure(result.message, result.offline)
         }
     }
 

@@ -35,6 +35,12 @@ data class SyncUiState(
     val showSuccess: Boolean = false,
     val profileReviewReminder: String? = null,
     val openProfileSettings: Boolean = false,
+    /**
+     * Сервер Neiro не ответил на последнюю попытку. В отличие от [error] не
+     * гасится показом: пока связи нет, пользователь должен видеть, что перед
+     * ним сохранённые данные, а не пустой или устаревший календарь (Этап 8).
+     */
+    val isOffline: Boolean = false,
 )
 
 /**
@@ -254,6 +260,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                         syncedCount = outcome.newlyAdded,
                         lastSyncDate = syncPreferences.lastSyncLocalDate() ?: LocalDate.now(),
                         showSuccess = showUi,
+                        isOffline = false,
                     )
                 }
 
@@ -261,6 +268,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = outcome.message,
+                        isOffline = outcome.offline,
                     )
                 }
             }
