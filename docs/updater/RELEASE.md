@@ -1,8 +1,8 @@
 # Релиз по тегам
 
-Как из тега получается подписанный APK в GitHub Releases. Документ проектный:
-`version.properties` и `release.yml` ещё не созданы, здесь описано, какими они
-должны быть.
+Как из тега получается подписанный APK в GitHub Releases. `version.properties`
+и [`.github/workflows/release.yml`](../../.github/workflows/release.yml) созданы
+по этому документу — фрагменты ниже описывают то, что уже лежит в репозитории.
 
 Приложение полагается на то, что выложено в релизе, — контракт ассетов
 описан в [ARCHITECTURE.md § Источник правды](ARCHITECTURE.md#источник-правды-github-releases)
