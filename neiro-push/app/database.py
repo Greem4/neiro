@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     avatar_url TEXT,
     user_token_enc TEXT NOT NULL,                     -- Fernet, ключ в .env
     reauth_required INTEGER NOT NULL DEFAULT 0,       -- user_token протух, нужен пароль
+    auth_failures INTEGER NOT NULL DEFAULT 0,         -- подряд идущих 401 от YClients
     last_auth_at TEXT,
     changed_after TEXT,
     backoff_until TEXT,
@@ -235,6 +236,38 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.executescript(SCHEMA)
+            self._add_missing_columns(conn)
+
+    @staticmethod
+    def _add_missing_columns(conn: sqlite3.Connection) -> None:
+        """Догоняет схему на уже существующей базе.
+
+        `CREATE TABLE IF NOT EXISTS` про новые колонки не знает: таблица есть —
+        и он молча ничего не делает. Сервис уже развёрнут, база живёт между
+        выкатками, поэтому каждая добавленная колонка должна оказаться здесь,
+        иначе после деплоя запросы падают на `no such column`.
+
+        Только добавление колонок с безопасным значением по умолчанию —
+        переименования и удаления сюда не годятся и требуют отдельной миграции.
+        """
+        wanted = {
+            "accounts": {
+                "user_name": "TEXT",
+                "avatar_url": "TEXT",
+                "auth_failures": "INTEGER NOT NULL DEFAULT 0",
+            },
+            "devices": {
+                "token_hash": "TEXT",
+                "revoked_at": "TEXT",
+            },
+        }
+        for table, columns in wanted.items():
+            existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if not existing:
+                continue
+            for name, decl in columns.items():
+                if name not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
     def upsert_account(
         self,
@@ -366,6 +399,40 @@ class Database:
             conn.execute(
                 "UPDATE accounts SET reauth_required = ?, updated_at = ? WHERE id = ?",
                 (1 if required else 0, now, account_id),
+            )
+
+    def note_upstream_auth_failure(self, account_id: int, threshold: int = 3) -> bool:
+        """YClients ответил 401. Возвращает True, если это взвело `reauth_required`.
+
+        По первому же 401 флаг не ставим: авария на стороне YClients разлогинила
+        бы всех разом, а пользователь ничего исправить не может. Три подряд —
+        уже похоже на настоящий протухший токен
+        (RISKS.md § Протухший user_token).
+        """
+        now = utc_now_iso()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET auth_failures = auth_failures + 1, updated_at = ? WHERE id = ?",
+                (now, account_id),
+            )
+            row = conn.execute(
+                "SELECT auth_failures FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+            failures = int(row["auth_failures"]) if row else 0
+            if failures < threshold:
+                return False
+            conn.execute(
+                "UPDATE accounts SET reauth_required = 1, updated_at = ? WHERE id = ?",
+                (now, account_id),
+            )
+        return True
+
+    def clear_auth_failures(self, account_id: int) -> None:
+        """Любой успешный ответ обнуляет счётчик: считаем именно подряд идущие."""
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET auth_failures = 0 WHERE id = ? AND auth_failures != 0",
+                (account_id,),
             )
 
     def get_account_profile(self, account_id: int) -> dict | None:

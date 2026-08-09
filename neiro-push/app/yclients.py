@@ -79,6 +79,30 @@ class YClientsClient:
             raise YClientsAuthError("invalid credentials")
         return data
 
+    async def fetch_raw(
+        self,
+        path: str,
+        *,
+        user_token: str,
+        params: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """Сырой GET к YClients: ответ отдаётся вызывающему как есть.
+
+        Тело не разбирается и не переупаковывается — прокси обязан вернуть
+        приложению байты YClients вместе с его кодом. Иначе пришлось бы
+        переписывать `YClientsModels` и `SessionParser` на телефоне
+        (ARCHITECTURE.md § Прокси).
+        """
+        headers = {
+            "Accept": self._settings.yclients_accept,
+            "Content-Type": "application/json",
+            "Authorization": (
+                f"Bearer {self._settings.yclients_partner_token}, User {user_token}"
+            ),
+        }
+        clean = {k: v for k, v in (params or {}).items() if v is not None}
+        return await self._client.get(path, headers=headers, params=clean)
+
     async def fetch_staff(self, company_id: int) -> list[dict[str, Any]]:
         """Публичный `/book_staff`: ему хватает партнёрского токена.
 
