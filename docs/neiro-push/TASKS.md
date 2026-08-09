@@ -35,16 +35,16 @@
 
 ### Этап 2 — вход и device_token
 
-- [ ] `app/auth.py`: `POST /v1/auth/login`, `POST /v1/auth/logout`,
+- [x] `app/auth.py`: `POST /v1/auth/login`, `POST /v1/auth/logout`,
       `GET /v1/session`, `POST /v1/devices/fcm`
-- [ ] `yclients.py`: `login` (partner-токеном), `fetch_staff` и определение
+- [x] `yclients.py`: `login` (partner-токеном), `fetch_staff` и определение
       `staff_id` по имени — логика переезжает из
       `YClientsRepository.detectAndSaveStaffId`
-- [ ] Выпуск `device_token`: 32 случайных байта, в БД только `sha256`
-- [ ] Зависимость `require_device`: токен → устройство → аккаунт, проверка
+- [x] Выпуск `device_token`: 32 случайных байта, в БД только `sha256`
+- [x] Зависимость `require_device`: токен → устройство → аккаунт, проверка
       `revoked_at` и `reauth_required`
-- [ ] Пароль не попадает ни в логи, ни в трейсбеки — с тестом на это
-- [ ] Тесты: успешный вход, неверный пароль (`401`), имя не совпало (`409`),
+- [x] Пароль не попадает ни в логи, ни в трейсбеки — с тестом на это
+- [x] Тесты: успешный вход, неверный пароль (`401`), имя не совпало (`409`),
       повторный вход с того же `device_id` (старый токен мёртв, курсор цел)
 
 **Готово, когда:** цикл «вход → `/v1/session` → выход» проходит `curl`-ом, в

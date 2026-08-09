@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     company_id INTEGER NOT NULL,
     staff_id INTEGER NOT NULL,
     user_login TEXT,                                  -- подсказка при повторном входе
+    user_name TEXT,                                   -- имя из /auth, его же отдаёт /v1/session
+    avatar_url TEXT,
     user_token_enc TEXT NOT NULL,                     -- Fernet, ключ в .env
     reauth_required INTEGER NOT NULL DEFAULT 0,       -- user_token протух, нужен пароль
     last_auth_at TEXT,
@@ -240,6 +242,8 @@ class Database:
         staff_id: int,
         user_token_enc: str,
         user_login: str | None = None,
+        user_name: str | None = None,
+        avatar_url: str | None = None,
     ) -> int:
         """Вызывается на успешном входе, поэтому здесь же снимается
         `reauth_required`: свежий `user_token` — это ровно то, чего ждал флаг."""
@@ -248,17 +252,23 @@ class Database:
             conn.execute(
                 """
                 INSERT INTO accounts (
-                    company_id, staff_id, user_login, user_token_enc,
-                    reauth_required, last_auth_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+                    company_id, staff_id, user_login, user_name, avatar_url,
+                    user_token_enc, reauth_required, last_auth_at,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
                 ON CONFLICT(company_id, staff_id) DO UPDATE SET
                     user_login = excluded.user_login,
+                    user_name = excluded.user_name,
+                    avatar_url = excluded.avatar_url,
                     user_token_enc = excluded.user_token_enc,
                     reauth_required = 0,
                     last_auth_at = excluded.last_auth_at,
                     updated_at = excluded.updated_at
                 """,
-                (company_id, staff_id, user_login, user_token_enc, now, now, now),
+                (
+                    company_id, staff_id, user_login, user_name, avatar_url,
+                    user_token_enc, now, now, now,
+                ),
             )
             row = conn.execute(
                 "SELECT id FROM accounts WHERE company_id = ? AND staff_id = ?",
@@ -303,6 +313,72 @@ class Database:
                     now, now, now,
                 ),
             )
+
+    def get_device_by_token_hash(self, token_hash: str) -> RegisteredDevice | None:
+        """Отозванные не находятся вовсе: для вызывающего отозванный токен
+        неотличим от несуществующего, и оба дают один 401."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, account_id, device_id, fcm_token, label, app_version,
+                       last_ack_event_id
+                FROM devices
+                WHERE token_hash = ? AND revoked_at IS NULL
+                """,
+                (token_hash,),
+            ).fetchone()
+        return _row_to_device(row) if row else None
+
+    def revoke_device(self, device_id: str) -> bool:
+        """Выход и отзыв из дашборда: строка остаётся, токен умирает.
+
+        Не `DELETE`: за устройством тянется история доставок, и по нему ещё
+        надо будет понять, куда уходили пуши.
+        """
+        now = utc_now_iso()
+        with self.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE devices SET revoked_at = ?, updated_at = ? "
+                "WHERE device_id = ? AND revoked_at IS NULL",
+                (now, now, device_id),
+            )
+            return cursor.rowcount > 0
+
+    def update_device_fcm(self, device_id: str, fcm_token: str) -> None:
+        now = utc_now_iso()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE devices SET fcm_token = ?, last_seen_at = ?, updated_at = ? "
+                "WHERE device_id = ?",
+                (fcm_token, now, now, device_id),
+            )
+
+    def touch_device_seen(self, device_id: str) -> None:
+        now = utc_now_iso()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE devices SET last_seen_at = ? WHERE device_id = ?", (now, device_id)
+            )
+
+    def set_reauth_required(self, account_id: int, required: bool) -> None:
+        now = utc_now_iso()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET reauth_required = ?, updated_at = ? WHERE id = ?",
+                (1 if required else 0, now, account_id),
+            )
+
+    def get_account_profile(self, account_id: int) -> dict | None:
+        """То, что уезжает в приложение: без токенов и служебных полей опроса."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT company_id, staff_id, user_name, avatar_url
+                FROM accounts WHERE id = ?
+                """,
+                (account_id,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def delete_device(self, device_id: str) -> bool:
         with self.connect() as conn:

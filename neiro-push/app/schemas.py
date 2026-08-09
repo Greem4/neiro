@@ -32,3 +32,37 @@ class HealthResponse(BaseModel):
     events_today: int
     poll_day_seconds: int
     poll_night_seconds: int
+
+
+class LoginRequest(BaseModel):
+    login: str = Field(min_length=3, max_length=200)
+    # Пароль намеренно без примеров и описаний: модель попадает в openapi.json,
+    # который отдаётся наружу.
+    password: str = Field(min_length=1, max_length=200)
+    device_id: str = Field(min_length=8, max_length=128)
+    fcm_token: str = Field(min_length=20, max_length=4096)
+    label: str | None = Field(default=None, max_length=120)
+    app_version: str | None = Field(default=None, max_length=40)
+
+
+class AccountPayload(BaseModel):
+    company_id: int
+    staff_id: int
+    user_name: str | None = None
+    avatar_url: str | None = None
+
+
+class LoginResponse(BaseModel):
+    device_token: str
+    account: AccountPayload
+    last_event_id: int
+
+
+class SessionResponse(BaseModel):
+    account: AccountPayload
+    reauth_required: bool
+    last_event_id: int
+
+
+class FcmTokenRequest(BaseModel):
+    fcm_token: str = Field(min_length=20, max_length=4096)

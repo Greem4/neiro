@@ -16,9 +16,9 @@ FastAPI-сервис на Raspberry Pi: держит ключи YClients у се
 
 ## Состояние
 
-Готов **Этап 1** — каркас: целевая схема БД, настройки, поллер, события, FCM,
-дашборд. Клиентских маршрутов пока нет: вход и `device_token` приезжают
-Этапом 2, прокси YClients — Этапом 3. План — [TASKS.md](../docs/neiro-push/TASKS.md).
+Готовы **Этапы 1–2**: каркас (схема БД, настройки, поллер, события, FCM,
+дашборд) и вход по логину и паролю с выпуском `device_token`. Прокси YClients —
+Этап 3, лимиты и отзыв — Этап 4. План — [TASKS.md](../docs/neiro-push/TASKS.md).
 
 ## Старт
 
@@ -45,6 +45,10 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 
 | Метод | Путь | Ключ | Что делает |
 |-------|------|------|------------|
+| POST | `/v1/auth/login` | `API_KEY` | Вход по логину и паролю YClients; выдаёт `device_token` |
+| POST | `/v1/auth/logout` | `device_token` | Отзыв токена устройства; аккаунт остаётся |
+| GET | `/v1/session` | `device_token` | Состояние без похода в YClients, включая `reauth_required` |
+| POST | `/v1/devices/fcm` | `device_token` | Обновление токена FCM |
 | GET | `/health` | `ADMIN_API_KEY` | Статус: аптайм, число аккаунтов и устройств, события за сутки |
 | GET | `/v1/admin/events` | `ADMIN_API_KEY` | Последние события с числом доставок |
 | GET | `/v1/admin/poll-log` | `ADMIN_API_KEY` | Журнал циклов опроса |

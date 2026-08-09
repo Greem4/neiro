@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
+from app import auth
 from app.config import Settings, get_settings
 from app.dashboard import (
     DEVICE_EVENTS_LIMIT,
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI):
 
     app.state.db = db
     app.state.secret_box = secret_box
+    app.state.yclients = yclients_client
     app.state.poll_service = poll_service
     app.state.started_at = datetime.now(timezone.utc)
 
@@ -81,6 +83,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Neiro Push", version="0.1.0", lifespan=lifespan)
+app.include_router(auth.router)
 
 
 def get_database(request: Request) -> Database:

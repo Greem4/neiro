@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -36,6 +37,71 @@ class YClientsClient:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    def _partner_headers(self) -> dict[str, str]:
+        return {
+            "Accept": self._settings.yclients_accept,
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._settings.yclients_partner_token}",
+        }
+
+    async def login(self, login: str, password: str) -> dict[str, Any]:
+        """Вход в YClients партнёрским токеном сервиса.
+
+        Пароль здесь и заканчивается: дальше живёт только выданный `user_token`.
+        Ни пароль, ни тело запроса не попадают в лог и в текст исключения —
+        RISKS.md § Пароль проходит через свой сервер.
+        """
+        try:
+            response = await self._client.post(
+                "/auth",
+                headers=self._partner_headers(),
+                json={"login": login, "password": password},
+            )
+        except httpx.HTTPError as exc:
+            # Только тип исключения: у httpx в str() уезжает URL запроса.
+            raise YClientsUpstreamError(f"auth request failed: {type(exc).__name__}") from None
+
+        if response.status_code in (401, 403):
+            raise YClientsAuthError("invalid credentials")
+        if response.status_code >= 500:
+            raise YClientsUpstreamError(f"auth returned {response.status_code}")
+
+        try:
+            payload = response.json()
+        except ValueError:
+            raise YClientsUpstreamError("auth returned non-JSON body") from None
+
+        data = payload.get("data") if payload.get("success") else None
+        if not data or not data.get("user_token"):
+            # YClients на неверный пароль отвечает 200 с success=false — это
+            # отказ, а не сбой: пользователю надо показать «неверный пароль».
+            raise YClientsAuthError("invalid credentials")
+        return data
+
+    async def fetch_staff(self, company_id: int) -> list[dict[str, Any]]:
+        """Публичный `/book_staff`: ему хватает партнёрского токена.
+
+        Приватные эндпоинты сотрудников отдают 403, если у пользователя нет
+        админских прав, — поэтому карточки берутся именно отсюда.
+        """
+        try:
+            response = await self._client.get(
+                f"/book_staff/{company_id}",
+                headers=self._partner_headers(),
+            )
+        except httpx.HTTPError as exc:
+            raise YClientsUpstreamError(f"staff request failed: {type(exc).__name__}") from None
+
+        if response.status_code >= 500:
+            raise YClientsUpstreamError(f"book_staff returned {response.status_code}")
+        try:
+            payload = response.json()
+        except ValueError:
+            raise YClientsUpstreamError("book_staff returned non-JSON body") from None
+        if not payload.get("success"):
+            raise YClientsUpstreamError("book_staff returned success=false")
+        return list(payload.get("data") or [])
 
     async def fetch_company_records(
         self,
@@ -199,3 +265,82 @@ def _extract_time(value: str | None) -> str:
     except (IndexError, ValueError):
         return ""
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Вход и подбор сотрудника.
+#
+# Логика переехала с телефона: раньше этим занимался
+# YClientsRepository.detectAndSaveStaffId. Здесь она ровно та же, включая
+# эвристику совпадения имени, — иначе один и тот же человек определялся бы
+# по-разному в старой и новой сборке.
+# ---------------------------------------------------------------------------
+
+# Не меньше двух общих токенов: по одному имени слишком легко зацепить тёзку,
+# когда в филиале несколько сотрудников с одинаковым именем.
+MIN_NAME_MATCH_SCORE = 2
+
+
+class YClientsAuthError(Exception):
+    """Логин или пароль не подошли — YClients ответил, но отказал."""
+
+
+class YClientsUpstreamError(Exception):
+    """YClients недоступен или ответил не по протоколу."""
+
+
+def normalize_name_tokens(value: str) -> set[str]:
+    """Порт `normalizeNameTokens` из YClientsRepository.kt.
+
+    Токены короче трёх букв отбрасываются: инициалы и предлоги дают ложные
+    совпадения, а вклад в осмысленный матч у них нулевой.
+    """
+    lowered = value.lower().replace("ё", "е")
+    parts = re.split(r"[ \t\n\-.,]", lowered)
+    return {part.strip() for part in parts if len(part.strip()) >= 3}
+
+
+def match_staff_id(user_name: str, staff: list[dict[str, Any]]) -> int | None:
+    """Сотрудник филиала по имени из ответа `/auth`.
+
+    Форматы намеренно сравниваются нестрого: `/auth` отдаёт «Зеленкина Светлана
+    Васильевна», а `/book_staff` хранит «Светлана Зеленкина». Требование «все
+    токены обязаны совпасть» здесь не работает — лишнее отчество ломало матч, и
+    `staff_id` оставался пустым.
+
+    При равном счёте предпочитаем действующих (`fired == 0`), чтобы не
+    зацепиться за карточку уволенного тёзки.
+    """
+    needle = normalize_name_tokens(user_name or "")
+    if not needle:
+        return None
+    # У пользователя в профиле может быть всего один токен («Светлана») — тогда
+    # требование двух совпадений недостижимо, и порог опускается.
+    min_score = min(MIN_NAME_MATCH_SCORE, len(needle))
+
+    scored: list[tuple[int, int, int]] = []  # (уволен, -счёт, id) — сортировка по возрастанию
+    for member in staff:
+        tokens = normalize_name_tokens(str(member.get("name") or ""))
+        if not tokens:
+            continue
+        score = len(tokens & needle)
+        if score < min_score:
+            continue
+        fired = 1 if int(member.get("fired") or 0) != 0 else 0
+        scored.append((fired, -score, int(member["id"])))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda item: (item[0], item[1]))
+    return scored[0][2]
+
+
+def normalize_avatar_url(raw: str | None) -> str | None:
+    """Протокол-относительный `//host/...` браузеру понятен, а Coil на телефоне
+    такую ссылку не откроет — достраиваем https, как это делал клиент."""
+    trimmed = (raw or "").strip()
+    if not trimmed:
+        return None
+    if trimmed.startswith("//"):
+        return f"https:{trimmed}"
+    return trimmed

@@ -144,6 +144,8 @@ CREATE TABLE accounts (
     company_id INTEGER NOT NULL,
     staff_id INTEGER NOT NULL,
     user_login TEXT,                                  -- подсказка при повторном входе
+    user_name TEXT,                                   -- имя из /auth, его же отдаёт /v1/session
+    avatar_url TEXT,                                  -- то же, для карточки в профиле
     user_token_enc TEXT NOT NULL,                     -- Fernet, ключ в .env
     reauth_required INTEGER NOT NULL DEFAULT 0,       -- user_token протух, нужен пароль
     last_auth_at TEXT,
