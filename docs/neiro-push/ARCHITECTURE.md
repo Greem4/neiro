@@ -191,6 +191,7 @@ neiro-push/app/
   auth.py       — вход, выпуск и проверка device_token, зависимость require_device
   proxy.py      — семь прокси-эндпоинтов, единый обработчик ошибок YClients
   ratelimit.py  — счётчики попыток входа и запросов на устройство
+  device_events.py — GET /v1/events и POST /v1/events/ack: догон по курсору
   yclients.py   — + методы login, fetch_staff, fetch_records_raw, fetch_clients_raw,
                     fetch_salary_* (сырой JSON, без разбора)
 ```

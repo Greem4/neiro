@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
-from app import auth, proxy
+from app import auth, device_events, proxy
 from app.config import Settings, get_settings
 from app.dashboard import (
     DEVICE_EVENTS_LIMIT,
@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Neiro Push", version="0.1.0", lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(device_events.router)
 app.include_router(proxy.router)
 
 

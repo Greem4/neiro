@@ -81,6 +81,7 @@ neiro-push/
     auth.py        — вход, выпуск и проверка device_token          ← новое
     proxy.py       — семь прокси-эндпоинтов YClients                ← новое
     ratelimit.py   — лимиты входа и запросов                        ← новое
+    device_events.py — лента событий телефону и ack курсора         ← новое
     yclients.py    — клиент YClients: login, staff, records, clients, salary
     poller.py      — опрос YClients, генерация событий
     events.py      — сравнение снимков, типы событий
@@ -101,7 +102,8 @@ neiro-push/
 проверено боем.
 
 Что меняется по существу: `partner_token` берётся из настроек, а не из
-аккаунта; появляются `auth.py`, `proxy.py`, `ratelimit.py`; в `database.py` —
+аккаунта; появляются `auth.py`, `proxy.py`, `ratelimit.py`, `device_events.py`;
+в `database.py` —
 поля `token_hash`, `revoked_at`, `reauth_required`, `user_login`, `last_auth_at`;
 у поллера — пропуск аккаунтов с `reauth_required`.
 
