@@ -43,6 +43,29 @@ val hasReleaseSigning: Boolean =
 val releaseTaskRequested: Boolean =
     gradle.startParameter.taskNames.any { it.contains("Release") }
 
+// ------------------------------------------------------------
+// Версия живёт в version.properties, а не здесь: тот же файл читает CI,
+// сверяя его с тегом. Один источник — нельзя выпустить тег v0.2.0 из
+// сборки, которая внутри считает себя 0.1.0.
+// ------------------------------------------------------------
+val versionProps = Properties().apply {
+    val file = rootProject.file("version.properties")
+    if (!file.exists()) throw GradleException("Нет version.properties в корне проекта")
+    file.inputStream().use { load(it) }
+}
+val appVersionName: String = versionProps.getProperty("VERSION").orEmpty()
+val appVersionCode: Int = run {
+    val parts = Regex("""^(\d+)\.(\d+)\.(\d+)$""").matchEntire(appVersionName)
+        ?: throw GradleException("VERSION должна быть вида X.Y.Z, сейчас «$appVersionName»")
+    val (major, minor, patch) = parts.destructured.toList().map(String::toInt)
+    // Та же формула живёт в ReleaseVersion.kt — разойдутся, и приложение
+    // начнёт предлагать обновление на самого себя.
+    if (minor > 99 || patch > 99) {
+        throw GradleException("minor и patch не больше 99: «$appVersionName»")
+    }
+    major * 10_000 + minor * 100 + patch
+}
+
 if (hasGoogleServices) {
     plugins.apply("com.google.gms.google-services")
 }
@@ -57,8 +80,8 @@ android {
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.6.12.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -72,6 +95,12 @@ android {
         buildConfigField("String", "NEIRO_PUSH_API_KEY", "\"$neiroPushApiKey\"")
         buildConfigField("boolean", "PUSH_FCM_ENABLED", hasGoogleServices.toString())
         buildConfigField("boolean", "PUSH_SERVER_CONFIGURED", pushServerConfigured.toString())
+
+        // Самообновление разрешено только релизной сборке: у debug и prerelease
+        // другой applicationId, и релизный APK для них — не обновление, а второе
+        // приложение рядом. release переопределяет UPDATE_ENABLED на true.
+        buildConfigField("boolean", "UPDATE_ENABLED", "false")
+        buildConfigField("String", "UPDATE_REPO", "\"Greem4/neiro\"")
     }
 
     @Suppress("UnstableApiUsage")
@@ -114,6 +143,9 @@ android {
         release {
             buildConfigField("String", "DEV_LOGIN", "\"\"")
             buildConfigField("String", "DEV_PASSWORD", "\"\"")
+            // Единственная сборка, которая обновляет сама себя. prerelease его
+            // не наследует: initWith выше сработал до этого блока.
+            buildConfigField("boolean", "UPDATE_ENABLED", "true")
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = true
