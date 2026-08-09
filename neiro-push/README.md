@@ -16,9 +16,10 @@ FastAPI-сервис на Raspberry Pi: держит ключи YClients у се
 
 ## Состояние
 
-Готовы **Этапы 1–2**: каркас (схема БД, настройки, поллер, события, FCM,
-дашборд) и вход по логину и паролю с выпуском `device_token`. Прокси YClients —
-Этап 3, лимиты и отзыв — Этап 4. План — [TASKS.md](../docs/neiro-push/TASKS.md).
+Серверная часть готова целиком — **Этапы 1–5**: каркас, вход с выпуском
+`device_token`, прокси YClients, лимиты и отзыв устройств, деплой на Pi.
+Дальше — приложение (Этапы 6–8): сетевой слой переводится на прокси, и ключи
+YClients уходят из APK. План — [TASKS.md](../docs/neiro-push/TASKS.md).
 
 ## Старт
 
@@ -40,8 +41,8 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 
 ## Эндпоинты
 
-Целевой набор описан в [API.md](../docs/neiro-push/API.md). Сейчас поднято
-только то, что не требует `device_token`:
+Спецификация — [API.md](../docs/neiro-push/API.md). Поднято всё, что там
+описано:
 
 | Метод | Путь | Ключ | Что делает |
 |-------|------|------|------------|
@@ -49,6 +50,14 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 | POST | `/v1/auth/logout` | `device_token` | Отзыв токена устройства; аккаунт остаётся |
 | GET | `/v1/session` | `device_token` | Состояние без похода в YClients, включая `reauth_required` |
 | POST | `/v1/devices/fcm` | `device_token` | Обновление токена FCM |
+| GET | `/v1/yclients/records` | `device_token` | Записи филиала за период; `staff_id` подставляет сервер |
+| GET | `/v1/yclients/clients` | `device_token` | Клиенты филиала |
+| GET | `/v1/yclients/staff` | `device_token` | Карточки сотрудников (`book_staff`) |
+| GET | `/v1/yclients/salary/daily` | `device_token` | Начисления по дням |
+| GET | `/v1/yclients/salary/calculations` | `device_token` | Расчёты за период |
+| GET | `/v1/yclients/salary/calculations/{id}` | `device_token` | Детализация расчёта |
+| POST | `/v1/admin/devices/{id}/revoke` | `ADMIN_API_KEY` | Отзыв `device_token` устройства |
+| POST | `/v1/admin/accounts/{id}/reset` | `ADMIN_API_KEY` | Потребовать повторный вход паролем |
 | GET | `/health` | `ADMIN_API_KEY` | Статус: аптайм, число аккаунтов и устройств, события за сутки |
 | GET | `/v1/admin/events` | `ADMIN_API_KEY` | Последние события с числом доставок |
 | GET | `/v1/admin/poll-log` | `ADMIN_API_KEY` | Журнал циклов опроса |
@@ -58,6 +67,23 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 Маршрутов старого API (`/v1/devices/register` с токенами YClients в теле,
 `/v1/devices/{id}/events`) здесь нет и не будет — они остались во втором
 поколении, [API.md § Чего здесь нет](../docs/neiro-push/API.md#чего-здесь-нет).
+
+Лимиты: вход — 5 попыток за 15 минут на `device_id` и на IP, прокси — 60
+запросов в минуту на устройство. Превышение даёт `429` с `Retry-After`.
+Удачный вход счётчик обнуляет.
+
+## Эксплуатация
+
+```bash
+./neiro-push/scripts/deploy.sh                    # выкатить на Pi
+./neiro-push/scripts/logs.sh --errors             # ошибки за сутки
+./neiro-push/scripts/backup.sh                    # база и .env на Mac
+./neiro-push/scripts/restore.sh <файл>            # откат базы
+./neiro-push/scripts/revoke-device.sh <device_id> # отобрать доступ у телефона
+```
+
+Те же две кнопки — «Отозвать устройство» и «Сбросить аккаунт» — есть на
+странице устройства в дашборде.
 
 ## Настройки
 
@@ -72,10 +98,14 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 
 ## Схема БД
 
-Создаётся сразу в целевом виде, мигрировать нечего — база новая и пустая.
 Против прежней схемы: колонки `partner_token_enc` нет вовсе, у аккаунта
-появились `user_login`, `reauth_required`, `last_auth_at`, у устройства —
-`token_hash` (SHA-256 от `device_token`, сам токен не хранится) и `revoked_at`.
+появились `user_login`, `user_name`, `avatar_url`, `reauth_required`,
+`auth_failures`, `last_auth_at`, у устройства — `token_hash` (SHA-256 от
+`device_token`, сам токен не хранится) и `revoked_at`.
+
+База живёт между выкатками, поэтому новые колонки добавляются не только в
+`SCHEMA`, но и в `Database._add_missing_columns`: `CREATE TABLE IF NOT EXISTS`
+про них не знает — таблица уже есть, и он молча ничего не делает.
 
 Разбор — [ARCHITECTURE.md § Схема БД](../docs/neiro-push/ARCHITECTURE.md#схема-бд).
 

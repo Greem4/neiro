@@ -84,10 +84,10 @@ YClients на тот же период, полученным напрямую.
 
 ### Этап 5 — деплой рядом с работающим
 
-- [~] Скрипты по [DEPLOY.md § Скрипты](DEPLOY.md#скрипты): `deploy.sh`,
+- [x] Скрипты по [DEPLOY.md § Скрипты](DEPLOY.md#скрипты): `deploy.sh`,
       `install-tunnel.sh` (порт 18083), `patch-vps-nginx-v1.sh`
-      (`proxy_pass` **без** завершающего слеша), `dev.sh`, `logs.sh` — готовы;
-      `backup.sh` и `restore.sh` ещё нет
+      (`proxy_pass` **без** завершающего слеша), `dev.sh`, `logs.sh`,
+      `backup.sh`, `restore.sh`
 - [x] `deploy.sh` падает с внятным сообщением при пустом
       `YCLIENTS_PARTNER_TOKEN`
 - [x] Уборка первого поколения на Pi — по чек-листу
