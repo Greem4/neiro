@@ -1,0 +1,29 @@
+services:
+  neiro-push:
+    build: .
+    container_name: neiro-push
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # 8012, а не 8011: второе поколение (neiro-push-events) продолжает
+      # работать рядом до самого конца перехода — DEPLOY.md § Три поколения.
+      - "127.0.0.1:8012:8012"
+    volumes:
+      - neiro_push_data:/data
+      - ./secrets:/secrets:ro
+    networks:
+      - server_web
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  server_web:
+    external: true
+    name: server_web
+
+volumes:
+  neiro_push_data:

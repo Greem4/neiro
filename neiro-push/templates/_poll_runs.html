@@ -1,0 +1,80 @@
+{# Страница циклов опроса. Подменяется целиком при листании и при смене режима,
+   поэтому переключатель и кнопки пагинации живут внутри фрагмента вместе с
+   таблицей.
+
+   По умолчанию показываются только значимые циклы — с событиями, пушами или
+   ошибкой. Пустых при опросе раз в 10 секунд тысячи в сутки, и в такой ленте
+   ничего не разглядеть; режим «все подряд» остаётся на случай разбора. #}
+<div class="listbar">
+  <span class="summary">{{ runs_summary }}</span>
+  <span class="spacer"></span>
+  <span class="switch">
+    {# Настоящие ссылки: без JS просто перезагружают страницу, с JS — подменяют
+       только эту таблицу и не схлопывают аккордеоны выше. #}
+    <a class="chip {{ 'on' if runs_significant_only }}"
+       href="dashboard?runs_offset=0"
+       onclick="return pageRuns(event, 0, false)">только важные</a>
+    <a class="chip {{ '' if runs_significant_only else 'on' }}"
+       href="dashboard?runs_offset=0&amp;runs_all=1"
+       onclick="return pageRuns(event, 0, true)">все подряд</a>
+  </span>
+</div>
+
+<div class="wrap">
+<table>
+  <thead>
+    <tr>
+      <th>время</th>
+      <th>компания</th>
+      <th>длительность</th>
+      <th>записей</th>
+      <th>событий</th>
+      <th>пушей</th>
+      <th>ошибка</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in poll_runs %}
+    <tr>
+      <td>{{ r.started_at_hms }}</td>
+      <td class="muted">{{ r.company_id }}</td>
+      <td class="num">{{ r.duration_ms }} мс</td>
+      <td class="num">{{ r.records_fetched }}</td>
+      <td class="num">{{ r.events_created }}</td>
+      <td class="num">{{ r.pushes_sent }}</td>
+      <td class="flex-cell">
+        {% if r.error_label %}
+        <span class="pill critical">{{ r.error_label }}</span>
+        {% else %}
+        <span class="dim">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="empty">
+      {% if runs_significant_only %}событий, пушей и ошибок не было{% else %}пока пусто{% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="pager">
+  {% set all_suffix = "&runs_all=1" if not runs_significant_only else "" %}
+  {% if runs_prev is not none %}
+  <a href="dashboard?runs_offset={{ runs_prev }}{{ all_suffix }}"
+     onclick="return pageRuns(event, {{ runs_prev }}, {{ 'false' if runs_significant_only else 'true' }})">← новее</a>
+  {% else %}
+  <span class="off">← новее</span>
+  {% endif %}
+
+  {% if runs_next is not none %}
+  <a href="dashboard?runs_offset={{ runs_next }}{{ all_suffix }}"
+     onclick="return pageRuns(event, {{ runs_next }}, {{ 'false' if runs_significant_only else 'true' }})">старее →</a>
+  {% else %}
+  <span class="off">старее →</span>
+  {% endif %}
+
+  <span class="spacer"></span>
+  <span>{{ runs_from }}–{{ runs_to }} из {{ runs_total }}</span>
+</div>

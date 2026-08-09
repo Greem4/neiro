@@ -15,17 +15,17 @@
 
 ### Этап 1 — каркас сервиса
 
-- [ ] Каталог `neiro-push/` — перенос из `neiro-push-events`: `config.py`,
+- [x] Каталог `neiro-push/` — перенос из `neiro-push-events`: `config.py`,
       `database.py`, `security.py`, `events.py`, `fcm.py`, `poller.py`,
       `dashboard.py`, `templates/`, `Dockerfile`, `requirements.txt`, тесты
-- [ ] Схема БД сразу в целевом виде ([ARCHITECTURE.md](ARCHITECTURE.md#схема-бд)):
+- [x] Схема БД сразу в целевом виде ([ARCHITECTURE.md](ARCHITECTURE.md#схема-бд)):
       без `partner_token_enc`, с `token_hash`, `revoked_at`, `reauth_required`,
       `user_login`, `last_auth_at`
-- [ ] `config.py`: `YCLIENTS_PARTNER_TOKEN`, `YCLIENTS_COMPANY_ID`, порт 8012,
+- [x] `config.py`: `YCLIENTS_PARTNER_TOKEN`, `YCLIENTS_COMPANY_ID`, порт 8012,
       `DATABASE_PATH=/data/neiro_push.db`
-- [ ] `docker-compose.yml`: контейнер `neiro-push`, порт `127.0.0.1:8012:8012`,
+- [x] `docker-compose.yml`: контейнер `neiro-push`, порт `127.0.0.1:8012:8012`,
       том `neiro_push_data`
-- [ ] Поллер берёт `partner_token` из настроек и пропускает аккаунты с
+- [x] Поллер берёт `partner_token` из настроек и пропускает аккаунты с
       `reauth_required`
 
 **Готово, когда:** `./neiro-push/scripts/dev.sh` поднимает сервис локально,
