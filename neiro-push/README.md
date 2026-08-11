@@ -116,6 +116,11 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 событиям (по ней считается, скольким телефонам ушёл пуш) и отживает свои
 90 дней сама.
 
+Формы на этой странице отправляют `dashboard/devices/{id}/<действие>` —
+`device_id` в `action` обязателен: адрес страницы идёт без завершающего слеша,
+и относительный `action="revoke"` браузер разрешал в `dashboard/devices/revoke`,
+получая `405` ([ROLLOUT.md § Кнопки на странице устройства](../docs/neiro-push/ROLLOUT.md#кнопки-на-странице-устройства-11082026)).
+
 ## Настройки
 
 `.env` рядом с `docker-compose.yml`, образец — [.env.example](.env.example).
