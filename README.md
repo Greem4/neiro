@@ -5,6 +5,7 @@
 [![Android 7.0+](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](#установка)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)](gradle/libs.versions.toml)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-1.9-4285F4?logo=jetpackcompose&logoColor=white)](gradle/libs.versions.toml)
+[![Лицензия MIT](https://img.shields.io/github/license/Greem4/neiro?label=лицензия&color=blue)](LICENSE)
 
 Приложение для педагога: расписание занятий, деньги за них и уведомления о
 том, что в расписании поменялось. Данные приходят из
@@ -167,3 +168,8 @@ Pi, приложение ходит к ним через прокси ([docs/nei
 Пишет и ведёт проект [Greem4](https://github.com/Greem4). Приложение личное,
 сделано под конкретную работу конкретного педагога — но исходники открыты,
 разбор устройства есть в `docs/`.
+
+## Лицензия
+
+Код распространяется по лицензии MIT — брать, менять и использовать можно,
+сохранив уведомление об авторстве. Полный текст — [LICENSE](LICENSE).
