@@ -303,9 +303,36 @@ def test_device_page_shows_access_controls(client: TestClient, yclients: FakeYCl
 
     page = client.get("/dashboard/devices/device-0001").text
 
-    assert 'action="revoke"' in page
-    assert 'action="reset-account"' in page
-    assert 'action="delete"' in page
+    assert 'action="device-0001/revoke"' in page
+    assert 'action="device-0001/reset-account"' in page
+    assert 'action="device-0001/delete"' in page
+
+
+def test_device_page_forms_point_where_browser_would_send_them(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """Кнопки бьют туда, куда их отправит браузер, а не туда, где удобно тесту.
+
+    Адрес страницы — .../devices/{id} без завершающего слеша, поэтому базой
+    для относительного action браузер берёт .../devices/. Голый action="revoke"
+    уходил в .../devices/revoke — страницу устройства с именем "revoke", где
+    POST не разрешён, и все три кнопки отвечали 405.
+    """
+    import re
+    from urllib.parse import urljoin
+
+    _seed(client)
+    client.cookies.set("admin_key", "test-admin-key")
+
+    page_url = "http://testserver/dashboard/devices/device-0001"
+    actions = re.findall(r'<form method="post" action="([^"]+)"', client.get(page_url).text)
+    assert len(actions) == 3
+
+    for action in actions:
+        resolved = urljoin(page_url, action)
+        response = client.post(resolved, follow_redirects=False)
+        assert response.status_code != 405, f"{action} → {resolved} отдал 405"
+        assert response.status_code in (200, 303), f"{action} → {response.status_code}"
 
 
 # --- удаление устройства ------------------------------------------------------
@@ -359,6 +386,62 @@ def test_dashboard_shows_banner_after_delete(client: TestClient, yclients: FakeY
     page = client.get("/dashboard", params={"deleted": 1}).text
 
     assert "Устройство удалено" in page
+
+
+def test_device_lifecycle_login_work_delete_login_again(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """Полный круг: телефон вошёл, работал, его удалили из дашборда, он вошёл снова.
+
+    Проверяет главное обещание кнопки: удаление отбирает доступ, но не ломает
+    возможность вернуться — аккаунт и его user_token остаются на месте.
+    """
+    # 1. Вход: сервис заводит аккаунт и устройство, выдаёт device_token.
+    login = client.post("/v1/auth/login", headers=APP_KEY, json=_login_body("phone-00001"))
+    assert login.status_code == 200
+    token = login.json()["device_token"]
+    phone = {"Authorization": f"Bearer {token}"}
+
+    # 2. Токен работает: прокси пускает.
+    assert client.get("/v1/yclients/staff", headers=phone).status_code == 200
+    assert client.app.state.db.get_device_admin("phone-00001") is not None
+
+    # 3. Удаление кнопкой из дашборда.
+    client.cookies.set("admin_key", "test-admin-key")
+    deleted = client.post("/dashboard/devices/phone-00001/delete", follow_redirects=False)
+    assert deleted.status_code == 303
+    client.cookies.delete("admin_key")
+
+    # 4. Доступ пропал, устройства в списке нет.
+    assert client.get("/v1/yclients/staff", headers=phone).status_code == 401
+    assert client.app.state.db.get_device_admin("phone-00001") is None
+
+    # 5. Повторный вход возвращает устройство — с новым токеном.
+    again = client.post("/v1/auth/login", headers=APP_KEY, json=_login_body("phone-00001"))
+    assert again.status_code == 200
+    new_token = again.json()["device_token"]
+    assert new_token != token
+    assert client.get("/v1/yclients/staff", headers={"Authorization": f"Bearer {new_token}"}).status_code == 200
+    # Старый токен так и остался мёртвым.
+    assert client.get("/v1/yclients/staff", headers=phone).status_code == 401
+
+
+def test_deleting_one_device_leaves_the_others_alone(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """Удаляют тестовую строку — рабочий телефон рядом не должен пострадать."""
+    first = client.post("/v1/auth/login", headers=APP_KEY, json=_login_body("phone-keep-01"))
+    second = client.post("/v1/auth/login", headers=APP_KEY, json=_login_body("phone-drop-01"))
+    keep = {"Authorization": f"Bearer {first.json()['device_token']}"}
+
+    client.cookies.set("admin_key", "test-admin-key")
+    client.post("/dashboard/devices/phone-drop-01/delete", follow_redirects=False)
+    client.cookies.delete("admin_key")
+
+    assert client.app.state.db.get_device_admin("phone-drop-01") is None
+    assert client.app.state.db.get_device_admin("phone-keep-01") is not None
+    assert client.get("/v1/yclients/staff", headers=keep).status_code == 200
+    assert second.status_code == 200
 
 
 def test_dashboard_delete_requires_cookie(client: TestClient, yclients: FakeYClients) -> None:

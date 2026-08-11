@@ -62,18 +62,24 @@
     <h2>Доступ</h2>
     <div class="listbar">
       {# Относительные action — как у формы логина выше: абсолютный путь
-         сломается, если сервис однажды окажется под префиксом. #}
-      <form method="post" action="revoke" style="display:inline"
+         сломается, если сервис однажды окажется под префиксом.
+
+         device_id в action обязателен. Адрес этой страницы —
+         .../dashboard/devices/{id} без завершающего слеша, поэтому браузер
+         считает базой .../dashboard/devices/, и голый action="revoke" уходил
+         в .../dashboard/devices/revoke — то есть в страницу устройства с
+         именем "revoke", где POST не разрешён (405). #}
+      <form method="post" action="{{ device.device_id | urlpath }}/revoke" style="display:inline"
             onsubmit="return confirm('Отозвать доступ у этого устройства? Телефону придётся входить заново.')">
         <button type="submit">Отозвать устройство</button>
       </form>
-      <form method="post" action="reset-account" style="display:inline"
+      <form method="post" action="{{ device.device_id | urlpath }}/reset-account" style="display:inline"
             onsubmit="return confirm('Потребовать повторный вход паролем для всего аккаунта?')">
         <button type="submit">Сбросить аккаунт</button>
       </form>
       {# Удаление уносит строку целиком — отсюда возвращаться будет некуда,
          поэтому обработчик уводит редиректом на список устройств. #}
-      <form method="post" action="delete" style="display:inline"
+      <form method="post" action="{{ device.device_id | urlpath }}/delete" style="display:inline"
             onsubmit="return confirm('Удалить устройство из списка? Доступ пропадёт, телефону придётся входить заново.')">
         <button type="submit" class="danger">Удалить устройство</button>
       </form>
