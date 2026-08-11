@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request, Response, status
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app import auth, device_events, proxy
@@ -185,6 +185,27 @@ async def admin_revoke_device(
     return {"device_id": device_id, "revoked": revoked}
 
 
+@app.delete(
+    "/v1/admin/devices/{device_id}",
+    dependencies=[Depends(verify_admin_api_key)],
+)
+async def admin_delete_device(
+    device_id: str,
+    db: Database = Depends(get_database),
+) -> dict:
+    """Убрать телефон из списка совсем.
+
+    В отличие от `revoke` строка не остаётся: отозванные устройства копятся в
+    дашборде и мешают смотреть на живые. Для самого телефона разницы нет —
+    токена больше нет, и он попросит войти заново.
+    """
+    if db.get_device_admin(device_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="device not found")
+    deleted = db.delete_device(device_id)
+    logger.warning("device %s deleted via admin API", device_id)
+    return {"device_id": device_id, "deleted": deleted}
+
+
 @app.post(
     "/v1/admin/accounts/{account_id}/reset",
     dependencies=[Depends(verify_admin_api_key)],
@@ -229,12 +250,18 @@ def _dashboard_authenticated(request: Request, settings: Settings) -> bool:
 async def dashboard_page(
     request: Request,
     runs_offset: int = Query(default=0, ge=0),
+    deleted: bool = Query(default=False),
     settings: Settings = Depends(get_settings),
     db: Database = Depends(get_database),
     poll_service: PollService = Depends(get_poll_service),
 ) -> HTMLResponse:
     authenticated = _dashboard_authenticated(request, settings)
-    context = {"authenticated": authenticated, "login_error": False}
+    context = {
+        "authenticated": authenticated,
+        "login_error": False,
+        # Пришли сюда редиректом после удаления устройства — сказать об этом.
+        "device_deleted": deleted,
+    }
     if authenticated:
         data = collect_dashboard_data(
             db,
@@ -365,6 +392,32 @@ async def dashboard_revoke_device(
     db.revoke_device(device_id)
     logger.warning("device %s revoked from dashboard", device_id)
     return _render_device_page(request, device_id, db, revoked=True)
+
+
+@app.post("/dashboard/devices/{device_id}/delete", response_class=HTMLResponse)
+async def dashboard_delete_device(
+    device_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Database = Depends(get_database),
+) -> Response:
+    """Кнопка «удалить устройство»: строка уходит, телефон входит заново.
+
+    Возвращаться на страницу устройства после этого некуда — её больше нет,
+    поэтому POST/Redirect/GET на список. Путь относительный, как у форм в
+    шаблонах: от `dashboard/devices/{id}/delete` три уровня вверх дают
+    `dashboard` и под префиксом вроде `/v2`, и без него.
+    """
+    if not _dashboard_authenticated(request, settings):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+    device = db.get_device_admin(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    db.delete_device(device_id)
+    logger.warning("device %s deleted from dashboard", device_id)
+    return RedirectResponse(
+        url="../../../dashboard?deleted=1", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @app.post("/dashboard/devices/{device_id}/reset-account", response_class=HTMLResponse)

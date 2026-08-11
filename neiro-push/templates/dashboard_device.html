@@ -71,6 +71,12 @@
             onsubmit="return confirm('Потребовать повторный вход паролем для всего аккаунта?')">
         <button type="submit">Сбросить аккаунт</button>
       </form>
+      {# Удаление уносит строку целиком — отсюда возвращаться будет некуда,
+         поэтому обработчик уводит редиректом на список устройств. #}
+      <form method="post" action="delete" style="display:inline"
+            onsubmit="return confirm('Удалить устройство из списка? Доступ пропадёт, телефону придётся входить заново.')">
+        <button type="submit" class="danger">Удалить устройство</button>
+      </form>
     </div>
 
     <h2>Уведомления (последние {{ deliveries | length }})</h2>

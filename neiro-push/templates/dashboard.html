@@ -23,6 +23,11 @@
   <div class="page">
     <div id="status">{% include "_status.html" %}</div>
 
+    {% if device_deleted %}
+    <p class="banner">Устройство удалено. Телефон уйдёт в локальный режим и
+       попросит войти заново — после входа он появится в списке снова.</p>
+    {% endif %}
+
     <h2>Аккаунты</h2>
     <div class="listbar">
       <span class="summary">{{ accounts_summary }}</span>

@@ -454,6 +454,18 @@ class Database:
         return dict(row) if row else None
 
     def delete_device(self, device_id: str) -> bool:
+        """Удалить устройство насовсем: строки нет — токена нет.
+
+        Отличие от [revoke_device]: тот оставляет строку с `revoked_at`, и
+        устройство продолжает висеть в списке. Здесь строка уходит целиком, и
+        телефон получает то же самое, что при отзыве: `require_device` не
+        находит `token_hash`, отвечает 401, приложение просит войти заново.
+
+        `push_deliveries` намеренно не трогаем: они висят на событии, а не на
+        устройстве, и по ним считается «скольким устройствам ушёл пуш». Удалить
+        их — задним числом переписать историю доставки. Свой срок (90 дней) они
+        отживут сами, см. [purge_old_data].
+        """
         with self.connect() as conn:
             cursor = conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
             return cursor.rowcount > 0

@@ -236,5 +236,9 @@
     border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
   }
   button:hover { background: #333945; }
+  /* Необратимое действие (удаление устройства) — отличается от соседних кнопок,
+     которые всего лишь отзывают доступ и правятся повторным входом. */
+  button.danger { border-color: var(--critical); color: #ff9b9b; }
+  button.danger:hover { background: #3a2529; }
   .error { color: #ff9b9b; margin-top: 10px; font-size: 14px; }
 </style>

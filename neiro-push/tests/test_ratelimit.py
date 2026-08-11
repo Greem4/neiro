@@ -305,3 +305,63 @@ def test_device_page_shows_access_controls(client: TestClient, yclients: FakeYCl
 
     assert 'action="revoke"' in page
     assert 'action="reset-account"' in page
+    assert 'action="delete"' in page
+
+
+# --- удаление устройства ------------------------------------------------------
+
+
+def test_admin_can_delete_device(client: TestClient, yclients: FakeYClients) -> None:
+    """Удаление уносит строку целиком — для телефона это тот же «доступа нет»."""
+    _seed(client)
+    admin = {"Authorization": "Bearer test-admin-key"}
+
+    response = client.delete("/v1/admin/devices/device-0001", headers=admin)
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] is True
+    assert client.app.state.db.get_device_admin("device-0001") is None
+    assert client.get("/v1/yclients/staff", headers=AUTH).status_code == 401
+
+
+def test_admin_delete_requires_admin_key(client: TestClient, yclients: FakeYClients) -> None:
+    _seed(client)
+    assert client.delete("/v1/admin/devices/device-0001").status_code == 401
+    assert client.delete("/v1/admin/devices/device-0001", headers=APP_KEY).status_code == 401
+    assert client.get("/v1/yclients/staff", headers=AUTH).status_code == 200
+
+
+def test_admin_delete_unknown_device_is_404(client: TestClient) -> None:
+    admin = {"Authorization": "Bearer test-admin-key"}
+    assert client.delete("/v1/admin/devices/no-such", headers=admin).status_code == 404
+
+
+def test_dashboard_delete_removes_device_and_redirects(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """Страницы устройства после удаления не существует, поэтому кнопка уводит
+    на список — обычный POST/Redirect/GET."""
+    _seed(client)
+    client.cookies.set("admin_key", "test-admin-key")
+
+    response = client.post("/dashboard/devices/device-0001/delete", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].endswith("dashboard?deleted=1")
+    assert client.app.state.db.get_device_admin("device-0001") is None
+    assert client.get("/v1/yclients/staff", headers=AUTH).status_code == 401
+    assert client.get("/dashboard/devices/device-0001").status_code == 404
+
+
+def test_dashboard_shows_banner_after_delete(client: TestClient, yclients: FakeYClients) -> None:
+    client.cookies.set("admin_key", "test-admin-key")
+
+    page = client.get("/dashboard", params={"deleted": 1}).text
+
+    assert "Устройство удалено" in page
+
+
+def test_dashboard_delete_requires_cookie(client: TestClient, yclients: FakeYClients) -> None:
+    _seed(client)
+    assert client.post("/dashboard/devices/device-0001/delete").status_code == 401
+    assert client.get("/v1/yclients/staff", headers=AUTH).status_code == 200
