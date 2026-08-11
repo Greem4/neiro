@@ -8,19 +8,35 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import ru.greemlab.neiro.BuildConfig
+import ru.greemlab.neiro.push.PushApi
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Синглтон-провайдер для YClients API клиента.
+ * Синглтон-провайдер клиентов сервиса Neiro.
+ *
+ * Один Retrofit на три интерфейса: [YClientsApi] (прокси к YClients),
+ * [NeiroApi] (вход, сессия, FCM) и [PushApi] (догон событий) — все живут на
+ * одном хосте, за одним `device_token`.
  */
 object YClientsClient {
 
-    private const val BASE_URL = "https://api.yclients.com/api/v1/"
-    private const val ACCEPT_HEADER = "application/vnd.yclients.v2+json"
+    private const val ACCEPT_HEADER = "application/json"
+
+    /** Путь входа: единственный запрос, который авторизуется ключом приложения. */
+    private const val LOGIN_PATH = "/v1/auth/login"
 
     @Volatile
-    private var instance: YClientsApi? = null
+    private var yclientsApi: YClientsApi? = null
+
+    @Volatile
+    private var neiroApi: NeiroApi? = null
+
+    @Volatile
+    private var pushApi: PushApi? = null
+
+    @Volatile
+    private var retrofit: Retrofit? = null
 
     @Volatile
     private var tokenStorage: TokenStorage? = null
@@ -34,26 +50,50 @@ object YClientsClient {
     }
 
     fun getApi(context: Context): YClientsApi {
-        return instance ?: synchronized(this) {
-            instance ?: createApi(context.applicationContext).also {
-                instance = it
-            }
+        return yclientsApi ?: synchronized(this) {
+            yclientsApi ?: getRetrofit(context.applicationContext)
+                .create(YClientsApi::class.java)
+                .also { yclientsApi = it }
         }
     }
 
-    private fun createApi(context: Context): YClientsApi {
+    fun getNeiroApi(context: Context): NeiroApi {
+        return neiroApi ?: synchronized(this) {
+            neiroApi ?: getRetrofit(context.applicationContext)
+                .create(NeiroApi::class.java)
+                .also { neiroApi = it }
+        }
+    }
+
+    fun getPushApi(context: Context): PushApi {
+        return pushApi ?: synchronized(this) {
+            pushApi ?: getRetrofit(context.applicationContext)
+                .create(PushApi::class.java)
+                .also { pushApi = it }
+        }
+    }
+
+    private fun getRetrofit(context: Context): Retrofit {
+        return retrofit ?: synchronized(this) {
+            retrofit ?: createRetrofit(context).also { retrofit = it }
+        }
+    }
+
+    private fun createRetrofit(context: Context): Retrofit {
         val storage = getTokenStorage(context)
 
         val authInterceptor = Interceptor { chain ->
             val originalRequest = chain.request()
-            val isAuthRequest = originalRequest.url.encodedPath.endsWith("/auth")
-            val authHeader = buildAuthHeader(storage, isAuthRequest)
+            // Заданный вызовом заголовок сильнее: так отзывается устройство
+            // токеном прошлой сессии, не задев текущую (см. NeiroApi.logout).
+            val explicitAuth = originalRequest.header("Authorization") != null
+            val authHeader = buildAuthHeader(storage, originalRequest.url.encodedPath)
 
             val newRequest = originalRequest.newBuilder()
                 .header("Accept", ACCEPT_HEADER)
                 .header("Content-Type", "application/json")
                 .apply {
-                    if (authHeader.isNotEmpty()) {
+                    if (!explicitAuth && authHeader.isNotEmpty()) {
                         header("Authorization", authHeader)
                     }
                 }
@@ -84,12 +124,19 @@ object YClientsClient {
         val okHttpClient = okHttpClientBuilder.build()
 
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(baseUrl())
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(YClientsApi::class.java)
     }
+
+    /**
+     * Публичный адрес сервиса; пути в API начинаются с `v1/`.
+     *
+     * Завершающий слеш обязателен: без него Retrofit срезает последний сегмент
+     * базового URL при сборке относительного пути.
+     */
+    private fun baseUrl(): String = BuildConfig.NEIRO_PUSH_API_BASE_URL.trimEnd('/') + "/"
 
     /**
      * Retry с экспоненциальным backoff на transient-сбои: 408/429/5xx и [IOException].
@@ -99,7 +146,7 @@ object YClientsClient {
 
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()
-            // POST — не идемпотентен (создание/изменение записи): повторный
+            // POST — не идемпотентен (вход, ack, обновление токена): повторный
             // запрос после таймаута может задвоить операцию на сервере.
             val attempts = if (request.method == "POST") 1 else MAX_ATTEMPTS
 
@@ -143,20 +190,22 @@ object YClientsClient {
         }
     }
 
-    private fun buildAuthHeader(storage: TokenStorage, isAuthRequest: Boolean): String {
-        val partnerToken = storage.partnerToken
-        val userToken = storage.userToken
-
-        return when {
-            partnerToken.isBlank() -> ""
-            isAuthRequest || userToken.isNullOrBlank() -> "Bearer $partnerToken"
-            else -> "Bearer $partnerToken, User $userToken"
-        }
+    /**
+     * Три ключа сервиса — три роли (API.md § Аутентификация). Ключ приложения
+     * уходит ровно на вход: он лежит в APK, и подписывать им запросы с данными
+     * означало бы отдать их каждому, кто вскрыл APK.
+     */
+    private fun buildAuthHeader(storage: TokenStorage, path: String): String {
+        if (path.endsWith(LOGIN_PATH)) return "Bearer ${BuildConfig.NEIRO_PUSH_API_KEY}"
+        val deviceToken = storage.deviceToken ?: return ""
+        return "Bearer $deviceToken"
     }
 
     fun clearInstance() {
         synchronized(this) {
-            instance = null
+            yclientsApi = null
+            neiroApi = null
+            retrofit = null
         }
     }
 }

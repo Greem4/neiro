@@ -2,47 +2,34 @@ package ru.greemlab.neiro.data.network
 
 import com.google.gson.JsonElement
 import retrofit2.Response
-import retrofit2.http.Body
 import retrofit2.http.GET
-import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * YClients REST API.
+ * Данные YClients через прокси сервиса Neiro (docs/neiro-push/API.md § Прокси).
  *
- * Документация: https://developer.yclients.com/ru/
+ * Напрямую в api.yclients.com приложение больше не ходит: `partner_token` и
+ * `user_token` остались на сервере. Оттуда же подставляются `company_id` и
+ * `staff_id` — в запросе их нет вовсе, поэтому попросить чужие записи нечем.
  *
- * Все методы требуют заголовок Authorization с partner_token.
- * Методы с записями/клиентами также требуют user_token.
+ * Тело ответа YClients прокси отдаёт как есть, вместе с его кодом, — модели и
+ * разбор в приложении те же, что и раньше.
  */
 interface YClientsApi {
 
     /**
-     * Авторизация пользователя.
-     * Возвращает user_token для последующих запросов.
-     */
-    @POST("auth")
-    suspend fun auth(
-        @Body request: AuthRequest,
-    ): Response<AuthResponse>
-
-    /**
-     * Получить список записей (расписание) для компании.
+     * Записи (расписание) своего сотрудника за период.
      *
-     * @param companyId ID компании (из URL: /timetable/{companyId})
      * @param startDate Начало периода (YYYY-MM-DD)
      * @param endDate Конец периода (YYYY-MM-DD)
-     * @param staffId ID сотрудника (опционально)
      * @param page Номер страницы
      * @param count Записей на странице
      */
-    @GET("records/{company_id}")
+    @GET("v1/yclients/records")
     suspend fun getRecords(
-        @Path("company_id") companyId: Int,
         @Query("start_date") startDate: String,
         @Query("end_date") endDate: String,
-        @Query("staff_id") staffId: Int? = null,
         @Query("page") page: Int = 1,
         @Query("count") count: Int = 100,
         @Query("changed_after") changedAfter: String? = null,
@@ -51,38 +38,29 @@ interface YClientsApi {
     ): Response<RecordsResponse>
 
     /**
-     * Получить список клиентов компании.
+     * Клиенты филиала.
      *
-     * @param companyId ID компании
      * @param page Номер страницы
      * @param count Клиентов на странице
      */
-    @GET("clients/{company_id}")
+    @GET("v1/yclients/clients")
     suspend fun getClients(
-        @Path("company_id") companyId: Int,
         @Query("page") page: Int = 1,
         @Query("count") count: Int = 200,
     ): Response<ClientsResponse>
 
-    /**
-     * Публичный список сотрудников филиала (используется виджетом онлайн-записи).
-     * Доступен только с partner_token, без user_token.
-     */
-    @GET("book_staff/{company_id}")
-    suspend fun getBookStaff(
-        @Path("company_id") companyId: Int,
-    ): Response<StaffResponse>
+    /** Сотрудники филиала (`/book_staff`) — для карточек в приложении. */
+    @GET("v1/yclients/staff")
+    suspend fun getBookStaff(): Response<StaffResponse>
 
     /**
      * Начисленная ЗП по каждому дню периода (API-HOWTO 5.1).
      *
-     * Ограничения: будущее не считается, диапазон в будущее отбивается целиком
-     * (422); эндпоинт «владельческий», у сотрудника без прав ожидаем 403.
+     * Ограничения YClients проходят насквозь: будущее не считается, диапазон в
+     * будущее отбивается целиком (422), у сотрудника без прав владельца — 403.
      */
-    @GET("company/{company_id}/salary/period/staff/daily/{staff_id}/")
+    @GET("v1/yclients/salary/daily")
     suspend fun getSalaryDaily(
-        @Path("company_id") companyId: Int,
-        @Path("staff_id") staffId: Int,
         @Query("date_from") dateFrom: String,
         @Query("date_to") dateTo: String,
     ): Response<JsonElement>
@@ -91,10 +69,8 @@ interface YClientsApi {
      * Список закрытых начислений за период (месяц → id, сумма).
      * Период больше года отбивается с 422.
      */
-    @GET("company/{company_id}/salary/payroll/staff/{staff_id}/calculation/")
+    @GET("v1/yclients/salary/calculations")
     suspend fun getSalaryCalculations(
-        @Path("company_id") companyId: Int,
-        @Path("staff_id") staffId: Int,
         @Query("date_from") dateFrom: String,
         @Query("date_to") dateTo: String,
     ): Response<JsonElement>
@@ -103,10 +79,8 @@ interface YClientsApi {
      * Детализация начисления: каждая позиция со своей ставкой (API-HOWTO 5.2).
      * Единственный источник ставок по видам работ.
      */
-    @GET("company/{company_id}/salary/payroll/staff/{staff_id}/calculation/{calculation_id}")
+    @GET("v1/yclients/salary/calculations/{calculation_id}")
     suspend fun getSalaryCalculationDetails(
-        @Path("company_id") companyId: Int,
-        @Path("staff_id") staffId: Int,
         @Path("calculation_id") calculationId: Long,
     ): Response<JsonElement>
 }

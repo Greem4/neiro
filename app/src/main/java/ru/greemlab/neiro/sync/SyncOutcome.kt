@@ -5,5 +5,10 @@ package ru.greemlab.neiro.sync
  */
 sealed interface SyncOutcome {
     data class Success(val newlyAdded: Int) : SyncOutcome
-    data class Failure(val message: String) : SyncOutcome
+
+    /**
+     * @param offline сервер Neiro не ответил. Календарь при этом не пуст — в нём
+     * сохранённые данные, и сказать об этом надо прямо (Этап 8).
+     */
+    data class Failure(val message: String, val offline: Boolean = false) : SyncOutcome
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -685,6 +686,13 @@ private fun YClientsStatusLine(
     syncState: SyncUiState,
 ) {
     val (icon, tint, text) = when {
+        // Отсутствие связи — не ошибка синхронизации, а состояние: данные на
+        // экране настоящие, просто вчерашние. Держится, пока связь не вернётся.
+        syncState.isOffline && !isLoading -> Triple(
+            Icons.Rounded.CloudOff,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            "Нет связи с сервером Neiro · показаны сохранённые данные",
+        )
         hasError -> Triple(
             Icons.Rounded.ErrorOutline,
             MaterialTheme.colorScheme.error,

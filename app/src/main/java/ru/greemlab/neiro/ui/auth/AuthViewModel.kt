@@ -7,16 +7,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.network.ApiResult
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
-
-private fun defaultCompanyId(): String {
-    val fromBuildConfig = BuildConfig.YCLIENTS_COMPANY_ID
-    return if (fromBuildConfig > 0) fromBuildConfig.toString() else ""
-}
 
 /**
  * Состояние экрана авторизации.
@@ -24,13 +18,12 @@ private fun defaultCompanyId(): String {
 data class AuthUiState(
     val login: String = "",
     val password: String = "",
-    val partnerToken: String = "",
-    val companyId: String = defaultCompanyId(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
     val userName: String? = null,
-    val showPartnerTokenSetup: Boolean = false,
+    /** Вход есть, но `user_token` на сервере протух — нужен пароль. */
+    val reauthRequired: Boolean = false,
 )
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,12 +32,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(
         AuthUiState(
-            partnerToken = repository.partnerToken,
-            companyId = repository.companyId.toString(),
+            // Логин прошлого входа: при повторном вводить его заново незачем.
+            login = repository.userLogin.orEmpty(),
             isLoggedIn = repository.isLoggedIn.value,
             userName = repository.userName,
-            // Если токен уже зашит через BuildConfig — не показываем настройки.
-            showPartnerTokenSetup = false,
+            reauthRequired = repository.reauthRequired.value,
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -58,6 +50,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+        viewModelScope.launch {
+            repository.reauthRequired.collect { required ->
+                _uiState.value = _uiState.value.copy(reauthRequired = required)
+            }
+        }
     }
 
     fun updateLogin(login: String) {
@@ -68,58 +65,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(password = password, error = null)
     }
 
-    fun updatePartnerToken(token: String) {
-        _uiState.value = _uiState.value.copy(partnerToken = token, error = null)
-    }
-
-    fun updateCompanyId(id: String) {
-        _uiState.value = _uiState.value.copy(companyId = id, error = null)
-    }
-
-    fun showPartnerTokenSetup() {
-        _uiState.value = _uiState.value.copy(showPartnerTokenSetup = true)
-    }
-
-    fun hidePartnerTokenSetup() {
-        _uiState.value = _uiState.value.copy(showPartnerTokenSetup = false)
-    }
-
-    fun savePartnerSettings() {
-        val state = _uiState.value
-        val token = state.partnerToken.trim()
-        val companyId = state.companyId.toIntOrNull()
-
-        if (token.isBlank()) {
-            _uiState.value = state.copy(error = "Введите Partner Token")
-            return
-        }
-        if (companyId == null || companyId <= 0) {
-            _uiState.value = state.copy(error = "Введите корректный ID компании")
-            return
-        }
-
-        repository.setPartnerToken(token)
-        repository.setCompanyId(companyId)
-        _uiState.value = state.copy(
-            showPartnerTokenSetup = false,
-            error = null,
-        )
-    }
-
     fun login() {
         val state = _uiState.value
         // IME Done + повторный тап по кнопке иначе запускали бы два параллельных
-        // repository.login (двойная push-регистрация, гонка записи токенов).
+        // repository.login (двойная регистрация устройства, гонка записи токена).
         if (state.isLoading) return
         val loginForRequest = normalizeLoginForRequest(state.login)
-
-        if (!repository.hasPartnerToken()) {
-            _uiState.value = state.copy(
-                error = "Partner Token не настроен. Проверьте local.properties и пересоберите приложение.",
-                showPartnerTokenSetup = true,
-            )
-            return
-        }
 
         if (loginForRequest.isBlank()) {
             _uiState.value = state.copy(error = "Введите логин")
@@ -135,16 +86,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
             when (val result = repository.login(loginForRequest, state.password)) {
                 is ApiResult.Success -> {
-                    // Параллельно ищем staff_id текущего пользователя в списке сотрудников филиала.
-                    // Если не нашли — не фатально, расписание просто будет без фильтра по сотруднику.
-                    repository.detectAndSaveStaffId()
-
+                    // Устройство зарегистрировано тем же запросом — остаётся
+                    // включить keepalive и догон событий.
                     PushRegistrar.onLoginSuccess(getApplication())
 
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoggedIn = true,
-                        userName = result.data.name,
+                        userName = result.data.userName,
                         password = "",
                     )
                 }

@@ -7,6 +7,30 @@
 Порядок не случайный: 1–3 не трогают ни сеть, ни UI; 4–6 добавляют сеть;
 7 меняет экран; 8 независим и может идти когда угодно.
 
+## Статус: закрыт
+
+Все девять этапов выполнены. Сверено с кодом 11.08.2026 по артефактам каждого
+этапа:
+
+| Этап | Чем подтверждён |
+|---|---|
+| 1 | `domain/models/EarningsContext.kt` |
+| 2 | `data/SalaryLedgerStore.kt`, `MonthEntry`, `SalaryLedgerJsonTest`, `SalaryLedgerRulesTest` |
+| 3 | `ui/calendar/MonthRatesResolver.kt`, `MonthRatesResolverTest`, `MonthEarningsTest` |
+| 4 | `data/network/SalaryModels.kt`, `SalaryDailyShapeTest`, `SalaryCalculationShapeTest`, `SalaryEnvelopeTest` |
+| 5 | `sync/SalaryHistorySync.kt`, `SalaryPeriodSplitterTest` |
+| 6 | `first_cost` и `cost_per_unit` в `YClientsModels.kt:67-68`, `SalaryRatesPicker` + тест |
+| 7 | Дисклеймер, отметка расхождения и диалог разбора в `ProfileYearStatsSection.kt` |
+| 8 | `data/SessionMetaStore.kt`, `SalaryLedgerBackupTest` |
+| 9 | `SalaryParsingTest` и остальные `Salary*Test` в `app/src/test` |
+
+Сверка велась по наличию кода и тестов, а не построчно по критериям: если
+поведение где-то разошлось с [FOUNDATION.md](FOUNDATION.md), это ловится
+задачей, а не возвратом к этому плану.
+
+Одно отличие от плана: редактор цены месяца оказался не в настройках, а в
+статистике профиля — правка идёт прямо на раскрытом месяце (этап 7).
+
 ---
 
 ## 1. `EarningsContext` вместо четырёх `Double`

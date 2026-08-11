@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Как всё устроено
+    url: https://github.com/Greem4/neiro/tree/main/docs
+    about: "Вопросы «как это работает» — сначала в документацию: архитектура, релизы, push-сервис, интеграция с YClients."
+  - name: Как помочь проекту
+    url: https://github.com/Greem4/neiro/blob/main/CONTRIBUTING.md
+    about: "Сборка, правила коммитов, что стоит обсудить до кода."
+  - name: Сообщить об уязвимости
+    url: https://github.com/Greem4/neiro/security/advisories/new
+    about: "Приватно, а не публичным issue — дыра не должна стать известной раньше, чем закрытой."

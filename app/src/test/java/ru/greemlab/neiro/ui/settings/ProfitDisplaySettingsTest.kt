@@ -21,7 +21,7 @@ class ProfitDisplaySettingsTest {
             rates = EarningsContext(pricePerSession = 1400.0),
             sessionPriceText = "1 400 ₽",
         )
-        assertEquals("Ожидается 5 000 ₽ · занятие 1 400 ₽", subtitle)
+        assertSubtitleEquals("Ожидается 5 000 ₽ · занятие 1 400 ₽", subtitle)
     }
 
     @Test
@@ -38,7 +38,7 @@ class ProfitDisplaySettingsTest {
             rates = EarningsContext.Empty,
             sessionPriceText = "",
         )
-        assertEquals("Ожидается 17 000 ₽", subtitle)
+        assertSubtitleEquals("Ожидается 17 000 ₽", subtitle)
     }
 
     @Test
@@ -57,4 +57,18 @@ class ProfitDisplaySettingsTest {
         )
         assertEquals("", subtitle)
     }
+
+    /**
+     * Суммы форматируются с неразрывным пробелом (U+00A0), а на другой версии
+     * JDK или ICU разделителем может оказаться обычный пробел или узкий
+     * неразрывный (U+202F). Для текста подписи разница не значит ничего —
+     * сравниваем, приведя разделители к одному виду, иначе тест краснеет от
+     * смены окружения, а не от поломки.
+     */
+    private fun assertSubtitleEquals(expected: String, actual: String) {
+        assertEquals(expected.normalizeSpaces(), actual.normalizeSpaces())
+    }
+
+    private fun String.normalizeSpaces(): String =
+        replace('\u00A0', ' ').replace('\u202F', ' ')
 }

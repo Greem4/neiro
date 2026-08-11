@@ -3,34 +3,6 @@ package ru.greemlab.neiro.data.network
 import com.google.gson.annotations.SerializedName
 
 /**
- * Запрос авторизации в YClients API.
- */
-data class AuthRequest(
-    val login: String,
-    val password: String,
-)
-
-/**
- * Ответ авторизации.
- */
-data class AuthResponse(
-    val success: Boolean,
-    val data: AuthData?,
-    val meta: List<Any>?,
-)
-
-data class AuthData(
-    @SerializedName("id") val userId: Int,
-    // Nullable: Gson не проверяет Kotlin nullability, пропавшее поле = null.
-    @SerializedName("user_token") val userToken: String?,
-    val name: String?,
-    val phone: String?,
-    val login: String?,
-    val email: String?,
-    val avatar: String?,
-)
-
-/**
  * Ответ со списком записей (расписание).
  */
 data class RecordsResponse(

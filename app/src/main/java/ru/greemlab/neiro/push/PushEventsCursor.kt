@@ -4,7 +4,6 @@ import android.content.Context
 
 /**
  * Курсор `last_event_id` сервиса пуш-событий — общий для показа push'а и догона (§6).
- * Живёт в тех же prefs, что и [PushRegistrar] (`neiro_push_registrar`).
  */
 object PushEventsCursor {
     private const val PREFS = "neiro_push_registrar"
@@ -20,7 +19,7 @@ object PushEventsCursor {
         }
     }
 
-    /** Курсор ещё не задан (новое устройство) — принять начальное значение из регистрации. */
+    /** Курсор ещё не задан (новое устройство) — принять начальное значение из ответа входа. */
     fun setIfAbsent(context: Context, eventId: Long) {
         if (get(context) == 0L) {
             prefs(context).edit().putLong(KEY_LAST_EVENT_ID, eventId).apply()

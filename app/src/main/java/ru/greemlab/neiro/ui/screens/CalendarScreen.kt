@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Today
@@ -344,6 +345,7 @@ fun CalendarScreen(
                     }
                 },
                 isSyncing = syncState.isLoading,
+                isOffline = syncState.isOffline && isYClientsLoggedIn,
                 rates = rates,
                 selectedDayFact = selectedDayFact,
                 profitDisplay = profitDisplay,
@@ -635,6 +637,8 @@ fun CalendarScreenContent(
     onMenuClick: () -> Unit,
     onSyncClick: () -> Unit = {},
     isSyncing: Boolean = false,
+    /** Сервер Neiro не отвечает: в календаре сохранённые данные (Этап 8). */
+    isOffline: Boolean = false,
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
@@ -680,6 +684,11 @@ fun CalendarScreenContent(
                             onNotificationsClick = onNotificationsClick,
                             unreadNotificationCount = unreadNotificationCount,
                         )
+
+                        if (isOffline) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OfflineNotice()
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -769,6 +778,41 @@ fun CalendarScreenContent(
                     text = { Text(stringResource(R.string.calendar_go_to_today), style = MaterialTheme.typography.labelLarge) },
                 )
             }
+        }
+    }
+}
+
+/**
+ * Связи с сервером нет — в календаре сохранённые данные.
+ *
+ * Молчание было худшим из вариантов: пользователь видел вчерашнее расписание и
+ * не мог отличить «занятий нет» от «не загрузилось». Повтор идёт сам, с
+ * растущей паузой ([ru.greemlab.neiro.sync.NetworkRetryBackoff]).
+ */
+@Composable
+private fun OfflineNotice() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Нет связи с сервером Neiro · показаны сохранённые данные",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

@@ -7,26 +7,28 @@ plugins {
 }
 
 // ------------------------------------------------------------
-// Секреты YClients из local.properties → BuildConfig.
+// Настройки сервиса Neiro из local.properties → BuildConfig.
 // Сам local.properties в .gitignore, ключи не уезжают в репозиторий.
-// При пустых значениях приложение собирается, но API не заработает,
-// пока пользователь не введёт Partner Token вручную (через UI).
+//
+// Ключей YClients здесь больше нет: partner_token и user_token живут на Pi,
+// приложение ходит только в свой сервис (docs/neiro-push/ARCHITECTURE.md).
+// Ключ приложения открывает ровно одну дверь — вход по логину и паролю.
 // ------------------------------------------------------------
 val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val yclientsPartnerToken: String = localProps.getProperty("YCLIENTS_PARTNER_TOKEN", "")
-val yclientsCompanyId: String = localProps.getProperty("YCLIENTS_COMPANY_ID", "0")
 val devLogin: String = localProps.getProperty("DEV_LOGIN", "")
 val devPassword: String = localProps.getProperty("DEV_PASSWORD", "")
 val releaseStoreFile: String = localProps.getProperty("RELEASE_STORE_FILE", "")
 val releaseStorePassword: String = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
 val releaseKeyAlias: String = localProps.getProperty("RELEASE_KEY_ALIAS", "")
 val releaseKeyPassword: String = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+// Публичный адрес сервиса; пути в приложении начинаются с v1/, поэтому номера
+// версии в базовом URL быть не должно (API.md § Про префиксы).
 val neiroPushApiBaseUrl: String = localProps.getProperty(
     "NEIRO_PUSH_API_BASE_URL",
-    "https://push.neiro.greemlab.ru/v2",
+    "https://push.neiro.greemlab.ru",
 )
 val neiroPushApiKey: String = localProps.getProperty("NEIRO_PUSH_API_KEY", "")
 val hasGoogleServices = file("google-services.json").exists()
@@ -43,6 +45,29 @@ val hasReleaseSigning: Boolean =
 val releaseTaskRequested: Boolean =
     gradle.startParameter.taskNames.any { it.contains("Release") }
 
+// ------------------------------------------------------------
+// Версия живёт в version.properties, а не здесь: тот же файл читает CI,
+// сверяя его с тегом. Один источник — нельзя выпустить тег v0.2.0 из
+// сборки, которая внутри считает себя 0.1.0.
+// ------------------------------------------------------------
+val versionProps = Properties().apply {
+    val file = rootProject.file("version.properties")
+    if (!file.exists()) throw GradleException("Нет version.properties в корне проекта")
+    file.inputStream().use { load(it) }
+}
+val appVersionName: String = versionProps.getProperty("VERSION").orEmpty()
+val appVersionCode: Int = run {
+    val parts = Regex("""^(\d+)\.(\d+)\.(\d+)$""").matchEntire(appVersionName)
+        ?: throw GradleException("VERSION должна быть вида X.Y.Z, сейчас «$appVersionName»")
+    val (major, minor, patch) = parts.destructured.toList().map(String::toInt)
+    // Та же формула живёт в ReleaseVersion.kt — разойдутся, и приложение
+    // начнёт предлагать обновление на самого себя.
+    if (minor > 99 || patch > 99) {
+        throw GradleException("minor и patch не больше 99: «$appVersionName»")
+    }
+    major * 10_000 + minor * 100 + patch
+}
+
 if (hasGoogleServices) {
     plugins.apply("com.google.gms.google-services")
 }
@@ -57,21 +82,23 @@ android {
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.6.12.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables { useSupportLibrary = true }
 
-        // YClients: Partner Token и ID филиала прокидываются из local.properties.
-        // Доступны в коде как BuildConfig.YCLIENTS_PARTNER_TOKEN и BuildConfig.YCLIENTS_COMPANY_ID.
-        buildConfigField("String", "YCLIENTS_PARTNER_TOKEN", "\"$yclientsPartnerToken\"")
-        buildConfigField("int", "YCLIENTS_COMPANY_ID", yclientsCompanyId)
         buildConfigField("String", "NEIRO_PUSH_API_BASE_URL", "\"$neiroPushApiBaseUrl\"")
         buildConfigField("String", "NEIRO_PUSH_API_KEY", "\"$neiroPushApiKey\"")
         buildConfigField("boolean", "PUSH_FCM_ENABLED", hasGoogleServices.toString())
         buildConfigField("boolean", "PUSH_SERVER_CONFIGURED", pushServerConfigured.toString())
+
+        // Самообновление разрешено только релизной сборке: у debug и prerelease
+        // другой applicationId, и релизный APK для них — не обновление, а второе
+        // приложение рядом. release переопределяет UPDATE_ENABLED на true.
+        buildConfigField("boolean", "UPDATE_ENABLED", "false")
+        buildConfigField("String", "UPDATE_REPO", "\"Greem4/neiro\"")
     }
 
     @Suppress("UnstableApiUsage")
@@ -114,6 +141,9 @@ android {
         release {
             buildConfigField("String", "DEV_LOGIN", "\"\"")
             buildConfigField("String", "DEV_PASSWORD", "\"\"")
+            // Единственная сборка, которая обновляет сама себя. prerelease его
+            // не наследует: initWith выше сработал до этого блока.
+            buildConfigField("boolean", "UPDATE_ENABLED", "true")
             isMinifyEnabled = true
             isShrinkResources = true
             isCrunchPngs = true
@@ -146,7 +176,7 @@ android {
     }
 
     // Сразу отключаем всё, что приложению не нужно — экономит время сборки и размер APK.
-    // buildConfig включён намеренно: пробрасываем секреты YClients (Partner Token, Company ID)
+    // buildConfig включён намеренно: пробрасываем адрес и ключ сервиса Neiro
     // из local.properties в скомпилированный класс BuildConfig.
     buildFeatures {
         compose = true

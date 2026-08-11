@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.data.network
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -10,13 +11,19 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.auth.LogoutCoordinator
+import ru.greemlab.neiro.push.PushConfig
+import ru.greemlab.neiro.push.PushDeviceId
+import ru.greemlab.neiro.push.PushEventsCursor
+import ru.greemlab.neiro.push.PushFcmToken
 import ru.greemlab.neiro.sync.YClientsLiveSyncFormat
 
 /**
@@ -24,18 +31,32 @@ import ru.greemlab.neiro.sync.YClientsLiveSyncFormat
  */
 sealed interface ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>
-    data class Error(val message: String, val code: Int? = null) : ApiResult<Nothing>
+
+    /**
+     * @param offline запрос не дошёл до сервера Neiro. Отличается от отказа
+     * сервера принципиально: показывать надо «нет связи, данные сохранённые», а
+     * повторять — с паузой, а не на каждое движение пользователя (Этап 8).
+     */
+    data class Error(
+        val message: String,
+        val code: Int? = null,
+        val offline: Boolean = false,
+    ) : ApiResult<Nothing>
 }
 
 /**
- * Репозиторий для работы с YClients API.
+ * Репозиторий данных YClients — через сервис Neiro на Pi.
+ *
+ * Ключей YClients у приложения больше нет: вход отдаёт `device_token`, а
+ * записи, клиентов и зарплату отдаёт прокси, подставляя `company_id` и
+ * `staff_id` сам (docs/neiro-push/ARCHITECTURE.md).
  */
 class YClientsRepository(context: Context) {
 
     private val appContext = context.applicationContext
     private val api = YClientsClient.getApi(context)
+    private val neiroApi = YClientsClient.getNeiroApi(context)
     private val tokenStorage = YClientsClient.getTokenStorage(context)
-    private val errorGson = com.google.gson.Gson()
 
     private val logoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val logoutOn401InProgress = AtomicBoolean(false)
@@ -54,25 +75,21 @@ class YClientsRepository(context: Context) {
     val isLoggedIn: StateFlow<Boolean> = tokenStorage.isLoggedIn
     val userAvatarUrl: StateFlow<String?> = tokenStorage.userAvatarUrlFlow
 
-    val companyId: Int get() = tokenStorage.companyId
+    /** `user_token` на сервере протух: данные не идут, пока не введён пароль. */
+    val reauthRequired: StateFlow<Boolean> = tokenStorage.reauthRequired
+
     val staffId: Int? get() = tokenStorage.staffId
     val userName: String? get() = tokenStorage.userName
-    val partnerToken: String get() = tokenStorage.partnerToken
-    val userToken: String? get() = tokenStorage.userToken
 
-    fun hasPartnerToken(): Boolean = tokenStorage.partnerToken.isNotBlank()
-
-    fun setPartnerToken(token: String) {
-        tokenStorage.partnerToken = token
-        YClientsClient.clearInstance()
-    }
-
-    fun setCompanyId(id: Int) {
-        tokenStorage.companyId = id
-    }
+    /** Логин прошлого входа — подставляется в форму, когда нужен повторный. */
+    val userLogin: String? get() = tokenStorage.userLogin
 
     /**
-     * Авторизация пользователя.
+     * Вход по логину и паролю YClients.
+     *
+     * Пароль уходит ровно в один запрос и на телефоне не сохраняется. Тот же
+     * запрос регистрирует устройство: `device_id` и токен FCM едут вместе с
+     * ним, отдельного вызова регистрации больше нет.
      *
      * Ждёт завершения хвоста logout после 401, если он ещё идёт — иначе его
      * финальные tokenStorage.clear()/clearSyncState() могли бы затереть только
@@ -81,49 +98,145 @@ class YClientsRepository(context: Context) {
      * Второй барьер той же гонки — [sessionGeneration]: `join()` не помогает
      * против 401, который ещё летит по сети и до logout пока не дошёл.
      */
-    suspend fun login(login: String, password: String): ApiResult<AuthData> {
+    suspend fun login(login: String, password: String): ApiResult<NeiroAccount> {
+        if (!PushConfig.isServerConfigured) {
+            return ApiResult.Error(SERVER_NOT_CONFIGURED_MESSAGE)
+        }
         logoutOn401Job?.join()
         return withContext(Dispatchers.IO) {
+            // Токен FCM берём до входа: сервер регистрирует устройство тем же
+            // запросом. Не дал — не беда, вход пройдёт и без пушей, а токен
+            // донесёт PushRegistrar, когда Firebase его выдаст.
+            val fcmToken = PushFcmToken.fetch().orEmpty()
             try {
-                val response = api.auth(AuthRequest(login, password))
+                val response = neiroApi.login(
+                    LoginRequest(
+                        login = login,
+                        password = password,
+                        deviceId = PushDeviceId.get(appContext),
+                        fcmToken = fcmToken,
+                        label = Build.MODEL,
+                        appVersion = BuildConfig.VERSION_NAME,
+                    ),
+                )
 
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    val userToken = body?.data?.userToken
-                    if (body?.success == true && body.data != null && !userToken.isNullOrBlank()) {
-                        // Поколение поднимаем до записи токенов: всё, что ушло в сеть
-                        // раньше, с этого момента считается хвостом прошлой сессии.
-                        sessionGeneration.incrementAndGet()
-                        tokenStorage.userToken = userToken
-                        tokenStorage.userLogin = login
-                        tokenStorage.userName = body.data.name
-                        tokenStorage.userAvatarUrl =
-                            normalizeYClientsAvatarUrl(body.data.avatar)
-                        // Повторный вход другим сотрудником той же компании без полного
-                        // logout иначе оставлял бы старый staffId — детект заново.
-                        tokenStorage.staffId = null
-                        detectAndSaveStaffId()
-                        ApiResult.Success(body.data)
-                    } else {
-                        ApiResult.Error("Неверный логин или пароль")
-                    }
-                } else {
-                    val errorBody = response.errorBody()?.string()
-                    ApiResult.Error(
-                        message = parseErrorMessage(errorBody) ?: "Ошибка авторизации",
+                if (!response.isSuccessful) {
+                    return@withContext ApiResult.Error(
+                        message = loginErrorMessage(response.code(), response.headers()["Retry-After"]),
                         code = response.code(),
+                        offline = isUpstreamDown(response.code()),
                     )
                 }
+
+                val body = response.body()
+                val deviceToken = body?.deviceToken
+                if (deviceToken.isNullOrBlank()) {
+                    return@withContext ApiResult.Error("Сервер не выдал ключ доступа")
+                }
+
+                val account = body.account ?: NeiroAccount()
+                // Поколение поднимаем до записи токена: всё, что ушло в сеть
+                // раньше, с этого момента считается хвостом прошлой сессии.
+                sessionGeneration.incrementAndGet()
+                tokenStorage.saveSession(
+                    deviceToken = deviceToken,
+                    staffId = account.staffId,
+                    userLogin = login,
+                    userName = account.userName,
+                    avatarUrl = account.avatarUrl,
+                )
+                // Курсор событий: новое устройство стартует с конца журнала,
+                // известное — со своего сохранённого места (API.md § Вход).
+                PushEventsCursor.setIfAbsent(appContext, body.lastEventId)
+                ApiResult.Success(account)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: IOException) {
+                ApiResult.Error(NETWORK_ERROR_MESSAGE, offline = true)
             } catch (e: Exception) {
-                ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+                ApiResult.Error("Не удалось войти: ${e.localizedMessage}")
             }
         }
     }
 
     /**
-     * Выход из аккаунта.
+     * Состояние сессии на сервере: имя, аватар, `staff_id` и флаг «нужен
+     * повторный вход». Спрашивается при запуске и при возврате в приложение —
+     * без похода в YClients, поэтому дёшево.
+     *
+     * Молчит при любой ошибке сети: отсутствие связи с Pi не повод менять
+     * локальное состояние. Ответ `401` — другое дело: доступ отозван.
+     */
+    suspend fun refreshSession(): Boolean = withContext(Dispatchers.IO) {
+        if (tokenStorage.deviceToken == null) return@withContext false
+        val generation = sessionGeneration.get()
+        try {
+            val response = neiroApi.session()
+            if (!response.isSuccessful) {
+                handleAuthFailure(response.code(), generation)
+                return@withContext false
+            }
+            val body = response.body() ?: return@withContext false
+            tokenStorage.setReauthRequired(body.reauthRequired)
+            tokenStorage.updateAccount(
+                staffId = body.account?.staffId,
+                userName = body.account?.userName,
+                avatarUrl = body.account?.avatarUrl,
+            )
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось обновить сессию: ${e.javaClass.simpleName}")
+            false
+        }
+    }
+
+    /**
+     * Отзыв доступа этого устройства на сервере.
+     *
+     * Локальные данные чистит [logout] — порядок задаёт [LogoutCoordinator]:
+     * сначала сеть (пока `device_token` ещё есть), потом хранилище. Не вышло —
+     * токен откладывается: устройство на сервере иначе осталось бы живым и
+     * продолжало получать пуши чужого теперь аккаунта.
+     */
+    suspend fun revokeDeviceOnServer(): Boolean {
+        val token = tokenStorage.deviceToken ?: return true
+        val revoked = revokeToken(token)
+        tokenStorage.pendingRevokeToken = if (revoked) null else token
+        return revoked
+    }
+
+    /** Повтор отложенного отзыва — при старте приложения. */
+    suspend fun retryPendingRevoke() {
+        val token = tokenStorage.pendingRevokeToken ?: return
+        // Тот же токен мог снова стать текущим: повторный вход с того же
+        // устройства выдаёт новый, но пока он не пришёл, отзывать нечего.
+        if (token == tokenStorage.deviceToken) return
+        if (revokeToken(token)) tokenStorage.pendingRevokeToken = null
+    }
+
+    private suspend fun revokeToken(token: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching { neiroApi.logout("Bearer $token") }
+            .onFailure { if (it is CancellationException) throw it }
+            // 401 — токен и так недействителен: цель достигнута.
+            .map { it.isSuccessful || it.code() == 401 }
+            .getOrDefault(false)
+    }
+
+    /** Обновление токена FCM на сервере. */
+    suspend fun updateFcmToken(fcmToken: String): Boolean = withContext(Dispatchers.IO) {
+        if (tokenStorage.deviceToken == null || fcmToken.isBlank()) return@withContext false
+        val generation = sessionGeneration.get()
+        runCatching { neiroApi.updateFcmToken(FcmTokenRequest(fcmToken)) }
+            .onFailure { if (it is CancellationException) throw it }
+            .onSuccess { handleAuthFailure(it.code(), generation) }
+            .map { it.isSuccessful }
+            .getOrDefault(false)
+    }
+
+    /**
+     * Выход из аккаунта: локальная часть.
      */
     fun logout() {
         tokenStorage.clear()
@@ -134,15 +247,11 @@ class YClientsRepository(context: Context) {
      *
      * Внутри проходит по всем страницам YClients (`page=1..N`), пока сервер не вернёт
      * страницу меньше [PAGE_SIZE] — иначе при большом числе занятий часть месяца
-     * терялась бы из-за пагинации.
+     * терялась бы из-за пагинации. Пагинация осталась на клиенте намеренно:
+     * собирать страницы на сервере — переписывать работающий код.
      *
-     * Защита от «чужих» записей:
-     *  - если `staffId` неизвестен (детект при логине не сработал) — пробуем
-     *    определить его ещё раз; без `staff_id` API возвращает записи всех
-     *    сотрудников филиала, и в календарь попадают чужие ученики;
-     *  - дополнительно фильтруем результат на клиенте по `staffId`, даже если
-     *    запрос ушёл с фильтром — это страхует от случаев, когда сервер
-     *    игнорирует фильтр (например, особенности прав текущего user_token).
+     * Чужих записей здесь быть не может: `staff_id` подставляет прокси, и
+     * попросить расписание другого сотрудника нечем.
      */
     suspend fun getRecords(
         startDate: LocalDate,
@@ -174,15 +283,6 @@ class YClientsRepository(context: Context) {
     ): ApiResult<List<RecordData>> {
         val generation = sessionGeneration.get()
         try {
-            val effectiveStaffId = tokenStorage.staffId ?: detectAndSaveStaffId()
-            if (effectiveStaffId == null) {
-                return ApiResult.Error(
-                    "Не удалось определить сотрудника YClients. " +
-                        "Проверьте, что имя в вашем профиле YClients совпадает с " +
-                        "карточкой сотрудника в филиале.",
-                )
-            }
-
             val formatter = DateTimeFormatter.ISO_LOCAL_DATE
             val start = startDate.format(formatter)
             val end = endDate.format(formatter)
@@ -194,10 +294,8 @@ class YClientsRepository(context: Context) {
             var complete = false
             while (page <= MAX_PAGES) {
                 val response = api.getRecords(
-                    companyId = tokenStorage.companyId,
                     startDate = start,
                     endDate = end,
-                    staffId = effectiveStaffId,
                     page = page,
                     count = PAGE_SIZE,
                     changedAfter = changedAfter,
@@ -205,14 +303,11 @@ class YClientsRepository(context: Context) {
                 )
 
                 if (!response.isSuccessful) {
-                    handleUnauthorized(response.code(), generation)
+                    handleAuthFailure(response.code(), generation)
                     return ApiResult.Error(
-                        message = if (response.code() == 401) {
-                            "Сессия истекла. Войдите ещё раз."
-                        } else {
-                            "Ошибка загрузки записей"
-                        },
+                        message = requestErrorMessage(response, "Ошибка загрузки записей"),
                         code = response.code(),
+                        offline = isUpstreamDown(response.code()),
                     )
                 }
 
@@ -224,7 +319,7 @@ class YClientsRepository(context: Context) {
                 val pageData = body.data.orEmpty()
                 fetchedCount += pageData.size
                 body.meta?.totalCount?.let { totalCount = it }
-                all += pageData.filter { it.staffId == effectiveStaffId && isValidRecord(it) }
+                all += pageData.filter(::isValidRecord)
                 if (pageData.size < PAGE_SIZE ||
                     totalCount?.let { fetchedCount >= it } == true
                 ) {
@@ -243,8 +338,10 @@ class YClientsRepository(context: Context) {
             return ApiResult.Success(all)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: IOException) {
+            return ApiResult.Error(NETWORK_ERROR_MESSAGE, offline = true)
         } catch (e: Exception) {
-            return ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+            return ApiResult.Error("Ошибка загрузки записей: ${e.localizedMessage}")
         }
     }
 
@@ -259,10 +356,21 @@ class YClientsRepository(context: Context) {
     }
 
     /**
-     * 401 — полный logout через [LogoutCoordinator]: отзыв push-регистрации,
-     * остановка воркеров, сброс watermark'ов и состояния уведомлений.
+     * Разбор двух отказов доступа — они означают разное (ARCHITECTURE.md
+     * § Что происходит при отказах):
+     *
+     *  - `401` — `device_token` неизвестен или отозван: доступа больше нет,
+     *    полный logout через [LogoutCoordinator] (остановка воркеров, сброс
+     *    watermark'ов и состояния уведомлений);
+     *  - `409` — протух `user_token` на сервере: аккаунт жив, устройство
+     *    зарегистрировано, пуши идут — нужен только пароль. Сессию не гасим,
+     *    поднимаем флаг «нужен повторный вход».
      */
-    private fun handleUnauthorized(code: Int?, generation: Int) {
+    private fun handleAuthFailure(code: Int?, generation: Int) {
+        if (code == 409) {
+            if (generation == sessionGeneration.get()) tokenStorage.setReauthRequired(true)
+            return
+        }
         if (code != 401) return
         // Хвост прошлой сессии: пользователь уже вошёл заново, пока запрос был в пути.
         // Гасить новую сессию из-за него нельзя — иначе вход «отменяется» сам собой.
@@ -287,76 +395,6 @@ class YClientsRepository(context: Context) {
     }
 
     /**
-     * Найти сотрудника филиала по имени из ответа /auth и сохранить его staffId.
-     *
-     * Используем публичный /book_staff (требует только partner_token), чтобы не натыкаться
-     * на 403 от приватных эндпоинтов, если у текущего пользователя нет admin-прав.
-     *
-     * Эвристика поиска: считаем пересечение нормализованных токенов имени
-     * (см. [normalizeNameTokens]) и берём сотрудника с наибольшим совпадением,
-     * но не менее **двух** общих токенов — иначе слишком велик риск ложного
-     * матча по одному имени, когда в филиале несколько тёзок.
-     *
-     * Это устойчиво к асимметрии форматов:
-     *  - `/auth` возвращает «Зеленкина Светлана Васильевна» (с отчеством);
-     *  - `/book_staff` хранит «Светлана Зеленкина» (без отчества).
-     * Прошлая версия требовала, чтобы **все** токены ника были у сотрудника,
-     * и из-за лишнего «Васильевна» матч просто не находился. В результате
-     * `staffId` оставался null, а API без фильтра возвращал расписание всех
-     * сотрудников филиала.
-     *
-     * Также при равном счёте предпочитаем действующих сотрудников (`fired == 0`),
-     * чтобы случайно не зацепиться за карточку уволенного тёзки.
-     */
-    suspend fun detectAndSaveStaffId(): Int? = withContext(Dispatchers.IO) {
-        val userName = tokenStorage.userName?.trim().orEmpty()
-        if (userName.isBlank()) return@withContext null
-
-        val generation = sessionGeneration.get()
-        try {
-            val response = api.getBookStaff(tokenStorage.companyId)
-            if (!response.isSuccessful) {
-                handleUnauthorized(response.code(), generation)
-                Log.w(TAG, "book_staff вернул HTTP ${response.code()}")
-                return@withContext null
-            }
-            val staffList = response.body()?.takeIf { it.success }?.data
-            if (staffList == null) {
-                Log.w(TAG, "book_staff: пустой или неуспешный ответ")
-                return@withContext null
-            }
-
-            val needleTokens = userName.normalizeNameTokens()
-            if (needleTokens.isEmpty()) return@withContext null
-
-            // Если у пользователя в профиле YClients только 1 токен (например, "Светлана"),
-            // понизим требование, иначе совсем не найдём.
-            val minScore = MIN_NAME_MATCH_SCORE.coerceAtMost(needleTokens.size)
-
-            val match = staffList
-                .mapNotNull { staff ->
-                    val staffTokens = staff.name?.normalizeNameTokens() ?: emptySet()
-                    if (staffTokens.isEmpty()) return@mapNotNull null
-                    val score = (staffTokens intersect needleTokens).size
-                    if (score < minScore) null else staff to score
-                }
-                .sortedWith(
-                    compareByDescending<Pair<StaffData, Int>> { (it.first.fired ?: 0) == 0 }
-                        .thenByDescending { it.second },
-                )
-                .firstOrNull()
-                ?.first
-
-            match?.id?.also { tokenStorage.staffId = it }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w(TAG, "Не удалось определить сотрудника", e)
-            null
-        }
-    }
-
-    /**
      * Получить список клиентов.
      */
     suspend fun getClients(): ApiResult<List<ClientData>> = withContext(Dispatchers.IO) {
@@ -369,20 +407,16 @@ class YClientsRepository(context: Context) {
 
             while (page <= MAX_PAGES) {
                 val response = api.getClients(
-                    companyId = tokenStorage.companyId,
                     page = page,
                     count = PAGE_SIZE,
                 )
 
                 if (!response.isSuccessful) {
-                    handleUnauthorized(response.code(), generation)
+                    handleAuthFailure(response.code(), generation)
                     return@withContext ApiResult.Error(
-                        message = if (response.code() == 401) {
-                            "Сессия истекла. Войдите ещё раз."
-                        } else {
-                            "Ошибка загрузки клиентов"
-                        },
+                        message = requestErrorMessage(response, "Ошибка загрузки клиентов"),
                         code = response.code(),
+                        offline = isUpstreamDown(response.code()),
                     )
                 }
 
@@ -412,8 +446,10 @@ class YClientsRepository(context: Context) {
             ApiResult.Success(all)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: IOException) {
+            ApiResult.Error(NETWORK_ERROR_MESSAGE, offline = true)
         } catch (e: Exception) {
-            ApiResult.Error("Ошибка сети: ${e.localizedMessage}")
+            ApiResult.Error("Ошибка загрузки клиентов: ${e.localizedMessage}")
         }
     }
 
@@ -431,9 +467,6 @@ class YClientsRepository(context: Context) {
         today: LocalDate = LocalDate.now(),
     ): ApiResult<Map<LocalDate, DayFact>> = withContext(Dispatchers.IO) {
         val generation = sessionGeneration.get()
-        val staff = tokenStorage.staffId ?: detectAndSaveStaffId()
-        if (staff == null) return@withContext ApiResult.Error(STAFF_UNKNOWN_MESSAGE)
-
         val periods = splitSalaryPeriods(from, to, today)
         if (periods.isEmpty()) return@withContext ApiResult.Success(emptyMap())
 
@@ -441,7 +474,6 @@ class YClientsRepository(context: Context) {
         var failure: ApiResult.Error? = null
         for (period in periods) {
             val chunk = requestSalaryDaily(
-                staffId = staff,
                 from = period.start,
                 to = period.endInclusive,
                 today = today,
@@ -468,7 +500,6 @@ class YClientsRepository(context: Context) {
     }
 
     private suspend fun requestSalaryDaily(
-        staffId: Int,
         from: LocalDate,
         to: LocalDate,
         today: LocalDate,
@@ -477,18 +508,16 @@ class YClientsRepository(context: Context) {
     ): ApiResult<Map<LocalDate, DayFact>> {
         try {
             val response = api.getSalaryDaily(
-                companyId = tokenStorage.companyId,
-                staffId = staffId,
                 dateFrom = from.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 dateTo = to.format(DateTimeFormatter.ISO_LOCAL_DATE),
             )
             if (!response.isSuccessful) {
-                handleUnauthorized(response.code(), generation)
+                handleAuthFailure(response.code(), generation)
                 if (response.code() == 422 && allowRetry) {
                     // 422 — период залез в будущее или длиннее года. Обрезаем и пробуем один раз.
                     val trimmed = minOf(today, from.plusDays(364), to)
                     if (trimmed != to && !from.isAfter(trimmed)) {
-                        return requestSalaryDaily(staffId, from, trimmed, today, generation, allowRetry = false)
+                        return requestSalaryDaily(from, trimmed, today, generation, allowRetry = false)
                     }
                 }
                 // Текст ошибки YClients — единственная подсказка, почему не отдал:
@@ -511,11 +540,13 @@ class YClientsRepository(context: Context) {
             return ApiResult.Success(parseDayFacts(items))
         } catch (e: CancellationException) {
             throw e
+        } catch (e: IOException) {
+            Log.w(TAG, "Зарплата: нет связи с сервером (${e.javaClass.simpleName})")
+            return ApiResult.Error(NETWORK_ERROR_MESSAGE, offline = true)
         } catch (e: Exception) {
             Log.w(TAG, "Запрос зарплаты не удался", e)
-            // Имя исключения различает «нет сети» (IOException) и «ответ не
-            // разобрался» (JsonSyntaxException) — без него обе беды выглядят
-            // одинаково, и чинить приходится вслепую.
+            // Имя исключения нужно, чтобы отличить «ответ не разобрался»
+            // (JsonSyntaxException) от прочих бед: чинить иначе приходится вслепую.
             return ApiResult.Error("${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(200))
         }
     }
@@ -537,12 +568,9 @@ class YClientsRepository(context: Context) {
         today: LocalDate = LocalDate.now(),
     ): Map<YearMonth, SalaryRatesFromApi> = withContext(Dispatchers.IO) {
         val generation = sessionGeneration.get()
-        val staff = tokenStorage.staffId
-            ?: return@withContext emptyMap<YearMonth, SalaryRatesFromApi>()
-
         val rates = mutableMapOf<YearMonth, SalaryRatesFromApi>()
         for (period in splitSalaryPeriods(from, to, today)) {
-            val calculations = when (val result = requestCalculations(staff, period, generation)) {
+            val calculations = when (val result = requestCalculations(period, generation)) {
                 is ApiResult.Success -> result.data
                 is ApiResult.Error -> continue
             }
@@ -554,7 +582,7 @@ class YClientsRepository(context: Context) {
                     runCatching { YearMonth.parse(raw) }.getOrNull()
                 } ?: continue
                 if (rates.containsKey(month)) continue
-                val monthRates = requestCalculationRates(staff, id, generation)
+                val monthRates = requestCalculationRates(id, generation)
                 if (monthRates is ApiResult.Success && !monthRates.data.isEmpty) {
                     rates[month] = monthRates.data
                 }
@@ -573,17 +601,14 @@ class YClientsRepository(context: Context) {
         today: LocalDate = LocalDate.now(),
     ): ApiResult<SalaryRatesFromApi> = withContext(Dispatchers.IO) {
         val generation = sessionGeneration.get()
-        val staff = tokenStorage.staffId ?: detectAndSaveStaffId()
-        if (staff == null) return@withContext ApiResult.Error(STAFF_UNKNOWN_MESSAGE)
-
         val periods = splitSalaryPeriods(today.minusYears(1).plusDays(1), today, today)
         for (period in periods.reversed()) {
-            val latest = requestLatestCalculation(staff, period, generation)
+            val latest = requestLatestCalculation(period, generation)
             when (latest) {
                 is ApiResult.Error -> return@withContext latest
                 is ApiResult.Success -> {
                     val id = latest.data ?: continue
-                    return@withContext requestCalculationRates(staff, id, generation)
+                    return@withContext requestCalculationRates(id, generation)
                 }
             }
         }
@@ -592,11 +617,10 @@ class YClientsRepository(context: Context) {
 
     /** id самого свежего начисления периода или `null`, если начислений нет. */
     private suspend fun requestLatestCalculation(
-        staffId: Int,
         period: ClosedRange<LocalDate>,
         generation: Int,
     ): ApiResult<Long?> {
-        val all = when (val result = requestCalculations(staffId, period, generation)) {
+        val all = when (val result = requestCalculations(period, generation)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> return result
         }
@@ -620,19 +644,16 @@ class YClientsRepository(context: Context) {
 
     /** Начисления периода: месяц, сумма, признак «проведено». */
     private suspend fun requestCalculations(
-        staffId: Int,
         period: ClosedRange<LocalDate>,
         generation: Int,
     ): ApiResult<List<SalaryCalculationSummary>> {
         try {
             val response = api.getSalaryCalculations(
-                companyId = tokenStorage.companyId,
-                staffId = staffId,
                 dateFrom = period.start.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 dateTo = period.endInclusive.format(DateTimeFormatter.ISO_LOCAL_DATE),
             )
             if (!response.isSuccessful) {
-                handleUnauthorized(response.code(), generation)
+                handleAuthFailure(response.code(), generation)
                 Log.w(TAG, "salary calculation list вернул HTTP ${response.code()}")
                 return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
             }
@@ -646,18 +667,13 @@ class YClientsRepository(context: Context) {
     }
 
     private suspend fun requestCalculationRates(
-        staffId: Int,
         calculationId: Long,
         generation: Int,
     ): ApiResult<SalaryRatesFromApi> {
         try {
-            val response = api.getSalaryCalculationDetails(
-                companyId = tokenStorage.companyId,
-                staffId = staffId,
-                calculationId = calculationId,
-            )
+            val response = api.getSalaryCalculationDetails(calculationId = calculationId)
             if (!response.isSuccessful) {
-                handleUnauthorized(response.code(), generation)
+                handleAuthFailure(response.code(), generation)
                 Log.w(TAG, "salary calculation details вернул HTTP ${response.code()}")
                 return ApiResult.Error(salaryErrorMessage(response.code()), response.code())
             }
@@ -693,57 +709,66 @@ class YClientsRepository(context: Context) {
      * показывать»: 403 у сотрудника без прав владельца это штатный случай,
      * а не поломка (FOUNDATION 3.5).
      */
-    private fun salaryErrorMessage(code: Int): String =
-        if (code == 401) "Сессия истекла. Войдите ещё раз." else ""
-
-    private fun String.normalizeNameTokens(): Set<String> =
-        lowercase()
-            .replace('ё', 'е')
-            .split(' ', '\t', '\n', '-', '.', ',')
-            .map { it.trim() }
-            .filter { it.length >= 3 }
-            .toSet()
-
-    private fun normalizeYClientsAvatarUrl(raw: String?): String? {
-        val trimmed = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        return when {
-            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
-            trimmed.startsWith("http://", ignoreCase = true) -> trimmed
-            trimmed.startsWith("//") -> "https:$trimmed"
-            else -> trimmed
-        }
+    private fun salaryErrorMessage(code: Int): String = when (code) {
+        401 -> SESSION_GONE_MESSAGE
+        409 -> REAUTH_MESSAGE
+        else -> ""
     }
 
-    private fun parseErrorMessage(errorBody: String?): String? {
-        if (errorBody.isNullOrBlank()) return null
-        return try {
-            val error = errorGson.fromJson(errorBody, ApiError::class.java)
-            error.meta?.message
-        } catch (e: Exception) {
-            // Тело ответа не логируем: может содержать детали сессии.
-            Log.w(TAG, "Cannot parse error body: ${e.message}")
-            null
+    /** Текст отказа входа по коду сервиса (API.md § Вход и сессия). */
+    private fun loginErrorMessage(code: Int, retryAfter: String?): String = when (code) {
+        401 -> "Неверный логин или пароль"
+        409 -> "Имя в профиле YClients не совпало ни с одной карточкой сотрудника " +
+            "филиала. Исправьте имя в YClients и попробуйте снова."
+        429 -> "Слишком много попыток входа. " + retryAfterHint(retryAfter)
+        502, 504 -> "YClients недоступен, попробуйте позже"
+        else -> "Не удалось войти (ошибка $code)"
+    }
+
+    /**
+     * Текст отказа запроса данных. Отказ сервиса и отказ YClients различаются:
+     * первый значит «доступ», второй — «данные», и советы у них разные.
+     */
+    private fun requestErrorMessage(response: retrofit2.Response<*>, fallback: String): String =
+        when (response.code()) {
+            401 -> SESSION_GONE_MESSAGE
+            409 -> REAUTH_MESSAGE
+            429 -> "Слишком часто. " + retryAfterHint(response.headers()["Retry-After"])
+            502, 504 -> "YClients недоступен, попробуйте позже"
+            else -> fallback
         }
+
+    /**
+     * Отказы, при которых данных не будет независимо от нас: прокси не достучался
+     * до YClients (502) или не дождался ответа (504). Повторять такие имеет смысл
+     * с той же паузой, что и отсутствие связи.
+     */
+    private fun isUpstreamDown(code: Int): Boolean = code == 502 || code == 504
+
+    private fun retryAfterHint(retryAfter: String?): String {
+        val seconds = retryAfter?.toLongOrNull() ?: return "Попробуйте позже."
+        val minutes = (seconds + 59) / 60
+        return if (minutes <= 1) "Попробуйте через минуту." else "Попробуйте через $minutes мин."
     }
 
     companion object {
         private const val TAG = "YClientsRepository"
 
-        private const val STAFF_UNKNOWN_MESSAGE =
-            "Не удалось определить сотрудника YClients"
+        /** Pi не ответил: данные показываются из локального кэша (Этап 8). */
+        const val NETWORK_ERROR_MESSAGE = "Нет связи с сервером Neiro"
+
+        private const val SESSION_GONE_MESSAGE = "Доступ отозван. Войдите ещё раз."
+
+        private const val REAUTH_MESSAGE = "Сессия YClients истекла. Войдите ещё раз."
+
+        private const val SERVER_NOT_CONFIGURED_MESSAGE =
+            "Сервер Neiro не настроен в сборке"
 
         /** Размер страницы для запроса /records. */
         private const val PAGE_SIZE = 200
 
         /** Предел постраничного обхода — защита от бесконечного цикла. */
         private const val MAX_PAGES = 50
-
-        /**
-         * Минимальное число совпавших токенов имени для матча сотрудника.
-         * 2 — нужны минимум 2 общих токена (имя+фамилия), чтобы исключить
-         * ложный матч по одному имени, когда в филиале несколько тёзок.
-         */
-        private const val MIN_NAME_MATCH_SCORE = 2
 
         @Volatile
         private var instance: YClientsRepository? = null

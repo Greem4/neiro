@@ -1,10 +1,7 @@
 package ru.greemlab.neiro.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,7 +10,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -38,7 +34,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -81,15 +76,18 @@ fun AuthScreen(
         onDispose { viewModel.clearPassword() }
     }
 
-    // Отслеживаем переход «не авторизован → авторизован», чтобы автоматически
+    // Отслеживаем переход «нет доступа к данным → есть», чтобы автоматически
     // закрыть экран и запустить синхронизацию. Это и есть «возврат в приложение
     // после авторизации»: пользователь видит результат сразу в календаре.
-    var wasLoggedIn by remember { mutableStateOf(state.isLoggedIn) }
-    LaunchedEffect(state.isLoggedIn) {
-        if (state.isLoggedIn && !wasLoggedIn) {
+    // Повторный вход после `reauth_required` — тот же переход: `isLoggedIn` всё
+    // это время true, и по нему одному экран бы не закрылся.
+    val hasLiveSession = state.isLoggedIn && !state.reauthRequired
+    var wasLive by remember { mutableStateOf(hasLiveSession) }
+    LaunchedEffect(hasLiveSession) {
+        if (hasLiveSession && !wasLive) {
             onLoginSuccess()
         }
-        wasLoggedIn = state.isLoggedIn
+        wasLive = hasLiveSession
     }
 
     Scaffold(
@@ -123,13 +121,20 @@ fun AuthScreen(
             ) {
                 Spacer(modifier = Modifier.height(32.dp))
 
-                if (state.isLoggedIn) {
+                // Повторный вход при живой сессии: доступ к серверу есть, пуши
+                // идут — не хватает только пароля от YClients. Поэтому форма, а
+                // не карточка «вы авторизованы».
+                if (state.isLoggedIn && !state.reauthRequired) {
                     LoggedInContent(
                         userName = state.userName,
                         onLogout = { viewModel.logout() },
                         onSyncClick = onLoginSuccess,
                     )
                 } else {
+                    if (state.reauthRequired) {
+                        ReauthNotice()
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                     LoginForm(
                         login = state.login,
                         password = state.password,
@@ -142,18 +147,6 @@ fun AuthScreen(
                             viewModel.login()
                         },
                         onFocusNext = { focusManager.moveFocus(FocusDirection.Down) },
-                    )
-                }
-
-                if (state.showPartnerTokenSetup) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    PartnerTokenSetup(
-                        partnerToken = state.partnerToken,
-                        companyId = state.companyId,
-                        onPartnerTokenChange = { viewModel.updatePartnerToken(it) },
-                        onCompanyIdChange = { viewModel.updateCompanyId(it) },
-                        onSave = { viewModel.savePartnerSettings() },
-                        onCancel = { viewModel.hidePartnerTokenSetup() },
                     )
                 }
 
@@ -403,75 +396,31 @@ private fun LoggedInContent(
 }
 
 @Composable
-private fun PartnerTokenSetup(
-    partnerToken: String,
-    companyId: String,
-    onPartnerTokenChange: (String) -> Unit,
-    onCompanyIdChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onCancel: () -> Unit,
-) {
+private fun ReauthNotice() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Настройки API",
+                text = "Нужен повторный вход",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Partner Token можно получить на developer.yclients.com",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "Доступ к YClients истёк. Уведомления и сохранённые данные " +
+                    "работают, но расписание и деньги не обновятся, пока вы не " +
+                    "введёте пароль.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = partnerToken,
-                onValueChange = onPartnerTokenChange,
-                label = { Text("Partner Token") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = companyId,
-                onValueChange = onCompanyIdChange,
-                label = { Text("ID компании") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = onCancel) {
-                    Text("Отмена")
-                }
-                Spacer(modifier = Modifier.size(8.dp))
-                Button(onClick = onSave) {
-                    Text("Сохранить")
-                }
-            }
         }
     }
 }
