@@ -53,6 +53,7 @@ import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.ui.settings.AboutScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
 import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
@@ -80,15 +81,22 @@ private sealed interface CalendarOverlay {
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
     data object ProfitSettings : CalendarOverlay
+    data object About : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
     data object DayDetails : CalendarOverlay
     data object Notifications : CalendarOverlay
 }
 
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
-private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): CalendarOverlay = when (this) {
+private fun CalendarOverlay.onSystemBack(
+    yClientsReturnTo: CalendarOverlay,
+    aboutReturnTo: CalendarOverlay,
+): CalendarOverlay = when (this) {
     CalendarOverlay.NotificationSettings,
     CalendarOverlay.ProfitSettings -> CalendarOverlay.AppSettings
+    // «О программе» открывается из двух мест: из настроек приложения и прямо из
+    // панели, нажатием на номер сборки. Возвращаться нужно туда, откуда пришли.
+    CalendarOverlay.About -> aboutReturnTo
     CalendarOverlay.YClients -> yClientsReturnTo
     else -> CalendarOverlay.None
 }
@@ -119,6 +127,7 @@ fun CalendarScreen(
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
     notificationDeepLinkVersion: Int = 0,
+    openAboutFromNotification: Boolean = false,
 ) {
     val currentMonth by viewModel.currentMonth.collectAsStateWithLifecycle()
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
@@ -141,11 +150,14 @@ fun CalendarScreen(
     var yClientsReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
         mutableStateOf(CalendarOverlay.None)
     }
+    var aboutReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
+        mutableStateOf(CalendarOverlay.AppSettings)
+    }
     /** После закрытия overlay, открытый из drawer, снова показать боковую панель. */
     var returnToDrawerOnOverlayClose by rememberSaveable { mutableStateOf(false) }
 
     fun applyOverlayBackNavigation() {
-        val next = overlay.onSystemBack(yClientsReturnOverlay)
+        val next = overlay.onSystemBack(yClientsReturnOverlay, aboutReturnOverlay)
         overlay = next
         if (next is CalendarOverlay.None && returnToDrawerOnOverlayClose) {
             returnToDrawerOnOverlayClose = false
@@ -182,6 +194,18 @@ fun CalendarScreen(
             }
             lastHandledDeepLinkVersion = notificationDeepLinkVersion
         }
+    }
+
+    // Уведомление о новой версии: открываем «О программе» сразу, минуя
+    // настройки — человек пришёл именно за кнопкой обновления.
+    LaunchedEffect(openAboutFromNotification, notificationDeepLinkVersion) {
+        if (!openAboutFromNotification) return@LaunchedEffect
+        if (notificationDeepLinkVersion == lastHandledDeepLinkVersion) return@LaunchedEffect
+        // Пришли из уведомления — «Назад» ведёт в календарь: в настройках
+        // человек не был, возвращать его туда неоткуда.
+        aboutReturnOverlay = CalendarOverlay.None
+        overlay = CalendarOverlay.About
+        lastHandledDeepLinkVersion = notificationDeepLinkVersion
     }
 
     LaunchedEffect(highlightSlotKey) {
@@ -314,6 +338,14 @@ fun CalendarScreen(
                                 yClientsReturnOverlay = CalendarOverlay.None
                                 overlay = CalendarOverlay.YClients
                             },
+                            onOpenAbout = {
+                                scope.launch { drawerState.close() }
+                                returnToDrawerOnOverlayClose = true
+                                // Пришли из панели — «Назад» вернёт в неё же,
+                                // а не в настройки, куда человек не заходил.
+                                aboutReturnOverlay = CalendarOverlay.None
+                                overlay = CalendarOverlay.About
+                            },
                         )
                     }
                 }
@@ -396,6 +428,16 @@ fun CalendarScreen(
                 onBack = ::applyOverlayBackNavigation,
                 onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
                 onOpenProfitSettings = { overlay = CalendarOverlay.ProfitSettings },
+                onOpenAbout = {
+                    aboutReturnOverlay = CalendarOverlay.AppSettings
+                    overlay = CalendarOverlay.About
+                },
+            )
+        }
+
+        if (overlay is CalendarOverlay.About) {
+            AboutScreen(
+                onBack = ::applyOverlayBackNavigation,
             )
         }
 
@@ -584,6 +626,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.RegistrationPrompt -> "registration"
             CalendarOverlay.ProfitDetails -> "profit_details"
             CalendarOverlay.ProfitSettings -> "profit_settings"
+            CalendarOverlay.About -> "about"
             CalendarOverlay.LessonsDetails -> "lessons"
             CalendarOverlay.DayDetails -> "day"
             CalendarOverlay.Notifications -> "notifications"
@@ -599,6 +642,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             "profit" -> CalendarOverlay.ProfitDetails
             "profit_details" -> CalendarOverlay.ProfitDetails
             "profit_settings" -> CalendarOverlay.ProfitSettings
+            "about" -> CalendarOverlay.About
             "lessons" -> CalendarOverlay.LessonsDetails
             "day" -> CalendarOverlay.DayDetails
             "notifications" -> CalendarOverlay.Notifications

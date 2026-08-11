@@ -44,14 +44,19 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_DATE = "open_date"
         const val EXTRA_HIGHLIGHT_SLOT_KEY = "highlight_slot_key"
+
+        /** Открыть «О программе» — уведомление о новой версии (пакет `update`). */
+        const val EXTRA_OPEN_ABOUT = "open_about"
         private const val STATE_OPEN_DATE = "neiro.state.open_date"
         private const val STATE_HIGHLIGHT_SLOT_KEY = "neiro.state.highlight_slot_key"
         private const val STATE_DEEP_LINK_VERSION = "neiro.state.deep_link_version"
+        private const val STATE_OPEN_ABOUT = "neiro.state.open_about"
     }
 
     private var openDate by mutableStateOf<String?>(null)
     private var highlightSlotKey by mutableStateOf<String?>(null)
     private var notificationDeepLinkVersion by mutableIntStateOf(0)
+    private var openAbout by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -65,6 +70,7 @@ class MainActivity : ComponentActivity() {
             openDate = savedInstanceState.getString(STATE_OPEN_DATE)
             highlightSlotKey = savedInstanceState.getString(STATE_HIGHLIGHT_SLOT_KEY)
             notificationDeepLinkVersion = savedInstanceState.getInt(STATE_DEEP_LINK_VERSION, 0)
+            openAbout = savedInstanceState.getBoolean(STATE_OPEN_ABOUT, false)
         } else {
             applyNotificationExtras(intent)
         }
@@ -75,6 +81,7 @@ class MainActivity : ComponentActivity() {
                 openDateFromNotification = openDate,
                 highlightSlotKeyFromNotification = highlightSlotKey,
                 notificationDeepLinkVersion = deepLinkVersion,
+                openAboutFromNotification = openAbout,
             )
             RequestNotificationPermissionIfNeeded()
         }
@@ -85,6 +92,7 @@ class MainActivity : ComponentActivity() {
         openDate?.let { outState.putString(STATE_OPEN_DATE, it) }
         highlightSlotKey?.let { outState.putString(STATE_HIGHLIGHT_SLOT_KEY, it) }
         outState.putInt(STATE_DEEP_LINK_VERSION, notificationDeepLinkVersion)
+        outState.putBoolean(STATE_OPEN_ABOUT, openAbout)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -96,9 +104,13 @@ class MainActivity : ComponentActivity() {
     private fun applyNotificationExtras(source: Intent?) {
         val newOpenDate = source?.getStringExtra(EXTRA_OPEN_DATE)
         val newHighlight = source?.getStringExtra(EXTRA_HIGHLIGHT_SLOT_KEY)
-        val changed = newOpenDate != openDate || newHighlight != highlightSlotKey
+        val newOpenAbout = source?.getBooleanExtra(EXTRA_OPEN_ABOUT, false) == true
+        val changed = newOpenDate != openDate ||
+            newHighlight != highlightSlotKey ||
+            newOpenAbout != openAbout
         openDate = newOpenDate
         highlightSlotKey = newHighlight
+        openAbout = newOpenAbout
         if (changed) notificationDeepLinkVersion++
     }
 }
@@ -151,6 +163,7 @@ private fun NeiroApp(
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
     notificationDeepLinkVersion: Int = 0,
+    openAboutFromNotification: Boolean = false,
 ) {
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
@@ -174,6 +187,7 @@ private fun NeiroApp(
                 openDateFromNotification = openDateFromNotification,
                 highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
                 notificationDeepLinkVersion = notificationDeepLinkVersion,
+                openAboutFromNotification = openAboutFromNotification,
             )
         }
     }

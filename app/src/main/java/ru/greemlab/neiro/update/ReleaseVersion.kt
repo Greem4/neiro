@@ -29,6 +29,19 @@ data class ReleaseVersion(
     companion object {
         private val TAG_REGEX = Regex("""^v(\d+)\.(\d+)\.(\d+)$""")
 
+        /**
+         * Обратно из `versionCode` — для значка «доступна версия», когда самого
+         * релиза под рукой нет, а в настройках лежит только число.
+         */
+        fun fromVersionCode(versionCode: Int): ReleaseVersion? {
+            if (versionCode <= 0) return null
+            return ReleaseVersion(
+                major = versionCode / 10_000,
+                minor = (versionCode / 100) % 100,
+                patch = versionCode % 100,
+            )
+        }
+
         /** null — тег не нашей схемы; такой релиз молча игнорируем. */
         fun parseTag(tag: String): ReleaseVersion? {
             val m = TAG_REGEX.matchEntire(tag.trim()) ?: return null

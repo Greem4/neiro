@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!--
+      Самообновление: приложение отдаёт скачанный APK системному установщику.
+      На API 26+ одного разрешения мало — пользователь ещё раз разрешает
+      установку из Neiro в системных настройках (docs/updater/ARCHITECTURE.md).
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".NeiroApplication"
@@ -38,6 +44,22 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".update.UpdateNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.greemlab.neiro.update.SKIP_VERSION" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".update.UpdateInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.greemlab.neiro.update.INSTALL_STATUS" />
             </intent-filter>
         </receiver>
 

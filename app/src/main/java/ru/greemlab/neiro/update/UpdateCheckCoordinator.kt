@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.BuildConfig
 import java.util.concurrent.TimeUnit
 
 /**
@@ -66,6 +67,8 @@ object UpdateCheckCoordinator {
         }
 
         val preferences = UpdatePreferences.get(appContext)
+        cleanupInstalledLeftovers(appContext, preferences)
+
         if (preferences.isAutoCheckEnabled) {
             schedulePeriodic(appContext)
         } else {
@@ -97,18 +100,21 @@ object UpdateCheckCoordinator {
      * @param force ручная проверка: суточный троттлинг игнорируется.
      */
     suspend fun checkNow(context: Context, force: Boolean = false): UpdateStatus {
-        val status = UpdateChecker.create(context).check(force)
+        val appContext = context.applicationContext
+        val status = UpdateChecker.create(appContext).check(force)
         when (status) {
-            is UpdateStatus.Available ->
+            is UpdateStatus.Available -> {
                 Log.i(TAG, "Есть обновление: ${status.info.version.versionName}")
+                // Правило «об одной версии говорим один раз» и проверка
+                // «пропустили» живут внутри UpdateNotifier — здесь не дублируем.
+                UpdateNotifier.notifyIfNeeded(appContext, status.info)
+            }
 
             is UpdateStatus.UpToDate -> Log.i(TAG, "Обновлений нет")
             is UpdateStatus.Throttled -> Log.i(TAG, "Проверяли меньше суток назад, GitHub не трогаем")
             is UpdateStatus.Blocked -> Log.i(TAG, "Самообновление выключено: ${status.why}")
             is UpdateStatus.Failed -> Log.w(TAG, "Проверка не удалась: ${status.failure}")
         }
-        // Показ уведомления о найденной версии — этап 5: там же живёт правило
-        // «об одной версии говорим один раз».
         return status
     }
 
@@ -121,6 +127,24 @@ object UpdateCheckCoordinator {
         } else {
             cancel(appContext)
         }
+    }
+
+    /**
+     * Пятнадцать мегабайт от версии, которая уже стоит (или устарела), лежат в
+     * кэше мёртвым грузом. Чистим при старте, не дожидаясь, пока человек зайдёт
+     * на экран «О программе».
+     *
+     * Отметку `updated_from_version_code` здесь не трогаем: её читает и стирает
+     * экран, чтобы показать «Обновлено до 0.1.2» ровно один раз.
+     */
+    private fun cleanupInstalledLeftovers(context: Context, preferences: UpdatePreferences) {
+        val pending = preferences.pendingVersionCode
+        if (preferences.pendingApkPath == null && pending == 0) return
+        if (pending > BuildConfig.VERSION_CODE) return
+
+        UpdateDownloader.clearDownloads(context)
+        preferences.clearPendingApk()
+        Log.i(TAG, "Убрал скачанный APK версии $pending — она уже не новее установленной")
     }
 
     private fun schedulePeriodic(context: Context) {

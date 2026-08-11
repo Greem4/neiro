@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,6 +78,7 @@ fun ProfileContent(
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val profile by profileViewModel.userProfile.collectAsStateWithLifecycle()
@@ -134,6 +136,7 @@ fun ProfileContent(
         onOpenSettings = onOpenSettings,
         onOpenAppSettings = onOpenAppSettings,
         onOpenYClients = onOpenYClients,
+        onOpenAbout = onOpenAbout,
         onSyncNow = syncViewModel::syncAllThroughCurrentMonth,
         onDevLogin = syncViewModel::devLogin,
         onDevSync = syncViewModel::devSyncAll,
@@ -164,6 +167,7 @@ private fun ProfileContentImpl(
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenYClients: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     onSyncNow: () -> Unit = {},
     onDevLogin: () -> Unit = {},
     onDevSync: () -> Unit = {},
@@ -275,12 +279,13 @@ private fun ProfileContentImpl(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        BuildInfoFooter()
+        BuildInfoFooter(onClick = onOpenAbout)
     }
 }
 
 @Composable
 private fun BuildInfoFooter(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val buildTypeLabel = when (BuildConfig.BUILD_TYPE.lowercase(Locale.ROOT)) {
@@ -289,8 +294,12 @@ private fun BuildInfoFooter(
         else -> stringResource(id = R.string.build_type_release)
     }
 
+    // Номер сборки — самый короткий путь к «О программе»: он и так на виду в
+    // панели, и лезть за обновлением через настройки незачем.
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {

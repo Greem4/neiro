@@ -92,7 +92,22 @@ jobs:
             echo
             echo '## Что изменилось'
             echo
-            if [ -n "$PREV" ]; then
+            # Раздел этой версии из CHANGELOG.md — он написан для пользователя,
+            # а не для того, кто читает код. Нет раздела (забыли дописать) —
+            # откатываемся на git-лог: релиз важнее красивых заметок.
+            CHANGES="$(awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { inside = 1; next }
+              inside && /^## / { exit }
+              inside { print }
+            ' CHANGELOG.md 2>/dev/null | sed '/^[[:space:]]*$/d' || true)"
+
+            if [ -n "$CHANGES" ]; then
+              echo "$CHANGES"
+              if [ -n "$PREV" ]; then
+                echo
+                echo "[Все изменения с $PREV](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/$PREV...$GITHUB_REF_NAME)"
+              fi
+            elif [ -n "$PREV" ]; then
               git log --pretty='- %s' "$PREV..$GITHUB_REF_NAME"
               echo
               echo "[Все изменения с $PREV](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/$PREV...$GITHUB_REF_NAME)"
