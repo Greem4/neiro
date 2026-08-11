@@ -88,10 +88,15 @@ private sealed interface CalendarOverlay {
 }
 
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
-private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): CalendarOverlay = when (this) {
+private fun CalendarOverlay.onSystemBack(
+    yClientsReturnTo: CalendarOverlay,
+    aboutReturnTo: CalendarOverlay,
+): CalendarOverlay = when (this) {
     CalendarOverlay.NotificationSettings,
-    CalendarOverlay.ProfitSettings,
-    CalendarOverlay.About -> CalendarOverlay.AppSettings
+    CalendarOverlay.ProfitSettings -> CalendarOverlay.AppSettings
+    // «О программе» открывается из двух мест: из настроек приложения и прямо из
+    // панели, нажатием на номер сборки. Возвращаться нужно туда, откуда пришли.
+    CalendarOverlay.About -> aboutReturnTo
     CalendarOverlay.YClients -> yClientsReturnTo
     else -> CalendarOverlay.None
 }
@@ -145,11 +150,14 @@ fun CalendarScreen(
     var yClientsReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
         mutableStateOf(CalendarOverlay.None)
     }
+    var aboutReturnOverlay by rememberSaveable(stateSaver = OverlaySaver) {
+        mutableStateOf(CalendarOverlay.AppSettings)
+    }
     /** После закрытия overlay, открытый из drawer, снова показать боковую панель. */
     var returnToDrawerOnOverlayClose by rememberSaveable { mutableStateOf(false) }
 
     fun applyOverlayBackNavigation() {
-        val next = overlay.onSystemBack(yClientsReturnOverlay)
+        val next = overlay.onSystemBack(yClientsReturnOverlay, aboutReturnOverlay)
         overlay = next
         if (next is CalendarOverlay.None && returnToDrawerOnOverlayClose) {
             returnToDrawerOnOverlayClose = false
@@ -193,6 +201,9 @@ fun CalendarScreen(
     LaunchedEffect(openAboutFromNotification, notificationDeepLinkVersion) {
         if (!openAboutFromNotification) return@LaunchedEffect
         if (notificationDeepLinkVersion == lastHandledDeepLinkVersion) return@LaunchedEffect
+        // Пришли из уведомления — «Назад» ведёт в календарь: в настройках
+        // человек не был, возвращать его туда неоткуда.
+        aboutReturnOverlay = CalendarOverlay.None
         overlay = CalendarOverlay.About
         lastHandledDeepLinkVersion = notificationDeepLinkVersion
     }
@@ -327,6 +338,14 @@ fun CalendarScreen(
                                 yClientsReturnOverlay = CalendarOverlay.None
                                 overlay = CalendarOverlay.YClients
                             },
+                            onOpenAbout = {
+                                scope.launch { drawerState.close() }
+                                returnToDrawerOnOverlayClose = true
+                                // Пришли из панели — «Назад» вернёт в неё же,
+                                // а не в настройки, куда человек не заходил.
+                                aboutReturnOverlay = CalendarOverlay.None
+                                overlay = CalendarOverlay.About
+                            },
                         )
                     }
                 }
@@ -409,13 +428,16 @@ fun CalendarScreen(
                 onBack = ::applyOverlayBackNavigation,
                 onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
                 onOpenProfitSettings = { overlay = CalendarOverlay.ProfitSettings },
-                onOpenAbout = { overlay = CalendarOverlay.About },
+                onOpenAbout = {
+                    aboutReturnOverlay = CalendarOverlay.AppSettings
+                    overlay = CalendarOverlay.About
+                },
             )
         }
 
         if (overlay is CalendarOverlay.About) {
             AboutScreen(
-                onBack = { overlay = CalendarOverlay.AppSettings },
+                onBack = ::applyOverlayBackNavigation,
             )
         }
 
