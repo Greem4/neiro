@@ -72,9 +72,6 @@ class DashboardData(StatusData):
     poll_runs: list[dict]
     poll_runs_total: int
     poll_runs_offset: int
-    # Показываем ли только значимые циклы и сколько пустых при этом скрыто.
-    poll_runs_significant_only: bool
-    poll_runs_hidden: int
 
 
 def collect_status_data(
@@ -83,21 +80,24 @@ def collect_status_data(
     settings: Settings,
     started_at: datetime,
 ) -> StatusData:
-    """Сбор для шапки: два запроса по `poll_runs` и аптайм, больше ничего.
+    """Сбор для шапки: один запрос по `poll_runs`, пульс из поллера и аптайм.
 
     Раньше фрагмент `/dashboard/status` звал [collect_dashboard_data] целиком и
     из полутора десятков запросов брал пять полей — а вкладка дашборда дёргает
     его каждые 10 секунд, блокируя синхронным sqlite тот же event loop, в котором
     работает поллер.
+
+    Время последнего опроса берётся у [PollService], а не из последней строки
+    `poll_runs`: пустые циклы туда больше не пишутся, и последняя строка теперь
+    означает «последнее событие», а не «последний опрос».
     """
-    summary = db.poll_health_summary()
     return StatusData(
         fcm_configured=poll_service.fcm_configured,
         uptime_seconds=int((datetime.now(timezone.utc) - started_at).total_seconds()),
-        last_polled_at=summary["last_polled_at"],
-        last_poll_duration_ms=summary["last_poll_duration_ms"],
-        last_poll_error=summary["last_poll_error"],
-        errors_today=summary["errors_today"],
+        last_polled_at=poll_service.last_run_at,
+        last_poll_duration_ms=poll_service.last_run_duration_ms,
+        last_poll_error=poll_service.last_run_error,
+        errors_today=db.poll_errors_today(),
         poll_day_seconds=settings.poll_interval_seconds,
         poll_night_seconds=settings.poll_night_interval_seconds,
         quiet_start_hour=settings.quiet_start_hour,
@@ -110,27 +110,18 @@ def collect_dashboard_data(
     settings: Settings,
     started_at: datetime,
     runs_offset: int = 0,
-    runs_significant_only: bool = True,
 ) -> DashboardData:
     """Один источник данных для /dashboard и /v1/admin/dashboard.txt (§8.4 плана) —
     чтобы обе версии не могли разъехаться."""
     status = collect_status_data(db, poll_service, settings, started_at)
-    runs_total_all = db.count_poll_runs()
-    runs_total = (
-        db.count_poll_runs(only_significant=True) if runs_significant_only else runs_total_all
-    )
     return DashboardData(
         **asdict(status),
         events=db.list_recent_events_admin(EVENTS_LIMIT),
         accounts=db.list_accounts_admin(),
         devices=db.list_devices_admin(),
-        poll_runs=db.list_poll_runs_admin(
-            POLL_RUNS_LIMIT, runs_offset, only_significant=runs_significant_only
-        ),
-        poll_runs_total=runs_total,
+        poll_runs=db.list_poll_runs_admin(POLL_RUNS_LIMIT, runs_offset),
+        poll_runs_total=db.count_poll_runs(),
         poll_runs_offset=runs_offset,
-        poll_runs_significant_only=runs_significant_only,
-        poll_runs_hidden=runs_total_all - runs_total,
     )
 
 
@@ -291,20 +282,17 @@ def build_status_context(data: StatusData) -> dict:
 
 
 def _poll_runs_summary(data: DashboardData) -> str:
-    """Строка над таблицей: что именно показано и сколько осталось за кадром."""
+    """Строка над таблицей: что в ленте лежит.
+
+    Про «скрытые пустые» здесь больше нет речи — пустые циклы в базу не
+    попадают вовсе, см. [PollService._finish_run]. Всё, что есть в таблице,
+    показано; глубина хранения — 90 дней (`purge_old_data`).
+    """
     total = data.poll_runs_total
-    runs = f"{total} {_plural(total, 'цикл', 'цикла', 'циклов')}"
-    if not data.poll_runs_significant_only:
-        return f"{runs} — все подряд, включая пустые"
     if not total:
         return "событий, пушей и ошибок не было"
-    hidden = data.poll_runs_hidden
-    tail = (
-        f", ещё {hidden} {_plural(hidden, 'пустой скрыт', 'пустых скрыто', 'пустых скрыто')}"
-        if hidden
-        else ""
-    )
-    return f"{runs} с событиями, пушами или ошибкой{tail}"
+    runs = f"{total} {_plural(total, 'цикл', 'цикла', 'циклов')}"
+    return f"{runs} с событиями, пушами или ошибкой — за 90 дней"
 
 
 def build_poll_runs_context(data: DashboardData) -> dict:
@@ -330,7 +318,6 @@ def build_poll_runs_context(data: DashboardData) -> dict:
             if offset + POLL_RUNS_LIMIT < data.poll_runs_total
             else None
         ),
-        "runs_significant_only": data.poll_runs_significant_only,
         "runs_summary": _poll_runs_summary(data),
     }
 

@@ -109,7 +109,9 @@ def test_seeding_produces_no_push(tmp_path: Path) -> None:
 
     assert fcm.calls == []
     assert db.get_record_states(account_id)[1].attendance == 0
-    assert _poll_runs_count(settings.database_path) == 1
+    # Сидирование не создаёт ни событий, ни пушей — в ленту циклов оно не пишется.
+    assert _poll_runs_count(settings.database_path) == 0
+    assert service.last_run_at is not None
 
 
 def test_status_change_sends_push_and_records_delivery(tmp_path: Path) -> None:
@@ -261,6 +263,102 @@ def test_fetch_failure_backs_off_and_skips_next_cycle(tmp_path: Path) -> None:
 
     asyncio.run(service.poll_once())
     assert len(yclients.calls) == 1
+
+
+def test_empty_cycle_is_not_recorded_but_updates_pulse(tmp_path: Path) -> None:
+    """Пустой скан в ленту циклов не пишется, но «сервис жив» обновляет.
+
+    При опросе раз в 10 секунд таких циклов набегало больше 8 тысяч в сутки —
+    ради них лента и обзавелась фильтром «только важные».
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev1", "hash1", "tok1", None, None)
+
+    record = _record(1, 10)
+    yclients = FakeYClients([[record], [record]])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    asyncio.run(service.poll_once())  # сидирование
+    asyncio.run(service.poll_once())  # холостой цикл
+
+    assert _poll_runs_count(settings.database_path) == 0
+    assert service.last_run_at is not None
+    assert service.last_run_duration_ms is not None
+    assert service.last_run_error is None
+
+
+def test_cycle_with_events_and_failed_cycle_are_recorded(tmp_path: Path) -> None:
+    """А вот значимые циклы — события, пуши, ошибка — в ленте остаются."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev1", "hash1", "tok1", None, None)
+
+    yclients = FakeYClients(
+        [
+            [_record(1, 10, attendance=0)],
+            [_record(1, 10, attendance=2)],
+            RuntimeError("boom"),
+        ]
+    )
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    asyncio.run(service.poll_once())  # сидирование — пустой, не пишется
+    asyncio.run(service.poll_once())  # событие + пуш
+    asyncio.run(service.poll_once())  # падение запроса
+
+    runs = db.list_poll_runs_admin(limit=10)
+    assert len(runs) == 2
+    assert runs[0]["error"] == "boom"
+    assert runs[1]["events_created"] == 1 and runs[1]["pushes_sent"] == 1
+    assert service.last_run_error == "boom"
+
+
+def test_backoff_cycles_do_not_flood_the_feed(tmp_path: Path) -> None:
+    """Пока держится пауза после сбоя, цикл повторяется каждые 10 секунд.
+
+    В ленте от этого должна остаться одна строка — та, что паузу и назначила,
+    а не сотня одинаковых «all accounts backed off».
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    db.upsert_account(1, 10, "ut")
+
+    yclients = FakeYClients([RuntimeError("boom")])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    asyncio.run(service.poll_once())  # падение — назначает паузу, пишет строку
+    asyncio.run(service.poll_once())  # пауза держится
+    asyncio.run(service.poll_once())  # пауза держится
+
+    runs = db.list_poll_runs_admin(limit=10)
+    assert len(runs) == 1
+    assert runs[0]["error"] == "boom"
+    # Но в шапке дашборда пробуксовка видна: цикл был, и он не «ок».
+    assert service.last_run_error == "all accounts backed off"
+
+
+def test_purge_runs_once_an_hour_not_every_cycle(tmp_path: Path) -> None:
+    """Чистка старше 90 дней почти всегда не удаляет ничего, но каждый её заход
+    берёт write-блокировку SQLite в том же event loop, где идёт опрос."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    db.upsert_account(1, 10, "ut")
+
+    calls: list[int] = []
+    db.purge_old_data = lambda *a, **kw: calls.append(1)  # type: ignore[method-assign]
+
+    record = _record(1, 10)
+    yclients = FakeYClients([[record], [record], [record]])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    asyncio.run(service.poll_once())
+    asyncio.run(service.poll_once())
+    asyncio.run(service.poll_once())
+
+    assert calls == [1]
 
 
 def test_account_with_reauth_required_is_skipped(tmp_path: Path) -> None:

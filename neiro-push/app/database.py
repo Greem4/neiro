@@ -191,9 +191,11 @@ CREATE INDEX IF NOT EXISTS idx_poll_runs_significant ON poll_runs(id)
     WHERE (error IS NOT NULL OR events_created > 0 OR pushes_sent > 0);
 """
 
-# Значимый цикл — тот, который что-то изменил или сломался. При опросе раз в
-# 10 секунд пустых циклов набегает несколько тысяч в сутки, и в этой ленте не
-# видно ни ошибок, ни событий: дашборд по умолчанию показывает только значимые.
+# Значимый цикл — тот, который что-то изменил или сломался. Пустые в таблицу
+# больше не попадают (см. [PollService._finish_run]): при опросе раз в 10 секунд
+# их набегало несколько тысяч в сутки, и в ленте за ними не было видно ни
+# ошибок, ни событий. Предикат остался как единый критерий значимости — по нему
+# фильтруют чтение и выметают пустые строки, записанные до этого изменения.
 SIGNIFICANT_POLL_RUN = "(error IS NOT NULL OR events_created > 0 OR pushes_sent > 0)"
 
 
@@ -237,6 +239,10 @@ class Database:
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.executescript(SCHEMA)
             self._add_missing_columns(conn)
+            # Пустые циклы больше не пишутся, но в уже развёрнутой базе их лежат
+            # десятки тысяч, и сами они уйдут только через purge_old_data. Здесь
+            # выметаются разом, на первом же старте после выкатки.
+            conn.execute(f"DELETE FROM poll_runs WHERE NOT {SIGNIFICANT_POLL_RUN}")
 
     @staticmethod
     def _add_missing_columns(conn: sqlite3.Connection) -> None:
@@ -779,7 +785,13 @@ class Database:
                 (last_ack_event_id, now, device_id),
             )
 
-    def purge_old_data(self, events_days: int = 30, poll_runs_days: int = 7) -> None:
+    def purge_old_data(self, events_days: int = 90, poll_runs_days: int = 90) -> None:
+        """Скользящее окно: держим последние 90 дней, всё старше удаляем.
+
+        Раньше циклы жили 7 дней просто потому, что пустых набегало по 8 тысяч
+        в сутки. Теперь в таблице только события, пуши и ошибки — это сотни
+        строк в месяц, и глубину можно держать такую же, как у событий.
+        """
         with self.connect() as conn:
             conn.execute(
                 "DELETE FROM events WHERE created_at < datetime('now', ?)",
@@ -808,24 +820,23 @@ class Database:
             "events_today": int(events_today),
         }
 
-    def poll_health_summary(self) -> dict:
+    def poll_errors_today(self) -> int:
+        """Сколько циклов сломалось за сутки.
+
+        Время и длительность последнего опроса сюда больше не входят: пустые
+        циклы в таблицу не пишутся, и последняя строка — это последнее событие,
+        а не последний опрос. Пульс живёт в [PollService], см. его last_run_at.
+        """
         with self.connect() as conn:
-            last = conn.execute(
-                "SELECT started_at, duration_ms, error FROM poll_runs ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-            errors_today = conn.execute(
-                """
-                SELECT COUNT(*) AS c FROM poll_runs
-                WHERE error IS NOT NULL AND started_at >= ?
-                """,
-                (utc_iso_days_ago(1),),
-            ).fetchone()["c"]
-        return {
-            "last_polled_at": last["started_at"] if last else None,
-            "last_poll_duration_ms": int(last["duration_ms"]) if last else None,
-            "last_poll_error": last["error"] if last else None,
-            "errors_today": int(errors_today),
-        }
+            return int(
+                conn.execute(
+                    """
+                    SELECT COUNT(*) AS c FROM poll_runs
+                    WHERE error IS NOT NULL AND started_at >= ?
+                    """,
+                    (utc_iso_days_ago(1),),
+                ).fetchone()["c"]
+            )
 
     def list_recent_events_admin(self, limit: int = 50) -> list[dict]:
         with self.connect() as conn:
@@ -917,8 +928,10 @@ class Database:
         return [dict(row) for row in rows]
 
     def list_poll_runs_admin(
-        self, limit: int = 20, offset: int = 0, only_significant: bool = False
+        self, limit: int = 20, offset: int = 0, only_significant: bool = True
     ) -> list[dict]:
+        """Лента циклов. Фильтр включён по умолчанию и остаётся страховкой:
+        пустые циклы уже не пишутся, но база живёт между выкатками."""
         where = f"WHERE {SIGNIFICANT_POLL_RUN}" if only_significant else ""
         with self.connect() as conn:
             rows = conn.execute(
@@ -934,7 +947,7 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def count_poll_runs(self, only_significant: bool = False) -> int:
+    def count_poll_runs(self, only_significant: bool = True) -> int:
         """Сколько циклов лежит в базе — дашборд по этому числу решает,
         показывать ли ссылку «дальше» (хранение ограничено purge_old_data)."""
         where = f"WHERE {SIGNIFICANT_POLL_RUN}" if only_significant else ""

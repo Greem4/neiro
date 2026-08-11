@@ -21,6 +21,11 @@ MOSCOW = ZoneInfo("Europe/Moscow")
 # сбрасывается после первого успешного опроса.
 BACKOFF_STEPS_SECONDS = (10, 30, 60, 120, 300, 600, 900)
 
+# Чистка удаляет данные старше 90 дней — раз в цикл (то есть 8 тысяч раз в
+# сутки) она почти всегда не удаляет ничего, но каждый заход всё равно берёт
+# write-блокировку SQLite в том же event loop, где работает опрос.
+PURGE_INTERVAL_SECONDS = 3600
+
 
 def _backoff_seconds(consecutive_errors: int) -> int:
     index = min(max(consecutive_errors - 1, 0), len(BACKOFF_STEPS_SECONDS) - 1)
@@ -43,10 +48,30 @@ class PollService:
         self._fcm = fcm
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        # Пульс опроса: «сервис жив и когда ходил последний раз». История здесь
+        # не нужна, поэтому в базу это не пишется — пустые циклы туда больше не
+        # попадают вовсе (см. [_finish_run]). После рестарта поля пустые, пока
+        # не отработает первый цикл, то есть не дольше poll_interval_seconds.
+        self._last_run_at: str | None = None
+        self._last_run_duration_ms: int | None = None
+        self._last_run_error: str | None = None
+        self._purged_at: float | None = None
 
     @property
     def fcm_configured(self) -> bool:
         return self._fcm.is_configured
+
+    @property
+    def last_run_at(self) -> str | None:
+        return self._last_run_at
+
+    @property
+    def last_run_duration_ms(self) -> int | None:
+        return self._last_run_duration_ms
+
+    @property
+    def last_run_error(self) -> str | None:
+        return self._last_run_error
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -74,7 +99,14 @@ class PollService:
         for company_id, company_accounts in by_company.items():
             await self._poll_company(company_id, company_accounts)
 
+        self._purge_if_due()
+
+    def _purge_if_due(self) -> None:
+        now = time.monotonic()
+        if self._purged_at is not None and now - self._purged_at < PURGE_INTERVAL_SECONDS:
+            return
         self._db.purge_old_data()
+        self._purged_at = now
 
     async def _run_loop(self) -> None:
         logger.info(
@@ -107,8 +139,16 @@ class PollService:
         now = datetime.now(timezone.utc)
         active_accounts = [a for a in accounts if not self._is_backed_off(a, now)]
         if not active_accounts:
-            self._db.record_poll_run(
-                company_id, utc_now_iso(), 0, 0, 0, 0, "all accounts backed off"
+            # В ленту это не пишем: пока держится пауза, цикл повторяется каждые
+            # 10 секунд и за четверть часа налил бы под сотню одинаковых строк.
+            # Сама ошибка уже записана циклом, который эту паузу и назначил, а
+            # текущее состояние видно в карточке аккаунта (backoff_until).
+            self._finish_run(
+                company_id,
+                utc_now_iso(),
+                0, 0, 0, 0,
+                "all accounts backed off",
+                persist=False,
             )
             return
 
@@ -158,7 +198,7 @@ class PollService:
                     next_errors,
                 )
             duration_ms = int((time.monotonic() - started) * 1000)
-            self._db.record_poll_run(
+            self._finish_run(
                 company_id, started_at, duration_ms, 0, 0, 0, error_message
             )
             logger.warning("poll failed company=%s: %s", company_id, error_message)
@@ -194,7 +234,7 @@ class PollService:
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
-        self._db.record_poll_run(
+        self._finish_run(
             company_id, started_at, duration_ms, len(records), events_created, pushes_sent, None
         )
         logger.info(
@@ -298,6 +338,46 @@ class PollService:
         for event_id in event_ids:
             self._db.record_push_delivery(event_id, device_id, "sent", detail)
         return True
+
+    def _finish_run(
+        self,
+        company_id: int,
+        started_at: str,
+        duration_ms: int,
+        records_fetched: int,
+        events_created: int,
+        pushes_sent: int,
+        error: str | None,
+        persist: bool = True,
+    ) -> None:
+        """Пульс обновляем всегда, строку в базу пишем только если цикл значим.
+
+        Критерий тот же, что у database.SIGNIFICANT_POLL_RUN: цикл что-то создал
+        или сломался. Пустой скан («сходил, изменений нет») в ленте не нужен —
+        дашборд его и раньше не показывал, но в базу он ложился 8 тысяч раз в
+        сутки и вытеснял оттуда то, ради чего эта лента существует.
+
+        `persist=False` — для повторяющегося состояния, которое ошибкой видно в
+        шапке, но новым фактом в ленте не является (пауза после сбоя).
+        """
+        self._last_run_at = started_at
+        self._last_run_duration_ms = duration_ms
+        self._last_run_error = error
+
+        if not persist:
+            return
+        if error is None and events_created == 0 and pushes_sent == 0:
+            return
+
+        self._db.record_poll_run(
+            company_id,
+            started_at,
+            duration_ms,
+            records_fetched,
+            events_created,
+            pushes_sent,
+            error,
+        )
 
     def _company_changed_after(self, accounts: list[WatchedAccount]) -> str | None:
         changed_afters = [a.changed_after for a in accounts]

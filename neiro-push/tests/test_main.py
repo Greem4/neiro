@@ -182,6 +182,22 @@ def test_dashboard_status_fragment_renders_without_page_chrome(client: TestClien
     assert "<html" not in response.text
 
 
+def test_dashboard_status_survives_empty_pulse_after_restart(client: TestClient) -> None:
+    """Пульс живёт в памяти поллера, поэтому сразу после рестарта его нет.
+
+    До первого цикла (не дольше 10 секунд) шапка должна показывать прочерк, а
+    не падать: `last_polled_at` в этот момент None.
+    """
+    client.cookies.set("admin_key", "test-admin-key")
+    poll_service = client.app.state.poll_service
+
+    assert poll_service.last_run_at is None
+    response = client.get("/dashboard/status")
+
+    assert response.status_code == 200
+    assert "—" in response.text
+
+
 def test_deleting_account_cascades_to_device(client: TestClient) -> None:
     """PRAGMA foreign_keys=ON: удаление аккаунта уносит устройство, сирот не остаётся."""
     _seed_device(client)
@@ -226,8 +242,8 @@ def test_dashboard_poll_runs_fragment_paginates(client: TestClient) -> None:
 
 
 def test_dashboard_poll_runs_fragment_hides_empty_runs(client: TestClient) -> None:
-    """Пустые циклы — шум: их тысячи в сутки, и за ними не видно ни событий,
-    ни ошибок. По умолчанию в таблице только значимые."""
+    """Пустые циклы поллер больше не пишет, но в базе, переехавшей с прошлой
+    версии, они ещё могут лежать — в ленту такие строки не попадают."""
     from app.database import utc_now_iso
 
     db = client.app.state.db
@@ -237,13 +253,11 @@ def test_dashboard_poll_runs_fragment_hides_empty_runs(client: TestClient) -> No
     db.record_poll_run(1, utc_now_iso(), 9, 0, 0, 0, "boom")
     client.cookies.set("admin_key", "test-admin-key")
 
-    only_significant = client.get("/dashboard/poll-runs")
-    everything = client.get("/dashboard/poll-runs", params={"all": 1})
+    response = client.get("/dashboard/poll-runs")
 
-    assert "1–2 из 2" in only_significant.text
-    assert "5 пустых скрыто" in only_significant.text
-    assert "boom" in only_significant.text
-    assert "1–7 из 7" in everything.text
+    assert "1–2 из 2" in response.text
+    assert "boom" in response.text
+    assert "пустых скрыто" not in response.text
 
 
 def test_dashboard_poll_runs_shows_error_without_text(client: TestClient) -> None:
