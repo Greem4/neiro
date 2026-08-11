@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -43,7 +45,9 @@ import ru.greemlab.neiro.data.ImportResult
 import ru.greemlab.neiro.data.archiveExportSuggestedFileName
 import ru.greemlab.neiro.data.THEME_DARK
 import ru.greemlab.neiro.data.THEME_LIGHT
+import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.data.THEME_SYSTEM
+import ru.greemlab.neiro.update.UpdateNotifier
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +55,14 @@ fun AppSettingsScreen(
     onBack: () -> Unit,
     onOpenNotificationSettings: () -> Unit = {},
     onOpenProfitSettings: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Известная из прошлой проверки версия — только чтобы подписать пункт
+    // «О программе». В сеть отсюда не ходим.
+    val newerVersion = remember { UpdateNotifier.knownNewerVersion(context) }
     val autoSyncEnabled by viewModel.autoSyncEnabled.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.sessionNotificationsEnabled.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
@@ -167,6 +175,24 @@ fun AppSettingsScreen(
                         icon = Icons.Rounded.Sync,
                         checked = autoSyncEnabled,
                         onCheckedChange = viewModel::setAutoSyncEnabled,
+                    )
+                }
+            }
+
+            SettingsSection(title = "О программе") {
+                SettingsGroupCard {
+                    SettingsNavigationRow(
+                        title = stringResource(R.string.settings_about_row),
+                        subtitle = if (newerVersion != null) {
+                            stringResource(
+                                R.string.settings_about_row_update_available,
+                                newerVersion.versionName,
+                            )
+                        } else {
+                            stringResource(R.string.settings_about_row_subtitle, BuildConfig.VERSION_NAME)
+                        },
+                        icon = Icons.Rounded.Info,
+                        onClick = onOpenAbout,
                     )
                 }
             }

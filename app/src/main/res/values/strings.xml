@@ -176,6 +176,48 @@
     <string name="notification_update_install_title">Обновление готово</string>
     <string name="notification_update_install_body">Нажмите, чтобы установить новую версию</string>
 
+    <string name="about_title">О программе</string>
+    <string name="about_section_version">Версия</string>
+    <string name="about_section_updates">Обновления</string>
+    <string name="about_build">Сборка %1$d · установлено из GitHub</string>
+    <string name="about_check_updates">Проверить обновления</string>
+    <string name="about_checking">Спрашиваю GitHub…</string>
+    <string name="about_last_check">Последняя проверка: %1$s</string>
+    <string name="about_never_checked">Ещё ни разу не проверяли</string>
+    <string name="about_auto_check">Проверять автоматически</string>
+    <string name="about_auto_check_hint">Раз в сутки, когда есть сеть</string>
+    <string name="about_up_to_date">Установлена последняя версия</string>
+    <string name="about_available">Доступна %1$s</string>
+    <string name="about_whats_new">Что изменилось:</string>
+    <string name="about_update">Обновить</string>
+    <string name="about_skip">Пропустить</string>
+    <string name="about_open_github">Открыть на GitHub</string>
+    <string name="about_downloading">Скачиваю: %1$d %%</string>
+    <string name="about_verifying">Проверяю файл: сумма и подпись</string>
+    <string name="about_installing">Устанавливаю…</string>
+    <string name="about_awaiting_confirmation">Подтвердите установку в системном окне</string>
+    <string name="about_install_permission_hint">Android просит один раз разрешить установку приложений из Neiro — без этого система не примет файл.</string>
+    <string name="about_install_permission_action">Открыть настройки</string>
+    <string name="about_dismiss_error">Понятно</string>
+    <string name="about_blocked_debug">Отладочная сборка себя не обновляет</string>
+    <string name="about_blocked_rustore">Обновления приходят из RuStore</string>
+    <string name="about_blocked_play">Обновления приходят из Google Play</string>
+
+    <string name="about_error_no_network">Не получилось связаться с GitHub. Проверьте сеть и попробуйте позже.</string>
+    <string name="about_error_rate_limited">GitHub временно не отвечает на запросы. Попробуйте через час.</string>
+    <string name="about_error_no_release">Новых версий пока нет.</string>
+    <string name="about_error_malformed">Релиз собран неправильно: нужного файла в нём нет. Обновление отменено.</string>
+    <string name="about_error_download">Файл не докачался. Попробуйте ещё раз.</string>
+    <string name="about_error_checksum">Контрольная сумма не сошлась — файл повреждён и удалён.</string>
+    <string name="about_error_signature">Файл подписан чужим ключом и удалён. Ставить его нельзя.</string>
+    <string name="about_error_no_space">Не хватает места на телефоне. Освободите около 20 МБ.</string>
+    <string name="about_error_install_rejected">Установка не разрешена. Дайте Neiro право устанавливать приложения.</string>
+    <string name="about_error_install_failed">Система не смогла установить обновление.</string>
+
+    <string name="settings_about_row">О программе</string>
+    <string name="settings_about_row_subtitle">Версия %1$s</string>
+    <string name="settings_about_row_update_available">Доступна версия %1$s</string>
+
     <string name="build_type_debug">DEBUG</string>
     <string name="build_type_prerelease">PRE-RELEASE</string>
     <string name="build_type_release">RELEASE</string>

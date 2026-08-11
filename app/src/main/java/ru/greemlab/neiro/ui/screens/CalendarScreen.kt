@@ -53,6 +53,7 @@ import ru.greemlab.neiro.ui.auth.AuthScreen
 import ru.greemlab.neiro.ui.profile.ProfileContent
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.profile.SettingsScreen
+import ru.greemlab.neiro.ui.settings.AboutScreen
 import ru.greemlab.neiro.ui.settings.AppSettingsScreen
 import ru.greemlab.neiro.ui.settings.ProfitDisplayPreferences
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
@@ -80,6 +81,7 @@ private sealed interface CalendarOverlay {
     data object RegistrationPrompt : CalendarOverlay
     data object ProfitDetails : CalendarOverlay
     data object ProfitSettings : CalendarOverlay
+    data object About : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
     data object DayDetails : CalendarOverlay
     data object Notifications : CalendarOverlay
@@ -88,7 +90,8 @@ private sealed interface CalendarOverlay {
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
 private fun CalendarOverlay.onSystemBack(yClientsReturnTo: CalendarOverlay): CalendarOverlay = when (this) {
     CalendarOverlay.NotificationSettings,
-    CalendarOverlay.ProfitSettings -> CalendarOverlay.AppSettings
+    CalendarOverlay.ProfitSettings,
+    CalendarOverlay.About -> CalendarOverlay.AppSettings
     CalendarOverlay.YClients -> yClientsReturnTo
     else -> CalendarOverlay.None
 }
@@ -119,6 +122,7 @@ fun CalendarScreen(
     openDateFromNotification: String? = null,
     highlightSlotKeyFromNotification: String? = null,
     notificationDeepLinkVersion: Int = 0,
+    openAboutFromNotification: Boolean = false,
 ) {
     val currentMonth by viewModel.currentMonth.collectAsStateWithLifecycle()
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
@@ -182,6 +186,15 @@ fun CalendarScreen(
             }
             lastHandledDeepLinkVersion = notificationDeepLinkVersion
         }
+    }
+
+    // Уведомление о новой версии: открываем «О программе» сразу, минуя
+    // настройки — человек пришёл именно за кнопкой обновления.
+    LaunchedEffect(openAboutFromNotification, notificationDeepLinkVersion) {
+        if (!openAboutFromNotification) return@LaunchedEffect
+        if (notificationDeepLinkVersion == lastHandledDeepLinkVersion) return@LaunchedEffect
+        overlay = CalendarOverlay.About
+        lastHandledDeepLinkVersion = notificationDeepLinkVersion
     }
 
     LaunchedEffect(highlightSlotKey) {
@@ -396,6 +409,13 @@ fun CalendarScreen(
                 onBack = ::applyOverlayBackNavigation,
                 onOpenNotificationSettings = { overlay = CalendarOverlay.NotificationSettings },
                 onOpenProfitSettings = { overlay = CalendarOverlay.ProfitSettings },
+                onOpenAbout = { overlay = CalendarOverlay.About },
+            )
+        }
+
+        if (overlay is CalendarOverlay.About) {
+            AboutScreen(
+                onBack = { overlay = CalendarOverlay.AppSettings },
             )
         }
 
@@ -584,6 +604,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.RegistrationPrompt -> "registration"
             CalendarOverlay.ProfitDetails -> "profit_details"
             CalendarOverlay.ProfitSettings -> "profit_settings"
+            CalendarOverlay.About -> "about"
             CalendarOverlay.LessonsDetails -> "lessons"
             CalendarOverlay.DayDetails -> "day"
             CalendarOverlay.Notifications -> "notifications"
@@ -599,6 +620,7 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             "profit" -> CalendarOverlay.ProfitDetails
             "profit_details" -> CalendarOverlay.ProfitDetails
             "profit_settings" -> CalendarOverlay.ProfitSettings
+            "about" -> CalendarOverlay.About
             "lessons" -> CalendarOverlay.LessonsDetails
             "day" -> CalendarOverlay.DayDetails
             "notifications" -> CalendarOverlay.Notifications
