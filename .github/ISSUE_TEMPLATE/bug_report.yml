@@ -1,0 +1,70 @@
+name: Сообщить о проблеме
+description: Что-то работает не так, как ожидалось
+title: "[Баг]: "
+labels: ["баг"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашли время написать. Чем точнее ответы ниже, тем меньше
+        уточняющих вопросов — и тем быстрее проблема починится.
+
+        Нашли **дыру в безопасности** — не сюда: приватно, кнопкой «Report a
+        vulnerability» во вкладке Security. Подробнее — [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: input
+    id: app-version
+    attributes:
+      label: Версия приложения
+      description: Видна на экране «О программе» — например, 0.2.0
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: android-version
+    attributes:
+      label: Версия Android и модель телефона
+      placeholder: "Android 14, Samsung Galaxy A54"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Что вы делали
+      description: По шагам, чтобы проблему можно было повторить
+      placeholder: |
+        1. Открыл календарь на августе
+        2. Нажал на 14-е число
+        3. Поменял статус занятия на «не пришёл»
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидали увидеть
+      placeholder: Сумма за день пересчитается без этого занятия
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что получилось на самом деле
+      description: Скриншот тоже подойдёт — только закройте на нём имена учеников
+      placeholder: Сумма осталась прежней, после перезапуска стала верной
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи (по желанию)
+      description: |
+        `adb logcat` или сообщение об ошибке, если оно было.
+        **Перед вставкой уберите имена учеников** — в логах они попадаются.
+      render: text
+    validations:
+      required: false
