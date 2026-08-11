@@ -33,6 +33,12 @@
 -keep class ru.greemlab.neiro.notifications.TrackedSession { *; }
 -keep class ru.greemlab.neiro.notifications.SessionNotificationPreferences$SnapshotDto { *; }
 -keep class ru.greemlab.neiro.notifications.SessionNotificationPreferences$* { *; }
+# Ответ GitHub про релиз. Без keep R8 full mode выкидывает поля без
+# @SerializedName как «никем не записанные» — assets, name, size, draft. Тогда
+# release.assets всегда null, и самообновление говорит «релиз собран
+# неправильно» на совершенно нормальном релизе.
+-keep class ru.greemlab.neiro.update.GithubRelease { *; }
+-keep class ru.greemlab.neiro.update.GithubAsset { *; }
 
 # --- Retrofit ---
 # Retrofit/OkHttp несут собственные consumer-rules; оставляем только
