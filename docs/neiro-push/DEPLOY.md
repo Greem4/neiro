@@ -141,6 +141,16 @@ ssh roster-pi-remote "grep ^ADMIN_API_KEY= ~/neiro-push/.env"
 Сменить его можно правкой `.env` и `docker compose up -d` — приложение этот
 ключ не знает и не заметит.
 
+### Посмотреть ключи на Pi
+
+Перенесено из README: карточке проекта команды эксплуатации не место, а нужны
+они регулярно — при заполнении `local.properties` и при входе в дашборд.
+
+```bash
+ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'        # в приложение (local.properties)
+ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только админ: health, test-push
+```
+
 ### Карта секретов
 
 Где что лежит и что делать, если потерялось. Правило простое: **боевое значение
