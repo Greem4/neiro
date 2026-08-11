@@ -41,6 +41,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".update.UpdateNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.greemlab.neiro.update.SKIP_VERSION" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".push.NeiroFirebaseMessagingService"
             android:exported="false">

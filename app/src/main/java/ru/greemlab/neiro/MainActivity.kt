@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_DATE = "open_date"
         const val EXTRA_HIGHLIGHT_SLOT_KEY = "highlight_slot_key"
+
+        /** Открыть «О программе» — уведомление о новой версии (пакет `update`). */
+        const val EXTRA_OPEN_ABOUT = "open_about"
         private const val STATE_OPEN_DATE = "neiro.state.open_date"
         private const val STATE_HIGHLIGHT_SLOT_KEY = "neiro.state.highlight_slot_key"
         private const val STATE_DEEP_LINK_VERSION = "neiro.state.deep_link_version"

@@ -97,18 +97,21 @@ object UpdateCheckCoordinator {
      * @param force ручная проверка: суточный троттлинг игнорируется.
      */
     suspend fun checkNow(context: Context, force: Boolean = false): UpdateStatus {
-        val status = UpdateChecker.create(context).check(force)
+        val appContext = context.applicationContext
+        val status = UpdateChecker.create(appContext).check(force)
         when (status) {
-            is UpdateStatus.Available ->
+            is UpdateStatus.Available -> {
                 Log.i(TAG, "Есть обновление: ${status.info.version.versionName}")
+                // Правило «об одной версии говорим один раз» и проверка
+                // «пропустили» живут внутри UpdateNotifier — здесь не дублируем.
+                UpdateNotifier.notifyIfNeeded(appContext, status.info)
+            }
 
             is UpdateStatus.UpToDate -> Log.i(TAG, "Обновлений нет")
             is UpdateStatus.Throttled -> Log.i(TAG, "Проверяли меньше суток назад, GitHub не трогаем")
             is UpdateStatus.Blocked -> Log.i(TAG, "Самообновление выключено: ${status.why}")
             is UpdateStatus.Failed -> Log.w(TAG, "Проверка не удалась: ${status.failure}")
         }
-        // Показ уведомления о найденной версии — этап 5: там же живёт правило
-        // «об одной версии говорим один раз».
         return status
     }
 

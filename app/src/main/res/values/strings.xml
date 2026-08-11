@@ -168,6 +168,12 @@
     <string name="settings_profile_show_avatar">Показывать аватар</string>
     <string name="settings_profile_show_avatar_hint">Если выключено, будет отображаться логотип приложения</string>
 
+    <string name="notification_channel_updates">Обновления приложения</string>
+    <string name="notification_channel_updates_desc">Сообщения о новых версиях Neiro</string>
+    <string name="notification_update_title">Neiro %1$s — доступно обновление</string>
+    <string name="notification_update_body">Нажмите, чтобы посмотреть, что изменилось</string>
+    <string name="notification_update_skip">Пропустить</string>
+
     <string name="build_type_debug">DEBUG</string>
     <string name="build_type_prerelease">PRE-RELEASE</string>
     <string name="build_type_release">RELEASE</string>

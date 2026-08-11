@@ -52,6 +52,23 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         get() = prefs.getLong(KEY_RATE_LIMITED_UNTIL, 0L)
         set(value) = prefs.edit().putLong(KEY_RATE_LIMITED_UNTIL, value).apply()
 
+    /**
+     * О какой версии уже говорили в шторке. Иначе телефон сообщал бы об одном и
+     * том же выпуске каждые сутки, пока его не поставят.
+     */
+    var notifiedVersionCode: Int
+        get() = prefs.getInt(KEY_NOTIFIED_VERSION_CODE, 0)
+        set(value) = prefs.edit().putInt(KEY_NOTIFIED_VERSION_CODE, value).apply()
+
+    /**
+     * «Пропустить эту версию» — молчим, пока не выйдет следующая. Хранится
+     * `versionCode`, а не флаг: следующий выпуск будет больше числом и снова
+     * пробьётся к пользователю сам.
+     */
+    var skippedVersionCode: Int
+        get() = prefs.getInt(KEY_SKIPPED_VERSION_CODE, 0)
+        set(value) = prefs.edit().putInt(KEY_SKIPPED_VERSION_CODE, value).apply()
+
     /** Забыть, что и когда проверяли: следующая проверка пойдёт в сеть сразу. */
     fun clearCheckState() {
         prefs.edit()
@@ -67,6 +84,8 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         private const val KEY_LAST_CHECK_EPOCH = "last_check_epoch"
         private const val KEY_LAST_KNOWN_VERSION_CODE = "last_known_version_code"
         private const val KEY_RATE_LIMITED_UNTIL = "rate_limited_until"
+        private const val KEY_NOTIFIED_VERSION_CODE = "notified_version_code"
+        private const val KEY_SKIPPED_VERSION_CODE = "skipped_version_code"
 
         @Volatile
         private var instance: UpdatePreferences? = null
