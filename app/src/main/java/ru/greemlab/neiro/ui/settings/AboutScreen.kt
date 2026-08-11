@@ -5,10 +5,10 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,8 +32,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -300,21 +303,97 @@ private fun AvailableBlock(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onDownload(info) }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Rounded.CloudDownload, contentDescription = null)
+            AdaptiveActionRow {
+                Button(
+                    onClick = { onDownload(info) },
+                    contentPadding = ACTION_BUTTON_PADDING,
+                ) {
+                    Icon(
+                        Icons.Rounded.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Text(
                         text = stringResource(R.string.about_update),
+                        maxLines = 1,
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
-                OutlinedButton(onClick = { onSkip(info) }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.about_skip))
+                OutlinedButton(
+                    onClick = { onSkip(info) },
+                    contentPadding = ACTION_BUTTON_PADDING,
+                ) {
+                    Text(text = stringResource(R.string.about_skip), maxLines = 1)
                 }
             }
 
             TextButton(onClick = { onOpenRelease(info) }) {
                 Text(stringResource(R.string.about_open_github))
+            }
+        }
+    }
+}
+
+/**
+ * Кнопки действия: пока обе подписи помещаются в строку — стоят рядом и
+ * одинаковой ширины, не помещаются (крупный системный шрифт, узкий экран) —
+ * встают друг под другом во всю ширину.
+ *
+ * `weight(1f)` так не умеет: он делит строку пополам независимо от того, влезает
+ * подпись или нет, и текст с иконкой выезжает за границу кнопки.
+ *
+ * Свой `Layout` вместо `FlowRow` — по той же причине, что и `ChipFlowRow` в
+ * `ProfileYearStatsSection`: у `FlowRow` менялась сигнатура между версиями
+ * Compose, а `Layout` стабилен.
+ */
+@Composable
+private fun AdaptiveActionRow(
+    modifier: Modifier = Modifier,
+    spacing: Dp = 8.dp,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier.fillMaxWidth()) { measurables, constraints ->
+        if (measurables.isEmpty()) return@Layout layout(0, 0) {}
+
+        val gap = spacing.roundToPx()
+        val gaps = gap * (measurables.size - 1)
+        // Рядом кнопки одинаковой ширины, значит решает самая «широкая» подпись:
+        // если ей не хватит своей доли строки — в строку не встаёт никто.
+        val widest = measurables.maxOf { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val available = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            widest * measurables.size + gaps
+        }
+        val sideBySide = widest * measurables.size + gaps <= available
+        val childWidth = if (sideBySide) (available - gaps) / measurables.size else available
+
+        val placeables = measurables.map { measurable ->
+            measurable.measure(
+                Constraints(
+                    minWidth = childWidth,
+                    maxWidth = childWidth,
+                    minHeight = 0,
+                    maxHeight = Constraints.Infinity,
+                ),
+            )
+        }
+        val height = if (sideBySide) {
+            placeables.maxOf { it.height }
+        } else {
+            placeables.sumOf { it.height } + gaps
+        }
+
+        layout(available, height) {
+            var offset = 0
+            placeables.forEach { placeable ->
+                if (sideBySide) {
+                    placeable.placeRelative(offset, 0)
+                    offset += placeable.width + gap
+                } else {
+                    placeable.placeRelative(0, offset)
+                    offset += placeable.height + gap
+                }
             }
         }
     }
@@ -460,5 +539,11 @@ private fun failureTextRes(failure: UpdateFailure): Int = when (failure) {
 }
 
 private const val NOTES_MAX_LINES = 8
+
+/**
+ * Уже поджатые поля кнопки: стандартные 24.dp по горизонтали при крупном шрифте
+ * съедают место, которое нужно самой подписи.
+ */
+private val ACTION_BUTTON_PADDING = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
