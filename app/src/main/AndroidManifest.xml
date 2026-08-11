@@ -11,6 +11,16 @@
       установку из Neiro в системных настройках (docs/updater/ARCHITECTURE.md).
     -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+      Обновление себя без системного окна «Установить?» на Android 12+. Без
+      этого разрешения `USER_ACTION_NOT_REQUIRED` в ApkInstaller не срабатывает
+      никогда: система молча требует подтверждение. Разрешение обычное
+      (normal), выдаётся при установке и ничего сверх самообновления не даёт —
+      подпись, источник и согласие на установку система проверяет как прежде.
+    -->
+    <uses-permission
+        android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"
+        tools:targetApi="s" />
 
     <application
         android:name=".NeiroApplication"
