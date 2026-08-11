@@ -45,6 +45,7 @@ import ru.greemlab.neiro.update.UpdateInfo
 import ru.greemlab.neiro.update.UpdateState
 import ru.greemlab.neiro.update.UpdateViewModel
 import ru.greemlab.neiro.update.isBusy
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -63,6 +64,7 @@ fun AboutScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val autoCheck by viewModel.autoCheckEnabled.collectAsStateWithLifecycle()
     val lastCheckAt by viewModel.lastCheckAt.collectAsStateWithLifecycle()
+    val justUpdatedTo by viewModel.justUpdatedTo.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     fun openUrl(url: String) {
@@ -96,6 +98,25 @@ fun AboutScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
+            justUpdatedTo?.let { version ->
+                SettingsGroupCard {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.about_just_updated, version),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextButton(onClick = viewModel::dismissJustUpdated) {
+                            Text(stringResource(R.string.about_dismiss_error))
+                        }
+                    }
+                }
+            }
+
             SettingsSection(title = stringResource(R.string.about_section_version)) {
                 SettingsGroupCard {
                     ListItem(
@@ -127,6 +148,7 @@ fun AboutScreen(
                     onCheck = { viewModel.check() },
                     onAutoCheckChange = viewModel::setAutoCheckEnabled,
                     onDownload = { info -> viewModel.downloadAndInstall(info) },
+                    onInstall = { info, apk -> viewModel.install(info, apk) },
                     onSkip = { info -> viewModel.skip(info) },
                     onDismissFailure = viewModel::dismissFailure,
                     onOpenRelease = { info -> openUrl(info.releaseUrl) },
@@ -152,6 +174,7 @@ private fun UpdateCard(
     onCheck: () -> Unit,
     onAutoCheckChange: (Boolean) -> Unit,
     onDownload: (UpdateInfo) -> Unit,
+    onInstall: (UpdateInfo, File) -> Unit,
     onSkip: (UpdateInfo) -> Unit,
     onDismissFailure: () -> Unit,
     onOpenRelease: (UpdateInfo) -> Unit,
@@ -196,7 +219,16 @@ private fun UpdateCard(
                 percent = null,
             )
 
-            is UpdateState.ReadyToInstall, is UpdateState.Installing -> ProgressBlock(
+            // Скачали, но не поставили — обычно потому, что закрыли системный
+            // диалог. Качать заново незачем: файл на месте и уже проверен.
+            is UpdateState.ReadyToInstall -> ReadyToInstallBlock(
+                versionName = state.info.version.versionName,
+                needsInstallPermission = needsInstallPermission,
+                onInstall = { onInstall(state.info, state.apk) },
+                onOpenInstallSettings = onOpenInstallSettings,
+            )
+
+            is UpdateState.Installing -> ProgressBlock(
                 text = stringResource(R.string.about_installing),
                 percent = null,
             )
@@ -283,6 +315,45 @@ private fun AvailableBlock(
 
             TextButton(onClick = { onOpenRelease(info) }) {
                 Text(stringResource(R.string.about_open_github))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadyToInstallBlock(
+    versionName: String,
+    needsInstallPermission: Boolean,
+    onInstall: () -> Unit,
+    onOpenInstallSettings: () -> Unit,
+) {
+    SettingsGroupCard {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.about_ready_to_install, versionName),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (needsInstallPermission) {
+                Text(
+                    text = stringResource(R.string.about_install_permission_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = onOpenInstallSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(12.dp),
+                ) {
+                    Text(stringResource(R.string.about_install_permission_action))
+                }
+            }
+            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.about_install_now))
             }
         }
     }

@@ -98,6 +98,18 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
             .commit()
     }
 
+    /**
+     * Прочитать отметку об установке и стереть её: «Обновлено до 0.1.2»
+     * показывается один раз, а не при каждом открытии экрана.
+     *
+     * @return версия, с которой уходили, или 0 — обновления не было.
+     */
+    fun consumeUpdatedFrom(): Int {
+        val from = updatedFromVersionCode
+        if (from > 0) clearInstallAttempt()
+        return from
+    }
+
     /** Установка не началась или провалилась — отметка не должна пережить попытку. */
     fun clearInstallAttempt() {
         prefs.edit()

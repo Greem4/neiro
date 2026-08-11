@@ -196,6 +196,9 @@
     <string name="about_verifying">Проверяю файл: сумма и подпись</string>
     <string name="about_installing">Устанавливаю…</string>
     <string name="about_awaiting_confirmation">Подтвердите установку в системном окне</string>
+    <string name="about_ready_to_install">Версия %1$s скачана и проверена — осталось установить</string>
+    <string name="about_install_now">Установить</string>
+    <string name="about_just_updated">Обновлено до %1$s</string>
     <string name="about_install_permission_hint">Android просит один раз разрешить установку приложений из Neiro — без этого система не примет файл.</string>
     <string name="about_install_permission_action">Открыть настройки</string>
     <string name="about_dismiss_error">Понятно</string>

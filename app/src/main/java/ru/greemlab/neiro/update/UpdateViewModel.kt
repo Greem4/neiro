@@ -34,9 +34,66 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     val versionName: String = BuildConfig.VERSION_NAME
     val versionCode: Int = BuildConfig.VERSION_CODE
 
+    /** «Обновлено до 0.1.2» — показывается один раз после успешной установки. */
+    private val _justUpdatedTo = MutableStateFlow<String?>(null)
+    val justUpdatedTo: StateFlow<String?> = _justUpdatedTo.asStateFlow()
+
     init {
         UpdateChannelGate.blockReason(application)?.let { _state.value = UpdateState.Blocked(it) }
+        restoreAfterInstall()
         observeInstallStatus()
+    }
+
+    /**
+     * Что осталось от прошлого запуска: отметка об установке и, может быть,
+     * скачанный, но не поставленный APK. Второе важнее, чем кажется: без него
+     * человек, закрывший системный диалог, качал бы те же 15 МБ заново.
+     */
+    private fun restoreAfterInstall() {
+        val updatedFrom = preferences.consumeUpdatedFrom()
+        if (updatedFrom in 1 until BuildConfig.VERSION_CODE) {
+            _justUpdatedTo.value = BuildConfig.VERSION_NAME
+            UpdateDownloader.clearDownloads(getApplication())
+            preferences.clearPendingApk()
+            UpdateNotifier.cancel(getApplication())
+            return
+        }
+
+        val pendingPath = preferences.pendingApkPath
+        val pendingVersion = preferences.pendingVersionCode
+        if (pendingPath.isNullOrBlank() || pendingVersion <= BuildConfig.VERSION_CODE) {
+            // Файл от старой или уже установленной версии — только место занимает.
+            if (pendingPath != null) {
+                UpdateDownloader.clearDownloads(getApplication())
+                preferences.clearPendingApk()
+            }
+            return
+        }
+
+        val apk = File(pendingPath)
+        val version = ReleaseVersion.fromVersionCode(pendingVersion)
+        if (!apk.isFile || apk.length() == 0L || version == null) {
+            preferences.clearPendingApk()
+            return
+        }
+
+        // Ссылок и заметок после перезапуска нет — для установки они и не нужны.
+        val info = UpdateInfo(
+            version = version,
+            title = "Neiro ${version.versionName}",
+            notes = "",
+            releaseUrl = "",
+            apkName = apk.name,
+            apkUrl = "",
+            apkSizeBytes = apk.length(),
+            checksumsUrl = "",
+        )
+        _state.value = UpdateState.ReadyToInstall(info, apk)
+    }
+
+    /** Отметку прочитали и показали — второй раз не надо. */
+    fun dismissJustUpdated() {
+        _justUpdatedTo.value = null
     }
 
     /** Кнопка «Проверить обновления». Ручная проверка суточный троттлинг игнорирует. */
