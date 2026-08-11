@@ -61,7 +61,7 @@
 | [О6](#этап-о6--changelog) | `CHANGELOG.md` | 🟡 файл готов, дата 0.1.0 ставится в день тега |
 | [О7](#этап-о7--карточка-репозитория-на-github) | Описание, topics, приём сообщений об уязвимостях | ⬜ |
 | [Тег](#первый-тег) | Слияние в `main`, `v0.1.0` | ⬜ **блокирует всё ниже** |
-| [3](#этап-3--ядро-проверки) | Ядро проверки: пакет `update` | ⬜ |
+| [3](#этап-3--ядро-проверки) | Ядро проверки: пакет `update` | 🟡 код написан, тесты не запускались |
 | [4](#этап-4--суточная-проверка) | Суточная проверка | ⬜ |
 | [5](#этап-5--уведомление-о-версии) | Уведомление о версии | ⬜ |
 | [6](#этап-6--загрузка-и-проверка-файла) | Загрузка и проверка файла | ⬜ |
@@ -387,10 +387,21 @@ README писался, когда читателем был только авт�
 
 Пакет `ru.greemlab.neiro.update`, новых зависимостей не требуется.
 
-- [ ] `UpdateConfig`, `UpdateChannelGate`, `GithubModels`, `GithubApi`,
-      `UpdateClient` (по образцу `push/PushClient.kt`)
-- [ ] `ReleaseVersion` — разбор тега и `versionCode`
-- [ ] Тесты: `ReleaseVersionTest`, `AssetPickerTest`
+- [~] `UpdateConfig`, `UpdateChannelGate`, `GithubModels`, `GithubApi`,
+      `UpdateClient` (по образцу `data/network/YClientsClient.kt` — файла
+      `push/PushClient.kt` в проекте нет, в `push/` лежит только интерфейс
+      `PushApi`; сверено 11.08.2026)
+- [~] `ReleaseVersion` — разбор тега и `versionCode`
+- [~] Тесты: `ReleaseVersionTest`, `AssetPickerTest`
+
+Выбор ассетов живёт в `GithubModels.kt` (`ReleaseAssets`), `UpdateBlockReason` —
+рядом с гейтом в `UpdateChannelGate.kt`: отдельных файлов под них в
+[ARCHITECTURE.md](ARCHITECTURE.md#пакет-rugreemlabneiroupdate) нет, а
+`UpdateState.kt` появится целиком на этапе 8.
+
+Клиент GitHub намеренно свой, а не общий с сервисом Neiro: интерцептор
+`YClientsClient` подставляет `Authorization: Bearer <device_token>` во все
+запросы, и на `api.github.com` этот токен уезжать не должен.
 
 Спецификация — [ARCHITECTURE.md § Версия и сравнение](ARCHITECTURE.md#версия-и-сравнение).
 
