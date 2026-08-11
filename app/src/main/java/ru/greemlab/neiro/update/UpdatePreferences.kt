@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.update
 
 import android.content.Context
+import ru.greemlab.neiro.BuildConfig
 
 /**
  * Настройки и метаданные самообновления — по образцу
@@ -69,6 +70,50 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         get() = prefs.getInt(KEY_SKIPPED_VERSION_CODE, 0)
         set(value) = prefs.edit().putInt(KEY_SKIPPED_VERSION_CODE, value).apply()
 
+    /** Скачанный и проверенный, но ещё не установленный APK. */
+    var pendingApkPath: String?
+        get() = prefs.getString(KEY_PENDING_APK_PATH, null)
+        set(value) = prefs.edit().putString(KEY_PENDING_APK_PATH, value).apply()
+
+    var pendingVersionCode: Int
+        get() = prefs.getInt(KEY_PENDING_VERSION_CODE, 0)
+        set(value) = prefs.edit().putInt(KEY_PENDING_VERSION_CODE, value).apply()
+
+    /**
+     * С какой версии уходили, когда отдавали APK установщику. Читается после
+     * перезапуска: больше нуля и меньше текущей — обновление состоялось.
+     */
+    val updatedFromVersionCode: Int
+        get() = prefs.getInt(KEY_UPDATED_FROM_VERSION_CODE, 0)
+
+    /**
+     * Отметка «сейчас будет установка». Пишется **до** `commit` сессии и через
+     * `commit()`, а не `apply()`: после успешной установки процесс убивают, и
+     * асинхронная запись не успеет (RISKS.md § Установка убивает процесс).
+     */
+    fun recordInstallAttempt(targetVersionCode: Int) {
+        prefs.edit()
+            .putInt(KEY_UPDATED_FROM_VERSION_CODE, BuildConfig.VERSION_CODE)
+            .putInt(KEY_PENDING_VERSION_CODE, targetVersionCode)
+            .commit()
+    }
+
+    /** Установка не началась или провалилась — отметка не должна пережить попытку. */
+    fun clearInstallAttempt() {
+        prefs.edit()
+            .remove(KEY_UPDATED_FROM_VERSION_CODE)
+            .remove(KEY_PENDING_VERSION_CODE)
+            .apply()
+    }
+
+    /** Забыть скачанный файл: он установлен, удалён или не прошёл проверку. */
+    fun clearPendingApk() {
+        prefs.edit()
+            .remove(KEY_PENDING_APK_PATH)
+            .remove(KEY_PENDING_VERSION_CODE)
+            .apply()
+    }
+
     /** Забыть, что и когда проверяли: следующая проверка пойдёт в сеть сразу. */
     fun clearCheckState() {
         prefs.edit()
@@ -86,6 +131,9 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         private const val KEY_RATE_LIMITED_UNTIL = "rate_limited_until"
         private const val KEY_NOTIFIED_VERSION_CODE = "notified_version_code"
         private const val KEY_SKIPPED_VERSION_CODE = "skipped_version_code"
+        private const val KEY_PENDING_APK_PATH = "pending_apk_path"
+        private const val KEY_PENDING_VERSION_CODE = "pending_version_code"
+        private const val KEY_UPDATED_FROM_VERSION_CODE = "updated_from_version_code"
 
         @Volatile
         private var instance: UpdatePreferences? = null

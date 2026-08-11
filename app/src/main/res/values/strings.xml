@@ -173,6 +173,8 @@
     <string name="notification_update_title">Neiro %1$s — доступно обновление</string>
     <string name="notification_update_body">Нажмите, чтобы посмотреть, что изменилось</string>
     <string name="notification_update_skip">Пропустить</string>
+    <string name="notification_update_install_title">Обновление готово</string>
+    <string name="notification_update_install_body">Нажмите, чтобы установить новую версию</string>
 
     <string name="build_type_debug">DEBUG</string>
     <string name="build_type_prerelease">PRE-RELEASE</string>

@@ -101,9 +101,49 @@ object UpdateNotifier {
         return versionCode > notifiedVersionCode
     }
 
-    /** Убрать уведомление — после установки или по «Пропустить». */
+    /**
+     * «Нажмите, чтобы установить» — когда установщик просит подтверждение, а
+     * приложение в фоне: с Android 10 запуск активити оттуда запрещён, и без
+     * этого уведомления обновление тихо повисло бы.
+     */
+    fun notifyInstallReady(context: Context, confirmIntent: Intent): Boolean {
+        val appContext = context.applicationContext
+        ensureChannel(appContext)
+        if (!NotificationManagerCompat.from(appContext).areNotificationsEnabled()) return false
+
+        val pending = PendingIntent.getActivity(
+            appContext,
+            REQUEST_INSTALL,
+            confirmIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NeiroNotificationBranding.apply(
+            NotificationCompat.Builder(appContext, CHANNEL_ID)
+                .setContentTitle(appContext.getString(R.string.notification_update_install_title))
+                .setContentText(appContext.getString(R.string.notification_update_install_body))
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(pending),
+            appContext,
+        ).build()
+
+        return try {
+            NotificationManagerCompat.from(appContext).notify(NOTIFICATION_ID_INSTALL, notification)
+            true
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
+    /** Убрать уведомления пакета — после установки или по «Пропустить». */
     fun cancel(context: Context) {
-        NotificationManagerCompat.from(context.applicationContext).cancel(NOTIFICATION_ID)
+        NotificationManagerCompat.from(context.applicationContext).apply {
+            cancel(NOTIFICATION_ID)
+            cancel(NOTIFICATION_ID_INSTALL)
+        }
     }
 
     fun ensureChannel(context: Context) {
@@ -164,6 +204,10 @@ object UpdateNotifier {
         )
     }
 
+    /** Подтверждение установки — своё уведомление: оно живёт отдельно от новости о версии. */
+    private const val NOTIFICATION_ID_INSTALL = 10_007
+
     private const val REQUEST_OPEN = 4_100
     private const val REQUEST_SKIP_BASE = 4_200
+    private const val REQUEST_INSTALL = 4_400
 }
