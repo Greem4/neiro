@@ -19,6 +19,12 @@ import java.io.File
  */
 class UpdateViewModel(application: Application) : AndroidViewModel(application) {
 
+    /**
+     * Своё поле вместо `getApplication()`: тот объявлен как `<T : Application> T`,
+     * и в местах, где ждут `Context`, вывод типа спотыкается.
+     */
+    private val app: Application = application
+
     private val preferences = UpdatePreferences.get(application)
     private val downloader = UpdateDownloader()
 
@@ -53,9 +59,9 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         val updatedFrom = preferences.consumeUpdatedFrom()
         if (updatedFrom in 1 until BuildConfig.VERSION_CODE) {
             _justUpdatedTo.value = BuildConfig.VERSION_NAME
-            UpdateDownloader.clearDownloads(getApplication())
+            UpdateDownloader.clearDownloads(app)
             preferences.clearPendingApk()
-            UpdateNotifier.cancel(getApplication())
+            UpdateNotifier.cancel(app)
             return
         }
 
@@ -64,7 +70,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         if (pendingPath.isNullOrBlank() || pendingVersion <= BuildConfig.VERSION_CODE) {
             // Файл от старой или уже установленной версии — только место занимает.
             if (pendingPath != null) {
-                UpdateDownloader.clearDownloads(getApplication())
+                UpdateDownloader.clearDownloads(app)
                 preferences.clearPendingApk()
             }
             return
@@ -99,7 +105,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     /** Кнопка «Проверить обновления». Ручная проверка суточный троттлинг игнорирует. */
     fun check(force: Boolean = true) {
         if (_state.value.isBusy) return
-        val blocked = UpdateChannelGate.blockReason(getApplication())
+        val blocked = UpdateChannelGate.blockReason(app)
         if (blocked != null) {
             _state.value = UpdateState.Blocked(blocked)
             return
@@ -107,7 +113,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
 
         _state.value = UpdateState.Checking
         viewModelScope.launch {
-            val status = UpdateCheckCoordinator.checkNow(getApplication(), force)
+            val status = UpdateCheckCoordinator.checkNow(app, force)
             _lastCheckAt.value = preferences.lastCheckEpochMillis
             _state.value = when (status) {
                 is UpdateStatus.Available -> UpdateState.Available(status.info)
@@ -129,7 +135,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _state.value = UpdateState.Downloading(info, 0)
 
-            val outcome = downloader.download(getApplication(), info) { percent ->
+            val outcome = downloader.download(app, info) { percent ->
                 val current = _state.value
                 if (current is UpdateState.Downloading) {
                     _state.value = current.copy(percent = percent)
@@ -145,7 +151,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
 
             _state.value = UpdateState.Verifying(info)
             val checksums = downloader.downloadChecksums(info.checksumsUrl)
-            val failure = UpdateVerifier.verify(getApplication(), apk, checksums)
+            val failure = UpdateVerifier.verify(app, apk, checksums)
             if (failure != null) {
                 // Файл уже удалён внутри проверки — не оставляем 15 МБ мусора.
                 _state.value = UpdateState.Failed(failure, info)
@@ -162,14 +168,14 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     /** Отдать проверенный файл системе. Отдельно от загрузки: после отказа можно повторить. */
     fun install(info: UpdateInfo, apk: File) {
         viewModelScope.launch {
-            if (!ApkInstaller.canInstall(getApplication())) {
+            if (!ApkInstaller.canInstall(app)) {
                 // Разрешение выдаётся в системных настройках, обойти нельзя.
                 _state.value = UpdateState.Failed(UpdateFailure.InstallRejected, info)
                 return@launch
             }
 
             _state.value = UpdateState.Installing(info)
-            val failure = ApkInstaller.install(getApplication(), apk, info.version.versionCode)
+            val failure = ApkInstaller.install(app, apk, info.version.versionCode)
             if (failure != null) {
                 _state.value = UpdateState.Failed(failure, info)
             }
@@ -184,20 +190,20 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
             preferences.notifiedVersionCode,
             info.version.versionCode,
         )
-        UpdateNotifier.cancel(getApplication())
-        UpdateDownloader.clearDownloads(getApplication())
+        UpdateNotifier.cancel(app)
+        UpdateDownloader.clearDownloads(app)
         preferences.clearPendingApk()
         _state.value = UpdateState.UpToDate(preferences.lastCheckEpochMillis)
     }
 
     fun setAutoCheckEnabled(enabled: Boolean) {
         _autoCheckEnabled.value = enabled
-        UpdateCheckCoordinator.onAutoCheckToggled(getApplication(), enabled)
+        UpdateCheckCoordinator.onAutoCheckToggled(app, enabled)
     }
 
-    fun needsInstallPermission(): Boolean = !ApkInstaller.canInstall(getApplication())
+    fun needsInstallPermission(): Boolean = !ApkInstaller.canInstall(app)
 
-    fun installPermissionIntent() = ApkInstaller.unknownSourcesSettingsIntent(getApplication())
+    fun installPermissionIntent() = ApkInstaller.unknownSourcesSettingsIntent(app)
 
     /** Сбросить ошибку, чтобы экран вернулся к обычному виду. */
     fun dismissFailure() {
