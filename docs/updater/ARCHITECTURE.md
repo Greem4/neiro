@@ -313,9 +313,11 @@ val params = PackageInstaller.SessionParams(MODE_FULL_INSTALL).apply {
         setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
     }
 
-    // setRequestUpdateOwnership НЕ включаем намеренно: заявив владение
-    // обновлениями, мы заставим будущий RuStore показывать предупреждение
-    // при своей же установке. Планы на магазин важнее.
+    // Android 14+: заявляем владение обновлениями. Пока RuStore на паузе —
+    // магазину нечего ругаться на своей же установке; вернётся — убрать.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        setRequestUpdateOwnership(true)
+    }
 }
 ```
 
@@ -346,7 +348,12 @@ val params = PackageInstaller.SessionParams(MODE_FULL_INSTALL).apply {
 
 ```xml
 <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+<uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 ```
+
+Второе — условие тихого самообновления: без него `USER_ACTION_NOT_REQUIRED`
+не срабатывает вовсе и система всегда требует подтверждение. Разрешение
+обычное, выдаётся при установке, ничего сверх самообновления не даёт.
 
 На API 26+ этого мало: нужно, чтобы пользователь один раз разрешил установку
 из Neiro. Проверяем `packageManager.canRequestPackageInstalls()`, и если нет —
@@ -415,7 +422,7 @@ object UpdateCheckCoordinator {
 | Файл | Что добавляется |
 |---|---|
 | `app/build.gradle.kts` | Чтение `version.properties`, `versionCode` по формуле, `buildConfigField` `UPDATE_ENABLED` и `UPDATE_REPO` |
-| `app/src/main/AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES`, регистрация `UpdateInstallReceiver` (`exported="false"`) |
+| `app/src/main/AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, регистрация `UpdateInstallReceiver` (`exported="false"`) |
 | `NeiroApplication.kt` | Одна строка: `UpdateCheckCoordinator.initialize(this)` в существующем `appScope.launch` |
 | `ui/screens/CalendarScreen.kt` | `CalendarOverlay.About` рядом с прочими оверлеями и его ветка отрисовки — тем же способом, что `ProfitSettings` |
 | `ui/settings/AppSettingsScreen.kt` | Секция «О программе» с `SettingsNavigationRow`: версия в подзаголовке, точка при доступном обновлении |

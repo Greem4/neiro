@@ -78,9 +78,15 @@ object ApkInstaller {
                 // вернётся STATUS_PENDING_USER_ACTION и покажем подтверждение.
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
-            // setRequestUpdateOwnership намеренно НЕ включаем: заявив владение
-            // обновлениями, мы заставили бы будущий RuStore показывать
-            // предупреждение при своей же установке.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+: заявляем владение обновлениями Neiro — чужой
+                // установщик тогда не поставит другую версию поверх молча.
+                // Оговорка: система применяет это только при установке с нуля,
+                // на обновлении уже стоящего пакета вызов ничего не меняет.
+                // Раньше флаг не включали из-за RuStore (он ругался бы на своей
+                // же установке); RuStore на паузе — вернётся, флаг убрать.
+                setRequestUpdateOwnership(true)
+            }
         }
 
         var sessionId = -1
