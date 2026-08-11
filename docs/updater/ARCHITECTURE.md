@@ -83,6 +83,12 @@ app/src/main/java/ru/greemlab/neiro/ui/settings/
 `UpdateCheckerTest`, `Sha256SumsParserTest`, `AssetPickerTest`. Всё, что можно
 проверить без устройства, вынесено в чистые функции именно ради этого.
 
+Мелкие типы живут рядом с тем, кто их создаёт, а не в отдельных файлах:
+`ReleaseAssets` — в `GithubModels.kt`, `UpdateBlockReason` — в
+`UpdateChannelGate.kt`, `UpdateStatus`, `UpdateInfo` и `UpdateFailure` — в
+`UpdateChecker.kt`. `UpdateState.kt` появится целиком на этапе 8 и будет
+собран поверх них.
+
 ## Источник правды: GitHub Releases
 
 Один запрос, без токена — репозиторий публичный:
@@ -229,16 +235,30 @@ suspend fun check(force: Boolean = false): UpdateStatus
 Метка времени пишется **и при неудаче тоже** — иначе телефон без сети будет
 дёргать сеть при каждом запуске приложения.
 
+Зависимости приходят через конструктор (`GithubApi`, хранилище,
+`installedVersionCode`, гейт, часы), а хранилище спрятано за интерфейсом
+`UpdateCheckStore`. Это не украшение: настоящие `SharedPreferences` в
+юнит-тесте на JVM отвечают «not mocked», и проверка, ходящая в них напрямую,
+проверялась бы только на устройстве. Боевую сборку собирает
+`UpdateChecker.create(context)`.
+
 ## Хранилище: `UpdatePreferences`
 
 `SharedPreferences` с именем `neiro_update_prefs`, по образцу
-`SyncPreferences` — тот же стиль, тот же `get(context)`-синглтон.
+`SyncPreferences` — тот же стиль, тот же `get(context)`-синглтон. Отдельный
+файл от `neiro_sync_prefs` намеренно: логаут чистит настройки синхронизации
+целиком, а метка последней проверки GitHub к аккаунту YClients отношения не
+имеет.
+
+Ключи заводятся на том этапе, где появляется читающий их код: пустой аксессор,
+который никто не спрашивает, — тот же мёртвый код.
 
 | Ключ | Смысл |
 |---|---|
 | `auto_check_enabled` | Проверять автоматически (по умолчанию `true`) |
 | `last_check_epoch` | Когда последний раз спрашивали GitHub — успешно или нет |
 | `last_known_version_code` | Что видели в прошлый раз (кэш для офлайна) |
+| `rate_limited_until` | Лимит GitHub исчерпан — до этого времени не ходим даже по кнопке |
 | `notified_version_code` | О какой версии уже уведомляли — чтобы не звонить каждый день об одном и том же |
 | `skipped_version_code` | «Пропустить эту версию» — молчим, пока не выйдет следующая |
 | `pending_apk_path` / `pending_version_code` | Скачанный, но не установленный APK |

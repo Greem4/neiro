@@ -10,6 +10,7 @@ import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.LiveApiCoordinator
+import ru.greemlab.neiro.update.UpdateCheckCoordinator
 
 class NeiroApplication : Application() {
 
@@ -34,6 +35,10 @@ class NeiroApplication : Application() {
 
             SessionNotificationCoordinator.initialize(this@NeiroApplication)
             PushRegistrar.initialize(this@NeiroApplication)
+
+            // Суточная проверка новой версии на GitHub. В debug выходит сразу:
+            // UPDATE_ENABLED там false, до сети дело не доходит.
+            UpdateCheckCoordinator.initialize(this@NeiroApplication)
 
             repository.warmUp()
             repository.migrateProfileIfNeeded()
