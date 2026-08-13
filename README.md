@@ -143,6 +143,7 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |
+| Что осталось доделать | [docs/next/](docs/next/README.md) | Доводка после перехода на `neiro-push`: шесть этапов с планом работ |
 | Дорожная карта | [TODO.md](TODO.md) | Что сделано и что в планах |
 
 ## Структура репозитория
