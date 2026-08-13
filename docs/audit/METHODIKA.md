@@ -26,7 +26,7 @@
 - не переписывает документы прошлых аудитов — они историчны, новые находки идут
   в новый пакет;
 - не считает находкой то, что перечислено в
-  [`docs/audit-17.07.26/OUT_OF_SCOPE.md`](../audit-17.07.26/OUT_OF_SCOPE.md).
+  [`docs/archive/audit-17.07.26/OUT_OF_SCOPE.md`](../archive/audit-17.07.26/OUT_OF_SCOPE.md).
 
 Если код расходится с планом или документацией — **остановиться и спросить**, а
 не подгонять одно под другое.
@@ -84,7 +84,7 @@
 
 ### Шаг 2. Прочитать ограничения
 
-[`OUT_OF_SCOPE.md`](../audit-17.07.26/OUT_OF_SCOPE.md) целиком — иначе половина
+[`OUT_OF_SCOPE.md`](../archive/audit-17.07.26/OUT_OF_SCOPE.md) целиком — иначе половина
 «находок» будет повтором согласованных компромиссов (DI, god-composables,
 секреты в BuildConfig, authoritative wipe текущего месяца, архив,
 `LaunchedEffect(initialNames)`, hardcoded строки).
@@ -241,17 +241,17 @@ codebase-memory (`search_graph`, `trace_path`), для чтения — `Read`.
 `yclients.py` 201 · `events.py` 170 · `fcm.py` 126 · шаблоны `templates/`.
 
 - Контракт FCM-payload и API против
-  [`docs/push-events/plan.md`](../push-events/plan.md) — расхождение кода и плана
+  [`docs/archive/push-events/plan.md`](../archive/push-events/plan.md) — расхождение кода и плана
   не «подгонять», а спросить.
 - Правила диффа (`events.py`): какие изменения порождают событие, что теряется
   при нескольких изменениях подряд, дедупликация.
 - Дашборд: авторизация, экранирование в шаблонах, N+1 запросы.
 - БД: ретеншен, рост таблиц событий, транзакции, индексы под запросы дашборда.
-- Согласованность с приложением: [`docs/push-events/app.md`](../push-events/app.md).
+- Согласованность с приложением: [`docs/archive/push-events/app.md`](../archive/push-events/app.md).
 - Известные грабли уже описаны в
-  [`progress.md`](../push-events/progress.md) и разборах этапов
-  ([stage1-4](../push-events/stage1-4-review.md),
-  [stage5](../push-events/stage5-review.md)) — не дублировать их как новые находки.
+  [`progress.md`](../archive/push-events/progress.md) и разборах этапов
+  ([stage1-4](../archive/push-events/stage1-4-review.md),
+  [stage5](../archive/push-events/stage5-review.md)) — не дублировать их как новые находки.
 
 ---
 
@@ -324,9 +324,9 @@ refetch на весь месяц; тест на перенос записи.
 
 | Пакет | Дата | Объём | Итог |
 |---|---|---|---|
-| [`docs/refactoring-old/`](../refactoring-old/README.md) | до 17.07.26 | Этапы 1–6, ~70 коммитов по плану | Выполнены |
-| [`docs/audit-17.07.26/`](../audit-17.07.26/REPORT.md) | 17.07.2026 | 32 находки, волны A–E, 38 выполненных пунктов | Выполнен, влит PR #21 (`490262e`) |
-| [`docs/audit-23.07.26/`](../audit-23.07.26/README.md) | 23–24.07.2026 | 62 находки: 3 критично · 17 высоко · 27 средне · 15 низко; 7 волн, 54 выполненных пункта | Выполнен, влит PR #22 (`51d8fe3`) |
+| [`docs/archive/refactoring-old/`](../archive/refactoring-old/README.md) | до 17.07.26 | Этапы 1–6, ~70 коммитов по плану | Выполнены |
+| [`docs/archive/audit-17.07.26/`](../archive/audit-17.07.26/REPORT.md) | 17.07.2026 | 32 находки, волны A–E, 38 выполненных пунктов | Выполнен, влит PR #21 (`490262e`) |
+| [`docs/archive/audit-23.07.26/`](../archive/audit-23.07.26/README.md) | 23–24.07.2026 | 62 находки: 3 критично · 17 высоко · 27 средне · 15 низко; 7 волн, 54 выполненных пункта | Выполнен, влит PR #22 (`51d8fe3`) |
 
 Пакет 17.07.26 — без отдельного `FINDINGS.md`, находки лежат прямо в
 `ROADMAP.md` (473 строки). В `README.md` пакета 23.07.26 в перечислении «Высоко»

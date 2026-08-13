@@ -28,7 +28,7 @@ YClients API
 
 | Часть | Путь | Роль |
 |---|---|---|
-| Android-приложение | [`app/`](../../app/) | Календарь занятий, статистика, уведомления |
+| Android-приложение | [`app/`](../../../app) | Календарь занятий, статистика, уведомления |
 | Сервис событий | [`neiro-push-events/`](../../neiro-push-events/) | Действующий push: считает дифф записей и шлёт готовое событие |
 | Push-сервер | [`server/`](../../server/) | Legacy (Этап 10 «гашение» не выполнен): шлёт только нудж «сходи в API» |
 
@@ -54,7 +54,7 @@ DI нет: всё синглтоны через `getInstance(context)` / `object
 
 ## 3. Хранение
 
-Два слоя, оба в [`data/CalendarDataStore.kt`](../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt):
+Два слоя, оба в [`data/CalendarDataStore.kt`](../../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt):
 
 1. **DataStore `calendar_data`** — авторитативный источник. Ключи:
    `day_data_json` (основной календарь), `saved_day_data_json` (архив),
@@ -87,7 +87,7 @@ DI нет: всё синглтоны через `getInstance(context)` / `object
 ## 4. Формат записи дня
 
 Строка в списке дня — один из трёх форматов
-([`ui/calendar/SessionParser.kt`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt)):
+([`ui/calendar/SessionParser.kt`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt)):
 
 | Тип | Формат |
 |---|---|
@@ -104,7 +104,7 @@ DI нет: всё синглтоны через `getInstance(context)` / `object
 
 ## 5. Синхронизация с YClients
 
-[`sync/YClientsCalendarSync.kt`](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt),
+[`sync/YClientsCalendarSync.kt`](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt),
 всё под одним `syncMutex`.
 
 | Путь | Диапазон | Когда |
@@ -262,7 +262,7 @@ payload), `server/` целиком кроме расписания, в серв�
 
 ## 12. Метрики
 
-Пересчитано 30.07.2026 (совпадает со снимком в [методике §2](../audit/METHODIKA.md)).
+Пересчитано 30.07.2026 (совпадает со снимком в [методике §2](../../audit/METHODIKA.md)).
 
 | Часть | Файлы | Строк | Тесты |
 |---|---|---|---|

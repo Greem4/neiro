@@ -2,7 +2,7 @@
 
 > **Архив.** План второго поколения сервиса (`neiro-push-events`). Сервис
 > работает до конца перехода, но новые работы идут по
-> [docs/neiro-push/TASKS.md](../neiro-push/TASKS.md).
+> [docs/neiro-push/TASKS.md](../../neiro-push/TASKS.md).
 
 Рабочий документ. Здесь зафиксированы находки, решения и пошаговый план — так,
 чтобы реализацию можно было отдать другому агенту (Sonnet) и он сделал её без
@@ -40,7 +40,7 @@
 
 | Документ | Роль |
 |---|---|
-| [CLAUDE.md](../../CLAUDE.md) | Правила репозитория — формат коммитов, «не ломать работающее», этапы/коммиты |
+| [CLAUDE.md](../../../CLAUDE.md) | Правила репозитория — формат коммитов, «не ломать работающее», этапы/коммиты |
 | **plan.md** (этот файл) | Главный план: архитектура, контракт, пошаговый список этапов, чек-лист приёмки |
 | [progress.md](progress.md) | Журнал работ: что сделано по этапам, коммиты, подводные камни, решения пользователя |
 | [stage5-review.md](stage5-review.md) | Разбор находок по Этапу 5 и порядок правок — **сделано** |
@@ -79,7 +79,7 @@
 
 ### Формат коммитов
 
-По правилам репозитория ([CLAUDE.md](../../CLAUDE.md)): одна строка на русском,
+По правилам репозитория ([CLAUDE.md](../../../CLAUDE.md)): одна строка на русском,
 до 72 символов, глагол в прошедшем времени, без префиксов `feat:`/`fix:`,
 без перечисления файлов и деталей реализации.
 
@@ -206,7 +206,7 @@ YClients ──(опрос 15 c)──> neiro-push ──FCM {action:"sync"}─�
 | Состояние по `record_id` вместо общего хеша | Убирает П3, плюс перенос занятия определяется однозначно |
 | Один запрос на компанию, разбор по `staff_id` в памяти | Убирает П5. Прав токена хватает — проверено |
 | Дневной режим до 23:00 | Убирает П6. Ночной интервал остаётся часовым: после 23 в YClients никто не работает |
-| **`dedupeKey` считает приложение, не сервер** | `normalizeForKey()` ([UpcomingSession.kt:185](../../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185)) нетривиален: сортировка токенов, `ё`→`е`, чистка пунктуации. Повтор на Python = риск расхождения = дубли уведомлений |
+| **`dedupeKey` считает приложение, не сервер** | `normalizeForKey()` ([UpcomingSession.kt:185](../../../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185)) нетривиален: сортировка токенов, `ё`→`е`, чистка пунктуации. Повтор на Python = риск расхождения = дубли уведомлений |
 | Календарь правится данными из payload, без похода в YClients | Push остаётся почти бесплатным, но экран не расходится с уведомлением. Пересмотрено 25.07.2026: раньше здесь было «календарь обновляется только при открытии приложения» — уведомление «Ваня подтвердился» при неизменившемся слоте выглядит поломкой. Полный синк по-прежнему только на `LiveApiCoordinator.onStart`. Подробности — [app.md §5](app.md) |
 | Новый сервис рядом, а не переделка старого | 0.6.9.0 работает. Откат = остановить контейнер |
 
@@ -251,7 +251,7 @@ YClients ─────────────┤
 | Кто ходит | сборка 0.6.9.0 | новая сборка приложения |
 
 **Разделение по сборкам приложения.** `NEIRO_PUSH_API_BASE_URL` — поле
-`buildConfigField` ([app/build.gradle.kts:66](../../app/build.gradle.kts#L66)),
+`buildConfigField` ([app/build.gradle.kts:66](../../../app/build.gradle.kts#L66)),
 задаётся в `local.properties`. Старая сборка смотрит на старый URL, новая — на
 `/v2`. Устройство регистрируется ровно на одном сервисе, поэтому **двойных
 уведомлений быть не может**.
@@ -296,7 +296,7 @@ VPS 176.12.65.86 — nginx + сертификат Let's Encrypt
 
 Дубли невозможны: их гасит существующий `wasEventNotified(dedupeKey)` — LRU на
 300 ключей в
-[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117).
+[SessionNotificationPreferences.kt:117](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117).
 Кто первый принёс событие, тот и показал.
 
 ---
@@ -416,21 +416,21 @@ Doze доставка откладывается и смысл payload'а тер
 остаётся в расписании. `deleted = 1` значит «не придёт больше никогда», записи
 нет вообще. Схлопывать их в одно событие нельзя. Так же разведено и в
 приложении, где эта логика работает
-([SessionChangeDetector.kt:51–53](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L51-L53)).
+([SessionChangeDetector.kt:51–53](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L51-L53)).
 
 **Почему правила 2–5 терминальные.** Удалённая или отменённая запись не может
 одновременно «переехать» и «подтвердиться» — это одно действие, а не три. Без
 обрыва разбора удаление вместе с `attendance = -1` дало бы два уведомления об
 одном факте. Приложение обрывает разбор ровно так же
-([SessionChangeDetector.kt:61–66](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L61-L66)).
+([SessionChangeDetector.kt:61–66](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L61-L66)).
 
 **Возврат записи (правило 4) — это `NEW_BOOKING`, а не новый тип.** Запись
 удалили и вернули, или сняли отмену — специалисту это нужно знать, но отдельный
 тип события заводить не будем. Приложение уже показывает возврат как «новая
 запись» — и для снятия отмены
-([строка 71](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L71)),
+([строка 71](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L71)),
 и для вернувшейся в календарь записи
-([строка 45](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L45)).
+([строка 45](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L45)).
 Новый тип пришлось бы протаскивать через `SessionEventType`, флаг в настройках,
 переключатель на экране, тексты и ресурсы — и, главное, пути доставки
 разъехались бы: сервер слал бы новый тип, локальный дифф — `NEW_BOOKING`, тип
@@ -438,7 +438,7 @@ Doze доставка откладывается и смысл payload'а тер
 
 `kind = DIAGNOSTICS`, если какая-либо из `services` содержит «диагностика» без
 учёта регистра — та же проверка, что в приложении
-([YClientsCalendarSync.kt:722](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722)).
+([YClientsCalendarSync.kt:722](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722)).
 
 ### 6.4 Горизонт: события только про будущие занятия
 
@@ -460,7 +460,7 @@ Doze доставка откладывается и смысл payload'а тер
 бы `CLIENT_ARRIVED` целиком.
 
 Это то же правило, что уже работает в приложении
-([TrackedSession.kt:91–94](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L91-L94)):
+([TrackedSession.kt:91–94](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L91-L94)):
 `date.isBefore(today)` — отбросить.
 
 **Где ставить фильтр:**
@@ -1072,4 +1072,4 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
    зарегистрирован и на старом, и на новом — придут два уведомления.
 
 7. **Сборку Gradle не запускать** — по правилам репозитория
-   ([CLAUDE.md](../../CLAUDE.md)) её делает пользователь сам.
+   ([CLAUDE.md](../../../CLAUDE.md)) её делает пользователь сам.

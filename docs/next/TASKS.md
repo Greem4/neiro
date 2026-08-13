@@ -257,9 +257,9 @@ adb install -i ru.vk.store neiro-0.0.9.apk
       вида `https://github.com/Greem4/neiro/blob/5a95262…/server/app/fcm.py#L108`
 - [x] Ни одна ссылка не потеряна: 101 переписана, 102 постоянных в итоге
       (плюс ссылка во врезке)
-- [x] Врезки в шапках [`docs/push-events/README.md`](../push-events/README.md),
-      [`docs/push-setup.md`](../push-setup.md) и
-      [`docs/push-events.md`](../push-events.md): сервис погашен, код в истории
+- [x] Врезки в шапках [`docs/archive/push-events/README.md`](../archive/push-events/README.md),
+      [`docs/push-setup.md`](../archive/push-setup.md) и
+      [`docs/push-events.md`](../archive/push-events.md): сервис погашен, код в истории
 - [x] `git rm -r server neiro-push-events` — 70 файлов
 - [x] `.gitignore`: правила `server/backups/` и прочие заменены на `/server/`
       и `/neiro-push-events/` целиком — на диске остались бэкапы, `.env`,

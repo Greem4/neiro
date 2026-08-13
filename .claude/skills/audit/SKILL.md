@@ -12,8 +12,8 @@ description: Комплексный аудит проекта Neiro — спло
 чек-листы по областям, критерии серьёзности, формат находки, состав пакета
 документов, история прошлых аудитов и список незакрытого.
 
-Затем — [`docs/audit-17.07.26/OUT_OF_SCOPE.md`](../../../docs/audit-17.07.26/OUT_OF_SCOPE.md)
-и `REPORT.md` последнего пакета ([`docs/audit-23.07.26/REPORT.md`](../../../docs/audit-23.07.26/REPORT.md)).
+Затем — [`docs/archive/audit-17.07.26/OUT_OF_SCOPE.md`](../../../docs/archive/audit-17.07.26/OUT_OF_SCOPE.md)
+и `REPORT.md` последнего пакета ([`docs/archive/audit-23.07.26/REPORT.md`](../../../docs/archive/audit-23.07.26/REPORT.md)).
 
 ## Границы
 

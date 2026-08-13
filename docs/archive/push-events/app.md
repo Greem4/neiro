@@ -4,7 +4,7 @@
 > маршрут `/v2`): регистрацию устройства с токенами YClients в теле и пути
 > событий с `device_id`. С этапов 6–8 перехода на `neiro-push` приложение
 > работает иначе — актуальное устройство клиента в
-> [docs/neiro-push/ARCHITECTURE.md](../neiro-push/ARCHITECTURE.md).
+> [docs/neiro-push/ARCHITECTURE.md](../../neiro-push/ARCHITECTURE.md).
 > Разбор событий, дедуп и применение к календарю с тех пор не менялись — эта
 > часть документа по-прежнему верна.
 
@@ -39,10 +39,10 @@ FCM {action:"sync"} → NeiroFirebaseMessagingService.onMessageReceived
 
 | Файл | Роль |
 |---|---|
-| [NeiroFirebaseMessagingService.kt:12](../../app/src/main/java/ru/greemlab/neiro/push/NeiroFirebaseMessagingService.kt#L12) | Единственная ветка `action == "sync"` |
-| [SessionNotificationCoordinator.kt:191](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L191) | `processSnapshotTransition` — эталон хвоста «фильтры → показ → mark» |
-| [SessionChangeDetector.kt](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt) | Локальный дифф снимков |
-| [TrackedSession.kt:53](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L53) | `SessionEvent.dedupeKey` — общий предохранитель от дублей |
+| [NeiroFirebaseMessagingService.kt:12](../../../app/src/main/java/ru/greemlab/neiro/push/NeiroFirebaseMessagingService.kt#L12) | Единственная ветка `action == "sync"` |
+| [SessionNotificationCoordinator.kt:191](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L191) | `processSnapshotTransition` — эталон хвоста «фильтры → показ → mark» |
+| [SessionChangeDetector.kt](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt) | Локальный дифф снимков |
+| [TrackedSession.kt:53](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L53) | `SessionEvent.dedupeKey` — общий предохранитель от дублей |
 
 **Что из этого сохраняется.** Весь хвост после `SessionEvent`: детектор для
 локального пути, дисплей, тексты, in-app лента, архив, настройки типов,
@@ -55,7 +55,7 @@ FCM {action:"sync"} → NeiroFirebaseMessagingService.onMessageReceived
 
 Приложение узнаёт занятие не по `record_id` (его в модели уведомлений нет), а по
 `slotKey` = `нормализованное имя | дата | HH:mm | kind`
-([SessionSlotKey.kt:20](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionSlotKey.kt#L20)).
+([SessionSlotKey.kt:20](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionSlotKey.kt#L20)).
 Из `slotKey` собирается `dedupeKey`, а `dedupeKey` — единственное, что не даёт
 показать одно событие дважды, когда оно пришло и push'ом, и локальным диффом.
 
@@ -82,14 +82,14 @@ client.displayName ?: (client.name + " " + client.surname)
 ```
 
 Нормализация ключа
-([UpcomingSession.kt:185](../../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185))
+([UpcomingSession.kt:185](../../../app/src/main/java/ru/greemlab/neiro/notifications/UpcomingSession.kt#L185))
 сортирует токены и гасит `ё`/пунктуацию, поэтому «Иванов Ваня» и «Ваня Иванов»
 совпадут. Но `displayName = "Ваня"` против `name+surname = "Ваня Иванов"` — уже
 разные ключи. Порядок предпочтения полей должен совпадать.
 
 ### 2.3 `kind` — «диагностика» без учёта регистра в любой из `services`
 
-Как в [YClientsCalendarSync.kt:722](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722).
+Как в [YClientsCalendarSync.kt:722](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L722).
 `kind` входит в `slotKey`: занятие и диагностика одного клиента в одно время —
 разные слоты.
 
@@ -104,7 +104,7 @@ Data-only сообщение должно уходить с `android.priority = 
 
 **Критерий адресации — `staff_id`.** Это тот же идентификатор, что приходит в
 `record.staff_id` из YClients и что устройство отправляет при регистрации
-([PushRegistrar.kt:107](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L107)).
+([PushRegistrar.kt:107](../../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L107)).
 Он есть на обоих концах, поэтому сверять принадлежность события можно без
 единого дополнительного поля в приложении.
 
@@ -144,7 +144,7 @@ account_records = [r for r in records if r.staff_id == account.staff_id]
 
 Своё значение приложение берёт из `repository.staffId` — то же поле, что уходит
 в `RegisterDeviceRequest.staffId`
-([PushApi.kt:30](../../app/src/main/java/ru/greemlab/neiro/push/PushApi.kt#L30)).
+([PushApi.kt:30](../../../app/src/main/java/ru/greemlab/neiro/push/PushApi.kt#L30)).
 
 **Где ставить барьер — одно место, на входе.** Не в нотификаторе и не в
 календарном applier'е по отдельности, а сразу при разборе payload, **до** того
@@ -192,7 +192,7 @@ git stash show -p stash@{0} | git apply
 | `sync/AutoSyncCoordinator.kt` | Поправить KDoc |
 
 **Про `finally`.** Сейчас в
-[PushKeepAliveWorker.kt:38](../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt#L38)
+[PushKeepAliveWorker.kt:38](../../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt#L38)
 ранний `return Result.retry()` проскакивает мимо `scheduleNext` — после первой
 сетевой ошибки цепочка keepalive умирает до перезапуска приложения. Это и был баг
 «пришло одно уведомление и тишина» из `51d8fe3`. `scheduleNext` обязан стоять в
@@ -246,11 +246,11 @@ val mine = parsed.filter { event ->
 ```
 
 Своё значение — `repository.staffId`
-([YClientsRepository.kt:48](../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt#L48)),
+([YClientsRepository.kt:48](../../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt#L48)),
 то же самое, что уходит при регистрации
-([PushRegistrar.kt:116](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L116)).
+([PushRegistrar.kt:116](../../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L116)).
 Оно всегда заполнено у залогиненного пользователя: без него регистрация не
-проходит вовсе ([PushRegistrar.kt:107](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L107)).
+проходит вовсе ([PushRegistrar.kt:107](../../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L107)).
 Если `repository.staffId` всё же `null` — события **не** показывать: своего
 идентификатора нет, сверить не с чем.
 
@@ -262,14 +262,14 @@ val mine = parsed.filter { event ->
 | Поле | Значение |
 |---|---|
 | `date`, `startTime` | из payload |
-| `endTime` | `startTime + SESSION_DURATION_MINUTES` (50, [ScheduleTime.kt:27](../../app/src/main/java/ru/greemlab/neiro/ui/components/daydetails/ScheduleTime.kt#L27)) |
+| `endTime` | `startTime + SESSION_DURATION_MINUTES` (50, [ScheduleTime.kt:27](../../../app/src/main/java/ru/greemlab/neiro/ui/components/daydetails/ScheduleTime.kt#L27)) |
 | `clientName` | из payload, как есть |
 | `kind` | `UpcomingSessionKind.valueOf(kind)` |
 | `status` | по типу события, таблица ниже |
 | `isMarkedDeleted` | `type == DELETED` |
 
 Маппинг `status` — не косметика: он входит в `dedupeKey` для двух типов
-([TrackedSession.kt:53](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L53)),
+([TrackedSession.kt:53](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L53)),
 поэтому обязан совпасть с тем, что даст локальный дифф.
 
 | Тип события | `status` | Почему |
@@ -281,7 +281,7 @@ val mine = parsed.filter { event ->
 | `DELETED` | `EXPECTED` + `isMarkedDeleted = true` | в ключ не входит |
 
 Коды YClients → `AttendanceStatus` смотреть в
-[SessionParser.kt:41](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt#L41)
+[SessionParser.kt:41](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt#L41)
 (`-1` → `CANCELLED`, `1` → `ARRIVED`, `2` → `CONFIRMED`).
 
 Для `RESCHEDULED` собрать второй `TrackedSession` из `prev_date`/`prev_time` (имя
@@ -292,7 +292,7 @@ val mine = parsed.filter { event ->
 ### 4.2 `push/PushEventNotifier.kt` (новый)
 
 Зеркало хвоста `processSnapshotTransition`
-([SessionNotificationCoordinator.kt:214](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L214)),
+([SessionNotificationCoordinator.kt:214](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L214)),
 порядок шагов менять нельзя:
 
 ```kotlin
@@ -319,7 +319,7 @@ fun notify(context: Context, events: List<SessionEvent>) {
   при отказе `NotificationManager`.
 - **Горизонт.** Локальный путь работает в окне «сегодня … +60 дней»
   (`CalendarSessionSnapshot.DEFAULT_HORIZON_DAYS`,
-  [TrackedSession.kt:66](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L66)),
+  [TrackedSession.kt:66](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L66)),
   сервер такого фильтра не знает и пришлёт событие по записи на любую дату.
   Без фильтра появятся уведомления о прошлом и о занятиях за горизонтом — то, чего
   сборка 0.6.9.0 никогда не показывала.
@@ -365,7 +365,7 @@ override fun onMessageReceived(message: RemoteMessage) {
 
 Отменить их один раз при старте по строковому имени — ровно так, как в проекте
 уже сделано для `yclients_periodic_sync`
-([AutoSyncCoordinator.kt:78](../../app/src/main/java/ru/greemlab/neiro/sync/AutoSyncCoordinator.kt#L78)).
+([AutoSyncCoordinator.kt:78](../../../app/src/main/java/ru/greemlab/neiro/sync/AutoSyncCoordinator.kt#L78)).
 Имена держать константами рядом с этой отменой: классов, из которых их можно было
 бы взять, больше нет.
 
@@ -401,9 +401,9 @@ payload, в YClients приложение по-прежнему не ходит.
 догона — везде, где появился разобранный `PushSessionEvent`.
 
 Запись только через `calendarRepository.updateDayData { current -> ... }`
-([CalendarDataStore.kt:230](../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt#L230)):
+([CalendarDataStore.kt:230](../../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt#L230)):
 это атомарный read-modify-write под writer-локом, тем же механизмом пишет синк
-([YClientsCalendarSync.kt:324](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L324)).
+([YClientsCalendarSync.kt:324](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L324)).
 Паттерн «прочитал `peekDayData` → поправил → сохранил» потеряет параллельную
 правку из UI или из синка.
 
@@ -414,7 +414,7 @@ payload, в YClients приложение по-прежнему не ходит.
 события: `SessionParser.parse(raw)` → имя, время, `kind` → `SessionSlotKey.build`.
 
 Логика разбора строки в занятие уже есть в `CalendarSessionSnapshot.parseEntries`
-([TrackedSession.kt:96](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L96)) —
+([TrackedSession.kt:96](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L96)) —
 вынести её в переиспользуемую функцию, а не копировать: две копии этого разбора
 разъедутся при первой же правке формата.
 
@@ -438,7 +438,7 @@ payload, в YClients приложение по-прежнему не ходит.
 Разобрать существующую строку, поменять **только** статус и сериализовать обратно
 тем же сериализатором: `serializeStudentExtended(name, newStatus, time, phone, comment)`
 или `serializeDiagnostics(price, name, newStatus, time)`
-([SessionParser.kt:471](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt#L471)).
+([SessionParser.kt:471](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt#L471)).
 
 Пересборка строки с нуля затрёт телефон, комментарий и цену диагностики — их в
 payload нет и взять неоткуда.
@@ -446,7 +446,7 @@ payload нет и взять неоткуда.
 ### 5.5 Новая запись: формат времени как у синка
 
 `time` в строке — диапазон `HH:mm-HH:mm`, конец = начало + 50 минут, как в
-[formatRecordTime](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L794).
+[formatRecordTime](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L794).
 `phone` и `comment` — пустые, подтянутся полным синком. Цена диагностики —
 `profile.pricePerDiagnostics`, как в `createEntryFromRecord`.
 
@@ -457,7 +457,7 @@ payload нет и взять неоткуда.
 
 Интенсив хранит нескольких детей внутри одной строки, а слияние с YClients там
 уже нетривиально (сопоставление по имени и времени,
-[YClientsCalendarSync.kt:369](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L369)).
+[YClientsCalendarSync.kt:369](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L369)).
 Точечная правка ребёнка из push'а рискует испортить ручные данные ради экономии
 одного синка.
 
@@ -604,14 +604,14 @@ data class AckEventsRequest(
 
 Почему так. Вход в приложение и так запускает полный синк календаря
 (`shouldRunFullLiveSync` при `lastFullLiveSync = 0`,
-[YClientsCalendarSync.kt:73](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L73)) —
+[YClientsCalendarSync.kt:73](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L73)) —
 текущий и следующий месяц приезжают целиком. Актуальное состояние на экране уже
 есть; уведомление «Ваня подтвердился три дня назад» ничего не добавляет, только
 шумит.
 
 Это третий экземпляр одного принципа, уже принятого дважды: `hasBaselineSnapshot`
 в приложении (первый снимок не порождает событий,
-[SessionNotificationCoordinator.kt:198](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L198))
+[SessionNotificationCoordinator.kt:198](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt#L198))
 и сидирование `record_states` на сервере ([план, этап 5.3](plan.md)).
 Новый наблюдатель начинает с «сейчас», а не с истории.
 
@@ -647,7 +647,7 @@ data class AckEventsRequest(
 сигнатура и обоснование в [§6.1](#61-pushapikt).
 
 `device_id` строится из `ANDROID_ID`
-([PushDeviceId.kt:18](../../app/src/main/java/ru/greemlab/neiro/push/PushDeviceId.kt#L18)),
+([PushDeviceId.kt:18](../../../app/src/main/java/ru/greemlab/neiro/push/PushDeviceId.kt#L18)),
 а он переживает переустановку приложения — так что типичный случай «удалил,
 поставил, вошёл» попадёт в ветку «известное устройство» и подхватит серверный
 курсор. Ветка с `max(events.id)` нужна для по-настоящему нового телефона и после
@@ -668,7 +668,7 @@ data class AckEventsRequest(
 NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru/v2
 ```
 
-Читается в [app/build.gradle.kts:66](../../app/build.gradle.kts#L66). До сервиса
+Читается в [app/build.gradle.kts:66](../../../app/build.gradle.kts#L66). До сервиса
 доходят обычные `/v1/...` — префикс `/v2` снимается по дороге.
 
 **Кто именно его снимает — nginx на VPS, а не Caddy** (проверено на живых
@@ -698,7 +698,7 @@ Caddy на малине **в пути с улицы не участвует.** �
 
 `NEIRO_PUSH_API_KEY` — **новый ключ нового сервиса**, не старый: у сервисов свои
 `../../neiro-push-events/.env`. Регистрация с чужим ключом вернёт 401, а `PushRegistrar` на 4xx не
-повторяет запрос ([PushRegistrar.kt:131](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L131))
+повторяет запрос ([PushRegistrar.kt:131](../../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt#L131))
 — телефон молча останется незарегистрированным.
 
 Версию приложения поднять (`0.7.0.0`): она уходит в `app_version` при регистрации
@@ -730,7 +730,7 @@ Caddy на малине **в пути с улицы не участвует.** �
 
 1. **Интенсивы.** Приложение разворачивает интенсив в отдельный `TrackedSession`
    на каждого ребёнка со временем начала интенсива
-   ([TrackedSession.kt:101](../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L101)),
+   ([TrackedSession.kt:101](../../../app/src/main/java/ru/greemlab/neiro/notifications/TrackedSession.kt#L101)),
    а сервер шлёт событие на запись YClients с её собственным `datetime`. Если
    времена разойдутся — `slotKey` разный, и одно изменение покажется дважды:
    push'ом и локальным диффом. Проверять на живом интенсиве, отдельным пунктом

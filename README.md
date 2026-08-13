@@ -90,7 +90,7 @@
    NEIRO_PUSH_API_KEY=<API_KEY из ~/neiro-push/.env>
    ```
 
-2. `app/google-services.json` — для FCM ([push-setup.md § Firebase](docs/push-setup.md#2-firebase-fcm)).
+2. `app/google-services.json` — для FCM ([push-setup.md § Firebase](docs/archive/push-setup.md#2-firebase-fcm)).
 3. Сборка — Android Studio / Gradle на машине разработчика.
 
 Без `local.properties` приложение соберётся, но вход не пройдёт: сервис
@@ -104,7 +104,7 @@
 Приложение работает с третьим поколением сервиса — `neiro-push` (маршрут `/v1`,
 порт 8012). Два прежних поколения погашены: `server/` — 02.08.2026,
 `neiro-push-events` (`/v2`) — 13.08.2026. Их код лежит в истории git
-([разбор работ](docs/push-events/README.md)).
+([разбор работ](docs/archive/push-events/README.md)).
 
 Сервис и его эксплуатация — [docs/neiro-push/](docs/neiro-push/README.md).
 
@@ -139,8 +139,7 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 | Релизы и самообновление | [docs/updater/](docs/updater/README.md) | Версии, выпуск по тегам, как приложение обновляет себя, риски и план работ |
 | Сервис `neiro-push` (текущий) | [docs/neiro-push/](docs/neiro-push/README.md) | Токены YClients на сервере, приложение ходит через прокси: архитектура, API, деплой, порядок запуска |
 | YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Вход, сетевой слой, синхронизация, `local.properties` |
-| Push и FCM (архив) | [docs/push-setup.md](docs/push-setup.md) | Первое поколение `server/`: домен, Firebase, где лежала БД |
-| Сервис событий (архив) | [docs/push-events/](docs/push-events/README.md) | Второе поколение `neiro-push-events`: погашено 13.08.2026, план и журнал работ |
+| Архив | [docs/archive/](docs/archive/README.md) | Закрытые аудиты, старая переработка и оба погашенных поколения push-сервиса — история, не руководство |
 | Скриншоты | [docs/screenshots.md](docs/screenshots.md) | Что снимать, требования README и RuStore, скрипт разбора кадров |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |

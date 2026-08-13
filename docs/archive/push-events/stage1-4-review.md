@@ -97,7 +97,7 @@ time=_extract_time(raw.get("datetime")),
 - **`slotKey` разъедется**, а на нём держится вся защита от дублей.
 
 Существующий разбор в приложении
-([YClientsCalendarSync.kt:682](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L682)
+([YClientsCalendarSync.kt:682](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L682)
 `parseRecordDate`) такую строку пережёвывает — там есть ветка под
 `yyyy-MM-dd HH:mm:ss` и фолбэк `take(10)`. **Но это не оправдание.** Тот парсер
 разбирает ответы YClients напрямую, а новый путь идёт по контракту §6.1, и
@@ -178,7 +178,7 @@ DELETE FROM record_states;
 ```
 
 Записать это в сообщение коммита нельзя (одна строка по
-[CLAUDE.md](../../CLAUDE.md)), поэтому **добавить пункт в
+[CLAUDE.md](../../../CLAUDE.md)), поэтому **добавить пункт в
 [progress.md](progress.md)**: «после выкатки правки `date` очистить
 `record_states`». Пользователю сказать об этом прямо при сдаче работы.
 
@@ -322,9 +322,9 @@ def _is_invalid_token_error(self, response: httpx.Response) -> bool:
 
 Так же устроено и в приложении, где эта логика работает и всех устраивает:
 запись, исчезнувшая из календаря, даёт `DELETED`
-([SessionChangeDetector.kt:51](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L51)),
+([SessionChangeDetector.kt:51](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L51)),
 а запись со статусом «отменён» — `CANCELLED`
-([строка 52](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L52)).
+([строка 52](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L52)).
 
 #### Проблема 1: разбор не обрывается
 
@@ -336,7 +336,7 @@ def _is_invalid_token_error(self, response: httpx.Response) -> bool:
 нет.
 
 Приложение так не делает: при отмене оно ставит событие и сразу `continue`
-([SessionChangeDetector.kt:61–66](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L61-L66)).
+([SessionChangeDetector.kt:61–66](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L61-L66)).
 Сервер обязан вести себя так же.
 
 Отдельный случай: запись **уже была** удалена (`old.deleted = 1`) и продолжает
@@ -359,9 +359,9 @@ old.deleted` — не сработает. Ветка `CANCELLED` требует 
 узнал.
 
 А приложение об этом сообщает — и обоими путями: снятие отмены даёт
-`NEW_BOOKING` ([строка 71](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L71)),
+`NEW_BOOKING` ([строка 71](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L71)),
 вернувшаяся в календарь запись — тоже `NEW_BOOKING`
-([строка 45](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L45)).
+([строка 45](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionChangeDetector.kt#L45)).
 То есть после переезда на серверные события вы бы **потеряли** уведомление,
 которое сейчас приходит.
 
@@ -567,7 +567,7 @@ def utc_now_iso() -> str:
 **`connect()` с `try/finally`** ([database.py:166](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L166))
 написан правильно: `finally` закрывает соединение при любом исходе, `commit`
 только при успешном. Не «упрощать» в ранний `return` — по
-[CLAUDE.md](../../CLAUDE.md) такие конструкции стоят намеренно.
+[CLAUDE.md](../../../CLAUDE.md) такие конструкции стоят намеренно.
 
 **`SecretBox` падает на пустом ключе** ([security.py:20](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/security.py#L20))
 — это правильный fail-fast при старте, а не баг.
@@ -589,7 +589,7 @@ def utc_now_iso() -> str:
 **Что написать** — новый `tests/test_yclients.py` на `_parse_record` и
 `next_changed_after`, на данных **из реального ответа**, а не выдуманных.
 Готовый образец лежит в репозитории:
-[tools/yclients-sandbox/exports/520135-2026-06-28.json](../../tools/yclients-sandbox/exports/520135-2026-06-28.json)
+[tools/yclients-sandbox/exports/520135-2026-06-28.json](../../../tools/yclients-sandbox/exports/520135-2026-06-28.json)
 — оттуда взять одну-две записи целиком и положить в тест как фикстуру.
 
 Минимальный состав:
