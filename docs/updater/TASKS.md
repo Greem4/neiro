@@ -419,12 +419,12 @@ README писался, когда читателем был только авт�
 
 Пакет `ru.greemlab.neiro.update`, новых зависимостей не требуется.
 
-- [~] `UpdateConfig`, `UpdateChannelGate`, `GithubModels`, `GithubApi`,
+- [x] `UpdateConfig`, `UpdateChannelGate`, `GithubModels`, `GithubApi`,
       `UpdateClient` (по образцу `data/network/YClientsClient.kt` — файла
       `push/PushClient.kt` в проекте нет, в `push/` лежит только интерфейс
       `PushApi`; сверено 11.08.2026)
-- [~] `ReleaseVersion` — разбор тега и `versionCode`
-- [~] Тесты: `ReleaseVersionTest`, `AssetPickerTest`
+- [x] `ReleaseVersion` — разбор тега и `versionCode`
+- [x] Тесты: `ReleaseVersionTest`, `AssetPickerTest`
 
 Выбор ассетов живёт в `GithubModels.kt` (`ReleaseAssets`), `UpdateBlockReason` —
 рядом с гейтом в `UpdateChannelGate.kt`: отдельных файлов под них в
@@ -446,11 +446,11 @@ README писался, когда читателем был только авт�
 
 ## Этап 4 — суточная проверка
 
-- [~] `UpdatePreferences` (по образцу `sync/SyncPreferences.kt`)
-- [~] `UpdateChecker` с троттлингом и разбором ошибок в `UpdateFailure`
-- [~] `UpdateCheckWorker` + `UpdateCheckCoordinator`
-- [~] Одна строка в `NeiroApplication.onCreate`
-- [~] Тест `UpdateCheckerTest` на подменённом ответе API
+- [x] `UpdatePreferences` (по образцу `sync/SyncPreferences.kt`)
+- [x] `UpdateChecker` с троттлингом и разбором ошибок в `UpdateFailure`
+- [x] `UpdateCheckWorker` + `UpdateCheckCoordinator`
+- [x] Одна строка в `NeiroApplication.onCreate`
+- [x] Тест `UpdateCheckerTest` на подменённом ответе API
 
 **Проверять только на `release`.** На debug проверять нечего: `UPDATE_ENABLED`
 там `false`, и `UpdateChannelGate.blockReason` вернёт `NotReleaseBuild` ещё до
@@ -480,11 +480,11 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 
 ## Этап 5 — уведомление о версии
 
-- [~] Канал `app_updates`, оформление через `NeiroNotificationBranding`
-- [~] Об одной версии — один раз (`notified_version_code`)
-- [~] Кнопка «Пропустить» → `skipped_version_code`, отдельным `BroadcastReceiver`
+- [x] Канал `app_updates`, оформление через `NeiroNotificationBranding`
+- [x] Об одной версии — один раз (`notified_version_code`)
+- [x] Кнопка «Пропустить» → `skipped_version_code`, отдельным `BroadcastReceiver`
 - [x] Лента in-app уведомлений не тронута
-- [~] Тест `UpdateNotificationPolicyTest` на три случая политики
+- [x] Тест `UpdateNotificationPolicyTest` на три случая политики
 
 Нажатие на уведомление ставит `MainActivity.EXTRA_OPEN_ABOUT` — читать его
 будет экран «О программе» (этап 8), до тех пор оно просто открывает приложение.
@@ -498,10 +498,10 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 
 ## Этап 6 — загрузка и проверка файла
 
-- [~] `UpdateDownloader` — в `cacheDir/updates`, с прогрессом, с очисткой
+- [x] `UpdateDownloader` — в `cacheDir/updates`, с прогрессом, с очисткой
       прошлых попыток
-- [~] `UpdateVerifier` — SHA256 из `SHA256SUMS.txt` и сверка подписи APK
-- [~] Тест `Sha256SumsParserTest`
+- [x] `UpdateVerifier` — SHA256 из `SHA256SUMS.txt` и сверка подписи APK
+- [x] Тест `Sha256SumsParserTest`
 - [x] Скачивание запускается только по действию пользователя — автоматических
       вызовов `UpdateDownloader` в коде нет
 
@@ -518,14 +518,14 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 
 ## Этап 7 — установка
 
-- [~] `REQUEST_INSTALL_PACKAGES` в манифесте, `UpdateInstallReceiver`
+- [x] `REQUEST_INSTALL_PACKAGES` в манифесте, `UpdateInstallReceiver`
       (`exported="false"`)
-- [~] `ApkInstaller` на Session API, `USER_ACTION_NOT_REQUIRED` на Android 12+
-- [~] Обработка `STATUS_PENDING_USER_ACTION`, включая случай «приложение в
+- [x] `ApkInstaller` на Session API, `USER_ACTION_NOT_REQUIRED` на Android 12+
+- [x] Обработка `STATUS_PENDING_USER_ACTION`, включая случай «приложение в
       фоне» — через уведомление, не через `startActivity`
-- [~] Запрос разрешения на установку, если оно не выдано —
+- [x] Запрос разрешения на установку, если оно не выдано —
       `ApkInstaller.canInstall` и `unknownSourcesSettingsIntent`
-- [~] `updated_from_version_code` пишется до `commit`, через `commit()`
+- [x] `updated_from_version_code` пишется до `commit`, через `commit()`
 
 Результат установки экран читает из `UpdateInstallStatus` — потока в памяти
 процесса. Переживать перезапуск ему нечего: после успешной установки процесс
@@ -546,15 +546,15 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 Здесь появляется кнопка «Проверить обновления» — до этого этапа обновление
 живёт только в фоне и в уведомлении.
 
-- [~] `CalendarOverlay.About` и ветка в `CalendarScreen`, возврат — в
+- [x] `CalendarOverlay.About` и ветка в `CalendarScreen`, возврат — в
       `AppSettings`, как у прочих подчинённых экранов
-- [~] `AboutScreen` в стиле существующих настроек
-- [~] Секция «О программе» в `AppSettingsScreen`: подзаголовок «Доступна версия
+- [x] `AboutScreen` в стиле существующих настроек
+- [x] Секция «О программе» в `AppSettingsScreen`: подзаголовок «Доступна версия
       X» при известном обновлении (`UpdateNotifier.knownNewerVersion`, в сеть не
       ходит)
-- [~] Состояния из `UpdateState` отрисованы все, включая `Blocked`
-- [~] Строки — в `strings.xml`
-- [~] Уведомление открывает экран напрямую: `EXTRA_OPEN_ABOUT` → `MainActivity`
+- [x] Состояния из `UpdateState` отрисованы все, включая `Blocked`
+- [x] Строки — в `strings.xml`
+- [x] Уведомление открывает экран напрямую: `EXTRA_OPEN_ABOUT` → `MainActivity`
       → `CalendarScreen`
 
 Макет — [ARCHITECTURE.md § Экран «О программе»](ARCHITECTURE.md#экран-о-программе).
@@ -568,9 +568,9 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 
 ## Этап 9 — после установки
 
-- [~] После обновления показывается «Обновлено до 0.1.2» (баннер на экране
+- [x] После обновления показывается «Обновлено до 0.1.2» (баннер на экране
       «О программе», один раз) и `cacheDir/updates` чистится
-- [~] `pending_apk_path` переживает перезапуск: скачали, не поставили,
+- [x] `pending_apk_path` переживает перезапуск: скачали, не поставили,
       вернулись — предлагаем установить, а не качать заново
 
 Кэш чистится двумя путями: при старте (`UpdateCheckCoordinator`, если скачанное
