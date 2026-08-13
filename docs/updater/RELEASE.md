@@ -98,9 +98,11 @@ buildConfigField("String", "UPDATE_REPO", "\"Greem4/neiro\"")
 gunzip mapping-0.1.6.txt.gz     # рядом появится mapping-0.1.6.txt
 ```
 
-Описание релиза (`body`) собирается из коммитов между прошлым и текущим тегом.
-Русские однострочные сообщения коммитов, принятые в проекте, для этого и
-годятся: список изменений читается как есть, без ручной правки.
+Описание релиза (`body`) берётся из раздела этой версии в `CHANGELOG.md` — он
+написан для человека с телефоном, а не для читающего код. Раздела нет (забыли
+дописать) — workflow откатывается на список коммитов между прошлым и текущим
+тегом: русские однострочные сообщения, принятые в проекте, читаются как есть.
+Релиз важнее красивых заметок, из-за пустого раздела сборка не падает.
 
 ## Workflow
 
@@ -154,7 +156,8 @@ jobs:
 
       # Секреты восстанавливаются в файлы, которых нет в репозитории.
       # local.properties собирается целиком здесь: build.gradle.kts читает
-      # ключи YClients и push именно оттуда.
+      # адрес и ключ сервиса Neiro именно оттуда. Ключей YClients в сборке
+      # больше нет — они живут только на Pi.
       - name: Восстановить секреты
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -204,7 +207,22 @@ jobs:
             echo
             echo '## Что изменилось'
             echo
-            if [ -n "$PREV" ]; then
+            # Раздел этой версии из CHANGELOG.md — он написан для пользователя,
+            # а не для того, кто читает код. Нет раздела (забыли дописать) —
+            # откатываемся на git-лог: релиз важнее красивых заметок.
+            CHANGES="$(awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { inside = 1; next }
+              inside && /^## / { exit }
+              inside { print }
+            ' CHANGELOG.md 2>/dev/null | sed '/^[[:space:]]*$/d' || true)"
+
+            if [ -n "$CHANGES" ]; then
+              echo "$CHANGES"
+              if [ -n "$PREV" ]; then
+                echo
+                echo "[Все изменения с $PREV](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/$PREV...$GITHUB_REF_NAME)"
+              fi
+            elif [ -n "$PREV" ]; then
               git log --pretty='- %s' "$PREV..$GITHUB_REF_NAME"
               echo
               echo "[Все изменения с $PREV](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/$PREV...$GITHUB_REF_NAME)"
