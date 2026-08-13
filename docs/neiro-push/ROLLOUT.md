@@ -145,7 +145,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/events"   # 401, а не 404
 `applicationIdSuffix = ".prerelease"` — он ставится **рядом** с рабочим
 приложением, отдельной иконкой, со своими данными. В Firebase клиент
 `ru.greemlab.neiro.prerelease` уже заведён
-([push-setup.md § Firebase](../push-setup.md#2-firebase-fcm)), значит пуши в
+([push-setup.md § Firebase](../archive/push-setup.md#2-firebase-fcm)), значит пуши в
 него пойдут.
 
 - [x] Приложение переведено на прокси
@@ -258,7 +258,7 @@ adb shell run-as ru.greemlab.neiro.prerelease \
 - [x] `server/` и `neiro-push-events/` удалены из репозитория 13.08.2026 —
       код остался в истории git, коммит `5a95262`
 - [x] Документация первого и второго поколения (`docs/push-setup.md`,
-      `docs/push-events.md`, `docs/push-events/`) помечена архивной, ссылки на
+      `docs/push-events.md`, `docs/archive/push-events/`) помечена архивной, ссылки на
       удалённый код переведены на постоянные адреса GitHub
 
 Проверено после уборки: `/v1/events` отвечает `401` (жив и требует токен),

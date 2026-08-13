@@ -1,6 +1,6 @@
 # Аудит 30.07.2026
 
-Третий комплексный аудит проекта по [методике](../audit/METHODIKA.md). Первый
+Третий комплексный аудит проекта по [методике](../../audit/METHODIKA.md). Первый
 заход, в котором разобраны бэкенды: [`server/`](../../server/) (область `K`) и
 [`neiro-push-events/`](../../neiro-push-events/) (область `E`) — до этого они
 аудит не проходили.
@@ -29,7 +29,7 @@
 
 | # | Что | Файл |
 |---|---|---|
-| [S1](FINDINGS.md#s1-высоко--logout-не-отменяет-воркер-догона-событий) | Logout не отменяет воркер догона `push_events_sync`: работающий догон дописывает курсор уже после его сброса и применяет чужие события к календарю следующего аккаунта | [`auth/LogoutCoordinator.kt`](../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt) |
+| [S1](FINDINGS.md#s1-высоко--logout-не-отменяет-воркер-догона-событий) | Logout не отменяет воркер догона `push_events_sync`: работающий догон дописывает курсор уже после его сброса и применяет чужие события к календарю следующего аккаунта | [`auth/LogoutCoordinator.kt`](../../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt) |
 | [K1](FINDINGS.md#k1-высоко--admin-эндпоинты-открываются-ключом-из-apk) | `verify_admin_api_key` при пустом `ADMIN_API_KEY` принимает общий `API_KEY` — тот самый, что запечён в APK | [`server/app/main.py:50`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/main.py) |
 | [E1](FINDINGS.md#e1-высоко--дашборд-и-admin-api-открываются-ключом-из-apk) | То же в сервисе событий, но там за ключом лежит дашборд с именами клиентов и всей лентой событий | [`neiro-push-events/app/main.py:117`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py) |
 
@@ -71,7 +71,7 @@
 **Три расхождения, каждое разобрано:**
 
 1. **`S3` (foreground-поллинг раз в 5 мин) сознательно откачен.**
-   [`sync/LiveApiCoordinator.kt`](../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
+   [`sync/LiveApiCoordinator.kt`](../../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
    больше не опрашивает YClients по таймеру — только при входе и при открытии
    приложения. Это решение пользователя от 25.07.2026 (весь смысл нового
    push-сервиса), а не регрессия. **Находкой не считается, возвращать поллинг
@@ -79,8 +79,8 @@
 2. **`S1`/`S2` относились к `sync/LiveApiRefreshWorker.kt`, которого больше
    нет** — файл удалён вместе с локальным опросом. Правило «`scheduleNext` в
    `finally` при `!isStopped`» живо в
-   [`push/PushKeepAliveWorker.kt`](../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt)
-   и [`notifications/SessionScheduledDigestWorker.kt`](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionScheduledDigestWorker.kt).
+   [`push/PushKeepAliveWorker.kt`](../../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt)
+   и [`notifications/SessionScheduledDigestWorker.kt`](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionScheduledDigestWorker.kt).
    Но сочетание «`Result.retry()` + `scheduleNext()`», которое чинил `S2`,
    воспроизвелось в keepalive — см. [S2](FINDINGS.md#s2-средне--keepalive-одновременно-ретраит-и-ставит-следующее-звено).
    В `proguard-rules.pro` осталось правило на удалённый класс —

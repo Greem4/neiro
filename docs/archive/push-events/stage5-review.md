@@ -65,7 +65,7 @@
 **по смыслу**, через уже готовую функцию `derive_events`, не заметив, что
 решение «полный запрос или инкрементальный» живёт совсем в другом месте кода и
 с сидированием никак не связано. Классический случай из
-[CLAUDE.md](../../CLAUDE.md): молча выбранное допущение выглядит как выполненная
+[CLAUDE.md](../../../CLAUDE.md): молча выбранное допущение выглядит как выполненная
 работа.
 
 ---
@@ -393,7 +393,7 @@ if not events:
 
 Дубли, если они когда-нибудь всё же случатся, гасит `wasEventNotified(dedupeKey)`
 в приложении (LRU на 300 ключей,
-[SessionNotificationPreferences.kt:117](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
+[SessionNotificationPreferences.kt:117](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationPreferences.kt#L117),
 см. [план §5.2](plan.md)) — но это страховка, а не проектное решение.
 
 ---
@@ -778,7 +778,7 @@ loop. Плюс `record_push_delivery` открывает **отдельное с
 ## 7. С чего начинать
 
 Порядок именно такой: блокеры сначала, каждая порция — отдельным коммитом по
-правилам [CLAUDE.md](../../CLAUDE.md).
+правилам [CLAUDE.md](../../../CLAUDE.md).
 
 Порядок коммитов 1 и 2 поменялся местами относительно первой редакции этого
 документа: транзакция из [§2.2](#22-состояния-пишутся-раньше-событий) идёт
@@ -847,4 +847,4 @@ python3 -m venv /tmp/venv-neiro-events
 cd neiro-push-events && PYTHONPATH=. /tmp/venv-neiro-events/bin/python -m pytest tests/ -v
 ```
 
-Сборку Gradle не запускать — по [CLAUDE.md](../../CLAUDE.md) её делает пользователь.
+Сборку Gradle не запускать — по [CLAUDE.md](../../../CLAUDE.md) её делает пользователь.

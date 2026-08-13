@@ -49,10 +49,10 @@ push-сервиса, здесь нет.
 
 ### S1. Высоко — logout не отменяет воркер догона событий
 
-**Файлы:** [`auth/LogoutCoordinator.kt:24–36`](../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt),
-[`push/PushEventsSyncCoordinator.kt:13`](../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncCoordinator.kt),
-[`push/PushRegistrar.kt:63–71`](../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt),
-[`push/PushEventsSyncer.kt:26–67`](../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncer.kt)
+**Файлы:** [`auth/LogoutCoordinator.kt:24–36`](../../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt),
+[`push/PushEventsSyncCoordinator.kt:13`](../../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncCoordinator.kt),
+[`push/PushRegistrar.kt:63–71`](../../../app/src/main/java/ru/greemlab/neiro/push/PushRegistrar.kt),
+[`push/PushEventsSyncer.kt:26–67`](../../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncer.kt)
 
 **Механизм:** `LogoutCoordinator.logout()` гасит `push_keepalive`, воркеры
 уведомлений и легаси-имена, но про уникальную работу `push_events_sync` не знает
@@ -154,7 +154,7 @@ admin_key = settings.admin_api_key or settings.api_key
 
 ### B1. Средне — пакет push без единого теста
 
-**Файлы:** [`push/`](../../app/src/main/java/ru/greemlab/neiro/push/) целиком
+**Файлы:** [`push/`](../../../app/src/main/java/ru/greemlab/neiro/push) целиком
 (977 строк, 15 файлов), `app/src/test/java/ru/greemlab/neiro/` — каталога `push`
 нет
 
@@ -182,10 +182,10 @@ DI и без `Context`** — в отличие от `TokenStorage`/`YClientsRepo
 
 ### D1. Средне — прогрев `TokenStorage` обгоняется инициализацией на main
 
-**Файлы:** [`NeiroApplication.kt:26, 33–34`](../../app/src/main/java/ru/greemlab/neiro/NeiroApplication.kt),
-[`sync/AutoSyncCoordinator.kt:46`](../../app/src/main/java/ru/greemlab/neiro/sync/AutoSyncCoordinator.kt),
-[`sync/LiveApiCoordinator.kt:38`](../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt),
-[`data/network/TokenStorage.kt:20, 120–141`](../../app/src/main/java/ru/greemlab/neiro/data/network/TokenStorage.kt)
+**Файлы:** [`NeiroApplication.kt:26, 33–34`](../../../app/src/main/java/ru/greemlab/neiro/NeiroApplication.kt),
+[`sync/AutoSyncCoordinator.kt:46`](../../../app/src/main/java/ru/greemlab/neiro/sync/AutoSyncCoordinator.kt),
+[`sync/LiveApiCoordinator.kt:38`](../../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt),
+[`data/network/TokenStorage.kt:20, 120–141`](../../../app/src/main/java/ru/greemlab/neiro/data/network/TokenStorage.kt)
 
 **Механизм:** фикс `D7` прошлого аудита прогревает хранилище на IO:
 
@@ -218,7 +218,7 @@ AndroidKeyStore и дисковый I/O.
 
 ### D2. Средне — 401 от запоздавшего запроса гасит только что поднятую сессию
 
-**Файлы:** [`data/network/YClientsRepository.kt:71–72, 248–264`](../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt)
+**Файлы:** [`data/network/YClientsRepository.kt:71–72, 248–264`](../../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt)
 
 **Механизм:** `login()` ждёт хвост предыдущего логаута — `logoutOn401Job?.join()`
 (строка 72). Это закрывает случай «401 → logout идёт → пользователь вошёл». Но
@@ -252,8 +252,8 @@ AndroidKeyStore и дисковый I/O.
 
 ### S2. Средне — keepalive одновременно ретраит и ставит следующее звено
 
-**Файлы:** [`push/PushKeepAliveWorker.kt:36–49`](../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt),
-[`push/PushKeepAliveCoordinator.kt:43–45`](../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveCoordinator.kt)
+**Файлы:** [`push/PushKeepAliveWorker.kt:36–49`](../../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt),
+[`push/PushKeepAliveCoordinator.kt:43–45`](../../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveCoordinator.kt)
 
 **Механизм:** при неудаче регистрации воркер возвращает `Result.retry()`
 (строка 44) и **одновременно** в `finally` вызывает
@@ -287,8 +287,8 @@ keepalive.
 
 ### S3. Средне — курсор догона двигается, даже когда событие не применилось
 
-**Файлы:** [`push/PushEventsSyncer.kt:39–63`](../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncer.kt),
-[`push/PushEventsSyncWorker.kt:16–18`](../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncWorker.kt)
+**Файлы:** [`push/PushEventsSyncer.kt:39–63`](../../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncer.kt),
+[`push/PushEventsSyncWorker.kt:16–18`](../../../app/src/main/java/ru/greemlab/neiro/push/PushEventsSyncWorker.kt)
 
 **Механизм:** три `runCatching` подряд без проброса `CancellationException`:
 
@@ -330,7 +330,7 @@ runCatching { api.ackEvents(...) }                                   // :60
 
 ### S4. Средне — каждый интенсив считается «новой записью» на каждом синке
 
-**Файлы:** [`sync/YClientsCalendarSync.kt:399, 577–623`](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt)
+**Файлы:** [`sync/YClientsCalendarSync.kt:399, 577–623`](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt)
 
 **Механизм:** `mergeIntensivesFromApi` увеличивает `added` для каждой группы
 интенсива из ответа API — безусловно, даже если запись уже была в календаре и не
@@ -358,8 +358,8 @@ added++          // :620 — без сравнения с тем, что был�
 
 ### N1. Средне — без разрешения напоминания и сводки не попадают даже в in-app ленту
 
-**Файлы:** [`notifications/SessionNotificationCoordinator.kt:554–557, 633, 652, 689`](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt),
-[`notifications/SessionNotificationDisplay.kt:47–69`](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationDisplay.kt)
+**Файлы:** [`notifications/SessionNotificationCoordinator.kt:554–557, 633, 652, 689`](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationCoordinator.kt),
+[`notifications/SessionNotificationDisplay.kt:47–69`](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionNotificationDisplay.kt)
 
 **Механизм:** фикс `N2` прошлого аудита установил принцип «in-app лента ведётся
 всегда, системный push — отдельно, по разрешению», и для событий он соблюдён:
@@ -498,7 +498,7 @@ def _access_token(self) -> str:
 ### K5. Средне — старый сервис шлёт action, который приложение больше не понимает
 
 **Файлы:** [`server/app/fcm.py:56–64`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/fcm.py),
-[`push/NeiroFirebaseMessagingService.kt:19–24`](../../app/src/main/java/ru/greemlab/neiro/push/NeiroFirebaseMessagingService.kt)
+[`push/NeiroFirebaseMessagingService.kt:19–24`](../../../app/src/main/java/ru/greemlab/neiro/push/NeiroFirebaseMessagingService.kt)
 
 **Механизм:** `server/` отправляет `data.action = "sync"`. Приложение 0.6.10.1
 разбирает только два значения:
@@ -600,7 +600,7 @@ conn.executemany("INSERT INTO record_states (...) VALUES (...)", [...])
 
 ### B2. Низко — proguard держит удалённый класс и слишком широкое правило на push
 
-**Файлы:** [`app/proguard-rules.pro:84, 79`](../../app/proguard-rules.pro)
+**Файлы:** [`app/proguard-rules.pro:84, 79`](../../../app/proguard-rules.pro)
 
 `-keep class ru.greemlab.neiro.sync.LiveApiRefreshWorker { *; }` — класса больше
 нет, файл удалён вместе с локальным опросом; правило молча не матчится.
@@ -638,7 +638,7 @@ KDoc под текущую роль («тихие часы для keepalive и �
 ### B4. Низко — версия приложения в документации и в сборке разная
 
 **Файлы:** [`docs/push-events/progress.md`](../push-events/progress.md) (пункты 8–9
-раздела «Что дальше»), [`app/build.gradle.kts:55–56`](../../app/build.gradle.kts)
+раздела «Что дальше»), [`app/build.gradle.kts:55–56`](../../../app/build.gradle.kts)
 
 `progress.md` описывает выкатку 27.07.2026: «Собрать и поставить приложение
 **0.7.0.0**», устройство в дашборде значится как `0.7.0.0-debug`. В
@@ -653,7 +653,7 @@ KDoc под текущую роль («тихие часы для keepalive и �
 
 ### U1. Низко — класс-док обещает «мягкое слияние», которого нет
 
-**Файлы:** [`sync/YClientsCalendarSync.kt:301–311, 401, 555–556`](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt)
+**Файлы:** [`sync/YClientsCalendarSync.kt:301–311, 401, 555–556`](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt)
 
 KDoc `mergeRecordsToCalendar` описывает два режима:
 
@@ -683,7 +683,7 @@ KDoc `mergeRecordsToCalendar` описывает два режима:
 
 ### U2. Низко — годовой налог считается за 12 месяцев и нигде не выводится
 
-**Файлы:** [`ui/calendar/ProfileYearStats.kt:13–14, 23, 112`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/ProfileYearStats.kt)
+**Файлы:** [`ui/calendar/ProfileYearStats.kt:13–14, 23, 112`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/ProfileYearStats.kt)
 
 `totalTaxAmount = monthlyTaxAmount * 12` — налог начисляется за все 12 месяцев,
 включая те, где записей не было, и будущие месяцы текущего года. При этом
@@ -702,7 +702,7 @@ KDoc `mergeRecordsToCalendar` описывает два режима:
 
 ### U3. Низко — смена типа занятия в YClients не доезжает до локальной диагностики
 
-**Файлы:** [`sync/YClientsCalendarSync.kt:750–789`](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt) (строка 774)
+**Файлы:** [`sync/YClientsCalendarSync.kt:750–789`](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt) (строка 774)
 
 `updateEntryFromRecord` обрабатывает два случая: запись в YClients —
 диагностика (перезаписывает как диагностику) или локальная запись —
