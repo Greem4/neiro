@@ -138,7 +138,8 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 | Сервис `neiro-push` (текущий) | [docs/neiro-push/](docs/neiro-push/README.md) | Токены YClients на сервере, приложение ходит через прокси: архитектура, API, деплой, порядок запуска |
 | YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Вход, сетевой слой, синхронизация, `local.properties` |
 | Push и FCM | [docs/push-setup.md](docs/push-setup.md) | Архив первого поколения: домен, Firebase, где лежит БД |
-| Сервис событий (архив) | [docs/push-events/](docs/push-events/README.md) | Второе поколение `neiro-push-events`: план, журнал работ, разбор находок |
+| Сервис событий (архив) | [docs/push-events/](docs/push-events/README.md) | Второе поколение `neiro-push-events`: погашено 13.08.2026, план и журнал работ |
+| Скриншоты | [docs/screenshots.md](docs/screenshots.md) | Что снимать, требования README и RuStore, скрипт разбора кадров |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |

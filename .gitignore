@@ -24,6 +24,11 @@ scripts/icon/node_modules/
 # Бэкапы push-сервисов: база и .env с секретами — только локально
 server/backups/
 neiro-push-events/backups/
+neiro-push/backups/
+
+# Исходники скриншотов: полноразмерные кадры с телефона по мегабайту штука.
+# В репозиторий уезжает только то, что собрал scripts/screenshots.sh.
+docs/images/raw/
 
 # Личные разрешения агента: пути к venv и прочее только для этой машины
 .claude/settings.local.json
