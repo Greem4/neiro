@@ -28,7 +28,7 @@
 пересказывать историю, документ самодостаточен:
 
 1. Этапы 8 и 9 закрыты — правки приложения (пять коммитов A–D) и документация
-   по факту ([neiro-push-events/README.md](../../neiro-push-events/README.md),
+   по факту ([neiro-push-events/README.md](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/README.md),
    [docs/push-events.md](../push-events.md), [docs/push-setup.md](../push-setup.md)).
    Следующая работа — **деплой на Pi** (см. «Что дальше» ниже), Этап 10
    (гашение старого сервиса) не раньше недели стабильной работы после деплоя.
@@ -104,28 +104,28 @@ devices: 0` — это норма: аккаунт с токенами YClients �
 | 0 | Бэкап `neiro-push` снят и проверен, тег `pre-events-service` (только локально) | `3a17298`, тег без пуша |
 | 1 | Каркас [neiro-push-events/](../../neiro-push-events/) (FastAPI, Dockerfile, docker-compose, скрипты обслуживания), задеплоен на Pi | `346e24b` |
 | 1 | Публичный маршрут `/v2` — отдельный туннель + nginx на VPS (план предполагал другое, см. [подводный камень 2](#2-реальная-топология-сети-разошлась-с-планом)) | `4698f28` |
-| 2 | Схема БД [app/database.py](../../neiro-push-events/app/database.py) по §7 Этапа 2, WAL включён | `c8c4369` |
-| 3 | Клиент YClients [app/yclients.py](../../neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
-| 4 | Дифф состояний [app/events.py](../../neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
-| 5 | Поллер [app/poller.py](../../neiro-push-events/app/poller.py) + [app/fcm.py](../../neiro-push-events/app/fcm.py) + [app/security.py](../../neiro-push-events/app/security.py), связано в [app/main.py](../../neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
+| 2 | Схема БД [app/database.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py) по §7 Этапа 2, WAL включён | `c8c4369` |
+| 3 | Клиент YClients [app/yclients.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py) — один запрос на компанию, разбор `services` → `kind`, время из `datetime` | `871e53d`, фикс `ba75934` |
+| 4 | Дифф состояний [app/events.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py) по правилам §6.3, чистая функция без БД и сети; `tests/test_events.py` — 14 тестов на все правила + сидирование | `5a2f14b` |
+| 5 | Поллер [app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py) + [app/fcm.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py) + [app/security.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/security.py), связано в [app/main.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py) через `lifespan`; `tests/test_poller.py` — 4 теста на фейках | `503949a` ⚠️ [требует правок](stage5-review.md) |
 | 3 (правка) | `date` теперь берётся из `datetime` подстрокой, как `time` ([§2 stage1-4-review](stage1-4-review.md#2-блокер-date-уезжает-со-временем)); добавлен `tests/test_yclients.py` — 9 тестов на реальном экспорте | `60ebd44` |
-| 4 (правка) | Дифф [app/events.py](../../neiro-push-events/app/events.py) различает удаление, отмену и возврат записи ([§3.3 stage1-4-review](stage1-4-review.md#33-дифф-не-различает-удаление-отмену-и-возврат)); 5 новых тестов, старые 14 не тронуты | `5fdbbcb` |
-| 5 (правка) | [app/fcm.py](../../neiro-push-events/app/fcm.py): `_access_token` обновляет OAuth-токен только когда протух ([§3.1](stage1-4-review.md#31-oauth-токен-обновляется-на-каждую-отправку)); `INVALID_ARGUMENT` больше не считается мёртвым токеном ([§3.2](stage1-4-review.md#32-invalid_argument-удаляет-живое-устройство)) | `90824fd` |
+| 4 (правка) | Дифф [app/events.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py) различает удаление, отмену и возврат записи ([§3.3 stage1-4-review](stage1-4-review.md#33-дифф-не-различает-удаление-отмену-и-возврат)); 5 новых тестов, старые 14 не тронуты | `5fdbbcb` |
+| 5 (правка) | [app/fcm.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py): `_access_token` обновляет OAuth-токен только когда протух ([§3.1](stage1-4-review.md#31-oauth-токен-обновляется-на-каждую-отправку)); `INVALID_ARGUMENT` больше не считается мёртвым токеном ([§3.2](stage1-4-review.md#32-invalid_argument-удаляет-живое-устройство)) | `90824fd` |
 | — (правка) | Мелочи [§4 stage1-4-review](stage1-4-review.md#4-мелочи): переиспользование httpx-клиента в `FcmSender` + `aclose()` в `lifespan`, лог обрезания по `max_pages`, комментарии к `utc_now_iso` и `next_changed_after` | `e8835ca` |
-| 5 (правка 1/6) | [app/database.py](../../neiro-push-events/app/database.py): `commit_poll_result` пишет журнал и состояния одной транзакцией ([§2.2 stage5-review](stage5-review.md#22-состояния-пишутся-раньше-событий)); новый `tests/test_database.py` — тест отката на настоящем SQLite | `28dcd70` |
+| 5 (правка 1/6) | [app/database.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py): `commit_poll_result` пишет журнал и состояния одной транзакцией ([§2.2 stage5-review](stage5-review.md#22-состояния-пишутся-раньше-событий)); новый `tests/test_database.py` — тест отката на настоящем SQLite | `28dcd70` |
 | 5 (правка 2/6) | Сидирование — свойство цикла компании: `Database.has_record_states`, `events.merge_states`, решение в `_poll_company` до запроса ([§2.1](stage5-review.md#21-сидирование-два-источника-правды)); тест на сценарий А (второй специалист) | `ddf6f79` |
 | 5 (правка 3/6) | `staff_id` добавлен в `_event_payload` ([§3.7](stage5-review.md#37-в-payload-события-нет-staff_id)) — второй рубеж фильтра на устройстве | `2c300c6` |
 | 5 (правка 4/6) | Логи опроса и backoff по §8.1 плана, статус `nudged` → `sent`+`detail`, след в `poll_runs` при полном backoff ([§3.1–3.3](stage5-review.md#31-логи-раздела-81-не-реализованы)) | `9f00c38` |
 | 5 (правка 5/6) | `_poll_account` обёрнут в `try` (ошибка одного аккаунта не рушит компанию), перебор токенов вместо токена первого аккаунта, ранняя проверка `fcm.is_configured` ([§3.4–3.6](stage5-review.md#34-_poll_account-не-обёрнут-в-try)) | `256deef` |
 | 5 (правка 6/6) | Тесты приёмки: холостой опрос → 0 событий/0 пушей, рост и сброс backoff после восстановления ([§4](stage5-review.md#4-тесты-чего-не-хватает)) | `501bba2` |
-| 6 | API [app/main.py](../../neiro-push-events/app/main.py) + [app/schemas.py](../../neiro-push-events/app/schemas.py) по §6.2 плана: регистрация (курсор нового устройства = `max(events.id)` по журналу, известного — не трогается), снятие регистрации, догон с горизонтом §6.4 и точным `has_more` (`limit+1`), `ack`, богатый `/health` под admin-ключом. `Database`: `get_account`, `get_max_event_id`, `min_date` у `list_events_since`. `deploy.sh`/`restore.sh` обновлены под авторизованный `/health`. 9 тестов в `tests/test_main.py` | `05b3c30` |
-| 7 | Дашборд [app/dashboard.py](../../neiro-push-events/app/dashboard.py) + [templates/dashboard.html](../../neiro-push-events/templates/dashboard.html) по §8.4 плана: одна функция `collect_dashboard_data` кормит и HTML (`/dashboard`, cookie-логин на 30 дней), и текст (`/v1/admin/dashboard.txt`); плюс JSON `/v1/admin/events`, `/v1/admin/poll-log`. `Database`: `poll_health_summary`, `list_recent_events_admin`, `list_accounts_admin`, `list_devices_admin`, `list_poll_runs_admin`. `scripts/dash.sh` (`--watch` циклом `clear`+`sleep`, без `watch(1)`). `Dockerfile` дополнен `COPY templates`. 10 тестов в `tests/test_main.py` | `03e51cf` |
+| 6 | API [app/main.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py) + [app/schemas.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/schemas.py) по §6.2 плана: регистрация (курсор нового устройства = `max(events.id)` по журналу, известного — не трогается), снятие регистрации, догон с горизонтом §6.4 и точным `has_more` (`limit+1`), `ack`, богатый `/health` под admin-ключом. `Database`: `get_account`, `get_max_event_id`, `min_date` у `list_events_since`. `deploy.sh`/`restore.sh` обновлены под авторизованный `/health`. 9 тестов в `tests/test_main.py` | `05b3c30` |
+| 7 | Дашборд [app/dashboard.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/dashboard.py) + [templates/dashboard.html](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/templates/dashboard.html) по §8.4 плана: одна функция `collect_dashboard_data` кормит и HTML (`/dashboard`, cookie-логин на 30 дней), и текст (`/v1/admin/dashboard.txt`); плюс JSON `/v1/admin/events`, `/v1/admin/poll-log`. `Database`: `poll_health_summary`, `list_recent_events_admin`, `list_accounts_admin`, `list_devices_admin`, `list_poll_runs_admin`. `scripts/dash.sh` (`--watch` циклом `clear`+`sleep`, без `watch(1)`). `Dockerfile` дополнен `COPY templates`. 10 тестов в `tests/test_main.py` | `03e51cf` |
 | 8A | [app.md §3](app.md): убран локальный опрос YClients — `LiveApiRefreshWorker` удалён, `LiveApiCoordinator`/`PushKeepAliveWorker`/`AutoSyncCoordinator`/`LogoutCoordinator` правлены по готовому дифу из `git stash`; `scheduleNext` в `finally` (баг `51d8fe3` не возвращён) | `6c0fc33` |
 | 8B | [app.md §4](app.md): показ уведомления прямо из push-payload — новые `PushSessionEvent`, `PushEventsCursor`, `PushEventNotifier`; `NeiroFirebaseMessagingService` разбирает `session_events`, отсеивает чужой `staff_id`, зовёт нотифаер; старые `PushSyncWorker`/`PushSyncCoordinator` и ветка `action=sync` удалены; осиротевшие имена WorkManager-работ отменяются в `AutoSyncCoordinator` | `2bf04dc` |
 | 8B2 | [app.md §5](app.md): новый `PushEventCalendarApplier` правит `dayData` из payload (все 6 типов событий, интенсивы не трогает, курсор синка не требуется); `CalendarSessionSnapshot.parseEntries` открыт до `internal`, чтобы не копировать разбор строки; вызов вклинён в FCM-сервис до нотифая | `5b795d2` |
 | 8C | [app.md §6](app.md): догон `PushEventsSyncer.syncNow` (курсор, `Mutex`, до 10 страниц, сортировка по `id`, независимые календарь/уведомление, `ack` после каждой страницы); новые `PushEventsSyncCoordinator`/`PushEventsSyncWorker` под нудж `sync_events`; точки вызова — keepalive-тик (до `registerNow`), `LiveApiCoordinator.onStart`; курсор из ответа регистрации (`setIfAbsent`) и сброс при logout | `fdfd613` |
 | 8D | [app.md §7](app.md): `NEIRO_PUSH_API_BASE_URL` с `/v2` (и дефолт в `build.gradle.kts`, и `local.properties` — обновлён локально, не в git), версия `0.7.0.0` (`versionCode` 3) | `e4cd9f0` |
-| 9 | Документация по факту (§9 плана): [neiro-push-events/README.md](../../neiro-push-events/README.md) (эндпоинты, скрипты, БД, переменные), [docs/push-events.md](../push-events.md) (эксплуатация, дашборд, troubleshooting «уведомление не пришло»), [docs/push-setup.md](../push-setup.md) помечен как документ старого сервиса, `plan.md` — статус-таблица | — |
+| 9 | Документация по факту (§9 плана): [neiro-push-events/README.md](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/README.md) (эндпоинты, скрипты, БД, переменные), [docs/push-events.md](../push-events.md) (эксплуатация, дашборд, troubleshooting «уведомление не пришло»), [docs/push-setup.md](../push-setup.md) помечен как документ старого сервиса, `plan.md` — статус-таблица | — |
 
 Коммиты со статусом (без кода): `b8b9f8b`, `517309a`, `2188128`, `c6f5434`.
 
@@ -163,7 +163,7 @@ devices: 0` — это норма: аккаунт с токенами YClients �
 stdin от родительского скрипта и съедал из него весь хвост — строки `cp .env
 ...` и далее просто не выполнялись, без единой ошибки в выводе. Бэкап базы
 работал, бэкап секретов — никогда. Исправлено в
-[server/scripts/backup.sh](../../server/scripts/backup.sh) (коммит `3a17298`)
+[server/scripts/backup.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/scripts/backup.sh) (коммит `3a17298`)
 добавлением `< /dev/null`.
 
 ### 2. Реальная топология сети разошлась с планом
@@ -181,11 +181,11 @@ reverse SSH-туннель Pi→VPS → сервис на Pi. Caddy в этом 
 - независимый reverse-туннель под `neiro-push-events`: systemd `--user` юнит
   `neiro-push-events-tunnel.service` на Pi, порт **18082** (VPS) →
   `127.0.0.1:8011` (Pi) —
-  [scripts/start-tunnel.sh](../../neiro-push-events/scripts/start-tunnel.sh),
-  [scripts/install-tunnel.sh](../../neiro-push-events/scripts/install-tunnel.sh);
+  [scripts/start-tunnel.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/start-tunnel.sh),
+  [scripts/install-tunnel.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/install-tunnel.sh);
 - `location /v2/` в nginx на VPS, идемпотентно —
-  [scripts/patch-vps-nginx-v2.sh](../../neiro-push-events/scripts/patch-vps-nginx-v2.sh);
-- [scripts/patch-pi-caddy-v2.py](../../neiro-push-events/scripts/patch-pi-caddy-v2.py)
+  [scripts/patch-vps-nginx-v2.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/patch-vps-nginx-v2.sh);
+- [scripts/patch-pi-caddy-v2.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/patch-pi-caddy-v2.py)
   **написан, но не используется** — оставлен как задокументированная попытка «по
   плану», которая не подошла; можно удалить на Этапе 9, если не найдётся
   применения.
@@ -203,7 +203,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 штатного деплоя).
 
 Восстановлено штатным
-[server/scripts/patch-pi-caddy.py](../../server/scripts/patch-pi-caddy.py) (тем же
+[server/scripts/patch-pi-caddy.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/scripts/patch-pi-caddy.py) (тем же
 скриптом, что изначально создавал этот блок) + `docker compose restart caddy`.
 Резервная копия файла до правки лежит на Pi:
 `~/server/caddy/Caddyfile.before-restore-<timestamp>`. Проверено вручную: старый
@@ -212,11 +212,11 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 
 ### 4. Курсор `next_changed_after` не входил в Этап 3
 
-[app/yclients.py](../../neiro-push-events/app/yclients.py) на Этапе 3 разбирал
+[app/yclients.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py) на Этапе 3 разбирал
 записи, но не считал курсор для следующего опроса — в плане эта функция явно не
 расписана, а поллеру она нужна. Добавлена как `next_changed_after()` в тот же
 файл (по образцу
-[server/app/yclients.py:106](../../server/app/yclients.py#L106)), аддитивно —
+[server/app/yclients.py:106](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/yclients.py#L106)), аддитивно —
 код разбора записей не тронут.
 
 ### 5. Синглтон `get_poll_service()` из старого сервиса не подошёл
@@ -235,7 +235,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 документом, который параллельно уточнял пользователь: контракт требует ровно
 `displayName ?: (name + " " + surname)`, как в `extractClientName`
 ([YClientsCalendarSync.kt:700](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt#L700)).
-[app/yclients.py](../../neiro-push-events/app/yclients.py) на Этапе 3 собирал
+[app/yclients.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py) на Этапе 3 собирал
 `surname + name + patronymic` — другой порядок и лишнее поле. Разница меняет
 `dedupeKey` в приложении и превращается в молчаливые дубли уведомлений. Исправлено
 коммитом `ba75934`, проверено на синтетической записи.
@@ -291,13 +291,13 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 
 Замечено пользователем 27.07.2026: «опрос был только в 8:24» — при том что на
 часах 11:24 МСК. Расписание опроса (день/ночь) поллер и так считает по Москве
-(`datetime.now(MOSCOW)` в [poller.py](../../neiro-push-events/app/poller.py)),
+(`datetime.now(MOSCOW)` в [poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py)),
 а вот на экран время уходило как есть из базы, то есть в UTC.
 
 **Хранение не трогали** — в базе всё остаётся в UTC (`utc_now_iso`), по нему
 считаются ретеншен и выборки «за сутки» через SQLite `datetime('now')`, который
 тоже UTC. Переведён только показ: `_hms` в
-[dashboard.py](../../neiro-push-events/app/dashboard.py) конвертирует в МСК
+[dashboard.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/dashboard.py) конвертирует в МСК
 (naive-строку на всякий случай трактует как UTC), в шапку обеих версий дашборда
 добавлена пометка «время МСК».
 
@@ -318,13 +318,13 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 перерисовывается раз в 10 секунд.
 
 Аптайм разбит на две части в
-[dashboard.py](../../neiro-push-events/app/dashboard.py): `_uptime_days`
+[dashboard.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/dashboard.py): `_uptime_days`
 («3 дня» или `None`) и `_uptime_clock` (`ЧЧ:ММ:СС`, всегда 8 символов). В плитке
 сутки идут отдельной строкой сверху — и строка эта есть всегда, даже когда суток
 нет («меньше суток»), иначе плитка подрастёт ровно в момент перехода через сутки.
 Часы — `tabular-nums` и `white-space: nowrap`. Заодно значения всех плиток
 прижаты к низу (`margin-top: auto` у `.value` в
-[_styles.html](../../neiro-push-events/templates/_styles.html)): плитка аптайма
+[_styles.html](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/templates/_styles.html)): плитка аптайма
 на строку выше соседних, а высота ряда в гриде общая.
 
 Текстовый дашборд собирает те же две части одной строкой (`_format_uptime`) —
@@ -379,7 +379,7 @@ neiro-push:8010 }` **отсутствовал в файле на диске** (�
 | 26.07.2026 | Догон **тоже** правит календарь, не только push. Обычно спасает синк при открытии, но нудж при открытом приложении оставлял бы календарь старым до следующего запуска | [app.md §6.2](app.md) |
 | 26.07.2026 | Описание маршрута `/v2` в плане и app.md приведено к реальности: nginx на VPS + SSH-туннель, Caddy не участвует, префикс снимает слеш в `proxy_pass`. Проверено на живых серверах | [план §5.1 и §7 Этап 1](plan.md), [app.md §7](app.md) |
 | 26.07.2026 | `/health` закрыт admin-ключом по плану §6.2 (богаче, чем публичный ответ Этапа 1). Публичный безключевой `/health` был временным для Этапа 1 — расхождения с уже задеплоенным нет, `deploy.sh`/`restore.sh` поправлены под `Authorization: Bearer $ADMIN_API_KEY` | [план §6.2](plan.md) |
-| 26.07.2026 | `local.properties` до Этапа 8D хранил URL и ключ **старого** сервиса (`neiro-push`, порт 8010) под именами `NEIRO_PUSH_API_BASE_URL`/`NEIRO_PUSH_API_KEY` — расхождение с реальностью, по инструкции пользователя проверено через `ssh roster-b3` в `~/neiro-push-events/.env`. Обновлено на `API_KEY` нового сервиса (не `ADMIN_API_KEY` — устройства проходят через `verify_api_key`, [main.py](../../neiro-push-events/app/main.py)) и URL с `/v2` | [app.md §7](app.md) |
+| 26.07.2026 | `local.properties` до Этапа 8D хранил URL и ключ **старого** сервиса (`neiro-push`, порт 8010) под именами `NEIRO_PUSH_API_BASE_URL`/`NEIRO_PUSH_API_KEY` — расхождение с реальностью, по инструкции пользователя проверено через `ssh roster-b3` в `~/neiro-push-events/.env`. Обновлено на `API_KEY` нового сервиса (не `ADMIN_API_KEY` — устройства проходят через `verify_api_key`, [main.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py)) и URL с `/v2` | [app.md §7](app.md) |
 
 ---
 

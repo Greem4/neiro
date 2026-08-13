@@ -91,8 +91,8 @@ push-сервиса, здесь нет.
 
 ### K1. Высоко — admin-эндпоинты открываются ключом из APK
 
-**Файлы:** [`server/app/main.py:50–65`](../../server/app/main.py) (строка 54),
-[`server/app/config.py:10`](../../server/app/config.py)
+**Файлы:** [`server/app/main.py:50–65`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/main.py) (строка 54),
+[`server/app/config.py:10`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/config.py)
 
 **Механизм:**
 
@@ -125,9 +125,9 @@ admin_key = settings.admin_api_key or settings.api_key
 
 ### E1. Высоко — дашборд и admin API открываются ключом из APK
 
-**Файлы:** [`neiro-push-events/app/main.py:117–118`](../../neiro-push-events/app/main.py),
+**Файлы:** [`neiro-push-events/app/main.py:117–118`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py),
 строки 121–131 (`verify_admin_api_key`), 301–303 (`_dashboard_authenticated`),
-394 (`dashboard_login`), [`config.py:10`](../../neiro-push-events/app/config.py)
+394 (`dashboard_login`), [`config.py:10`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/config.py)
 
 **Механизм:** тот же фолбэк `settings.admin_api_key or settings.api_key`, но
 цена выше. За админским ключом здесь:
@@ -401,8 +401,8 @@ if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return  
 
 ### K2. Средне — SQLite без WAL и схема на каждый запрос
 
-**Файлы:** [`server/app/database.py:34–48`](../../server/app/database.py),
-[`server/app/main.py:68–69`](../../server/app/main.py)
+**Файлы:** [`server/app/database.py:34–48`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/database.py),
+[`server/app/main.py:68–69`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/main.py)
 
 **Механизм:** `get_database()` — обычная FastAPI-зависимость, создающая
 `Database(settings.database_path)` **на каждый HTTP-запрос**, а конструктор
@@ -417,7 +417,7 @@ rollback journal, где писатель блокирует читателей.
 15 с, а при рассылке — ещё и `delete_device` на каждый мёртвый токен.
 
 Сравнение: в сервисе событий это уже сделано правильно —
-[`neiro-push-events/app/database.py:183, 190–194`](../../neiro-push-events/app/database.py)
+[`neiro-push-events/app/database.py:183, 190–194`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py)
 ставит `busy_timeout=5000`, `journal_mode=WAL`, `synchronous=NORMAL`, а
 `Database` живёт один на процесс (`main.py:63, 92–93`).
 
@@ -433,8 +433,8 @@ rollback journal, где писатель блокирует читателей.
 
 ### K3. Средне — детектор изменений сравнивает фингерпринты разных выборок
 
-**Файлы:** [`server/app/poller.py:84–122`](../../server/app/poller.py),
-[`server/app/yclients.py:89–104`](../../server/app/yclients.py)
+**Файлы:** [`server/app/poller.py:84–122`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/poller.py),
+[`server/app/yclients.py:89–104`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/yclients.py)
 
 **Механизм:** `changed` вычисляется как «хеш текущей выборки не равен
 сохранённому» (строки 91–95). Но выборка не одна и та же от цикла к циклу:
@@ -466,7 +466,7 @@ rollback journal, где писатель блокирует читателей.
 
 ### K4. Средне — обновление Google-токена блокирует event loop на каждый push
 
-**Файлы:** [`server/app/fcm.py:105–109, 52`](../../server/app/fcm.py)
+**Файлы:** [`server/app/fcm.py:105–109, 52`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/fcm.py)
 
 **Механизм:**
 
@@ -483,7 +483,7 @@ def _access_token(self) -> str:
 входящие HTTP-запросы приложения.
 
 Сервис событий эту же проблему уже решил —
-[`neiro-push-events/app/fcm.py:119–126`](../../neiro-push-events/app/fcm.py)
+[`neiro-push-events/app/fcm.py:119–126`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py)
 обновляет токен только при `not self._credentials.valid` и объясняет это
 комментарием.
 
@@ -497,7 +497,7 @@ def _access_token(self) -> str:
 
 ### K5. Средне — старый сервис шлёт action, который приложение больше не понимает
 
-**Файлы:** [`server/app/fcm.py:56–64`](../../server/app/fcm.py),
+**Файлы:** [`server/app/fcm.py:56–64`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/fcm.py),
 [`push/NeiroFirebaseMessagingService.kt:19–24`](../../app/src/main/java/ru/greemlab/neiro/push/NeiroFirebaseMessagingService.kt)
 
 **Механизм:** `server/` отправляет `data.action = "sync"`. Приложение 0.6.10.1
@@ -529,9 +529,9 @@ FCM-сервисе: сейчас неизвестный `action` не остав
 
 ### E2. Средне — обновление шапки дашборда раз в 10 с тянет весь дашборд
 
-**Файлы:** [`neiro-push-events/app/main.py:330–342`](../../neiro-push-events/app/main.py),
-[`dashboard.py:73–109, 252–265`](../../neiro-push-events/app/dashboard.py),
-[`database.py:584–603, 622–637, 691–698`](../../neiro-push-events/app/database.py)
+**Файлы:** [`neiro-push-events/app/main.py:330–342`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py),
+[`dashboard.py:73–109, 252–265`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/dashboard.py),
+[`database.py:584–603, 622–637, 691–698`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py)
 
 **Механизм:** фрагмент `/dashboard/status` задуман как лёгкий — страница
 подтягивает его раз в 10 секунд, чтобы не схлопывать аккордеоны (комментарий на
@@ -565,8 +565,8 @@ FCM-сервисе: сейчас неизвестный `action` не остав
 
 ### E3. Средне — состояния записей переписываются целиком каждые 10 секунд
 
-**Файлы:** [`neiro-push-events/app/database.py:368–394, 435–450`](../../neiro-push-events/app/database.py),
-[`poller.py:205–212`](../../neiro-push-events/app/poller.py)
+**Файлы:** [`neiro-push-events/app/database.py:368–394, 435–450`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py),
+[`poller.py:205–212`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py)
 
 **Механизм:** `_replace_record_states` удаляет **все** строки состояний аккаунта
 и вставляет их заново:
@@ -752,8 +752,8 @@ if (session !is Session.Student) {
 
 ### K7. Низко — `PRAGMA foreign_keys` не включается ни в одном сервисе
 
-**Файлы:** [`server/app/database.py:41–48, 80`](../../server/app/database.py),
-[`neiro-push-events/app/database.py:179–194, 111, 125, 140`](../../neiro-push-events/app/database.py)
+**Файлы:** [`server/app/database.py:41–48, 80`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/database.py),
+[`neiro-push-events/app/database.py:179–194, 111, 125, 140`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py)
 
 В обеих схемах объявлены `FOREIGN KEY … ON DELETE CASCADE`, но SQLite проверяет
 внешние ключи только при `PRAGMA foreign_keys=ON`, и это соединение его не
@@ -772,7 +772,7 @@ if (session !is Session.Student) {
 
 ### E4. Низко — окно «за сутки» шире суток
 
-**Файлы:** [`neiro-push-events/app/database.py:9–18, 553–564, 566–582`](../../neiro-push-events/app/database.py)
+**Файлы:** [`neiro-push-events/app/database.py:9–18, 553–564, 566–582`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py)
 
 `utc_now_iso()` пишет `2026-07-30T12:00:00+00:00`, а SQLite `datetime('now')`
 возвращает `2026-07-30 12:00:00`. Docstring самой функции предупреждает: строки
@@ -801,7 +801,7 @@ ISO-формате, что и запись, а не с `datetime('now')`.
 
 ### E5. Низко — нет индекса под выборки по устройству
 
-**Файлы:** [`neiro-push-events/app/database.py:144–152, 622–637, 655–671`](../../neiro-push-events/app/database.py)
+**Файлы:** [`neiro-push-events/app/database.py:144–152, 622–637, 655–671`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py)
 
 На `push_deliveries` есть индекс только по `event_id`. При этом по `device_id`
 идут два запроса: `list_deliveries_for_device` (страница устройства и фрагмент
@@ -817,7 +817,7 @@ ISO-формате, что и запись, а не с `datetime('now')`.
 
 ### E6. Низко — `assert` вместо обработки осиротевшего устройства
 
-**Файлы:** [`neiro-push-events/app/main.py:226–227`](../../neiro-push-events/app/main.py)
+**Файлы:** [`neiro-push-events/app/main.py:226–227`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py)
 
 ```python
 account = db.get_account(device.account_id)

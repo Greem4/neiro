@@ -64,9 +64,10 @@
 
 ## Обновления
 
-Релиз выпускается тегом: `git tag v0.2.0 && git push origin v0.2.0` — дальше
-GitHub Actions собирает подписанный APK, считает контрольную сумму и
-публикует релиз с описанием изменений.
+Релиз выпускается сам при слиянии PR в `main`: версия поднимается, тег
+ставится, GitHub Actions собирает подписанный APK, считает контрольную сумму и
+публикует релиз с описанием изменений. Разряд версии задаётся меткой PR —
+[как это устроено](docs/updater/RELEASE.md#как-выпустить-версию).
 
 Приложение раз в сутки спрашивает GitHub, не вышло ли что-то новее. Нашло —
 показывает уведомление; по согласию скачивает APK, сверяет SHA256 **и** подпись
@@ -101,8 +102,9 @@ GitHub Actions собирает подписанный APK, считает ко�
 Публичный URL: `https://push.neiro.greemlab.ru`
 
 Приложение работает с третьим поколением сервиса — `neiro-push` (маршрут `/v1`,
-порт 8012). Второе поколение `neiro-push-events` (`/v2`) остаётся включённым как
-страховка до конца перехода, первое (`server/`) погашено.
+порт 8012). Два прежних поколения погашены: `server/` — 02.08.2026,
+`neiro-push-events` (`/v2`) — 13.08.2026. Их код лежит в истории git
+([разбор работ](docs/push-events/README.md)).
 
 Сервис и его эксплуатация — [docs/neiro-push/](docs/neiro-push/README.md).
 
@@ -137,11 +139,10 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 | Релизы и самообновление | [docs/updater/](docs/updater/README.md) | Версии, выпуск по тегам, как приложение обновляет себя, риски и план работ |
 | Сервис `neiro-push` (текущий) | [docs/neiro-push/](docs/neiro-push/README.md) | Токены YClients на сервере, приложение ходит через прокси: архитектура, API, деплой, порядок запуска |
 | YClients API | [docs/yclients-integration.md](docs/yclients-integration.md) | Вход, сетевой слой, синхронизация, `local.properties` |
-| Push и FCM | [docs/push-setup.md](docs/push-setup.md) | Архив первого поколения: домен, Firebase, где лежит БД |
+| Push и FCM (архив) | [docs/push-setup.md](docs/push-setup.md) | Первое поколение `server/`: домен, Firebase, где лежала БД |
 | Сервис событий (архив) | [docs/push-events/](docs/push-events/README.md) | Второе поколение `neiro-push-events`: погашено 13.08.2026, план и журнал работ |
 | Скриншоты | [docs/screenshots.md](docs/screenshots.md) | Что снимать, требования README и RuStore, скрипт разбора кадров |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
-| Push-сервер (кратко) | [server/README.md](server/README.md) | API, деплой, скрипты — детали в [push-setup](docs/push-setup.md) |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |
 | Что осталось доделать | [docs/next/](docs/next/README.md) | Доводка после перехода на `neiro-push`: шесть этапов с планом работ |
 | Дорожная карта | [TODO.md](TODO.md) | Что сделано и что в планах |
@@ -152,9 +153,8 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 app/                 Android-приложение (Kotlin, Compose)
 app/.../push/        Регистрация FCM, приём push
 app/.../update/      Самообновление (по плану docs/updater/)
-neiro-push/          Новый сервис: токены и прокси YClients (по плану docs/neiro-push/)
-neiro-push-events/   Действующий сервис событий (FastAPI, Pi) — работает до перехода
-server/              Первый push-сервер (FastAPI, Pi) — погашен, удаляется при уборке
+neiro-push/          Сервис на Pi: токены и прокси YClients (по плану docs/neiro-push/)
+scripts/             Версия, скриншоты, генерация иконки
 docs/                Документация
 ```
 

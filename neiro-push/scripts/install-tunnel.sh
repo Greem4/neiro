@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ставит reverse SSH-туннель Pi → VPS для neiro-push как systemd --user юнит:
-# VPS 127.0.0.1:18083 → Pi 127.0.0.1:8012. Свой порт и свой юнит — туннель
-# neiro-push-events (18082 → 8011) продолжает работать рядом нетронутым.
+# VPS 127.0.0.1:18083 → Pi 127.0.0.1:8012. Свой порт и свой юнит: во время
+# перехода рядом жил туннель прежнего поколения (18082 → 8011), он снят.
 #
 #   NEIRO_PUSH_TUNNEL_HOST=176.12.65.86 ./neiro-push/scripts/install-tunnel.sh
 set -euo pipefail
