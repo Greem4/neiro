@@ -61,7 +61,7 @@ YClients. Составлен 26.07.2026, анализ — Opus.
 
 ## 2. Блокер: `date` уезжает со временем
 
-**Где:** [app/yclients.py:121](../../neiro-push-events/app/yclients.py#L121),
+**Где:** [app/yclients.py:121](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py#L121),
 `_parse_record`.
 
 ```python
@@ -115,7 +115,7 @@ time=_extract_time(raw.get("datetime")),
 приезжать из того же источника, иначе на границе суток они разойдутся между
 собой.
 
-**Что писать** в [app/yclients.py](../../neiro-push-events/app/yclients.py) —
+**Что писать** в [app/yclients.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py) —
 новая функция рядом с `_extract_time`:
 
 ```python
@@ -188,7 +188,7 @@ DELETE FROM record_states;
 
 ### 3.1 OAuth-токен обновляется на каждую отправку
 
-**Где:** [app/fcm.py:110–114](../../neiro-push-events/app/fcm.py#L110-L114).
+**Где:** [app/fcm.py:110–114](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py#L110-L114).
 
 ```python
 def _access_token(self) -> str:
@@ -228,7 +228,7 @@ def _access_token(self) -> str:
 вычитать ничего не надо).
 
 **Так же устроено в старом сервисе?** Нет — там
-([server/app/fcm.py:108](../../server/app/fcm.py#L108)) тот же безусловный
+([server/app/fcm.py:108](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/fcm.py#L108)) тот же безусловный
 `refresh`. Это не регресс, а унаследованное поведение. Но старый сервис слал
 пуши редко, а новый работает каждые 10 секунд, поэтому терпимое становится
 заметным. **Старый сервис при этом не трогать** — он работает, правка только в
@@ -236,14 +236,14 @@ def _access_token(self) -> str:
 
 ### 3.2 `INVALID_ARGUMENT` удаляет живое устройство
 
-**Где:** [app/fcm.py:101 и 106](../../neiro-push-events/app/fcm.py#L101).
+**Где:** [app/fcm.py:101 и 106](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py#L101).
 
 ```python
 if status in {"NOT_FOUND", "UNREGISTERED", "INVALID_ARGUMENT"}:
     return True
 ```
 
-Дальше в поллере ([poller.py:224–230](../../neiro-push-events/app/poller.py#L224-L230))
+Дальше в поллере ([poller.py:224–230](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py#L224-L230))
 `token_invalid` означает `delete_device(device_id)` — **устройство удаляется из
 базы навсегда**.
 
@@ -291,7 +291,7 @@ def _is_invalid_token_error(self, response: httpx.Response) -> bool:
 списываться на телефон.
 
 **Осознанное расхождение со старым сервисом.** Там
-([server/app/fcm.py:96](../../server/app/fcm.py#L96)) `INVALID_ARGUMENT` в
+([server/app/fcm.py:96](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/fcm.py#L96)) `INVALID_ARGUMENT` в
 списке. Это его баг, который в новом сервисе не воспроизводим. Старый **не
 править**.
 
@@ -302,7 +302,7 @@ def _is_invalid_token_error(self, response: httpx.Response) -> bool:
 **Приоритет: блокер.** Стоит в §3 только чтобы не ломать ссылки на соседние
 разделы; делается вторым коммитом, сразу после даты.
 
-**Где:** [app/events.py:57–117](../../neiro-push-events/app/events.py#L57-L117),
+**Где:** [app/events.py:57–117](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py#L57-L117),
 `derive_events`.
 
 Три отдельные проблемы в одном месте, все — про то, какие уведомления увидит
@@ -450,17 +450,17 @@ for record in records:
 
 ### 4.1 Новый httpx-клиент на каждый пуш
 
-[app/fcm.py:77](../../neiro-push-events/app/fcm.py#L77):
+[app/fcm.py:77](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py#L77):
 `async with httpx.AsyncClient(timeout=20.0) as client:` внутри
 `send_events_push` — то есть новое соединение и новый TLS-handshake на каждое
 сообщение каждого устройства.
 
 Для YClients клиент создаётся один раз на процесс и переиспользуется
-([yclients.py:29](../../neiro-push-events/app/yclients.py#L29)) — это и есть
+([yclients.py:29](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py#L29)) — это и есть
 образец, план §9.2 требует того же.
 
 **Решение:** завести клиент в `FcmSender.__init__` и метод `aclose()`, а в
-[main.py](../../neiro-push-events/app/main.py) закрывать его в `lifespan` рядом
+[main.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py) закрывать его в `lifespan` рядом
 с `yclients_client.aclose()`:
 
 ```python
@@ -474,7 +474,7 @@ await fcm_sender.aclose()
 
 ### 4.2 `max_pages` обрезает молча
 
-[app/yclients.py:62](../../neiro-push-events/app/yclients.py#L62): `while page
+[app/yclients.py:62](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py#L62): `while page
 <= max_pages`. Упёрлись в лимит — цикл вышел, вернулось что успело набраться.
 Ни лога, ни ошибки, ни признака обрезания.
 
@@ -502,9 +502,9 @@ else:
 
 ### 4.3 Два формата времени в БД
 
-`utc_now_iso()` ([database.py:9](../../neiro-push-events/app/database.py#L9))
+`utc_now_iso()` ([database.py:9](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L9))
 пишет `2026-07-26T12:00:00+00:00`. А `purge_old_data`
-([database.py:474](../../neiro-push-events/app/database.py#L474)) и `stats()`
+([database.py:474](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L474)) и `stats()`
 сравнивают эти строки с `datetime('now', …)`, которая отдаёт
 `2026-07-26 12:00:00` — без `T` и без смещения.
 
@@ -531,9 +531,9 @@ def utc_now_iso() -> str:
 
 ### 4.4 Курсор не двигается без `last_change_date`
 
-[app/yclients.py:139–144](../../neiro-push-events/app/yclients.py#L139-L144):
+[app/yclients.py:139–144](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py#L139-L144):
 `next_changed_after` смотрит только `record.last_change_date`. Старый сервис
-([server/app/yclients.py:110](../../server/app/yclients.py#L110)) при пустом
+([server/app/yclients.py:110](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/yclients.py#L110)) при пустом
 поле откатывался на `record.datetime`.
 
 **Ничего не менять — новое поведение правильнее.** `datetime` это время
@@ -559,17 +559,17 @@ def utc_now_iso() -> str:
 **`Database.stats()` не вызывается ниоткуда.** Это не мёртвый код, а задел под
 Этап 6: `GET /health` из таблицы [плана §6.2](plan.md) должен отдавать «FCM
 настроен, аккаунты, устройства, последний опрос, ошибки, событий за сутки».
-Сейчас [main.py:54](../../neiro-push-events/app/main.py#L54) возвращает голое
+Сейчас [main.py:54](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py#L54) возвращает голое
 `{"status": "ok"}` — этого достаточно для приёмки Этапа 1 («`/v2/health`
 отвечает публично»), остальное доделывается в Этапе 6. `PollService.fcm_configured`
 там же и пригодится. **Не удалять и не расширять сейчас.**
 
-**`connect()` с `try/finally`** ([database.py:166](../../neiro-push-events/app/database.py#L166))
+**`connect()` с `try/finally`** ([database.py:166](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L166))
 написан правильно: `finally` закрывает соединение при любом исходе, `commit`
 только при успешном. Не «упрощать» в ранний `return` — по
 [CLAUDE.md](../../CLAUDE.md) такие конструкции стоят намеренно.
 
-**`SecretBox` падает на пустом ключе** ([security.py:20](../../neiro-push-events/app/security.py#L20))
+**`SecretBox` падает на пустом ключе** ([security.py:20](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/security.py#L20))
 — это правильный fail-fast при старте, а не баг.
 
 **Ретеншен каждые 10 секунд** — известный компромисс, пользователь решил

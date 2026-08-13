@@ -126,13 +126,13 @@ push'а, и в ответе догона. Требование к приложе
 account_records = [r for r in records if r.staff_id == account.staff_id]
 ```
 
-Эта одна строка в [poller.py](../../neiro-push-events/app/poller.py) — **всё**, что
+Эта одна строка в [poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py) — **всё**, что
 отделяет события одного специалиста от событий другого. Пока она цела, каждое
 устройство получает только своё. Но она может сломаться молча:
 
 - баг при рефакторинге поллера — событие уйдёт всем устройствам компании;
 - YClients поменяет формат и `staff_id` придёт `None` → `_parse_record` подставит
-  `0` (см. [yclients.py](../../neiro-push-events/app/yclients.py)) → записи всех
+  `0` (см. [yclients.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/yclients.py)) → записи всех
   специалистов схлопнутся в один несуществующий аккаунт или расползутся;
 - в одной компании появится общий аккаунт с правами на всех.
 

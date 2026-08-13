@@ -30,8 +30,8 @@
 | # | Что | Файл |
 |---|---|---|
 | [S1](FINDINGS.md#s1-высоко--logout-не-отменяет-воркер-догона-событий) | Logout не отменяет воркер догона `push_events_sync`: работающий догон дописывает курсор уже после его сброса и применяет чужие события к календарю следующего аккаунта | [`auth/LogoutCoordinator.kt`](../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt) |
-| [K1](FINDINGS.md#k1-высоко--admin-эндпоинты-открываются-ключом-из-apk) | `verify_admin_api_key` при пустом `ADMIN_API_KEY` принимает общий `API_KEY` — тот самый, что запечён в APK | [`server/app/main.py:50`](../../server/app/main.py) |
-| [E1](FINDINGS.md#e1-высоко--дашборд-и-admin-api-открываются-ключом-из-apk) | То же в сервисе событий, но там за ключом лежит дашборд с именами клиентов и всей лентой событий | [`neiro-push-events/app/main.py:117`](../../neiro-push-events/app/main.py) |
+| [K1](FINDINGS.md#k1-высоко--admin-эндпоинты-открываются-ключом-из-apk) | `verify_admin_api_key` при пустом `ADMIN_API_KEY` принимает общий `API_KEY` — тот самый, что запечён в APK | [`server/app/main.py:50`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/main.py) |
+| [E1](FINDINGS.md#e1-высоко--дашборд-и-admin-api-открываются-ключом-из-apk) | То же в сервисе событий, но там за ключом лежит дашборд с именами клиентов и всей лентой событий | [`neiro-push-events/app/main.py:117`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/main.py) |
 
 `K1`/`E1` — это **одна строка кода в каждом сервисе** (`admin_api_key or api_key`).
 Прежде чем чинить, стоит проверить на Pi, задан ли реально `ADMIN_API_KEY` в

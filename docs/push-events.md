@@ -1,9 +1,10 @@
 # Сервис событий push — эксплуатация
 
 > **Архив.** Эксплуатация второго поколения (`neiro-push-events`, порт 8011).
-> Приложение переведено на `neiro-push` — см.
-> [docs/neiro-push/](neiro-push/README.md). Старый сервис остаётся включённым
-> как страховка до шага 6 [ROLLOUT.md](neiro-push/ROLLOUT.md#шаг-6--уборка).
+> Сервис погашен 13.08.2026 — контейнер, туннель и `location /v2/` сняты
+> ([ROLLOUT.md § Шаг 6](neiro-push/ROLLOUT.md#шаг-6--уборка)), код удалён из
+> репозитория и остался в истории git. Команды ниже больше ни к чему не
+> подключаются. Действующий сервис — [docs/neiro-push/](neiro-push/README.md).
 
 Операционный документ: как сервис устроен, как зайти в дашборд, как читать
 логи и что делать, если уведомление не дошло. История разработки, контракт и
@@ -44,7 +45,7 @@ YClients ──опрос 10с/1ч──▶ neiro-push-events (Pi, порт 8011
 ## 2. Схема БД
 
 SQLite, файл `/data/neiro_push_events.db` в контейнере (Docker-том
-`neiro_push_events_data`). Определение — [../neiro-push-events/app/database.py](../neiro-push-events/app/database.py).
+`neiro_push_events_data`). Определение — [../neiro-push-events/app/database.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py).
 
 | Таблица | Назначение |
 |---|---|
@@ -139,7 +140,7 @@ INFO  backoff company=123 until=12:41:05 (errors=3)
 ## 5. Переменные окружения
 
 `../neiro-push-events/.env` на Pi (`~/neiro-push-events/.env`, шаблон —
-[.env.example](../neiro-push-events/.env.example)):
+[.env.example](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/.env.example)):
 
 | Переменная | Что меняет |
 |---|---|

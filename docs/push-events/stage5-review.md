@@ -74,7 +74,7 @@
 
 ### 2.1 Сидирование: два источника правды
 
-**Где:** [app/poller.py](../../neiro-push-events/app/poller.py) — `_poll_company`
+**Где:** [app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py) — `_poll_company`
 (строка ~110) и `_company_changed_after` (строки ~237–241).
 
 **Что требует план.** §7 Этап 5, п.3:
@@ -146,7 +146,7 @@ def _company_changed_after(self, accounts: list[WatchedAccount]) -> str | None:
 
 **Что писать:**
 
-1. В [app/database.py](../../neiro-push-events/app/database.py) — лёгкая проверка
+1. В [app/database.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py) — лёгкая проверка
    без выгрузки всех состояний:
 
 ```python
@@ -159,7 +159,7 @@ def has_record_states(self, account_id: int) -> bool:
     return row is not None
 ```
 
-2. В [app/events.py](../../neiro-push-events/app/events.py) — обновление состояний
+2. В [app/events.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py) — обновление состояний
    без генерации событий:
 
 ```python
@@ -208,14 +208,14 @@ async def _poll_account(
 
 Вызов в цикле `_poll_company` — `await self._poll_account(account,
 account_records, seeding)`. Импорт в
-[poller.py:11](../../neiro-push-events/app/poller.py#L11) дополняется:
+[poller.py:11](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py#L11) дополняется:
 `from app.events import DerivedEvent, derive_events, merge_states`.
 
 `merge_states` намеренно повторяет то, что `derive_events` делает со
 состояниями — тот же `_state_from_record` для каждой записи, без исключений для
 `deleted` и `attendance`. Сверено с
-[events.py:54](../../neiro-push-events/app/events.py#L54) и
-[:119](../../neiro-push-events/app/events.py#L119): расхождений быть не должно,
+[events.py:54](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py#L54) и
+[:119](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/events.py#L119): расхождений быть не должно,
 иначе после сидирования первый же дифф выдаст ложные события.
 
 **Что НЕ трогать.** `derive_events` и `should_seed_baseline` оставить как есть:
@@ -228,7 +228,7 @@ account_records, seeding)`. Импорт в
 
 ### 2.2 Состояния пишутся раньше событий
 
-**Где:** [app/poller.py](../../neiro-push-events/app/poller.py) — `_poll_account`,
+**Где:** [app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py) — `_poll_account`,
 строки ~167–174.
 
 ```python
@@ -269,7 +269,7 @@ event_ids = self._db.insert_events(account.id, events)   # ← журнал
 пересчитает тот же дифф и запишет заново. Ни потери, ни дубля.
 
 **Почему нельзя просто обернуть текущие вызовы.** `connect()`
-([database.py:167](../../neiro-push-events/app/database.py#L167)) — контекстный
+([database.py:167](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L167)) — контекстный
 менеджер, который сам открывает соединение, коммитит и закрывает. Каждый
 публичный метод начинается с `with self.connect() as conn`, поэтому
 `insert_events` и `replace_record_states` — это два независимых соединения и два
@@ -499,7 +499,7 @@ status TEXT NOT NULL,          -- sent | failed | token_invalid
 ```
 
 Причём в реализации схемы
-([app/database.py](../../neiro-push-events/app/database.py), стр. ~140) этот
+([app/database.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py), стр. ~140) этот
 поясняющий комментарий **потерян ещё на Этапе 2** — значит следующий, кто
 полезет в схему, вообще не узнает, какие значения допустимы. Этап 5 сверху
 добавил четвёртый статус, не описанный нигде.
@@ -560,7 +560,7 @@ for account in active_accounts:
 
 **Ловушка в `update_account_poll_state`.** В отличие от `changed_after` и
 `consecutive_errors`, поле `backoff_until` обновляется **без `COALESCE`** —
-[database.py:307](../../neiro-push-events/app/database.py#L307):
+[database.py:307](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/database.py#L307):
 
 ```sql
 SET changed_after = COALESCE(?, changed_after),
@@ -634,13 +634,13 @@ if records is None:
 
 ### 3.6 FCM не настроен → спам `failed`
 
-[app/fcm.py](../../neiro-push-events/app/fcm.py): `send_events_push` кидает
+[app/fcm.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/fcm.py): `send_events_push` кидает
 `RuntimeError`, если FCM не сконфигурирован. `_push_to_device` ловит любое
 исключение и пишет `failed` — **на каждое событие каждого устройства каждый
 цикл**. За сутки это тысячи мусорных строк в `push_deliveries`, и настоящие
 сбои доставки в них утонут.
 
-Старый сервис ([server/app/poller.py](../../server/app/poller.py)) проверял это
+Старый сервис ([server/app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/poller.py)) проверял это
 явно и клал внятное сообщение в `last_error` аккаунта. Здесь так же: проверить
 `self._fcm.is_configured` до отправки, один раз на аккаунт.
 
@@ -648,7 +648,7 @@ if records is None:
 
 **Требование добавлено пользователем 25.07.2026, после написания Этапа 5.**
 
-`_event_payload` в [app/poller.py](../../neiro-push-events/app/poller.py) (стр.
+`_event_payload` в [app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/app/poller.py) (стр.
 ~254) собирает событие без `staff_id`:
 
 ```python

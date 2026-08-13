@@ -29,7 +29,7 @@
 | 6. API регистрации и догона | ✅ сделано, см. [progress.md](progress.md) |
 | 7. Дашборд | ✅ сделано, см. [progress.md](progress.md) |
 | 8. Правки приложения | ✅ сделано, 5 коммитов A–D, см. [progress.md](progress.md) |
-| 9. Документация | ✅ [neiro-push-events/README.md](../../neiro-push-events/README.md), [docs/push-events.md](../push-events.md), [docs/push-setup.md](../push-setup.md) обновлены |
+| 9. Документация | ✅ [neiro-push-events/README.md](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/README.md), [docs/push-events.md](../push-events.md), [docs/push-setup.md](../push-setup.md) обновлены |
 | — Деплой на Pi | ✅ 27.07.2026, работает на живых данных: события доходят, доставка `1/1` |
 | 10. Переезд и гашение старого | не начат — не раньше недели стабильной работы новой связки |
 
@@ -46,7 +46,7 @@
 | [stage5-review.md](stage5-review.md) | Разбор находок по Этапу 5 и порядок правок — **сделано** |
 | [app.md](app.md) | Детализация Этапа 8 (правки приложения) — **сделано** |
 | [push-setup.md](../push-setup.md) | Текущая (старая) инструкция по `neiro-push` 0.6.9.0 — будет дополнена разделом про новый сервис на Этапе 9.4 |
-| [server/README.md](../../server/README.md) | Карточка старого сервиса `neiro-push` (заморожен, не трогать) |
+| [server/README.md](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/README.md) | Карточка старого сервиса `neiro-push` (заморожен, не трогать) |
 
 ### Дальше по порядку
 
@@ -152,10 +152,10 @@ YClients ──(опрос 15 c)──> neiro-push ──FCM {action:"sync"}─�
                                              «Ваня подтвердился»
 ```
 
-**Сервер** ([server/app/poller.py](../../server/app/poller.py)):
+**Сервер** ([server/app/poller.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/poller.py)):
 - `fetch_records(changed_after=...)` забирает изменившиеся записи со всеми
   полями: `attendance`, `deleted`, `client_name`, `date`, `datetime`;
-- [`yclients.py:fingerprint()`](../../server/app/yclients.py) схлопывает весь набор
+- [`yclients.py:fingerprint()`](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/app/yclients.py) схлопывает весь набор
   в один SHA-256 и сравнивает с сохранённым;
 - при расхождении шлёт FCM `{action: "sync", company_id, staff_id, reason}` —
   **без информации о том, что изменилось**.
@@ -550,19 +550,19 @@ VPS 176.12.65.86 — nginx + сертификат Let's Encrypt
 
 - конфиг на VPS — `/etc/nginx/sites-available/push.neiro.greemlab.ru`, ставится
   идемпотентным
-  [scripts/patch-vps-nginx-v2.sh](../../neiro-push-events/scripts/patch-vps-nginx-v2.sh);
+  [scripts/patch-vps-nginx-v2.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/patch-vps-nginx-v2.sh);
 - префикс `/v2` снимает **слеш в конце** `proxy_pass http://127.0.0.1:18082/;` —
   поэтому `/v2/health` приходит в сервис как `/health`, и внутри приложения о
   префиксе знать не надо. Уберут слеш — поедут все пути;
 - туннель поднимает systemd-юнит пользователя
   `neiro-push-events-tunnel.service` на малине
-  ([scripts/start-tunnel.sh](../../neiro-push-events/scripts/start-tunnel.sh),
-  [scripts/install-tunnel.sh](../../neiro-push-events/scripts/install-tunnel.sh)),
+  ([scripts/start-tunnel.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/start-tunnel.sh),
+  [scripts/install-tunnel.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/install-tunnel.sh)),
   параметры — `~/.config/neiro-push-events/tunnel.env`.
 
 **Caddy в этом маршруте не участвует.** Изначально план предполагал `handle_path
 /v2/*` внутри его vhost, и под это был написан
-[scripts/patch-pi-caddy-v2.py](../../neiro-push-events/scripts/patch-pi-caddy-v2.py)
+[scripts/patch-pi-caddy-v2.py](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/neiro-push-events/scripts/patch-pi-caddy-v2.py)
 — он **не используется**, оставлен как задокументированная попытка. Блок
 `http://push.neiro.greemlab.ru { reverse_proxy neiro-push:8010 }` в Caddyfile
 живёт, но туннель приходит прямо на порт контейнера, мимо него. Разбор, почему
@@ -938,7 +938,7 @@ neiro-Redmi-Note   0.7.0.0  видели 09:12  курсор 1236
 ```
 
 Обёртка `neiro-push-events/scripts/dash.sh` — по образцу
-[admin-status.sh](../../server/scripts/admin-status.sh): сама достаёт
+[admin-status.sh](https://github.com/Greem4/neiro/blob/5a952625933583c34d567fa037dddd63dbd71d46/server/scripts/admin-status.sh): сама достаёт
 `ADMIN_API_KEY` из `../../neiro-push-events/.env` на Pi по ssh, если он не задан в
 `NEIRO_PUSH_EVENTS_ADMIN_KEY`.
 

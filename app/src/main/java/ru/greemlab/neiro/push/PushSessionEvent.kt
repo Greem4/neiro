@@ -12,7 +12,7 @@ import java.time.LocalTime
 
 /**
  * Событие занятия из payload сервера (push или догон) — зеркало `EventPayload`
- * в neiro-push-events/app/schemas.py.
+ * в neiro-push/app/schemas.py.
  */
 data class PushSessionEvent(
     val id: Long,
