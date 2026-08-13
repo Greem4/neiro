@@ -86,9 +86,17 @@ buildConfigField("String", "UPDATE_REPO", "\"Greem4/neiro\"")
 |---|---|
 | `neiro-<версия>.apk` | То, что скачивает и ставит приложение, и то, что человек качает руками |
 | `SHA256SUMS.txt` | Сумма APK; приложение сверяет её до установки |
-| `mapping-<версия>.txt` | Деобфускация стектрейсов R8. Без него разбор краша из релиза невозможен: сборку с теми же условиями через месяц не повторить |
+| `mapping-<версия>.txt.gz` | Деобфускация стектрейсов R8. Без него разбор краша из релиза невозможен: сборку с теми же условиями через месяц не повторить |
 
 Ровно один `.apk` на релиз — приложение не выбирает между несколькими.
+
+**Mapping лежит сжатым.** В несжатом виде это полсотни мегабайт при APK в два
+с половиной — текст жмётся в разы, и на хранилище релизов это заметно.
+Приложение файл не читает вовсе, а перед `retrace` его надо развернуть:
+
+```bash
+gunzip mapping-0.1.6.txt.gz     # рядом появится mapping-0.1.6.txt
+```
 
 Описание релиза (`body`) собирается из коммитов между прошлым и текущим тегом.
 Русские однострочные сообщения коммитов, принятые в проекте, для этого и
@@ -177,8 +185,11 @@ jobs:
           mkdir -p dist
           cp "app/build/outputs/apk/release/neiro-v$VERSION-release.apk" \
              "dist/neiro-$VERSION.apk"
-          cp app/build/outputs/mapping/release/mapping.txt \
-             "dist/mapping-$VERSION.txt"
+          # mapping — простой текст на десятки мегабайт, в релизе он в двадцать
+          # раз тяжелее APK. Кладём сжатым; перед retrace разворачивается gunzip.
+          gzip -9 -c app/build/outputs/mapping/release/mapping.txt \
+             > "dist/mapping-$VERSION.txt.gz"
+          du -h app/build/outputs/mapping/release/mapping.txt "dist/mapping-$VERSION.txt.gz"
           cd dist && sha256sum "neiro-$VERSION.apk" | tee SHA256SUMS.txt
 
       - name: Заметки к релизу
@@ -217,11 +228,11 @@ jobs:
             gh release edit "$GITHUB_REF_NAME" \
               --title "Neiro $VERSION" --notes-file dist/NOTES.md
             gh release upload "$GITHUB_REF_NAME" --clobber \
-              "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt" dist/SHA256SUMS.txt
+              "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt.gz" dist/SHA256SUMS.txt
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "Neiro $VERSION" --notes-file dist/NOTES.md \
-              "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt" dist/SHA256SUMS.txt
+              "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt.gz" dist/SHA256SUMS.txt
           fi
 
       # Ключи не должны пережить сборку даже на одноразовой машине.
@@ -374,11 +385,11 @@ git tag v0.2.0 && git push origin v0.2.0
 V=$(sed -n 's/^VERSION=//p' version.properties)
 mkdir -p dist
 cp "app/build/outputs/apk/release/neiro-v$V-release.apk" "dist/neiro-$V.apk"
-cp app/build/outputs/mapping/release/mapping.txt "dist/mapping-$V.txt"
+gzip -9 -c app/build/outputs/mapping/release/mapping.txt > "dist/mapping-$V.txt.gz"
 (cd dist && shasum -a 256 "neiro-$V.apk" > SHA256SUMS.txt)
 
 gh release create "v$V" --title "Neiro $V" --generate-notes \
-  "dist/neiro-$V.apk" "dist/mapping-$V.txt" dist/SHA256SUMS.txt
+  "dist/neiro-$V.apk" "dist/mapping-$V.txt.gz" dist/SHA256SUMS.txt
 ```
 
 Контракт ассетов тот же — приложение не отличит такой релиз от собранного
