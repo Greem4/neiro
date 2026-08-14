@@ -45,7 +45,11 @@ data class MonthPriceMeta(
  * @param totalNetEarned Сумма чистой прибыли по месяцам года.
  * @param totalTaxAmount Налог за прошедшие месяцы года: он платится ежемесячно
  *   независимо от занятости, но будущие месяцы в сумму не входят — в июле за год
- *   набежало семь платежей, а не двенадцать.
+ *   набежало семь платежей, а не двенадцать. Складывается из налога **каждого
+ *   месяца** ([MonthPriceMeta.tax]), а не из сегодняшнего налога профиля: в
+ *   истории ЗП он зафиксирован на момент месяца и правкой профиля не меняется.
+ *   С суммой [monthlyNet] арифметически не сходится, и это не ошибка: месяц без
+ *   дохода даёт `net = 0`, а налог за него всё равно начислен.
  * @param monthlyNet Чистая прибыль по месяцам, индекс 0 = январь.
  * @param monthlyCompleted Проведённые занятия по месяцам, индекс 0 = январь.
  */
@@ -130,6 +134,8 @@ internal fun computeProfileYearStats(
 ): ProfileYearStats {
     var completedSessions = 0
     var totalNetEarned = 0.0
+    var totalTaxAmount = 0.0
+    val elapsed = elapsedMonthsInYear(year, today)
     val monthlyNet = Array(12) { 0.0 }
     val monthlyCompleted = Array(12) { 0 }
     val monthsMeta = Array(12) { MonthPriceMeta() }
@@ -186,9 +192,14 @@ internal fun computeProfileYearStats(
         monthlyNet[month - 1] = net
         monthlyCompleted[month - 1] = completed
         totalNetEarned += net
+        // Налог месяца берётся из истории ЗП и после правки в профиле не
+        // пересчитывается. Считать год по сегодняшнему налогу профиля значит
+        // показать сумму, из которой не складывается ни один месяц рядом
+        // (аудит 14.08.26, U2).
+        if (month <= elapsed) {
+            totalTaxAmount += monthRates.monthlyTaxAmount
+        }
     }
-
-    val totalTaxAmount = profileRates.monthlyTaxAmount * elapsedMonthsInYear(year, today)
 
     return ProfileYearStats(
         year = year,

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.PriorityHigh
+import androidx.compose.material.icons.rounded.Receipt
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
@@ -240,6 +241,17 @@ fun ProfileYearStatsSection(
                                 icon = Icons.Rounded.Payments,
                                 tint = ScheduleHeaderGreen,
                             )
+                            // Считается по налогу каждого месяца из истории ЗП —
+                            // тому же, что уже вычтен из «чистыми за год».
+                            // Налога нет — и строки нет, пустой ноль тут лишний.
+                            if (animatedStats.totalTaxAmount > 0.0) {
+                                YearStatRow(
+                                    label = "Налог за год",
+                                    value = formatRubles(animatedStats.totalTaxAmount),
+                                    icon = Icons.Rounded.Receipt,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
                         }
                     }
                 }
