@@ -263,7 +263,8 @@ class PollService:
             return 0, 0, None
 
         # Устройство без FCM-токена слать некуда: отправка вернула бы
-        # token_invalid, и оно было бы удалено вместе с рабочим device_token.
+        # token_invalid и зря сожгла бы запрос. Такое устройство появляется и
+        # само — после мёртвого токена (см. _push_to_device).
         devices = [
             device
             for device in self._db.list_devices_for_account(account.id)
@@ -329,9 +330,11 @@ class PollService:
         if result.token_invalid:
             for event_id in event_ids:
                 self._db.record_push_delivery(event_id, device_id, "token_invalid", None)
-            removed = self._db.delete_device(device_id)
-            if removed:
-                logger.warning("removed stale device %s: invalid FCM token", device_id)
+            # Только токен пуша, не строку целиком: в ней token_hash, и её
+            # удаление означало бы 401 и полный выход из аккаунта из-за
+            # проблемы с доставкой (аудит 14.08.26, K2).
+            self._db.clear_device_fcm(device_id)
+            logger.warning("device %s: FCM token invalid, cleared", device_id)
             return False
 
         detail = "nudged: payload > 3KB" if result.nudged else None

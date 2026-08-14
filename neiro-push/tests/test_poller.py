@@ -32,12 +32,13 @@ class FakeYClients:
 class FakeFcm:
     is_configured = True
 
-    def __init__(self) -> None:
+    def __init__(self, result: FcmSendResult | None = None) -> None:
         self.calls: list[dict] = []
+        self._result = result or FcmSendResult()
 
     async def send_events_push(self, *, token: str, events: list[dict], last_event_id: int):
         self.calls.append({"token": token, "events": events, "last_event_id": last_event_id})
-        return FcmSendResult()
+        return self._result
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -83,6 +84,17 @@ def _poll_runs_count(db_path: str) -> int:
 
 def _account(db: Database, account_id: int):
     return next(a for a in db.list_accounts() if a.id == account_id)
+
+
+def _token_hash(db_path: str, device_id: str) -> str | None:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT token_hash FROM devices WHERE device_id = ?", (device_id,)
+        ).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
 
 
 def _push_deliveries(db_path: str) -> list[tuple]:
@@ -134,9 +146,36 @@ def test_status_change_sends_push_and_records_delivery(tmp_path: Path) -> None:
     assert deliveries == [(events[0].id, "dev1", "sent")]
 
 
+def test_invalid_fcm_token_clears_token_but_keeps_access(tmp_path: Path) -> None:
+    """UNREGISTERED от FCM — это про доставку пуша, а не про доступ.
+
+    Раньше строка устройства удалялась целиком вместе с token_hash, и телефон
+    получал 401, то есть полный выход из аккаунта (аудит 14.08.26, K2).
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev1", "hash1", "tok1", None, None)
+
+    yclients = FakeYClients([[_record(1, 10, attendance=0)], [_record(1, 10, attendance=2)]])
+    fcm = FakeFcm(result=FcmSendResult(token_invalid=True))
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())
+    asyncio.run(service.poll_once())
+
+    device = db.get_device("dev1")
+    assert device is not None, "строка устройства должна остаться"
+    assert device.fcm_token == ""
+    assert _token_hash(settings.database_path, "dev1") == "hash1"
+    assert [status for _, _, status in _push_deliveries(settings.database_path)] == [
+        "token_invalid"
+    ]
+
+
 def test_device_without_fcm_token_is_skipped(tmp_path: Path) -> None:
     """Вход разрешён и без токена Firebase. Слать такому устройству нечего, а
-    попытка вернула бы token_invalid и снесла бы вместе с ним рабочий доступ."""
+    попытка вернула бы token_invalid и только зря сожгла бы запрос."""
     settings = _settings(tmp_path)
     db = Database(settings.database_path)
     account_id = db.upsert_account(1, 10, "ut")

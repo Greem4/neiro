@@ -392,6 +392,25 @@ class Database:
                 (fcm_token, now, now, device_id),
             )
 
+    def clear_device_fcm(self, device_id: str) -> bool:
+        """Токен пуша умер, а доступ жив: device_token остаётся рабочим.
+
+        Удалять строку нельзя — в ней `token_hash`, и телефон получил бы 401,
+        то есть полный выход из аккаунта из-за проблемы с доставкой пуша.
+        Пустой `fcm_token` поллер пропускает сам (`_poll_account`), а новый
+        телефон пришлёт через `POST /v1/devices/fcm`.
+
+        Колонка `NOT NULL`, поэтому обнуляем пустой строкой, а не NULL.
+        """
+        now = utc_now_iso()
+        with self.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE devices SET fcm_token = '', updated_at = ? "
+                "WHERE device_id = ? AND fcm_token != ''",
+                (now, device_id),
+            )
+            return cursor.rowcount > 0
+
     def touch_device_seen(self, device_id: str) -> None:
         now = utc_now_iso()
         with self.connect() as conn:
