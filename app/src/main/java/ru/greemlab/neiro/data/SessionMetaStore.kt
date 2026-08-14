@@ -55,6 +55,18 @@ class SessionMetaStore private constructor(context: Context) {
 
     fun get(slotKey: String): SessionMeta? = read()[slotKey]
 
+    /**
+     * Стереть метаданные — отладочный сброс данных.
+     *
+     * Своим `edit().clear()`, а не `deleteSharedPreferences`: файл удалить мало,
+     * пока живёт этот синглтон со своим объектом `prefs` — он переписал бы
+     * старые значения обратно при первой же записи.
+     */
+    @Synchronized
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+
     /** Битые данные означают пустую карту: sidecar никогда не должен ронять синк. */
     fun read(): Map<String, SessionMeta> = runCatching {
         val json = prefs.getString(KEY_ITEMS, null) ?: return@runCatching emptyMap()

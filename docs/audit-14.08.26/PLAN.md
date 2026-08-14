@@ -25,7 +25,7 @@
 7. После каждой волны — блок «Проверка волны» внизу соответствующего раздела.
    Пока он не пройден, следующая волна не начинается.
 
-Состояние прогона: **17 из 18 пунктов.**
+Состояние прогона: **18 из 18 пунктов.**
 
 ---
 
@@ -650,7 +650,7 @@ totalTaxAmount += monthRates.monthlyTaxAmount.takeIf { month <= elapsed } ?: 0.0
 
 ---
 
-## [ ] 4.8 · D2 · Чищу все хранилища при отладочном сбросе
+## [x] 4.8 · D2 · Чищу все хранилища при отладочном сбросе
 
 **Находка:** [D2](FINDINGS.md#d2-низко--clearalldata-не-чистит-соседние-хранилища) · Низко
 **Файл:** `app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt`
@@ -672,6 +672,11 @@ ArchiveNotificationStore.get(appContext).clearAll()
 `exportJson`, `importJson`) — завести по образцу `InAppNotificationStore.clearAll()`,
 через тот же `update { SalaryLedger.Empty }`, чтобы `_ledger` обновился.
 `ArchiveNotificationStore.clearAll()` появляется в пункте 4.3.
+
+**Отступление от пункта:** вместо `deleteSharedPreferences("neiro_session_meta")`
+заведён `SessionMetaStore.clear()`. Удалить файл мало, пока жив синглтон со
+своим объектом `prefs`: при первой же записи он вернул бы старые значения
+обратно. Заодно имя файла остаётся в одном месте.
 
 **Проверка.** Кнопка отладочного сброса → профиль, календарь, история ЗП и лента
 пусты одновременно.

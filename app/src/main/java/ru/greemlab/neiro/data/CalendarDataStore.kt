@@ -29,6 +29,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.notifications.ArchiveNotificationStore
+import ru.greemlab.neiro.notifications.InAppNotificationStore
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -285,6 +286,19 @@ class CalendarDataStore(context: Context) : CalendarRepository {
             // но на старых установках он мог там залежаться.
             syncCache.edit().remove(SAVED_DAY_DATA_KEY).apply()
         }
+
+        // DataStore — не всё состояние приложения: история ЗП, метаданные
+        // записей и ленты уведомлений живут своими хранилищами. Отладочный
+        // сброс, который их не трогает, чистого старта не даёт: статистика
+        // подхватывала историю ЗП прежней установки, а лента оставалась от
+        // прошлых прогонов (аудит 14.08.26, D2).
+        //
+        // Вне writeMutex: у соседей свои замки, и держать наш во время их
+        // записи незачем.
+        SalaryLedgerStore.get(appContext).clear()
+        SessionMetaStore.get(appContext).clear()
+        InAppNotificationStore.get(appContext).clearAll()
+        ArchiveNotificationStore.get(appContext).clearAll()
     }
 
     override suspend fun saveTheme(theme: String) {
