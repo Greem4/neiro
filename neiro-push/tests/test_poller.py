@@ -3,6 +3,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
+
 from app.config import Settings
 from app.database import Database
 from app.fcm import FcmSendResult
@@ -92,6 +94,16 @@ def _poll_runs_count(db_path: str) -> int:
 
 def _account(db: Database, account_id: int):
     return next(a for a in db.list_accounts() if a.id == account_id)
+
+
+def _auth_failures(db_path: str, account_id: int) -> int:
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute(
+            "SELECT auth_failures FROM accounts WHERE id = ?", (account_id,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def _token_hash(db_path: str, device_id: str) -> str | None:
@@ -294,6 +306,56 @@ def test_backoff_grows_with_repeated_failures_and_resets_after_recovery(
     account = _account(db, account_id)
     assert account.consecutive_errors == 0
     assert account.backoff_until is None
+
+
+def _unauthorized() -> httpx.HTTPStatusError:
+    request = httpx.Request("GET", "https://api.yclients.com/records/1")
+    return httpx.HTTPStatusError(
+        "401 Unauthorized", request=request, response=httpx.Response(401, request=request)
+    )
+
+
+def test_repeated_401_from_yclients_raises_reauth_required(tmp_path: Path) -> None:
+    """Протухший user_token раньше не отличался от таймаута: аккаунт получал
+    backoff, но `reauth_required` не взводился и запросы шли вечно
+    (аудит 14.08.26, K4)."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+
+    past = "2020-01-01T00:00:00+00:00"
+    yclients = FakeYClients([_unauthorized(), _unauthorized(), _unauthorized()])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    for _ in range(3):
+        db.update_account_poll_state(account_id, backoff_until=past)
+        asyncio.run(service.poll_once())
+
+    assert _account(db, account_id).reauth_required is True
+
+    # Флаг выводит аккаунт из опроса — вечный backoff на этом кончается.
+    db.update_account_poll_state(account_id, backoff_until=past)
+    asyncio.run(service.poll_once())
+    assert len(yclients.calls) == 3
+
+
+def test_successful_fetch_clears_auth_failures(tmp_path: Path) -> None:
+    """Счётчик считает 401 подряд: разовый сбой YClients не должен копиться
+    до порога через недели."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+
+    past = "2020-01-01T00:00:00+00:00"
+    yclients = FakeYClients([_unauthorized(), _unauthorized(), [_record(1, 10)]])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    for _ in range(3):
+        db.update_account_poll_state(account_id, backoff_until=past)
+        asyncio.run(service.poll_once())
+
+    assert _account(db, account_id).reauth_required is False
+    assert _auth_failures(settings.database_path, account_id) == 0
 
 
 def test_fetch_failure_backs_off_and_skips_next_cycle(tmp_path: Path) -> None:

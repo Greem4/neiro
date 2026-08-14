@@ -6,6 +6,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
+
 from app.config import Settings
 from app.database import Database, WatchedAccount, utc_now_iso
 from app.events import DerivedEvent, derive_events, merge_states
@@ -171,7 +173,28 @@ class PollService:
                     user_token=user_token,
                     changed_after=changed_after,
                 )
+                # Счётчик 401 считает идущие подряд, поэтому успех его снимает —
+                # так же, как в прокси.
+                self._db.clear_auth_failures(candidate.id)
                 break
+            except httpx.HTTPStatusError as exc:
+                # Отказ в доступе отделён от прочих ошибок: раньше 401 падал в
+                # общий except наравне с таймаутом, и мёртвый user_token жёг
+                # квоту вечным backoff'ом (аудит 14.08.26, K4).
+                if exc.response.status_code in (401, 403):
+                    # Тот же счётчик, что и в прокси: по одному 401 флаг не
+                    # ставим — авария на стороне YClients разлогинила бы всех
+                    # разом, а пользователь ничего исправить не может.
+                    if self._db.note_upstream_auth_failure(candidate.id):
+                        logger.warning(
+                            "account %s: three 401 in a row, reauth required",
+                            candidate.id,
+                        )
+                error_message = f"HTTP {exc.response.status_code}"
+                logger.warning(
+                    "fetch failed company=%s account=%s: %s",
+                    company_id, candidate.id, error_message,
+                )
             except Exception as exc:
                 error_message = str(exc)[:500]
                 logger.warning(
