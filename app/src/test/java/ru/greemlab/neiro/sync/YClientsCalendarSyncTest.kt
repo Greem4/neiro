@@ -141,6 +141,51 @@ class YClientsCalendarSyncTest {
         assertEquals(1, YClientsCalendarSync.countYClientsManagedLocalEntries(dayData, start, end))
     }
 
+    // Инкрементальный live-опрос перечитывает текущий месяц авторитативно и
+    // стирает всё, чего нет в ответе. Аудит 14.08.26 (S1): пустой ответ на этом
+    // перезапросе выносил из календаря всех учеников месяца.
+
+    @Test
+    fun `current month refetch skipped when API empty but month has students`() {
+        assertFalse(
+            YClientsCalendarSync.shouldApplyCurrentMonthMerge(
+                refetchedRecords = emptyList(),
+                localDayData = mapOf(
+                    LocalDate.of(2025, 5, 10) to listOf("Иванов|1"),
+                ),
+                month = YearMonth.of(2025, 5),
+            ),
+        )
+    }
+
+    @Test
+    fun `current month refetch checks month bounds, not whole live range`() {
+        // Ученики следующего месяца перезапросом не затрагиваются и прикрывать
+        // пустой текущий месяц не должны.
+        assertTrue(
+            YClientsCalendarSync.shouldApplyCurrentMonthMerge(
+                refetchedRecords = emptyList(),
+                localDayData = mapOf(
+                    LocalDate.of(2025, 6, 10) to listOf("Иванов|1"),
+                ),
+                month = YearMonth.of(2025, 5),
+            ),
+        )
+    }
+
+    @Test
+    fun `current month refetch allowed when API returned records`() {
+        assertTrue(
+            YClientsCalendarSync.shouldApplyCurrentMonthMerge(
+                refetchedRecords = listOf(fakeRecord()),
+                localDayData = mapOf(
+                    LocalDate.of(2025, 5, 10) to listOf("Иванов|1"),
+                ),
+                month = YearMonth.of(2025, 5),
+            ),
+        )
+    }
+
     @Test
     fun `isInCurrentMonth matches calendar month boundaries`() {
         val month = YearMonth.of(2025, 6)
