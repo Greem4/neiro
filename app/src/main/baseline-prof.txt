@@ -1,6 +1,20 @@
 # Baseline profile для холодного и тёплого старта Neiro.
 # Заранее AOT-компилируем горячий путь: Application, Activity, главный экран и DataStore.
-# Сгенерировано вручную; идеально — заменить на macrobenchmark-генерацию.
+#
+# Правила сверены 14.08.2026 по mapping-файлу R8 от релиза 0.1.6 (его app/src
+# совпадает с этим коммитом). Правила пишутся в исходных именах, а переводит их
+# в имена собранного APK сам AGP по mapping — поэтому сверять надо по нему, а не
+# по dex, где имена уже переименованы.
+#
+# Правило, чью сигнатуру подтвердить не удалось, из файла удалено: молча не
+# матчащееся правило хуже отсутствующего, потому что создаёт видимость покрытия.
+# Так ушли CalendarGrid, DayCard, CalendarHeader, StatCard, SessionParser,
+# CalendarDataStoreProvider, computeMonthStats и rememberCalendarMonthStats —
+# R8 слил или заинлайнил эти классы целиком, и в mapping их больше нет.
+#
+# Отсюда же вывод: файл, написанный руками, для этого приложения живёт до
+# первой перестройки главного экрана. Постоянное решение — генерация профиля
+# модулем :macrobenchmark, он рядом в репозитории (docs/audit-14.08.26/REPORT.md).
 
 HSPLru/greemlab/neiro/NeiroApplication;-><init>()V
 HSPLru/greemlab/neiro/NeiroApplication;->onCreate()V
@@ -9,26 +23,16 @@ HSPLru/greemlab/neiro/MainActivity;->onCreate(Landroid/os/Bundle;)V
 
 # Хранилище — читаем синхронный кэш в onCreate и парсим JSON.
 HSPLru/greemlab/neiro/data/CalendarDataStore;-><init>(Landroid/content/Context;)V
-HSPLru/greemlab/neiro/data/CalendarDataStore;->peekSnapshot()Lru/greemlab/neiro/data/StoreSnapshot;
 HSPLru/greemlab/neiro/data/CalendarDataStore;->loadFromSyncCache()Lru/greemlab/neiro/data/StoreSnapshot;
 HSPLru/greemlab/neiro/data/CalendarDataStore;->parseDayData(Ljava/lang/String;)Ljava/util/Map;
 HSPLru/greemlab/neiro/data/CalendarDataStore;->parseSnapshot(Landroidx/datastore/preferences/core/Preferences;)Lru/greemlab/neiro/data/StoreSnapshot;
-HSPLru/greemlab/neiro/data/CalendarDataStoreProvider;->get(Landroid/content/Context;)Lru/greemlab/neiro/data/CalendarDataStore;
-HSPLru/greemlab/neiro/data/CalendarDataStoreProvider;->peekProfile(Landroid/content/Context;)Lru/greemlab/neiro/domain/models/UserProfile;
-HSPLru/greemlab/neiro/data/CalendarDataStoreProvider;->peekDayData(Landroid/content/Context;)Ljava/util/Map;
-HSPLru/greemlab/neiro/data/CalendarDataStoreProvider;->peekSnapshot(Landroid/content/Context;)Lru/greemlab/neiro/data/StoreSnapshot;
 HSPLru/greemlab/neiro/data/UserProfileJson;->fromJson(Ljava/lang/String;)Lru/greemlab/neiro/domain/models/UserProfile;
 HSPLru/greemlab/neiro/data/UserProfileJson;->fromJsonRaw(Ljava/lang/String;)Lru/greemlab/neiro/domain/models/UserProfile;
 
 # Главный экран и его композаблы.
-HSPLru/greemlab/neiro/ui/screens/CalendarScreenKt;->CalendarScreen(Lru/greemlab/neiro/ui/calendar/CalendarViewModel;Lru/greemlab/neiro/ui/profile/ProfileViewModel;Landroidx/compose/runtime/Composer;II)V
-HSPLru/greemlab/neiro/ui/screens/CalendarScreenKt;->CalendarScreenContent(Ljava/time/YearMonth;Ljava/time/LocalDate;Ljava/util/Map;Lru/greemlab/neiro/domain/models/CalendarMonthStats;Ljava/util/Set;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
-HSPLru/greemlab/neiro/ui/components/CalendarHeaderKt;->CalendarHeader(Ljava/time/YearMonth;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
-HSPLru/greemlab/neiro/ui/components/CalendarGridKt;->CalendarGrid(Ljava/time/YearMonth;Ljava/time/LocalDate;Ljava/util/Map;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;II)V
-HSPLru/greemlab/neiro/ui/components/CalendarGridKt;->buildMonthGrid(Ljava/time/YearMonth;)Lru/greemlab/neiro/ui/components/MonthGrid;
-HSPLru/greemlab/neiro/ui/components/DayCardKt;->DayCard(Ljava/time/LocalDate;Ljava/time/LocalDate;ZZIZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+HSPLru/greemlab/neiro/ui/screens/CalendarScreenKt;->CalendarScreen(Lru/greemlab/neiro/ui/calendar/CalendarViewModel;Lru/greemlab/neiro/ui/profile/ProfileViewModel;Ljava/lang/String;Ljava/lang/String;IZLandroidx/compose/runtime/Composer;II)V
+HSPLru/greemlab/neiro/ui/screens/CalendarScreenKt;->CalendarScreenContent(Landroidx/compose/ui/Modifier;Ljava/time/YearMonth;Ljava/time/LocalDate;Ljava/util/List;Ljava/util/Map;Ljava/util/Set;Ljava/util/Set;Lru/greemlab/neiro/ui/calendar/CalendarMode;Lkotlin/jvm/functions/Function1;Lru/greemlab/neiro/domain/models/CalendarMonthStats;Ljava/util/Set;ZLru/greemlab/neiro/domain/models/EarningsContext;Ljava/lang/Double;Lru/greemlab/neiro/ui/settings/ProfitDisplaySettings;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ILandroidx/compose/runtime/Composer;IIII)V
 HSPLru/greemlab/neiro/ui/components/WeekDaysRowKt;->WeekDaysRow(Landroidx/compose/runtime/Composer;I)V
-HSPLru/greemlab/neiro/ui/components/StatComponentsKt;->StatCard(Ljava/lang/String;Ljava/lang/String;Landroidx/compose/ui/graphics/vector/ImageVector;Landroidx/compose/ui/graphics/Color;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 
 # Темы и Material3.
 HSPLru/greemlab/neiro/theme/ThemeKt;->NeiroTheme(ZZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
@@ -37,10 +41,3 @@ HSPLru/greemlab/neiro/theme/ThemeKt;->NeiroTheme(ZZLkotlin/jvm/functions/Functio
 HSPLru/greemlab/neiro/ui/calendar/CalendarViewModel;-><init>(Landroid/app/Application;Landroidx/lifecycle/SavedStateHandle;)V
 HSPLru/greemlab/neiro/ui/profile/ProfileViewModel;-><init>(Landroid/app/Application;)V
 HSPLru/greemlab/neiro/ui/settings/AppSettingsViewModel;-><init>(Landroid/app/Application;)V
-
-# Стат-калькулятор — горячий при отрисовке статов.
-HSPLru/greemlab/neiro/ui/calendar/CalendarStatsCalculatorKt;->computeMonthStats(Ljava/time/YearMonth;Ljava/util/Map;DD)Lru/greemlab/neiro/domain/models/CalendarMonthStats;
-HSPLru/greemlab/neiro/ui/calendar/CalendarStatsCalculatorKt;->rememberCalendarMonthStats(Ljava/time/YearMonth;Ljava/util/Map;DDLandroidx/compose/runtime/Composer;I)Lru/greemlab/neiro/domain/models/CalendarMonthStats;
-HSPLru/greemlab/neiro/ui/calendar/SessionParser;->parse(Ljava/lang/String;)Lru/greemlab/neiro/ui/calendar/Session;
-HSPLru/greemlab/neiro/ui/calendar/SessionParser;->parseStudent(Ljava/lang/String;)Lru/greemlab/neiro/ui/calendar/Session$Student;
-HSPLru/greemlab/neiro/ui/calendar/SessionParser;->parseExtra(Ljava/lang/String;IZ)Lru/greemlab/neiro/ui/calendar/Session$Extra;
