@@ -231,7 +231,7 @@ def test_one_fetch_per_company_for_multiple_staff(tmp_path: Path) -> None:
     assert 2 in db.get_record_states(account_b)
 
 
-def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
+def test_adding_second_staff_does_not_flood_existing_account_with_new_bookings(
     tmp_path: Path,
 ) -> None:
     settings = _settings(tmp_path)
@@ -255,6 +255,42 @@ def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
     assert fcm.calls == []
     assert db.list_events_since(account_a, 0) == []
     assert 1 in db.get_record_states(account_a)
+    assert 2 in db.get_record_states(account_b)
+
+
+def test_change_at_existing_account_survives_seeding_of_a_new_one(
+    tmp_path: Path,
+) -> None:
+    """Сидирование — признак аккаунта, а не компании.
+
+    Раньше приход нового сотрудника объявлял сидированием весь цикл, и
+    изменение у уже работающего аккаунта молча уезжало в снимок: уведомления
+    о нём не приходило никогда, потому что следующий цикл считал эти данные
+    исходным состоянием (аудит 14.08.26, K5).
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_a = db.upsert_account(5, 10, "ut")
+    db.upsert_device(account_a, "dev-a", "hash-a", "tok-a", None, None)
+
+    yclients = FakeYClients(
+        [
+            [_record(1, 10, attendance=0)],
+            [_record(1, 10, attendance=2), _record(2, 20)],
+        ]
+    )
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())  # A сидируется
+
+    account_b = db.upsert_account(5, 20, "ut")  # пришёл новый сотрудник
+    asyncio.run(service.poll_once())
+
+    assert [e.type for e in db.list_events_since(account_a, 0)] == ["CLIENT_CONFIRMED"]
+    assert len(fcm.calls) == 1
+    # B в этом же цикле сидируется молча — событий по нему нет.
+    assert db.list_events_since(account_b, 0) == []
     assert 2 in db.get_record_states(account_b)
 
 

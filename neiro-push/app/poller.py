@@ -156,8 +156,15 @@ class PollService:
 
         started_at = utc_now_iso()
         started = time.monotonic()
-        seeding = any(not self._db.has_record_states(a.id) for a in active_accounts)
-        changed_after = None if seeding else self._company_changed_after(active_accounts)
+        # Запрос общий на компанию: новичку нужен полный горизонт, поэтому
+        # хватает одного несидированного аккаунта, чтобы снять changed_after.
+        # Разбор при этом персональный — см. _poll_account.
+        needs_full_fetch = any(
+            not self._db.has_record_states(a.id) for a in active_accounts
+        )
+        changed_after = (
+            None if needs_full_fetch else self._company_changed_after(active_accounts)
+        )
 
         records: list[YClientsRecord] | None = None
         error_message: str | None = None
@@ -235,7 +242,7 @@ class PollService:
             account_records = [r for r in records if r.staff_id == account.staff_id]
             try:
                 created, sent, account_error = await self._poll_account(
-                    account, account_records, seeding
+                    account, account_records
                 )
             except Exception as exc:
                 error_message = str(exc)[:500]
@@ -269,10 +276,13 @@ class PollService:
         self,
         account: WatchedAccount,
         records: list[YClientsRecord],
-        seeding: bool,
     ) -> tuple[int, int, str | None]:
         previous_states = self._db.get_record_states(account.id)
-        if seeding:
+        # Сидируется именно этот аккаунт, а не вся компания: раньше флаг был
+        # общим, и приход нового сотрудника съедал цикл событий у уже
+        # работающих — изменения молча уезжали в снимок, а уведомление о них
+        # не приходило никогда (аудит 14.08.26, K5).
+        if not previous_states:
             new_states = merge_states(previous_states, records)
             self._db.commit_poll_result(account.id, [], new_states, previous_states)
             return 0, 0, None
