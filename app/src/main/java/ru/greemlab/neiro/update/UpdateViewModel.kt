@@ -44,6 +44,17 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private val _justUpdatedTo = MutableStateFlow<String?>(null)
     val justUpdatedTo: StateFlow<String?> = _justUpdatedTo.asStateFlow()
 
+    /**
+     * Нужно ли разрешение «установка из неизвестных источников».
+     *
+     * Держим состоянием, а не считаем на месте: под этим
+     * `packageManager.canRequestPackageInstalls()`, то есть синхронный вызов в
+     * PackageManager. Из тела композиции он уходил на каждый кадр прогресса —
+     * до пяти раз в секунду (аудит 14.08.26, A2).
+     */
+    private val _needsInstallPermission = MutableStateFlow(!ApkInstaller.canInstall(application))
+    val needsInstallPermission: StateFlow<Boolean> = _needsInstallPermission.asStateFlow()
+
     init {
         UpdateChannelGate.blockReason(application)?.let { _state.value = UpdateState.Blocked(it) }
         restoreAfterInstall()
@@ -205,7 +216,14 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         UpdateCheckCoordinator.onAutoCheckToggled(app, enabled)
     }
 
-    fun needsInstallPermission(): Boolean = !ApkInstaller.canInstall(app)
+    /**
+     * Вернулись из системных настроек — пересчитать. Само значение не меняется:
+     * без этого подсказка «разрешите установку» висела, пока экран не
+     * пересоберётся по другой причине.
+     */
+    fun refreshInstallPermission() {
+        _needsInstallPermission.value = !ApkInstaller.canInstall(app)
+    }
 
     fun installPermissionIntent() = ApkInstaller.unknownSourcesSettingsIntent(app)
 

@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
@@ -68,6 +70,14 @@ fun AboutScreen(
     val autoCheck by viewModel.autoCheckEnabled.collectAsStateWithLifecycle()
     val lastCheckAt by viewModel.lastCheckAt.collectAsStateWithLifecycle()
     val justUpdatedTo by viewModel.justUpdatedTo.collectAsStateWithLifecycle()
+    val needsInstallPermission by viewModel.needsInstallPermission.collectAsStateWithLifecycle()
+
+    // Разрешение выдаётся в системных настройках, то есть за пределами
+    // приложения: единственный момент, когда его стоит перечитать, — возврат
+    // сюда. В теле композиции это был binder-вызов на каждый кадр прогресса.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshInstallPermission()
+    }
     val context = LocalContext.current
 
     fun openUrl(url: String) {
@@ -162,7 +172,7 @@ fun AboutScreen(
                             Unit
                         }
                     },
-                    needsInstallPermission = viewModel.needsInstallPermission(),
+                    needsInstallPermission = needsInstallPermission,
                 )
             }
         }
