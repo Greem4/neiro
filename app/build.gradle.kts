@@ -4,6 +4,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    // Принимает профиль от :baselineprofile и подмешивает его в release.
+    // Ручной app/src/main/baseline-prof.txt при этом остаётся в силе — они
+    // складываются, а не вытесняют друг друга.
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 // ------------------------------------------------------------
