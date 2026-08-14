@@ -69,10 +69,16 @@ def client_ip(request) -> str:
     """IP клиента с поправкой на nginx.
 
     Сервис стоит за reverse-прокси на VPS, поэтому `request.client.host` — это
-    всегда конец туннеля, один и тот же для всех. Реальный адрес приходит в
-    `X-Forwarded-For`, первым в списке.
+    всегда конец туннеля, один и тот же для всех. Настоящий адрес берём из
+    `X-Real-IP`: nginx ставит его из `$remote_addr`, и подменить его клиент не
+    может (`scripts/patch-vps-nginx-v1.sh`).
+
+    `X-Forwarded-For` для этого не годится: директива
+    `$proxy_add_x_forwarded_for` дописывает настоящий адрес в КОНЕЦ списка, а
+    первым остаётся то, что прислал сам клиент. Считать лимит по нему значит
+    выдавать каждому запросу свежий пустой счётчик (аудит 14.08.26, K1).
     """
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return real_ip
     return request.client.host if request.client else "unknown"
