@@ -11,7 +11,7 @@
 ## Правила прогона
 
 1. **Один пункт — один коммит.** Сообщение берётся из пункта как есть: одна
-   строка, до 72 символов, на русском, без тела ([`CLAUDE.md`](../../CLAUDE.md)).
+   строка, до 72 символов, на русском, без тела ([`CLAUDE.md`](../../../CLAUDE.md)).
 2. **Не сваливать пункты в кучу.** В таком коммите незамеченной проезжает
    поломка, и откатить по частям его нельзя.
 3. **Gradle не запускает агент.** `./gradlew testDebugUnitTest` и сборку гоняет
@@ -125,7 +125,7 @@ if result.token_invalid:
 ssh <vps> "grep -n 'X-Real-IP\|X-Forwarded-For' /etc/nginx/sites-enabled/*"
 ```
 
-В [`scripts/patch-vps-nginx-v1.sh:44`](../../neiro-push/scripts/patch-vps-nginx-v1.sh)
+В [`scripts/patch-vps-nginx-v1.sh:44`](../../../neiro-push/scripts/patch-vps-nginx-v1.sh)
 он есть (`proxy_set_header X-Real-IP $remote_addr`), но живой конфиг мог
 разойтись. **Если заголовка нет — остановиться и сказать пользователю:** фикс
 без него не работает, править надо nginx.
@@ -702,7 +702,7 @@ ArchiveNotificationStore.get(appContext).clearAll()
       почему, что не сделано и почему. Формат — § 7 методики.
 - [ ] Обновить `CHANGELOG.md` (скилл `changelog`) — там раздел для пользователя,
       а не для того, кто читает код.
-- [ ] Обновить [`METHODIKA.md`](../audit/METHODIKA.md) § 8: пометить пакет
+- [ ] Обновить [`METHODIKA.md`](../../audit/METHODIKA.md) § 8: пометить пакет
       выполненным, перенести незакрытое.
 - [ ] Перенести каталог в `docs/archive/audit-14.08.26/` — как это сделано с
       прошлыми пакетами.

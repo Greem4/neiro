@@ -6,7 +6,7 @@
 путь достижимым. Номера строк — на коммит `0079df0`. Пути приложения сокращены
 от `app/src/main/java/ru/greemlab/neiro/`, пути бэкенда — от корня репозитория.
 
-Пункты из [OUT_OF_SCOPE.md](../archive/audit-17.07.26/OUT_OF_SCOPE.md) находками
+Пункты из [OUT_OF_SCOPE.md](../audit-17.07.26/OUT_OF_SCOPE.md) находками
 не считались.
 
 ---
@@ -40,7 +40,7 @@
 
 ## S1. Высоко — инкрементальный live-sync стирает текущий месяц при пустом ответе API
 
-**Файлы:** [`sync/YClientsCalendarSync.kt:476–518`](../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt),
+**Файлы:** [`sync/YClientsCalendarSync.kt:476–518`](../../../app/src/main/java/ru/greemlab/neiro/sync/YClientsCalendarSync.kt),
 он же `:162–199`, `:904–912`
 
 **Механизм.** У полного синка есть защита от пустого ответа — `shouldApplySyncMerge`:
@@ -79,7 +79,7 @@ when (val fullDays = yclientsRepository.getRecords(subStart, subEnd)) {
 удаляются из локального календаря.
 
 **Достижимость.** `refreshLiveRange()` вызывается из
-[`LiveApiCoordinator.refreshNow`](../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
+[`LiveApiCoordinator.refreshNow`](../../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
 при каждом возврате в приложение и при входе. Пока с прошлой полной подтяжки не
 прошло 6 часов, идёт именно инкрементальная ветка. Чтобы попасть в удаление,
 нужно, чтобы `changed_after`-запрос вернул хотя бы одну запись текущего месяца
@@ -106,9 +106,9 @@ when (val fullDays = yclientsRepository.getRecords(subStart, subEnd)) {
 
 ## K1. Высоко — лимит попыток входа обходится подменой заголовка
 
-**Файлы:** [`neiro-push/app/ratelimit.py:68–78`](../../neiro-push/app/ratelimit.py),
-[`neiro-push/app/auth.py:164–183`](../../neiro-push/app/auth.py),
-[`neiro-push/scripts/patch-vps-nginx-v1.sh:45`](../../neiro-push/scripts/patch-vps-nginx-v1.sh)
+**Файлы:** [`neiro-push/app/ratelimit.py:68–78`](../../../neiro-push/app/ratelimit.py),
+[`neiro-push/app/auth.py:164–183`](../../../neiro-push/app/auth.py),
+[`neiro-push/scripts/patch-vps-nginx-v1.sh:45`](../../../neiro-push/scripts/patch-vps-nginx-v1.sh)
 
 **Механизм.** Вход считает лимит по двум ключам:
 
@@ -152,9 +152,9 @@ APK открытым текстом (`BuildConfig.NEIRO_PUSH_API_KEY`, выта�
 
 ## K2. Высоко — невалидный FCM-токен выкидывает пользователя из аккаунта
 
-**Файлы:** [`neiro-push/app/poller.py:329–335`](../../neiro-push/app/poller.py),
-[`neiro-push/app/database.py:456–471`](../../neiro-push/app/database.py),
-[`data/network/YClientsRepository.kt:369–395`](../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt)
+**Файлы:** [`neiro-push/app/poller.py:329–335`](../../../neiro-push/app/poller.py),
+[`neiro-push/app/database.py:456–471`](../../../neiro-push/app/database.py),
+[`data/network/YClientsRepository.kt:369–395`](../../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsRepository.kt)
 
 **Механизм.** Ответ FCM `UNREGISTERED` приводит к удалению строки устройства
 целиком:
@@ -206,9 +206,9 @@ Play Services и после долгой неактивности приложе
 
 ## K3. Средне — `record_states` растёт без границ
 
-**Файлы:** [`neiro-push/app/events.py:25–147`](../../neiro-push/app/events.py),
-[`neiro-push/app/database.py:202–212, 639–648, 800–819`](../../neiro-push/app/database.py),
-[`neiro-push/app/yclients.py:130–195`](../../neiro-push/app/yclients.py)
+**Файлы:** [`neiro-push/app/events.py:25–147`](../../../neiro-push/app/events.py),
+[`neiro-push/app/database.py:202–212, 639–648, 800–819`](../../../neiro-push/app/database.py),
+[`neiro-push/app/yclients.py:130–195`](../../../neiro-push/app/yclients.py)
 
 **Механизм.** После сидирования опрос идёт инкрементально: `fetch_company_records`
 отправляет `changed_after` и возвращает только изменившиеся записи. `derive_events`
@@ -246,9 +246,9 @@ removed = [record_id for record_id in previous if record_id not in states]
 
 ## K4. Средне — 401 от YClients в поллере не поднимает `reauth_required`
 
-**Файлы:** [`neiro-push/app/poller.py:165–205`](../../neiro-push/app/poller.py),
-[`neiro-push/app/yclients.py:166–174`](../../neiro-push/app/yclients.py),
-[`neiro-push/app/proxy.py:61–69`](../../neiro-push/app/proxy.py)
+**Файлы:** [`neiro-push/app/poller.py:165–205`](../../../neiro-push/app/poller.py),
+[`neiro-push/app/yclients.py:166–174`](../../../neiro-push/app/yclients.py),
+[`neiro-push/app/proxy.py:61–69`](../../../neiro-push/app/proxy.py)
 
 **Механизм.** В прокси протухший `user_token` считается: три `401` подряд взводят
 `reauth_required`, и приложение просит пароль (`proxy.py:62`,
@@ -284,7 +284,7 @@ YClients прилетает сюда обычным исключением и п
 
 ## K5. Средне — сидирование включается на всю компанию
 
-**Файл:** [`neiro-push/app/poller.py:157–158, 245–255`](../../neiro-push/app/poller.py)
+**Файл:** [`neiro-push/app/poller.py:157–158, 245–255`](../../../neiro-push/app/poller.py)
 
 **Механизм.**
 
@@ -324,7 +324,7 @@ if seeding:
 
 ## B1. Средне — `baseline-prof` разошёлся с кодом
 
-**Файл:** [`app/src/main/baseline-prof.txt`](../../app/src/main/baseline-prof.txt)
+**Файл:** [`app/src/main/baseline-prof.txt`](../../../app/src/main/baseline-prof.txt)
 
 **Механизм.** Профиль написан руками 24.07.2026 и с тех пор не обновлялся, а
 сигнатуры перечисленных методов изменились. Правило, чья сигнатура не совпала с
@@ -334,10 +334,10 @@ if seeding:
 
 | Строка профиля | Что в коде сейчас |
 |---|---|
-| `CalendarScreen(CalendarViewModel;ProfileViewModel;Composer;II)V` | добавлены `openDateFromNotification`, `highlightSlotKeyFromNotification`, `notificationDeepLinkVersion`, `openAboutFromNotification` ([`CalendarScreen.kt:123`](../../app/src/main/java/ru/greemlab/neiro/ui/screens/CalendarScreen.kt)) |
+| `CalendarScreen(CalendarViewModel;ProfileViewModel;Composer;II)V` | добавлены `openDateFromNotification`, `highlightSlotKeyFromNotification`, `notificationDeepLinkVersion`, `openAboutFromNotification` ([`CalendarScreen.kt:123`](../../../app/src/main/java/ru/greemlab/neiro/ui/screens/CalendarScreen.kt)) |
 | `CalendarScreenContent(YearMonth;LocalDate;Map;CalendarMonthStats;Set;Z;…)` | ~20 параметров, включая `Modifier`, `EarningsContext`, `ProfitDisplaySettings` (`:660`) |
-| `CalendarGrid(YearMonth;LocalDate;Map;Set;Function1;…)` | добавлены `daysNeedingArchive`, `workingDays` ([`CalendarGrid.kt:41`](../../app/src/main/java/ru/greemlab/neiro/ui/components/CalendarGrid.kt)) |
-| `computeMonthStats(YearMonth;Map;DD)` | третий параметр — `EarningsContext`, а не две `double` ([`CalendarStatsCalculator.kt:67`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/CalendarStatsCalculator.kt)) |
+| `CalendarGrid(YearMonth;LocalDate;Map;Set;Function1;…)` | добавлены `daysNeedingArchive`, `workingDays` ([`CalendarGrid.kt:41`](../../../app/src/main/java/ru/greemlab/neiro/ui/components/CalendarGrid.kt)) |
+| `computeMonthStats(YearMonth;Map;DD)` | третий параметр — `EarningsContext`, а не две `double` ([`CalendarStatsCalculator.kt:67`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/CalendarStatsCalculator.kt)) |
 | `rememberCalendarMonthStats(YearMonth;Map;DD;Composer;I)` | то же самое (`:59`) |
 
 **Достижимость.** Из 33 правил профиля не матчатся пять — и это ровно те, что
@@ -353,7 +353,7 @@ if seeding:
 
 ## B2. Средне — CI не гоняет тесты бэкенда
 
-**Файл:** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+**Файл:** [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)
 
 **Механизм.** Workflow состоит из четырёх шагов: запрет артефактов, JDK, Gradle,
 `./gradlew testDebugUnitTest`. Шага с `pytest` нет.
@@ -378,8 +378,8 @@ neiro-push/requirements.txt && python -m pytest neiro-push/tests`. Стоит о
 
 ## A1. Низко — `isBusy` не покрывает готовность к установке
 
-**Файлы:** [`update/UpdateState.kt:54–58`](../../app/src/main/java/ru/greemlab/neiro/update/UpdateState.kt),
-[`update/UpdateViewModel.kt:132–135, 169–184`](../../app/src/main/java/ru/greemlab/neiro/update/UpdateViewModel.kt)
+**Файлы:** [`update/UpdateState.kt:54–58`](../../../app/src/main/java/ru/greemlab/neiro/update/UpdateState.kt),
+[`update/UpdateViewModel.kt:132–135, 169–184`](../../../app/src/main/java/ru/greemlab/neiro/update/UpdateViewModel.kt)
 
 **Механизм.**
 
@@ -413,7 +413,7 @@ val UpdateState.isBusy: Boolean
 
 ## A2. Низко — проверка разрешения на установку в теле композиции
 
-**Файл:** [`ui/settings/AboutScreen.kt:165`](../../app/src/main/java/ru/greemlab/neiro/ui/settings/AboutScreen.kt)
+**Файл:** [`ui/settings/AboutScreen.kt:165`](../../../app/src/main/java/ru/greemlab/neiro/ui/settings/AboutScreen.kt)
 
 **Механизм.** `needsInstallPermission = viewModel.needsInstallPermission()`
 вызывается прямо в теле `AboutScreen`, без `remember` и без состояния. Под ним —
@@ -422,7 +422,7 @@ PackageManager.
 
 **Достижимость.** `AboutScreen` рекомпозится на каждое изменение `state`, а во
 время загрузки прогресс обновляется до пяти раз в секунду
-([`UpdateDownloader.PROGRESS_INTERVAL_MS = 200`](../../app/src/main/java/ru/greemlab/neiro/update/UpdateDownloader.kt)).
+([`UpdateDownloader.PROGRESS_INTERVAL_MS = 200`](../../../app/src/main/java/ru/greemlab/neiro/update/UpdateDownloader.kt)).
 Каждый такой кадр делает синхронный IPC. Плюс значение не обновляется само:
 пользователь ушёл в системные настройки, выдал разрешение, вернулся — подсказка
 «разрешите установку» продолжает висеть, пока экран не пересоберётся по другой
@@ -438,7 +438,7 @@ PackageManager.
 
 ## B3. Низко — `verify_api_key` мёртвая функция
 
-**Файл:** [`neiro-push/app/main.py:105–115`](../../neiro-push/app/main.py)
+**Файл:** [`neiro-push/app/main.py:105–115`](../../../neiro-push/app/main.py)
 
 **Механизм.** Функция объявлена, но ни одним `Depends` не используется:
 `/health` и все `/v1/admin/*` защищены `verify_admin_api_key`, а единственная
@@ -456,8 +456,8 @@ PackageManager.
 
 ## K6. Низко — вход перепривязывает чужой `device_id`
 
-**Файлы:** [`neiro-push/app/auth.py:227–236`](../../neiro-push/app/auth.py),
-[`neiro-push/app/database.py:319–354`](../../neiro-push/app/database.py)
+**Файлы:** [`neiro-push/app/auth.py:227–236`](../../../neiro-push/app/auth.py),
+[`neiro-push/app/database.py:319–354`](../../../neiro-push/app/database.py)
 
 **Механизм.** `device_id` приходит из тела запроса и служит ключом upsert'а:
 
@@ -488,7 +488,7 @@ APK и знание чужого `device_id` (`neiro-<модель>-<androidId>`
 
 ## D1. Низко — `clearInstance` неполон и никем не вызывается
 
-**Файл:** [`data/network/YClientsClient.kt:204–210`](../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsClient.kt)
+**Файл:** [`data/network/YClientsClient.kt:204–210`](../../../app/src/main/java/ru/greemlab/neiro/data/network/YClientsClient.kt)
 
 **Механизм.**
 
@@ -517,8 +517,8 @@ fun clearInstance() {
 
 ## D2. Низко — `clearAllData` не чистит соседние хранилища
 
-**Файлы:** [`data/CalendarDataStore.kt:273–288`](../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt),
-[`ui/sync/SyncViewModel.kt:105–127`](../../app/src/main/java/ru/greemlab/neiro/ui/sync/SyncViewModel.kt)
+**Файлы:** [`data/CalendarDataStore.kt:273–288`](../../../app/src/main/java/ru/greemlab/neiro/data/CalendarDataStore.kt),
+[`ui/sync/SyncViewModel.kt:105–127`](../../../app/src/main/java/ru/greemlab/neiro/ui/sync/SyncViewModel.kt)
 
 **Механизм.** `clearAllData()` очищает DataStore и sync-кэш, но не трогает
 `SalaryLedgerStore` (история цен и фактов ЗП), `SessionMetaStore`,
@@ -537,8 +537,8 @@ SharedPreferences-файлы.
 
 ## N1. Низко — logout не чистит ленту уведомлений
 
-**Файлы:** [`auth/LogoutCoordinator.kt:26–41`](../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt),
-[`notifications/InAppNotificationStore.kt:74`](../../app/src/main/java/ru/greemlab/neiro/notifications/InAppNotificationStore.kt)
+**Файлы:** [`auth/LogoutCoordinator.kt:26–41`](../../../app/src/main/java/ru/greemlab/neiro/auth/LogoutCoordinator.kt),
+[`notifications/InAppNotificationStore.kt:74`](../../../app/src/main/java/ru/greemlab/neiro/notifications/InAppNotificationStore.kt)
 
 **Механизм.** `LogoutCoordinator` отменяет воркеры, отзывает устройство, чистит
 сессию, watermark'и синхронизации и состояние уведомлений
@@ -562,7 +562,7 @@ SharedPreferences-файлы.
 
 ## S2. Низко — двойная подтяжка календаря на холодном старте
 
-**Файл:** [`sync/LiveApiCoordinator.kt:55–94`](../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
+**Файл:** [`sync/LiveApiCoordinator.kt:55–94`](../../../app/src/main/java/ru/greemlab/neiro/sync/LiveApiCoordinator.kt)
 
 **Механизм.** `initialize` заводит два независимых триггера `refreshNow`:
 
@@ -595,7 +595,8 @@ scope.launch {
 
 ## U1. Низко — `computeProfileTotals` мёртвый код
 
-**Файл:** [`ui/calendar/ProfileTotalsCalculator.kt:39–114`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/ProfileTotalsCalculator.kt)
+**Файл:** `ui/calendar/ProfileTotalsCalculator.kt:39–114` — удалён по этой
+находке, см. [REPORT.md](REPORT.md#волна-4--гигиена-и-мёртвый-код)
 
 **Механизм.** `computeProfileTotals` и модель `ProfileTotals` (123 строки)
 считают сводку по всем записям: прошлые и будущие занятия, заработано, чистыми,
@@ -615,7 +616,7 @@ scope.launch {
 
 ## U2. Низко — годовой налог считается, но нигде не выводится
 
-**Файл:** [`ui/calendar/ProfileYearStats.kt:191`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/ProfileYearStats.kt)
+**Файл:** [`ui/calendar/ProfileYearStats.kt:191`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/ProfileYearStats.kt)
 
 **Механизм.**
 
@@ -625,7 +626,7 @@ val totalTaxAmount = profileRates.monthlyTaxAmount * elapsedMonthsInYear(year, t
 
 Формула налога за год берёт **текущий налог из профиля**, а месячная чистая
 прибыль рядом (`monthlyNet`) считается по налогу месяца из истории ЗП
-(`MonthEntry.tax`, [`MonthRatesResolver.kt:149`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/MonthRatesResolver.kt)).
+(`MonthEntry.tax`, [`MonthRatesResolver.kt:149`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/MonthRatesResolver.kt)).
 Налог месяца фиксируется при первой записи и больше не обновляется:
 
 ```kotlin
@@ -638,8 +639,8 @@ tax = existing?.tax?.takeIf { it > 0.0 } ?: profile.monthlyTaxAmount,
 
 **Достижимость.** Поле нигде не выводится: во всём `app/src/main` оно встречается
 только в двух `@Preview`-блоках
-([`ProfileYearStatsSection.kt:1278`](../../app/src/main/java/ru/greemlab/neiro/ui/profile/ProfileYearStatsSection.kt),
-[`ProfileContent.kt:790`](../../app/src/main/java/ru/greemlab/neiro/ui/profile/ProfileContent.kt)).
+([`ProfileYearStatsSection.kt:1278`](../../../app/src/main/java/ru/greemlab/neiro/ui/profile/ProfileYearStatsSection.kt),
+[`ProfileContent.kt:790`](../../../app/src/main/java/ru/greemlab/neiro/ui/profile/ProfileContent.kt)).
 Формула при этом закреплена четырьмя тестами в `ProfileYearStatsTest` — то есть
 поддерживается число, которого никто не видит.
 
@@ -656,7 +657,7 @@ tax = existing?.tax?.takeIf { it > 0.0 } ?: profile.monthlyTaxAmount,
 
 ## Сверка фиксов аудита 30.07.2026
 
-Пройдены все пункты [ROADMAP.md](../archive/audit-30.07.26/ROADMAP.md) прошлого
+Пройдены все пункты [ROADMAP.md](../audit-30.07.26/ROADMAP.md) прошлого
 пакета (влиты коммитом `e4a62ec`, PR #27). **Регрессий не найдено.**
 
 | Пункт | Где сейчас | Статус |

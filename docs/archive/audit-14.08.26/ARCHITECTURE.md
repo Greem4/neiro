@@ -44,7 +44,7 @@
 выданный сервисом при входе. Второй ключ, `NEIRO_PUSH_API_KEY`, запечён в APK и
 открывает ровно одну дверь: `POST /v1/auth/login`.
 
-Отдельный канал — [`update/`](../../app/src/main/java/ru/greemlab/neiro/update):
+Отдельный канал — [`update/`](../../../app/src/main/java/ru/greemlab/neiro/update):
 приложение анонимно ходит на `api.github.com` за релизами и обновляет само себя.
 Ни одного секрета туда не уезжает — свой OkHttp, отдельно от клиента сервиса.
 
@@ -57,21 +57,21 @@
 
 | Пакет | Файлов | Строк | За что отвечает |
 |---|---:|---:|---|
-| [`ui/`](../../app/src/main/java/ru/greemlab/neiro/ui) | 56 | 16 367 | Экраны, диалоги, календарь, статистика, парсер записей |
-| [`notifications/`](../../app/src/main/java/ru/greemlab/neiro/notifications) | 24 | 2 997 | Планирование, дедуп и показ уведомлений, лента внутри приложения |
-| [`data/`](../../app/src/main/java/ru/greemlab/neiro/data) | 18 | 2 924 | DataStore, история ЗП, шифрованное хранилище сессии, сеть |
-| [`update/`](../../app/src/main/java/ru/greemlab/neiro/update) | 18 | 2 100 | Самообновление: проверка, загрузка, сверка, установка |
-| [`sync/`](../../app/src/main/java/ru/greemlab/neiro/sync) | 10 | 1 813 | Слияние записей YClients с календарём, история денег |
-| [`push/`](../../app/src/main/java/ru/greemlab/neiro/push) | 15 | 902 | FCM, догон событий, keepalive |
-| [`theme/`](../../app/src/main/java/ru/greemlab/neiro/theme) | 4 | 238 | Тема, системные бары |
-| [`domain/`](../../app/src/main/java/ru/greemlab/neiro/domain) | 4 | 189 | Модели: профиль, месяц, контекст цен |
-| [`auth/`](../../app/src/main/java/ru/greemlab/neiro/auth) | 1 | 42 | `LogoutCoordinator` — единственная точка выхода |
+| [`ui/`](../../../app/src/main/java/ru/greemlab/neiro/ui) | 56 | 16 367 | Экраны, диалоги, календарь, статистика, парсер записей |
+| [`notifications/`](../../../app/src/main/java/ru/greemlab/neiro/notifications) | 24 | 2 997 | Планирование, дедуп и показ уведомлений, лента внутри приложения |
+| [`data/`](../../../app/src/main/java/ru/greemlab/neiro/data) | 18 | 2 924 | DataStore, история ЗП, шифрованное хранилище сессии, сеть |
+| [`update/`](../../../app/src/main/java/ru/greemlab/neiro/update) | 18 | 2 100 | Самообновление: проверка, загрузка, сверка, установка |
+| [`sync/`](../../../app/src/main/java/ru/greemlab/neiro/sync) | 10 | 1 813 | Слияние записей YClients с календарём, история денег |
+| [`push/`](../../../app/src/main/java/ru/greemlab/neiro/push) | 15 | 902 | FCM, догон событий, keepalive |
+| [`theme/`](../../../app/src/main/java/ru/greemlab/neiro/theme) | 4 | 238 | Тема, системные бары |
+| [`domain/`](../../../app/src/main/java/ru/greemlab/neiro/domain) | 4 | 189 | Модели: профиль, месяц, контекст цен |
+| [`auth/`](../../../app/src/main/java/ru/greemlab/neiro/auth) | 1 | 42 | `LogoutCoordinator` — единственная точка выхода |
 
 Внутри `ui/`: `components/` 7 291 · `profile/` 2 870 · `calendar/` 2 262 ·
 `settings/` 1 853 · `screens/` 1 124 · `auth/` 584 · `sync/` 326 · `util/` 57.
 
 Крупнейшие файлы (god-composables не дробятся — согласовано в
-[OUT_OF_SCOPE](../archive/audit-17.07.26/OUT_OF_SCOPE.md#33-разделение-god-composables)):
+[OUT_OF_SCOPE](../audit-17.07.26/OUT_OF_SCOPE.md#33-разделение-god-composables)):
 `ProfileYearStatsSection.kt` 1294 · `CalendarScreen.kt` 1124 ·
 `DayDetailsDialog.kt` 1021 · `YClientsCalendarSync.kt` 1002 ·
 `ProfileContent.kt` 807 · `YClientsRepository.kt` 784 ·
@@ -83,10 +83,10 @@
 - **Ключи YClients ушли с телефона.** `TokenStorage` хранит только
   `device_token`; `partner_token`, `user_token`, `company_id` и `staff_id`
   живут в `.env` на Pi. Старые ключи вычищаются из шифрованных prefs при каждом
-  старте ([`TokenStorage.dropLegacyYClientsTokens`](../../app/src/main/java/ru/greemlab/neiro/data/network/TokenStorage.kt)).
+  старте ([`TokenStorage.dropLegacyYClientsTokens`](../../../app/src/main/java/ru/greemlab/neiro/data/network/TokenStorage.kt)).
 - **Версия переехала в `version.properties`** и считается формулой
   `major*10000 + minor*100 + patch` — одна и та же в Gradle и в
-  [`ReleaseVersion.kt`](../../app/src/main/java/ru/greemlab/neiro/update/ReleaseVersion.kt).
+  [`ReleaseVersion.kt`](../../../app/src/main/java/ru/greemlab/neiro/update/ReleaseVersion.kt).
   Схема сменилась с `0.6.10.1` на `0.1.6`.
 - **Два новых workflow**: `release-on-merge.yml` (поднять версию, поставить тег)
   и `release.yml` (собрать, подписать, опубликовать APK + `SHA256SUMS.txt`).
@@ -111,8 +111,8 @@
 Ключ денежных данных — `staffId`: `SalaryLedger.monthKey(staffId, ym)`.
 
 Резервные копии Android выключены полностью
-([`backup_rules.xml`](../../app/src/main/res/xml/backup_rules.xml),
-[`data_extraction_rules.xml`](../../app/src/main/res/xml/data_extraction_rules.xml)):
+([`backup_rules.xml`](../../../app/src/main/res/xml/backup_rules.xml),
+[`data_extraction_rules.xml`](../../../app/src/main/res/xml/data_extraction_rules.xml)):
 в облако не уезжает ничего, при переносе на новый телефон — только `datastore/`.
 
 ### Формат записи дня
@@ -126,7 +126,7 @@ __INTENSIVE__:=5600|Интенсив|3|14:00-15:30|Аня|3||;;Ваня|1||  ←
 ```
 
 Коды статуса: `0` ожидание · `1` подтвердил · `2` отмена · `3` пришёл. В деньги
-входит только `3`. Разбор — [`SessionParser`](../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt),
+входит только `3`. Разбор — [`SessionParser`](../../../app/src/main/java/ru/greemlab/neiro/ui/calendar/SessionParser.kt),
 `split("|", limit = 5)`: комментарий намеренно глотает хвост, поэтому дописать
 поле в конец нельзя — для этого заведён `SessionMetaStore`.
 
@@ -144,18 +144,18 @@ __INTENSIVE__:=5600|Интенсив|3|14:00-15:30|Аня|3||;;Ваня|1||  ←
 | Проверка обновлений | `update_check` | Periodic 1 сутки | `KEEP` | `UpdateCheckCoordinator` |
 
 Самопланирование живёт в `finally { if (!isStopped) scheduleNext() }` —
-[`PushKeepAliveWorker`](../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt),
-[`SessionScheduledDigestWorker`](../../app/src/main/java/ru/greemlab/neiro/notifications/SessionScheduledDigestWorker.kt).
+[`PushKeepAliveWorker`](../../../app/src/main/java/ru/greemlab/neiro/push/PushKeepAliveWorker.kt),
+[`SessionScheduledDigestWorker`](../../../app/src/main/java/ru/greemlab/neiro/notifications/SessionScheduledDigestWorker.kt).
 `Result.retry()` рядом с ним нигде не стоит: две системы планирования на одну
 цепочку удлиняли очередь на каждой ошибке.
 
 Локального опроса YClients по таймеру нет с 25.07.2026 — изменения приходят
 push'ом. `LiveApiCoordinator` подтягивает календарь только при входе и при
 возврате в приложение, с накопительной паузой при недоступном сервере
-([`NetworkRetryBackoff`](../../app/src/main/java/ru/greemlab/neiro/sync/NetworkRetryBackoff.kt)).
+([`NetworkRetryBackoff`](../../../app/src/main/java/ru/greemlab/neiro/sync/NetworkRetryBackoff.kt)).
 
 Интервалы keepalive: 30 мин днём, 60 мин в тихие часы (21:00–09:00 МСК,
-[`SyncQuietHours`](../../app/src/main/java/ru/greemlab/neiro/sync/SyncQuietHours.kt)),
+[`SyncQuietHours`](../../../app/src/main/java/ru/greemlab/neiro/sync/SyncQuietHours.kt)),
 5 мин после неудачи.
 
 ---
@@ -248,20 +248,20 @@ ProcessLifecycle onStart ────────┼─► UpdateCheckCoordinato
 
 | Файл | Строк | Что делает |
 |---|---:|---|
-| [`app/database.py`](../../neiro-push/app/database.py) | 1010 | SQLite: схема, миграции колонок, ретеншен, запросы дашборда |
-| [`app/dashboard.py`](../../neiro-push/app/dashboard.py) | 471 | Сбор и форматирование данных дашборда (HTML и текст) |
-| [`app/main.py`](../../neiro-push/app/main.py) | 457 | FastAPI, admin API, дашборд, cookie-авторизация |
-| [`app/poller.py`](../../neiro-push/app/poller.py) | 413 | Цикл опроса YClients, backoff, отправка пушей |
-| [`app/yclients.py`](../../neiro-push/app/yclients.py) | 370 | Клиент YClients, разбор записей, подбор сотрудника по имени |
-| [`app/auth.py`](../../neiro-push/app/auth.py) | 295 | Вход, `device_token`, `/v1/session`, обновление FCM-токена |
-| [`app/proxy.py`](../../neiro-push/app/proxy.py) | 200 | Семь GET-эндпоинтов YClients насквозь |
-| [`app/events.py`](../../neiro-push/app/events.py) | 170 | Чистый дифф состояний записей → события |
-| [`app/fcm.py`](../../neiro-push/app/fcm.py) | 126 | HTTP v1 FCM, нудж при payload > 3 КБ |
-| [`app/device_events.py`](../../neiro-push/app/device_events.py) | 82 | `GET /v1/events`, `POST /v1/events/ack` |
-| [`app/ratelimit.py`](../../neiro-push/app/ratelimit.py) | 78 | Скользящее окно в памяти процесса |
-| [`app/schemas.py`](../../neiro-push/app/schemas.py) | 72 | Pydantic-модели запросов и ответов |
-| [`app/security.py`](../../neiro-push/app/security.py) | 54 | Хэш токена, Fernet, сравнение за постоянное время |
-| [`app/config.py`](../../neiro-push/app/config.py) | 36 | Настройки из `.env` |
+| [`app/database.py`](../../../neiro-push/app/database.py) | 1010 | SQLite: схема, миграции колонок, ретеншен, запросы дашборда |
+| [`app/dashboard.py`](../../../neiro-push/app/dashboard.py) | 471 | Сбор и форматирование данных дашборда (HTML и текст) |
+| [`app/main.py`](../../../neiro-push/app/main.py) | 457 | FastAPI, admin API, дашборд, cookie-авторизация |
+| [`app/poller.py`](../../../neiro-push/app/poller.py) | 413 | Цикл опроса YClients, backoff, отправка пушей |
+| [`app/yclients.py`](../../../neiro-push/app/yclients.py) | 370 | Клиент YClients, разбор записей, подбор сотрудника по имени |
+| [`app/auth.py`](../../../neiro-push/app/auth.py) | 295 | Вход, `device_token`, `/v1/session`, обновление FCM-токена |
+| [`app/proxy.py`](../../../neiro-push/app/proxy.py) | 200 | Семь GET-эндпоинтов YClients насквозь |
+| [`app/events.py`](../../../neiro-push/app/events.py) | 170 | Чистый дифф состояний записей → события |
+| [`app/fcm.py`](../../../neiro-push/app/fcm.py) | 126 | HTTP v1 FCM, нудж при payload > 3 КБ |
+| [`app/device_events.py`](../../../neiro-push/app/device_events.py) | 82 | `GET /v1/events`, `POST /v1/events/ack` |
+| [`app/ratelimit.py`](../../../neiro-push/app/ratelimit.py) | 78 | Скользящее окно в памяти процесса |
+| [`app/schemas.py`](../../../neiro-push/app/schemas.py) | 72 | Pydantic-модели запросов и ответов |
+| [`app/security.py`](../../../neiro-push/app/security.py) | 54 | Хэш токена, Fernet, сравнение за постоянное время |
+| [`app/config.py`](../../../neiro-push/app/config.py) | 36 | Настройки из `.env` |
 
 ### Схема БД
 
