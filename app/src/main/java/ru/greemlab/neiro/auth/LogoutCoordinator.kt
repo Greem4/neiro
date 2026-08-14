@@ -2,6 +2,8 @@ package ru.greemlab.neiro.auth
 
 import android.content.Context
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.notifications.ArchiveNotificationStore
+import ru.greemlab.neiro.notifications.InAppNotificationStore
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.push.PushEventsSyncCoordinator
 import ru.greemlab.neiro.push.PushKeepAliveCoordinator
@@ -17,7 +19,8 @@ import ru.greemlab.neiro.sync.SyncPreferences
  * 2. Отзывает `device_token` на сервере — обязательно **до** очистки хранилища:
  *    отзывать нечем, если токен уже стёрт.
  * 3. Чистит локальную сессию и watermark sync.
- * 4. Сбрасывает состояние уведомлений (baseline, dedupe).
+ * 4. Сбрасывает состояние уведомлений (baseline, dedupe) и обе ленты — они
+ *    держат имена клиентов прошлого аккаунта.
  *
  * Профиль, архивный календарь и тема НЕ затрагиваются.
  */
@@ -33,6 +36,11 @@ object LogoutCoordinator {
         PushEventsSyncCoordinator.cancel(appContext)
 
         SessionNotificationCoordinator.onLoggedOut(appContext)
+        // Лента — единственное место, где события аккаунта переживают выход из
+        // него: после «сменить аккаунт» там оставались имена клиентов прошлого
+        // сотрудника, даты и время его занятий.
+        InAppNotificationStore.get(appContext).clearAll()
+        ArchiveNotificationStore.get(appContext).clearAll()
 
         PushRegistrar.onLogout(appContext)
 
