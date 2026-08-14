@@ -225,6 +225,57 @@ def test_relogin_kills_old_token_and_keeps_cursor(client: TestClient) -> None:
         assert conn.execute("SELECT COUNT(*) AS c FROM devices").fetchone()["c"] == 1
 
 
+def _token_hash(client: TestClient, device_id: str) -> str:
+    with client.app.state.db.connect() as conn:
+        return conn.execute(
+            "SELECT token_hash FROM devices WHERE device_id = ?", (device_id,)
+        ).fetchone()["token_hash"]
+
+
+def test_login_by_another_account_does_not_steal_the_device(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """device_id приходит из тела запроса и был ключом upsert'а: чужой вход
+    переписывал строку, убивая token_hash хозяина телефона и уводя на себя его
+    пуши (аудит 14.08.26, K6)."""
+    first = _login(client)
+    hash_before = _token_hash(client, "device-0001")
+
+    # Другой сотрудник того же филиала — свои учётные данные, чужой device_id.
+    yclients.user_name = "Иванова Мария"
+    response = client.post(
+        "/v1/auth/login",
+        headers=APP_KEY,
+        json={
+            "login": "+79990000000",
+            "password": PASSWORD,
+            "device_id": "device-0001",
+            "fcm_token": "g" * 32,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "device_taken"
+    assert _token_hash(client, "device-0001") == hash_before
+    # Телефон хозяина продолжает работать.
+    assert client.get("/v1/session", headers=_auth(first["device_token"])).status_code == 200
+
+
+def test_released_device_can_be_claimed_by_another_account(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """«Сменить аккаунт» на своём же телефоне — штатный сценарий: выход
+    отзывает устройство, и привязка к прежнему аккаунту больше не держит."""
+    first = _login(client)
+    assert client.post("/v1/auth/logout", headers=_auth(first["device_token"])).status_code == 204
+
+    yclients.user_name = "Иванова Мария"
+    second = _login(client)
+
+    assert second["device_token"] != first["device_token"]
+    assert client.get("/v1/session", headers=_auth(second["device_token"])).status_code == 200
+
+
 def test_password_never_reaches_logs(
     client: TestClient, yclients: FakeYClients, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -122,7 +122,11 @@ class YClientsRepository(context: Context) {
 
                 if (!response.isSuccessful) {
                     return@withContext ApiResult.Error(
-                        message = loginErrorMessage(response.code(), response.headers()["Retry-After"]),
+                        message = loginErrorMessage(
+                            code = response.code(),
+                            detail = errorDetail(response),
+                            retryAfter = response.headers()["Retry-After"],
+                        ),
                         code = response.code(),
                         offline = isUpstreamDown(response.code()),
                     )
@@ -715,15 +719,40 @@ class YClientsRepository(context: Context) {
         else -> ""
     }
 
-    /** Текст отказа входа по коду сервиса (API.md § Вход и сессия). */
-    private fun loginErrorMessage(code: Int, retryAfter: String?): String = when (code) {
-        401 -> "Неверный логин или пароль"
-        409 -> "Имя в профиле YClients не совпало ни с одной карточкой сотрудника " +
-            "филиала. Исправьте имя в YClients и попробуйте снова."
-        429 -> "Слишком много попыток входа. " + retryAfterHint(retryAfter)
-        502, 504 -> "YClients недоступен, попробуйте позже"
-        else -> "Не удалось войти (ошибка $code)"
-    }
+    /**
+     * Текст отказа входа по коду сервиса (API.md § Вход и сессия).
+     *
+     * У `409` два разных повода, и советы у них противоположные, поэтому
+     * различаем по `detail`: `staff_not_found` — чинится в YClients,
+     * `device_taken` — этим телефоном уже владеет другой аккаунт, и чинить
+     * его в YClients бессмысленно.
+     */
+    private fun loginErrorMessage(code: Int, detail: String?, retryAfter: String?): String =
+        when (code) {
+            401 -> "Неверный логин или пароль"
+            409 -> when (detail) {
+                "device_taken" ->
+                    "Этот телефон уже привязан к другому аккаунту. Выйдите из " +
+                        "него на этом устройстве или войдите тем же сотрудником."
+
+                else -> "Имя в профиле YClients не совпало ни с одной карточкой " +
+                    "сотрудника филиала. Исправьте имя в YClients и попробуйте снова."
+            }
+
+            429 -> "Слишком много попыток входа. " + retryAfterHint(retryAfter)
+            502, 504 -> "YClients недоступен, попробуйте позже"
+            else -> "Не удалось войти (ошибка $code)"
+        }
+
+    /**
+     * Поле `detail` из тела отказа FastAPI. Тело читается один раз и только на
+     * неуспешном ответе; распарсить не вышло — считаем, что различать нечем.
+     */
+    private fun errorDetail(response: retrofit2.Response<*>): String? = runCatching {
+        val raw = response.errorBody()?.string().orEmpty()
+        if (raw.isBlank()) return@runCatching null
+        org.json.JSONObject(raw).optString("detail").takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     /**
      * Текст отказа запроса данных. Отказ сервиса и отказ YClients различаются:

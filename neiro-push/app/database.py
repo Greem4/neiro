@@ -489,6 +489,22 @@ class Database:
             cursor = conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
             return cursor.rowcount > 0
 
+    def device_owner_account_id(self, device_id: str) -> int | None:
+        """Аккаунт, за которым закреплено **активное** устройство.
+
+        Отозванное устройство владельца не имеет: выход из аккаунта ставит
+        `revoked_at` и оставляет строку ради истории доставок, а «сменить
+        аккаунт» на том же телефоне — штатный сценарий, и упереться в чужую
+        привязку он не должен.
+        """
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT account_id FROM devices "
+                "WHERE device_id = ? AND revoked_at IS NULL",
+                (device_id,),
+            ).fetchone()
+        return int(row["account_id"]) if row else None
+
     def get_device(self, device_id: str) -> RegisteredDevice | None:
         with self.connect() as conn:
             row = conn.execute(
