@@ -1,0 +1,9 @@
+# Зависимости для прогона тестов бэкенда. Рабочие в requirements.txt не
+# трогаем: в образ на Pi pytest не едет.
+#
+#   python -m venv .venv && .venv/bin/pip install -r neiro-push/requirements-dev.txt
+#   cd neiro-push && python -m pytest tests
+#
+# Запускать обязательно из neiro-push/: тесты импортируют пакет как `app.`.
+-r requirements.txt
+pytest==8.3.4
