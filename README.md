@@ -143,6 +143,7 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 | Скриншоты | [docs/screenshots.md](docs/screenshots.md) | Что снимать, требования README и RuStore, скрипт разбора кадров |
 | Боковая панель | [docs/profile-drawer.md](docs/profile-drawer.md) | Drawer профиля, жесты, файлы в коде |
 | Аудит | [docs/audit/METHODIKA.md](docs/audit/METHODIKA.md) | Как проводить аудит: границы, чек-листы по областям, формат пакета, история прошлых аудитов |
+| Текущий аудит | [docs/audit-14.08.26/](docs/audit-14.08.26/README.md) | Пакет от 14.08.2026: 18 находок, архитектура на дату, дорожная карта фиксов |
 | Что осталось доделать | [docs/next/](docs/next/README.md) | Доводка после перехода на `neiro-push`: шесть этапов с планом работ |
 | Дорожная карта | [TODO.md](TODO.md) | Что сделано и что в планах |
 
