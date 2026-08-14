@@ -116,6 +116,42 @@ def test_day_window_counts_exactly_last_24_hours(tmp_path: Path) -> None:
     assert db.poll_errors_today() == 0
 
 
+def test_purge_drops_states_of_past_records_and_keeps_the_rest(tmp_path: Path) -> None:
+    """Состояния копились навсегда и перечитывались каждый цикл целиком.
+
+    Записи с прошедшей датой в окно опроса не попадают (оно от сегодня и
+    вперёд), поэтому диффу они не нужны — аудит 14.08.26, K3.
+    """
+    db = Database(str(tmp_path / "events.db"))
+    account_id = db.upsert_account(1, 10, "ut")
+    today = datetime.now(timezone.utc).date()
+
+    def _dated(record_id: int, day) -> RecordState:
+        return RecordState(
+            record_id=record_id,
+            date=day.isoformat(),
+            time="10:00",
+            attendance=0,
+            deleted=0,
+            client_name="Иванов Ваня",
+            kind="LESSON",
+        )
+
+    db.commit_poll_result(
+        account_id,
+        [],
+        {
+            1: _dated(1, today - timedelta(days=1)),
+            2: _dated(2, today),
+            3: _dated(3, today + timedelta(days=30)),
+        },
+    )
+
+    db.purge_old_data()
+
+    assert sorted(db.get_record_states(account_id)) == [2, 3]
+
+
 def test_deliveries_by_device_go_through_index(tmp_path: Path) -> None:
     db = Database(str(tmp_path / "events.db"))
     with db.connect() as conn:

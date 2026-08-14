@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.config import Settings
@@ -54,11 +55,18 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
+# Окно опроса YClients — «от сегодня и вперёд», поэтому запись с прошедшей
+# датой из API не приходит, а её состояние убирает purge_old_data (K3).
+# Фикстуры держим в будущем: с датой из прошлого тест проверял бы случай,
+# недостижимый в бою.
+FUTURE_DATE = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+
+
 def _record(
     record_id: int,
     staff_id: int,
     attendance: int = 0,
-    date: str = "2026-07-26",
+    date: str = FUTURE_DATE,
     time: str = "15:00",
 ) -> YClientsRecord:
     return YClientsRecord(

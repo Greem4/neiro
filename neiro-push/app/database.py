@@ -836,6 +836,24 @@ class Database:
                 "DELETE FROM poll_runs WHERE started_at < datetime('now', ?)",
                 (f"-{poll_runs_days} days",),
             )
+            # record_states растёт только вверх: инкрементальный опрос
+            # надстраивает снимок поверх прежнего и никогда ничего не удаляет,
+            # поэтому дифф перечитывает всю накопленную таблицу каждый цикл
+            # (аудит 14.08.26, K3). Записи с датой в прошлом в окно опроса уже
+            # не попадают (`YClientsApi._date_range` — от сегодня и вперёд),
+            # диффу они не нужны.
+            #
+            # Дата здесь по UTC, а окно опроса — по Москве. Расходятся они
+            # только ночью и в безопасную сторону: UTC-дата отстаёт, то есть
+            # лишний день состояний доживёт до следующей уборки.
+            #
+            # Строковое сравнение корректно: record_states.date — это
+            # `YYYY-MM-DD` (`yclients._extract_date`), в отличие от created_at,
+            # где формат utc_now_iso и datetime('now') расходятся.
+            conn.execute(
+                "DELETE FROM record_states WHERE date < ?",
+                (datetime.now(timezone.utc).date().isoformat(),),
+            )
 
     def stats(self) -> dict[str, int]:
         with self.connect() as conn:
