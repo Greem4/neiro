@@ -167,6 +167,11 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Отдать проверенный файл системе. Отдельно от загрузки: после отказа можно повторить. */
     fun install(info: UpdateInfo, apk: File) {
+        // Признак ставим до запуска корутины: пока он выставлялся внутри неё,
+        // двойное нажатие «Установить» успевало пройти оба раза и создавало две
+        // сессии PackageInstaller на один файл.
+        if (_state.value is UpdateState.Installing) return
+        _state.value = UpdateState.Installing(info)
         viewModelScope.launch {
             if (!ApkInstaller.canInstall(app)) {
                 // Разрешение выдаётся в системных настройках, обойти нельзя.
@@ -174,7 +179,6 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
-            _state.value = UpdateState.Installing(info)
             val failure = ApkInstaller.install(app, apk, info.version.versionCode)
             if (failure != null) {
                 _state.value = UpdateState.Failed(failure, info)
