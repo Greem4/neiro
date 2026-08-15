@@ -24,3 +24,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "neiro"
 include(":app")
+// Генератор baseline-профиля. В обычной сборке ничего не делает — работает
+// только по :app:generateReleaseBaselineProfile с подключённым телефоном.
+include(":baselineprofile")

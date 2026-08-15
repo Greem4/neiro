@@ -224,6 +224,19 @@ async def login(
         avatar_url=normalize_avatar_url(auth_data.get("avatar")),
     )
 
+    owner_account_id = db.device_owner_account_id(body.device_id)
+    if owner_account_id is not None and owner_account_id != account_id:
+        # Тот же device_id под другим аккаунтом: перезапись убила бы token_hash
+        # чужого телефона (401 → полный выход из аккаунта) и увела бы на него
+        # пуши. Это не «повторный вход» (аудит 14.08.26, K6).
+        logger.warning(
+            "device %s belongs to account %s, login from account %s rejected",
+            body.device_id, owner_account_id, account_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="device_taken"
+        )
+
     existing = db.get_device(body.device_id)
     device_token = generate_device_token()
     db.upsert_device(

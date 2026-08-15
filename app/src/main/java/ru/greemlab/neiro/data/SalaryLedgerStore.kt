@@ -69,6 +69,17 @@ class SalaryLedgerStore private constructor(context: Context) {
         }
     }
 
+    /**
+     * Стереть историю целиком — отладочный сброс данных.
+     *
+     * Через [update], а не прямой записью: иначе `_ledger` остался бы со
+     * старым значением, и статистика после «сброса» подхватила бы историю ЗП
+     * прежней установки (аудит 14.08.26, D2).
+     */
+    suspend fun clear() {
+        update { SalaryLedger.Empty }
+    }
+
     /** JSON истории для экспорта архива. */
     fun exportJson(): String = SalaryLedgerJson.toJson(_ledger.value)
 

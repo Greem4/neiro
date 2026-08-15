@@ -392,6 +392,25 @@ class Database:
                 (fcm_token, now, now, device_id),
             )
 
+    def clear_device_fcm(self, device_id: str) -> bool:
+        """Токен пуша умер, а доступ жив: device_token остаётся рабочим.
+
+        Удалять строку нельзя — в ней `token_hash`, и телефон получил бы 401,
+        то есть полный выход из аккаунта из-за проблемы с доставкой пуша.
+        Пустой `fcm_token` поллер пропускает сам (`_poll_account`), а новый
+        телефон пришлёт через `POST /v1/devices/fcm`.
+
+        Колонка `NOT NULL`, поэтому обнуляем пустой строкой, а не NULL.
+        """
+        now = utc_now_iso()
+        with self.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE devices SET fcm_token = '', updated_at = ? "
+                "WHERE device_id = ? AND fcm_token != ''",
+                (now, device_id),
+            )
+            return cursor.rowcount > 0
+
     def touch_device_seen(self, device_id: str) -> None:
         now = utc_now_iso()
         with self.connect() as conn:
@@ -469,6 +488,22 @@ class Database:
         with self.connect() as conn:
             cursor = conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
             return cursor.rowcount > 0
+
+    def device_owner_account_id(self, device_id: str) -> int | None:
+        """Аккаунт, за которым закреплено **активное** устройство.
+
+        Отозванное устройство владельца не имеет: выход из аккаунта ставит
+        `revoked_at` и оставляет строку ради истории доставок, а «сменить
+        аккаунт» на том же телефоне — штатный сценарий, и упереться в чужую
+        привязку он не должен.
+        """
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT account_id FROM devices "
+                "WHERE device_id = ? AND revoked_at IS NULL",
+                (device_id,),
+            ).fetchone()
+        return int(row["account_id"]) if row else None
 
     def get_device(self, device_id: str) -> RegisteredDevice | None:
         with self.connect() as conn:
@@ -816,6 +851,24 @@ class Database:
             conn.execute(
                 "DELETE FROM poll_runs WHERE started_at < datetime('now', ?)",
                 (f"-{poll_runs_days} days",),
+            )
+            # record_states растёт только вверх: инкрементальный опрос
+            # надстраивает снимок поверх прежнего и никогда ничего не удаляет,
+            # поэтому дифф перечитывает всю накопленную таблицу каждый цикл
+            # (аудит 14.08.26, K3). Записи с датой в прошлом в окно опроса уже
+            # не попадают (`YClientsApi._date_range` — от сегодня и вперёд),
+            # диффу они не нужны.
+            #
+            # Дата здесь по UTC, а окно опроса — по Москве. Расходятся они
+            # только ночью и в безопасную сторону: UTC-дата отстаёт, то есть
+            # лишний день состояний доживёт до следующей уборки.
+            #
+            # Строковое сравнение корректно: record_states.date — это
+            # `YYYY-MM-DD` (`yclients._extract_date`), в отличие от created_at,
+            # где формат utc_now_iso и datetime('now') расходятся.
+            conn.execute(
+                "DELETE FROM record_states WHERE date < ?",
+                (datetime.now(timezone.utc).date().isoformat(),),
             )
 
     def stats(self) -> dict[str, int]:

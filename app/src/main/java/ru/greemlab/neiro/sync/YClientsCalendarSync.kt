@@ -493,6 +493,14 @@ class YClientsCalendarSync(
             val subEnd = month.atEndOfMonth()
             when (val fullDays = yclientsRepository.getRecords(subStart, subEnd)) {
                 is ApiResult.Success -> {
+                    val dayDataBefore = calendarRepository.dayDataFlow.first()
+                    if (!shouldApplyCurrentMonthMerge(fullDays.data, dayDataBefore, month)) {
+                        // Пустой ответ при живом календаре — сбой, а не «месяц опустел».
+                        // Метку live-опроса не двигаем: следующий тик обязан повторить.
+                        return SyncOutcome.Failure(
+                            "YClients вернул пустой месяц — слияние пропущено, данные сохранены",
+                        )
+                    }
                     syncedCount += mergeRecordsToCalendar(
                         records = fullDays.data,
                         startDate = subStart,
@@ -910,6 +918,25 @@ class YClientsCalendarSync(
             if (records.isNotEmpty()) return true
             return countYClientsManagedLocalEntries(localDayData, startDate, endDate) == 0
         }
+
+        /**
+         * Можно ли применять авторитативный перезапрос текущего месяца в
+         * инкрементальном live-опросе.
+         *
+         * Проверка та же, что и в полном синке, но границы — самого месяца, а не
+         * всего live-диапазона: перезапрос чистит только его, и ученики
+         * следующего месяца прикрыть текущий не должны.
+         */
+        internal fun shouldApplyCurrentMonthMerge(
+            refetchedRecords: List<RecordData>,
+            localDayData: Map<LocalDate, List<String>>,
+            month: YearMonth,
+        ): Boolean = shouldApplySyncMerge(
+            records = refetchedRecords,
+            localDayData = localDayData,
+            startDate = month.atDay(1),
+            endDate = month.atEndOfMonth(),
+        )
 
         /** Ученики и диагностика в диапазоне (интенсивы не считаются — они только локальные). */
         internal fun countYClientsManagedLocalEntries(

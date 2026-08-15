@@ -25,6 +25,9 @@ workmanager = "2.11.2"
 coil = "2.7.0"
 firebaseBom = "33.7.0"
 googleServices = "4.4.2"
+# Генерация baseline-профиля прогоном на устройстве. Плагин требует минимум
+# AGP 8.1; ветка 1.5 — первая, что вышла уже при AGP 9.
+benchmark = "1.5.0-rc01"
 
 [libraries]
 # Network
@@ -62,8 +65,11 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

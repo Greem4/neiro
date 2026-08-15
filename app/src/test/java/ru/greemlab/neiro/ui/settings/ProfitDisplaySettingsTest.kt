@@ -9,9 +9,12 @@ class ProfitDisplaySettingsTest {
 
     @Test
     fun `overview subtitle joins expected income and session price`() {
+        // expectedIncludesNet выключен явно: по умолчанию он включён, и тогда
+        // подпись показывает сумму за месяц — это проверяет соседний тест.
         val display = ProfitDisplaySettings(
             showExpectedInOverview = true,
             showPricePerSession = true,
+            expectedIncludesNet = false,
         )
         val subtitle = buildOverviewProfitSubtitle(
             display = display,

@@ -200,12 +200,4 @@ object YClientsClient {
         val deviceToken = storage.deviceToken ?: return ""
         return "Bearer $deviceToken"
     }
-
-    fun clearInstance() {
-        synchronized(this) {
-            yclientsApi = null
-            neiroApi = null
-            retrofit = null
-        }
-    }
 }

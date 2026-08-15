@@ -2,18 +2,25 @@ package ru.greemlab.neiro.ui.settings
 
 import android.content.Context
 
-/** Какие строки прибыли показывать в календаре и в диалоге «Финансы». */
+/**
+ * Какие строки прибыли показывать в календаре и в диалоге «Финансы».
+ *
+ * Значения по умолчанию: показывается всё, кроме налога за месяц и стоимости
+ * одного занятия. Дефолт достаётся только тем, кто настройки ни разу не
+ * трогал: [ProfitDisplayPreferences.save] пишет ключи в prefs, а прочитанное
+ * значение всегда сильнее умолчания.
+ */
 data class ProfitDisplaySettings(
     val showNetProfit: Boolean = true,
     val showGrossEarned: Boolean = true,
-    val showTax: Boolean = true,
+    val showTax: Boolean = false,
     val showExpectedIncome: Boolean = true,
     val showPricePerSession: Boolean = false,
     val showExpectedInOverview: Boolean = true,
     val showIntensiveEarnings: Boolean = true,
     val showDiagnosticsEarnings: Boolean = true,
-    val showTotalProfit: Boolean = false,
-    val expectedIncludesNet: Boolean = false,
+    val showTotalProfit: Boolean = true,
+    val expectedIncludesNet: Boolean = true,
     /**
      * Показывать отметку о расхождении с YClients. Прячет только показ:
      * сверка и запись в `note` продолжаются, иначе через полгода не останется
@@ -26,18 +33,23 @@ class ProfitDisplayPreferences(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    // Умолчания берём у самой модели, а не повторяем литералами: разъехавшись,
+    // такие пары дают настройку, которая на экране показана одной, а работает
+    // другой.
+    private val defaults = ProfitDisplaySettings()
+
     fun read(): ProfitDisplaySettings = ProfitDisplaySettings(
-        showNetProfit = prefs.getBoolean(KEY_SHOW_NET, true),
-        showGrossEarned = prefs.getBoolean(KEY_SHOW_GROSS, true),
-        showTax = prefs.getBoolean(KEY_SHOW_TAX, true),
-        showExpectedIncome = prefs.getBoolean(KEY_SHOW_EXPECTED, true),
-        showPricePerSession = prefs.getBoolean(KEY_SHOW_SESSION_PRICE, false),
-        showExpectedInOverview = prefs.getBoolean(KEY_SHOW_EXPECTED_OVERVIEW, true),
-        showIntensiveEarnings = prefs.getBoolean(KEY_SHOW_INTENSIVE, true),
-        showDiagnosticsEarnings = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, true),
-        showTotalProfit = prefs.getBoolean(KEY_SHOW_TOTAL, false),
-        expectedIncludesNet = prefs.getBoolean(KEY_EXPECTED_INCLUDES_NET, false),
-        showDiscrepancy = prefs.getBoolean(KEY_SHOW_DISCREPANCY, true),
+        showNetProfit = prefs.getBoolean(KEY_SHOW_NET, defaults.showNetProfit),
+        showGrossEarned = prefs.getBoolean(KEY_SHOW_GROSS, defaults.showGrossEarned),
+        showTax = prefs.getBoolean(KEY_SHOW_TAX, defaults.showTax),
+        showExpectedIncome = prefs.getBoolean(KEY_SHOW_EXPECTED, defaults.showExpectedIncome),
+        showPricePerSession = prefs.getBoolean(KEY_SHOW_SESSION_PRICE, defaults.showPricePerSession),
+        showExpectedInOverview = prefs.getBoolean(KEY_SHOW_EXPECTED_OVERVIEW, defaults.showExpectedInOverview),
+        showIntensiveEarnings = prefs.getBoolean(KEY_SHOW_INTENSIVE, defaults.showIntensiveEarnings),
+        showDiagnosticsEarnings = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, defaults.showDiagnosticsEarnings),
+        showTotalProfit = prefs.getBoolean(KEY_SHOW_TOTAL, defaults.showTotalProfit),
+        expectedIncludesNet = prefs.getBoolean(KEY_EXPECTED_INCLUDES_NET, defaults.expectedIncludesNet),
+        showDiscrepancy = prefs.getBoolean(KEY_SHOW_DISCREPANCY, defaults.showDiscrepancy),
     )
 
     fun save(settings: ProfitDisplaySettings) {

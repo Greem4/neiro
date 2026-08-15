@@ -1,6 +1,9 @@
 import asyncio
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import httpx
 
 from app.config import Settings
 from app.database import Database
@@ -32,12 +35,13 @@ class FakeYClients:
 class FakeFcm:
     is_configured = True
 
-    def __init__(self) -> None:
+    def __init__(self, result: FcmSendResult | None = None) -> None:
         self.calls: list[dict] = []
+        self._result = result or FcmSendResult()
 
     async def send_events_push(self, *, token: str, events: list[dict], last_event_id: int):
         self.calls.append({"token": token, "events": events, "last_event_id": last_event_id})
-        return FcmSendResult()
+        return self._result
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -53,11 +57,18 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
+# Окно опроса YClients — «от сегодня и вперёд», поэтому запись с прошедшей
+# датой из API не приходит, а её состояние убирает purge_old_data (K3).
+# Фикстуры держим в будущем: с датой из прошлого тест проверял бы случай,
+# недостижимый в бою.
+FUTURE_DATE = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+
+
 def _record(
     record_id: int,
     staff_id: int,
     attendance: int = 0,
-    date: str = "2026-07-26",
+    date: str = FUTURE_DATE,
     time: str = "15:00",
 ) -> YClientsRecord:
     return YClientsRecord(
@@ -83,6 +94,27 @@ def _poll_runs_count(db_path: str) -> int:
 
 def _account(db: Database, account_id: int):
     return next(a for a in db.list_accounts() if a.id == account_id)
+
+
+def _auth_failures(db_path: str, account_id: int) -> int:
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute(
+            "SELECT auth_failures FROM accounts WHERE id = ?", (account_id,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _token_hash(db_path: str, device_id: str) -> str | None:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT token_hash FROM devices WHERE device_id = ?", (device_id,)
+        ).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
 
 
 def _push_deliveries(db_path: str) -> list[tuple]:
@@ -134,9 +166,36 @@ def test_status_change_sends_push_and_records_delivery(tmp_path: Path) -> None:
     assert deliveries == [(events[0].id, "dev1", "sent")]
 
 
+def test_invalid_fcm_token_clears_token_but_keeps_access(tmp_path: Path) -> None:
+    """UNREGISTERED от FCM — это про доставку пуша, а не про доступ.
+
+    Раньше строка устройства удалялась целиком вместе с token_hash, и телефон
+    получал 401, то есть полный выход из аккаунта (аудит 14.08.26, K2).
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev1", "hash1", "tok1", None, None)
+
+    yclients = FakeYClients([[_record(1, 10, attendance=0)], [_record(1, 10, attendance=2)]])
+    fcm = FakeFcm(result=FcmSendResult(token_invalid=True))
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())
+    asyncio.run(service.poll_once())
+
+    device = db.get_device("dev1")
+    assert device is not None, "строка устройства должна остаться"
+    assert device.fcm_token == ""
+    assert _token_hash(settings.database_path, "dev1") == "hash1"
+    assert [status for _, _, status in _push_deliveries(settings.database_path)] == [
+        "token_invalid"
+    ]
+
+
 def test_device_without_fcm_token_is_skipped(tmp_path: Path) -> None:
     """Вход разрешён и без токена Firebase. Слать такому устройству нечего, а
-    попытка вернула бы token_invalid и снесла бы вместе с ним рабочий доступ."""
+    попытка вернула бы token_invalid и только зря сожгла бы запрос."""
     settings = _settings(tmp_path)
     db = Database(settings.database_path)
     account_id = db.upsert_account(1, 10, "ut")
@@ -172,7 +231,7 @@ def test_one_fetch_per_company_for_multiple_staff(tmp_path: Path) -> None:
     assert 2 in db.get_record_states(account_b)
 
 
-def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
+def test_adding_second_staff_does_not_flood_existing_account_with_new_bookings(
     tmp_path: Path,
 ) -> None:
     settings = _settings(tmp_path)
@@ -196,6 +255,42 @@ def test_adding_second_staff_seeds_whole_company_without_new_booking_flood(
     assert fcm.calls == []
     assert db.list_events_since(account_a, 0) == []
     assert 1 in db.get_record_states(account_a)
+    assert 2 in db.get_record_states(account_b)
+
+
+def test_change_at_existing_account_survives_seeding_of_a_new_one(
+    tmp_path: Path,
+) -> None:
+    """Сидирование — признак аккаунта, а не компании.
+
+    Раньше приход нового сотрудника объявлял сидированием весь цикл, и
+    изменение у уже работающего аккаунта молча уезжало в снимок: уведомления
+    о нём не приходило никогда, потому что следующий цикл считал эти данные
+    исходным состоянием (аудит 14.08.26, K5).
+    """
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_a = db.upsert_account(5, 10, "ut")
+    db.upsert_device(account_a, "dev-a", "hash-a", "tok-a", None, None)
+
+    yclients = FakeYClients(
+        [
+            [_record(1, 10, attendance=0)],
+            [_record(1, 10, attendance=2), _record(2, 20)],
+        ]
+    )
+    fcm = FakeFcm()
+    service = PollService(settings, db, FakeSecretBox(), yclients, fcm)
+
+    asyncio.run(service.poll_once())  # A сидируется
+
+    account_b = db.upsert_account(5, 20, "ut")  # пришёл новый сотрудник
+    asyncio.run(service.poll_once())
+
+    assert [e.type for e in db.list_events_since(account_a, 0)] == ["CLIENT_CONFIRMED"]
+    assert len(fcm.calls) == 1
+    # B в этом же цикле сидируется молча — событий по нему нет.
+    assert db.list_events_since(account_b, 0) == []
     assert 2 in db.get_record_states(account_b)
 
 
@@ -247,6 +342,56 @@ def test_backoff_grows_with_repeated_failures_and_resets_after_recovery(
     account = _account(db, account_id)
     assert account.consecutive_errors == 0
     assert account.backoff_until is None
+
+
+def _unauthorized() -> httpx.HTTPStatusError:
+    request = httpx.Request("GET", "https://api.yclients.com/records/1")
+    return httpx.HTTPStatusError(
+        "401 Unauthorized", request=request, response=httpx.Response(401, request=request)
+    )
+
+
+def test_repeated_401_from_yclients_raises_reauth_required(tmp_path: Path) -> None:
+    """Протухший user_token раньше не отличался от таймаута: аккаунт получал
+    backoff, но `reauth_required` не взводился и запросы шли вечно
+    (аудит 14.08.26, K4)."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+
+    past = "2020-01-01T00:00:00+00:00"
+    yclients = FakeYClients([_unauthorized(), _unauthorized(), _unauthorized()])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    for _ in range(3):
+        db.update_account_poll_state(account_id, backoff_until=past)
+        asyncio.run(service.poll_once())
+
+    assert _account(db, account_id).reauth_required is True
+
+    # Флаг выводит аккаунт из опроса — вечный backoff на этом кончается.
+    db.update_account_poll_state(account_id, backoff_until=past)
+    asyncio.run(service.poll_once())
+    assert len(yclients.calls) == 3
+
+
+def test_successful_fetch_clears_auth_failures(tmp_path: Path) -> None:
+    """Счётчик считает 401 подряд: разовый сбой YClients не должен копиться
+    до порога через недели."""
+    settings = _settings(tmp_path)
+    db = Database(settings.database_path)
+    account_id = db.upsert_account(1, 10, "ut")
+
+    past = "2020-01-01T00:00:00+00:00"
+    yclients = FakeYClients([_unauthorized(), _unauthorized(), [_record(1, 10)]])
+    service = PollService(settings, db, FakeSecretBox(), yclients, FakeFcm())
+
+    for _ in range(3):
+        db.update_account_poll_state(account_id, backoff_until=past)
+        asyncio.run(service.poll_once())
+
+    assert _account(db, account_id).reauth_required is False
+    assert _auth_failures(settings.database_path, account_id) == 0
 
 
 def test_fetch_failure_backs_off_and_skips_next_cycle(tmp_path: Path) -> None:

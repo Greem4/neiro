@@ -125,12 +125,29 @@ def test_purge_drops_stale_keys() -> None:
     assert limiter._hits == {}
 
 
-def test_client_ip_prefers_forwarded_header() -> None:
+def test_client_ip_uses_real_ip_and_ignores_forwarded_chain() -> None:
+    """X-Forwarded-For клиент подставляет сам: nginx дописывает настоящий адрес
+    в конец списка, а первым остаётся присланный. Верить можно только
+    X-Real-IP, его nginx ставит из $remote_addr (аудит 14.08.26, K1)."""
+
     class Req:
-        headers = {"x-forwarded-for": "203.0.113.7, 10.0.0.1"}
+        headers = {"x-forwarded-for": "1.2.3.4, 10.0.0.1", "x-real-ip": "5.6.7.8"}
         client = None
 
-    assert client_ip(Req()) == "203.0.113.7"
+    assert client_ip(Req()) == "5.6.7.8"
+
+
+def test_client_ip_ignores_lone_forwarded_header() -> None:
+    """Без X-Real-IP уходим к концу туннеля, а не к слову клиента."""
+
+    class Peer:
+        host = "10.0.0.1"
+
+    class Req:
+        headers = {"x-forwarded-for": "203.0.113.7"}
+        client = Peer()
+
+    assert client_ip(Req()) == "10.0.0.1"
 
 
 def test_client_ip_falls_back_to_peer() -> None:
@@ -185,6 +202,28 @@ def test_changing_device_id_does_not_bypass_the_limit(
 
     response = client.post(
         "/v1/auth/login", headers=APP_KEY, json=_login_body("device-9999")
+    )
+
+    assert response.status_code == 429
+
+
+def test_changing_forwarded_header_does_not_bypass_the_limit(
+    client: TestClient, yclients: FakeYClients
+) -> None:
+    """Самый дешёвый обход: оба ключа лимита были под контролем клиента —
+    device_id в теле и X-Forwarded-For в заголовках. Считаем по X-Real-IP."""
+    yclients.auth_error = YClientsAuthError("nope")
+    for i in range(5):
+        client.post(
+            "/v1/auth/login",
+            headers={**APP_KEY, "X-Real-IP": "203.0.113.9", "X-Forwarded-For": f"198.51.100.{i}"},
+            json=_login_body(f"device-{i:04d}"),
+        )
+
+    response = client.post(
+        "/v1/auth/login",
+        headers={**APP_KEY, "X-Real-IP": "203.0.113.9", "X-Forwarded-For": "198.51.100.99"},
+        json=_login_body("device-9999"),
     )
 
     assert response.status_code == 429

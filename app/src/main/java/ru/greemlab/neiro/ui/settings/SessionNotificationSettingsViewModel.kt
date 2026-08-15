@@ -13,22 +13,28 @@ import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
 
+/**
+ * Снимок настроек для экрана. Без значений по умолчанию намеренно: единственный
+ * источник умолчаний — [SessionNotificationPreferences], а [loadState]
+ * заполняет здесь каждое поле. Второй набор дефолтов разошёлся бы с первым и
+ * показывал бы на экране не то, с чем работают уведомления.
+ */
 data class SessionNotificationSettingsState(
-    val isEnabled: Boolean = true,
-    val notifyNewBooking: Boolean = true,
-    val notifyCancelled: Boolean = true,
-    val notifyRescheduled: Boolean = true,
-    val notifyDeleted: Boolean = true,
-    val notifyClientConfirmed: Boolean = true,
-    val notifyClientArrived: Boolean = true,
-    val notifyReminder: Boolean = false,
-    val notifyTodayDigest: Boolean = true,
-    val notifyTomorrowDigest: Boolean = true,
-    val notifyArchiveReminder: Boolean = true,
-    val reminderMinutesBefore: Int = 30,
-    val todayDigestTime: ScheduledNotificationTime = ScheduledNotificationTime(8, 0),
-    val tomorrowDigestTime: ScheduledNotificationTime = ScheduledNotificationTime(20, 0),
-    val archiveReminderTime: ScheduledNotificationTime = ScheduledNotificationTime(21, 0),
+    val isEnabled: Boolean,
+    val notifyNewBooking: Boolean,
+    val notifyCancelled: Boolean,
+    val notifyRescheduled: Boolean,
+    val notifyDeleted: Boolean,
+    val notifyClientConfirmed: Boolean,
+    val notifyClientArrived: Boolean,
+    val notifyReminder: Boolean,
+    val notifyTodayDigest: Boolean,
+    val notifyTomorrowDigest: Boolean,
+    val notifyArchiveReminder: Boolean,
+    val reminderMinutesBefore: Int,
+    val todayDigestTime: ScheduledNotificationTime,
+    val tomorrowDigestTime: ScheduledNotificationTime,
+    val archiveReminderTime: ScheduledNotificationTime,
 )
 
 class SessionNotificationSettingsViewModel(application: Application) : AndroidViewModel(application) {

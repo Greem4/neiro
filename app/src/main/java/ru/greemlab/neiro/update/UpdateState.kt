@@ -50,9 +50,18 @@ val UpdateState.info: UpdateInfo?
         else -> null
     }
 
-/** Идёт работа — кнопку «Проверить» в это время показывать нечем. */
+/**
+ * Идёт работа — кнопку «Проверить» в это время показывать нечем.
+ *
+ * `ReadyToInstall` и `AwaitingConfirmation` тоже считаются занятостью: файл уже
+ * скачан и проверен, проверять обновления и качать те же 15 МБ заново отсюда
+ * нечего, установка ждёт ответа пользователя. Сама кнопка «Установить» при этом
+ * остаётся — `AboutScreen` рисует её по состоянию, а не по этому признаку.
+ */
 val UpdateState.isBusy: Boolean
     get() = this is UpdateState.Checking ||
         this is UpdateState.Downloading ||
         this is UpdateState.Verifying ||
-        this is UpdateState.Installing
+        this is UpdateState.Installing ||
+        this is UpdateState.ReadyToInstall ||
+        this is UpdateState.AwaitingConfirmation

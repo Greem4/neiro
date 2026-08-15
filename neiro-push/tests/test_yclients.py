@@ -3,11 +3,19 @@ from pathlib import Path
 
 from app.yclients import YClientsClient, next_changed_after
 
-EXPORT_PATH = Path(__file__).parent.parent.parent / "tools" / "yclients-sandbox" / "exports" / "520135-2026-06-28.json"
+# Запись снята с настоящего ответа `/records/`, но обезличена: клиент, мастер,
+# услуга, комментарии и ссылки выдуманы, цена подменена. Форма ответа при этом
+# настоящая — ради неё тесты и существуют: `date` с временем внутри,
+# `datetime` со смещением через двоеточие, `last_change_date` — без него.
+#
+# Раньше файл читался из `tools/yclients-sandbox/exports/`, а весь `tools/`
+# лежит в .gitignore — на машине автора тесты проходили, в CI все девять падали
+# с FileNotFoundError. Фикстура живёт рядом с тестами и едет вместе с ними.
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "yclients_record.json"
 
 
 def _real_record() -> dict:
-    data = json.loads(EXPORT_PATH.read_text())
+    data = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     return data["records"][0]
 
 

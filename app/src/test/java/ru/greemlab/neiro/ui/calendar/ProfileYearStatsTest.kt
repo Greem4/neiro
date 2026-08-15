@@ -144,6 +144,79 @@ class ProfileYearStatsTest {
     }
 
     @Test
+    fun `year tax follows month history, not the current profile`() {
+        // Налог месяца фиксируется в истории при первой записи и после правки в
+        // профиле не пересчитывается. Пока год считался по сегодняшнему налогу
+        // профиля, «налог за год» и сумма месяцев рядом описывали разные
+        // вселенные (аудит 14.08.26, U2).
+        // pricePerSession обязателен: без своей цены резолвер месяца до налога
+        // не доходит и целиком уходит в профиль (MonthRatesResolver).
+        val ledger = SalaryLedger.Empty
+            .withMonth(
+                MonthEntry(
+                    staffId = staffId,
+                    year = 2025,
+                    month = 1,
+                    pricePerSession = 1250.0,
+                    tax = 4000.0,
+                ),
+            )
+            .withMonth(
+                MonthEntry(
+                    staffId = staffId,
+                    year = 2025,
+                    month = 2,
+                    pricePerSession = 1250.0,
+                    tax = 4000.0,
+                ),
+            )
+        val stats = computeProfileYearStats(
+            year = 2025,
+            dayData = emptyMap(),
+            profileRates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = 6500.0,
+            ),
+            ledger = ledger,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 30),
+        )
+        // Январь и февраль — по 4000 из истории, остальные десять — по 6500
+        // из профиля: своей записи у них нет.
+        assertEquals(4000.0 * 2 + 6500.0 * 10, stats.totalTaxAmount, 0.0)
+    }
+
+    @Test
+    fun `year tax equals the sum of month taxes shown in the breakdown`() {
+        // Разбор месяца показывает свой налог, и год обязан складываться
+        // ровно из этих чисел — иначе рядом на экране стоят суммы из разных
+        // вселенных.
+        val ledger = SalaryLedger.Empty
+            .withMonth(
+                MonthEntry(
+                    staffId = staffId,
+                    year = 2025,
+                    month = 3,
+                    pricePerSession = 1250.0,
+                    tax = 4000.0,
+                ),
+            )
+        val stats = computeProfileYearStats(
+            year = 2025,
+            dayData = emptyMap(),
+            profileRates = EarningsContext(
+                pricePerSession = pricePerSession,
+                monthlyTaxAmount = 6500.0,
+            ),
+            ledger = ledger,
+            staffId = staffId,
+            today = LocalDate.of(2026, 7, 30),
+        )
+        // Год прошедший — в сумму входят все двенадцать месяцев.
+        assertEquals(stats.months.sumOf { it.tax }, stats.totalTaxAmount, 0.0)
+    }
+
+    @Test
     fun `available years includes history years`() {
         val ledger = SalaryLedger.Empty
             .withMonth(MonthEntry(staffId = staffId, year = 2024, month = 4))

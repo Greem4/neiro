@@ -70,6 +70,17 @@ class ArchiveNotificationStore private constructor(context: Context) {
         persist(_items.value.map { it.copy(read = true) })
     }
 
+    /**
+     * Стереть архив уведомлений целиком.
+     *
+     * Трогает только это устройство: уже сделанный экспорт архива живёт своим
+     * файлом, [exportJson] его не переписывает.
+     */
+    @Synchronized
+    fun clearAll() {
+        persist(emptyList())
+    }
+
     /** JSON-массив уведомлений для экспорта архива. */
     fun exportJson(): String = gson.toJson(_items.value)
 

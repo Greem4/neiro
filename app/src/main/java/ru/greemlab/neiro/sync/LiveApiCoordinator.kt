@@ -81,15 +81,23 @@ object LiveApiCoordinator {
         }
 
         scope.launch {
+            // isLoggedIn — StateFlow, и collect немедленно отдаёт текущее
+            // значение: у вошедшего пользователя на холодном старте срабатывали
+            // оба триггера, и подтяжка шла дважды подряд. Здесь нужен именно
+            // переход «вошёл», стартовую подтяжку делает onStart.
+            var wasLoggedIn = yclientsRepository.isLoggedIn.value
             yclientsRepository.isLoggedIn.collect { loggedIn ->
-                if (loggedIn) {
+                if (loggedIn && !wasLoggedIn) {
                     if (serverPushActive) {
                         PushKeepAliveCoordinator.schedule(appContext)
                     }
                     refreshNow(appContext)
-                } else if (serverPushActive) {
+                } else if (!loggedIn && serverPushActive) {
+                    // Отмену не пропускаем и на текущем значении: keepalive мог
+                    // остаться запланированным с прошлого запуска.
                     PushKeepAliveCoordinator.cancel(appContext)
                 }
+                wasLoggedIn = loggedIn
             }
         }
     }

@@ -6,6 +6,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
+
 from app.config import Settings
 from app.database import Database, WatchedAccount, utc_now_iso
 from app.events import DerivedEvent, derive_events, merge_states
@@ -154,8 +156,15 @@ class PollService:
 
         started_at = utc_now_iso()
         started = time.monotonic()
-        seeding = any(not self._db.has_record_states(a.id) for a in active_accounts)
-        changed_after = None if seeding else self._company_changed_after(active_accounts)
+        # Запрос общий на компанию: новичку нужен полный горизонт, поэтому
+        # хватает одного несидированного аккаунта, чтобы снять changed_after.
+        # Разбор при этом персональный — см. _poll_account.
+        needs_full_fetch = any(
+            not self._db.has_record_states(a.id) for a in active_accounts
+        )
+        changed_after = (
+            None if needs_full_fetch else self._company_changed_after(active_accounts)
+        )
 
         records: list[YClientsRecord] | None = None
         error_message: str | None = None
@@ -171,7 +180,28 @@ class PollService:
                     user_token=user_token,
                     changed_after=changed_after,
                 )
+                # Счётчик 401 считает идущие подряд, поэтому успех его снимает —
+                # так же, как в прокси.
+                self._db.clear_auth_failures(candidate.id)
                 break
+            except httpx.HTTPStatusError as exc:
+                # Отказ в доступе отделён от прочих ошибок: раньше 401 падал в
+                # общий except наравне с таймаутом, и мёртвый user_token жёг
+                # квоту вечным backoff'ом (аудит 14.08.26, K4).
+                if exc.response.status_code in (401, 403):
+                    # Тот же счётчик, что и в прокси: по одному 401 флаг не
+                    # ставим — авария на стороне YClients разлогинила бы всех
+                    # разом, а пользователь ничего исправить не может.
+                    if self._db.note_upstream_auth_failure(candidate.id):
+                        logger.warning(
+                            "account %s: three 401 in a row, reauth required",
+                            candidate.id,
+                        )
+                error_message = f"HTTP {exc.response.status_code}"
+                logger.warning(
+                    "fetch failed company=%s account=%s: %s",
+                    company_id, candidate.id, error_message,
+                )
             except Exception as exc:
                 error_message = str(exc)[:500]
                 logger.warning(
@@ -212,7 +242,7 @@ class PollService:
             account_records = [r for r in records if r.staff_id == account.staff_id]
             try:
                 created, sent, account_error = await self._poll_account(
-                    account, account_records, seeding
+                    account, account_records
                 )
             except Exception as exc:
                 error_message = str(exc)[:500]
@@ -246,10 +276,13 @@ class PollService:
         self,
         account: WatchedAccount,
         records: list[YClientsRecord],
-        seeding: bool,
     ) -> tuple[int, int, str | None]:
         previous_states = self._db.get_record_states(account.id)
-        if seeding:
+        # Сидируется именно этот аккаунт, а не вся компания: раньше флаг был
+        # общим, и приход нового сотрудника съедал цикл событий у уже
+        # работающих — изменения молча уезжали в снимок, а уведомление о них
+        # не приходило никогда (аудит 14.08.26, K5).
+        if not previous_states:
             new_states = merge_states(previous_states, records)
             self._db.commit_poll_result(account.id, [], new_states, previous_states)
             return 0, 0, None
@@ -263,7 +296,8 @@ class PollService:
             return 0, 0, None
 
         # Устройство без FCM-токена слать некуда: отправка вернула бы
-        # token_invalid, и оно было бы удалено вместе с рабочим device_token.
+        # token_invalid и зря сожгла бы запрос. Такое устройство появляется и
+        # само — после мёртвого токена (см. _push_to_device).
         devices = [
             device
             for device in self._db.list_devices_for_account(account.id)
@@ -329,9 +363,11 @@ class PollService:
         if result.token_invalid:
             for event_id in event_ids:
                 self._db.record_push_delivery(event_id, device_id, "token_invalid", None)
-            removed = self._db.delete_device(device_id)
-            if removed:
-                logger.warning("removed stale device %s: invalid FCM token", device_id)
+            # Только токен пуша, не строку целиком: в ней token_hash, и её
+            # удаление означало бы 401 и полный выход из аккаунта из-за
+            # проблемы с доставкой (аудит 14.08.26, K2).
+            self._db.clear_device_fcm(device_id)
+            logger.warning("device %s: FCM token invalid, cleared", device_id)
             return False
 
         detail = "nudged: payload > 3KB" if result.nudged else None
