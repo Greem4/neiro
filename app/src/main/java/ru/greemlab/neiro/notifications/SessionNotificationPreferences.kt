@@ -18,60 +18,65 @@ class SessionNotificationPreferences(context: Context) {
     // (activity-scoped) и SessionNotificationSettingsViewModel независимо кэшировали
     // isEnabled в своих StateFlow, и смена тумблера на одном экране не была видна
     // на другом до пересоздания ViewModel (P3).
-    private val _isEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_ENABLED, true))
+    private val _isEnabledFlow = MutableStateFlow(prefs.getBoolean(KEY_ENABLED, DEFAULT_ENABLED))
     val isEnabledFlow: StateFlow<Boolean> = _isEnabledFlow.asStateFlow()
 
     var isEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ENABLED, true)
+        get() = prefs.getBoolean(KEY_ENABLED, DEFAULT_ENABLED)
         set(value) {
             prefs.edit().putBoolean(KEY_ENABLED, value).apply()
             _isEnabledFlow.value = value
         }
 
     var notifyNewBooking: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_NEW, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_NEW, DEFAULT_NOTIFY_NEW)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_NEW, value).apply()
 
     var notifyCancelled: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_CANCELLED, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_CANCELLED, DEFAULT_NOTIFY_CANCELLED)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_CANCELLED, value).apply()
 
     var notifyRescheduled: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_RESCHEDULED, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_RESCHEDULED, DEFAULT_NOTIFY_RESCHEDULED)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_RESCHEDULED, value).apply()
 
     var notifyDeleted: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_DELETED, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_DELETED, DEFAULT_NOTIFY_DELETED)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DELETED, value).apply()
 
     var notifyClientConfirmed: Boolean
-        get() = readLegacyAware(KEY_NOTIFY_CONFIRMED, KEY_NOTIFY_STATUS)
+        get() = readLegacyAware(KEY_NOTIFY_CONFIRMED, KEY_NOTIFY_STATUS, DEFAULT_NOTIFY_CONFIRMED)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_CONFIRMED, value).apply()
 
     var notifyClientArrived: Boolean
-        get() = readLegacyAware(KEY_NOTIFY_ARRIVED, KEY_NOTIFY_STATUS)
+        get() = readLegacyAware(KEY_NOTIFY_ARRIVED, KEY_NOTIFY_STATUS, DEFAULT_NOTIFY_ARRIVED)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_ARRIVED, value).apply()
 
-    private fun readLegacyAware(key: String, legacyKey: String): Boolean {
-        if (prefs.contains(key)) return prefs.getBoolean(key, true)
-        if (prefs.contains(legacyKey)) return prefs.getBoolean(legacyKey, true)
-        return true
+    /**
+     * Умолчание применяется, только когда нет ни нового ключа, ни старого
+     * общего `notify_status`: у того, кто когда-то настраивал статусы, остаётся
+     * его выбор.
+     */
+    private fun readLegacyAware(key: String, legacyKey: String, default: Boolean): Boolean {
+        if (prefs.contains(key)) return prefs.getBoolean(key, default)
+        if (prefs.contains(legacyKey)) return prefs.getBoolean(legacyKey, default)
+        return default
     }
 
     var notifyReminder: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, false)
+        get() = prefs.getBoolean(KEY_NOTIFY_REMINDER, DEFAULT_NOTIFY_REMINDER)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_REMINDER, value).apply()
 
     var notifyTodayDigest: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_DIGEST, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_DIGEST, DEFAULT_NOTIFY_TODAY_DIGEST)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_DIGEST, value).apply()
 
     var notifyTomorrowDigest: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_TOMORROW_DIGEST, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_TOMORROW_DIGEST, DEFAULT_NOTIFY_TOMORROW_DIGEST)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_TOMORROW_DIGEST, value).apply()
 
     var notifyArchiveReminder: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_ARCHIVE_REMINDER, true)
+        get() = prefs.getBoolean(KEY_NOTIFY_ARCHIVE_REMINDER, DEFAULT_NOTIFY_ARCHIVE_REMINDER)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFY_ARCHIVE_REMINDER, value).apply()
 
     /** За сколько минут до начала напомнить. */
@@ -283,6 +288,28 @@ class SessionNotificationPreferences(context: Context) {
         private const val KEY_ARCHIVE_REMINDER_DAYS = "archive_reminder_epoch_days"
         private const val KEY_ARCHIVE_REMINDER_DAYS_LIST = "archive_reminder_epoch_days_v2"
         private const val KEY_HAS_BASELINE = "has_baseline_snapshot"
+
+        // Умолчания. Достаются только тому, кто настройку ни разу не трогал:
+        // сеттеры пишут в prefs по одному ключу, а записанное значение всегда
+        // сильнее умолчания. Смена значений здесь новых предпочтений никому не
+        // навязывает — она про чистую установку и про новый телефон.
+        //
+        // По умолчанию приходят все изменения в расписании, кроме отметки
+        // «пришёл» (её ставят в YClients весь день, и это шум), напоминание
+        // перед занятием и обе сводки. Напоминание об архиве выключено:
+        // переносить занятия в архив нужно не каждому.
+        private const val DEFAULT_ENABLED = true
+        private const val DEFAULT_NOTIFY_NEW = true
+        private const val DEFAULT_NOTIFY_CANCELLED = true
+        private const val DEFAULT_NOTIFY_RESCHEDULED = true
+        private const val DEFAULT_NOTIFY_DELETED = true
+        private const val DEFAULT_NOTIFY_CONFIRMED = true
+        private const val DEFAULT_NOTIFY_ARRIVED = false
+        private const val DEFAULT_NOTIFY_REMINDER = true
+        private const val DEFAULT_NOTIFY_TODAY_DIGEST = true
+        private const val DEFAULT_NOTIFY_TOMORROW_DIGEST = true
+        private const val DEFAULT_NOTIFY_ARCHIVE_REMINDER = false
+
         private const val DEFAULT_REMINDER_MINUTES = 30
         private const val DEFAULT_TODAY_DIGEST_TIME_MINUTES = 8 * 60
         private const val DEFAULT_TOMORROW_DIGEST_TIME_MINUTES = 20 * 60
