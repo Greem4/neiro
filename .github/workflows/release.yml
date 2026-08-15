@@ -65,8 +65,10 @@ jobs:
       - name: Юнит-тесты
         run: ./gradlew testDebugUnitTest
 
+      # Именно :app — без префикса Gradle соберёт release и в :baselineprofile,
+      # то есть лишний тестовый APK, который релизу не нужен.
       - name: Сборка релиза
-        run: ./gradlew assembleRelease
+        run: ./gradlew :app:assembleRelease
 
       # Gradle называет файл neiro-v0.1.0-release.apk (см. androidComponents
       # в app/build.gradle.kts). В релизе имя должно быть neiro-0.1.0.apk —

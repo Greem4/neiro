@@ -299,6 +299,10 @@ dependencies {
     // Baseline profile (ускоряет холодный старт Compose)
     implementation(libs.androidx.profileinstaller)
 
+    // Откуда :app берёт снятый профиль. Без этой строки плагин выше не знает
+    // о модуле-генераторе, и задачи :app:generateReleaseBaselineProfile нет.
+    baselineProfile(project(":baselineprofile"))
+
     // Core library desugaring (java.time на API < 26)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

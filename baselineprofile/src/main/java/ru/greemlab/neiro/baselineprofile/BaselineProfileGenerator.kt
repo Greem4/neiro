@@ -2,6 +2,7 @@ package ru.greemlab.neiro.baselineprofile
 
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,19 +26,24 @@ class BaselineProfileGenerator {
     val rule = BaselineProfileRule()
 
     @Test
-    fun startup() = rule.collect(packageName = PACKAGE_NAME) {
+    fun startup() = rule.collect(packageName = targetPackageName) {
         pressHome()
         // startActivityAndWait ждёт первый кадр — то есть отрисованный
         // календарь, а не просто запущенный процесс.
         startActivityAndWait()
     }
 
+    /**
+     * Пакет берём из аргумента, который плагин подставляет сам для каждого
+     * варианта, а не пишем строкой: у debug и prerelease свои суффиксы
+     * applicationId (см. `app/build.gradle.kts`), и захардкоженное имя ломало
+     * бы прогон на всём, кроме release.
+     */
+    private val targetPackageName: String
+        get() = InstrumentationRegistry.getArguments().getString(TARGET_PACKAGE_NAME_ARG)
+            ?: error("Прогон запущен мимо плагина: нет аргумента $TARGET_PACKAGE_NAME_ARG")
+
     private companion object {
-        /**
-         * Профиль снимаем с release-варианта — того самого, что уходит
-         * пользователю. У debug и prerelease другой applicationId
-         * (см. `app/build.gradle.kts`), и профиль от них релизу не подойдёт.
-         */
-        const val PACKAGE_NAME = "ru.greemlab.neiro"
+        const val TARGET_PACKAGE_NAME_ARG = "androidx.benchmark.targetPackageName"
     }
 }

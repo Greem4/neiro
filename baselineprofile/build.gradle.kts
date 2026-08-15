@@ -9,6 +9,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 //
 //   ./gradlew :app:generateReleaseBaselineProfile
 //
+// Задача собирает настоящий release, поэтому в local.properties нужны ключи
+// подписи — иначе :app упадёт с требованием RELEASE_STORE_FILE и остальных.
+//
 // Плагин положит результат в app/src/release/generated/baselineProfiles/ и
 // сам подмешает его в сборку. После первого удачного прогона ручной
 // app/src/main/baseline-prof.txt можно удалить.
@@ -37,13 +40,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Типы сборки обязаны совпадать с :app, иначе Gradle не найдёт вариант
-    // под prerelease. Содержимое здесь не важно — модуль ничего не подписывает.
+    // Имена вариантов тестового модуля обязаны совпадать с :app, иначе Gradle
+    // не найдёт под них приложение. Тело пустое намеренно: из каждого
+    // объявленного здесь типа (кроме debug) плагин сам достраивает пару
+    // nonMinified*/benchmark* и проставляет им отладочную подпись и
+    // matchingFallbacks. Пару под release он добавляет сам, а вот prerelease
+    // придумать не может — его и объявляем.
+    //
+    // Типа release здесь не заводим и от него не наследуемся: в com.android.test
+    // по умолчанию существует только debug, и getByName("release") падает.
     buildTypes {
-        create("prerelease") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("release")
-        }
+        create("prerelease")
     }
 
     targetProjectPath = ":app"
