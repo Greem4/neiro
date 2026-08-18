@@ -3,6 +3,7 @@ package ru.greemlab.neiro.ui.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,13 +17,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.rounded.AddCircle
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.NotificationsNone
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,12 +42,12 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -44,11 +56,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -61,7 +78,10 @@ import ru.greemlab.neiro.notifications.SessionEventType
 import ru.greemlab.neiro.theme.GlassPanel
 import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.fadingEdges
+import ru.greemlab.neiro.ui.util.panelScrim
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -87,12 +107,20 @@ private object NotificationSwipeStyle {
     /** Насколько уезжающая карточка успевает погаснуть к краю экрана. */
     const val CONTENT_FADE = 0.4f
 
-    /** Доля высоты экрана под ленту: ниже — футер с кнопками, он всегда виден. */
-    const val LIST_MAX_SCREEN_FRACTION = 0.45f
-    val listMinHeight: Dp = 160.dp
+    /** Доля высоты экрана под всю панель: шапка, лента и кнопки вместе. */
+    const val PANEL_MAX_SCREEN_FRACTION = 0.72f
+    val panelMinHeight: Dp = 200.dp
+
 
     /** На стекле карточки тоже просвечивают, иначе панель выглядит заклеенной. */
     const val CARD_GLASS_ALPHA = 0.62f
+
+    val iconBadgeSize: Dp = 34.dp
+    val iconSize: Dp = 18.dp
+
+    /** Длинные имена из YClients ужимаются, иначе одна карточка занимает экран. */
+    const val TITLE_MAX_LINES = 2
+    const val BODY_MAX_LINES = 3
 }
 
 /**
@@ -140,12 +168,19 @@ private fun NotificationsContent(
     onDismissNotification: (InAppNotification) -> Unit,
     onClearAll: () -> Unit,
 ) {
-    // Лента не должна выдавливать кнопки за экран: ей отдаём долю высоты,
-    // остальное остаётся футеру.
-    val maxListHeight = with(LocalConfiguration.current) {
-        (screenHeightDp * NotificationSwipeStyle.LIST_MAX_SCREEN_FRACTION).dp
-            .coerceAtLeast(NotificationSwipeStyle.listMinHeight)
+    // Панель занимает долю экрана, а лента живёт во всю её высоту: шапка и
+    // кнопки лежат поверх, лента уезжает под них и там растворяется — резаных
+    // карточек у края больше нет.
+    val maxPanelHeight = with(LocalConfiguration.current) {
+        (screenHeightDp * NotificationSwipeStyle.PANEL_MAX_SCREEN_FRACTION).dp
+            .coerceAtLeast(NotificationSwipeStyle.panelMinHeight)
     }
+    val density = LocalDensity.current
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    var footerHeightPx by remember { mutableIntStateOf(0) }
+    val headerHeight = with(density) { headerHeightPx.toDp() }
+    val footerHeight = with(density) { footerHeightPx.toDp() }
+    val panelColor = glassContainerColor()
 
     GlassPanel(
         modifier = Modifier
@@ -153,40 +188,27 @@ private fun NotificationsContent(
             .padding(horizontal = 20.dp),
         shape = RoundedCornerShape(28.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(
-                start = 20.dp,
-                end = 20.dp,
-                top = 20.dp,
-                bottom = 12.dp,
-            ),
-        ) {
-            Text(
-                text = stringResource(R.string.in_app_notifications_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = stringResource(subtitleRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-            )
-
+        Box(modifier = Modifier.heightIn(max = maxPanelHeight)) {
             if (notifications.isEmpty()) {
                 Text(
                     text = stringResource(R.string.in_app_notifications_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(top = headerHeight, bottom = footerHeight)
+                        .padding(vertical = 24.dp),
                 )
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 8.dp),
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .heightIn(max = maxListHeight),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = headerHeight,
+                        bottom = footerHeight,
+                    ),
+                    modifier = Modifier.fadingEdges(top = headerHeight, bottom = footerHeight),
                 ) {
                     items(notifications, key = { it.id }) { item ->
                         // Соседи смыкаются пружиной, ушедший элемент гаснет — без этого
@@ -217,24 +239,47 @@ private fun NotificationsContent(
                 }
             }
 
-            // Кнопки отделены линией и стоят в один ряд: раньше они шли двумя
-            // строками сразу под обрезанной карточкой и читались как её часть.
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            // Шапка: под ней лента уже растворена, поэтому хватает мягкой заливки
+            // цветом панели — заголовок читается, стекло остаётся стеклом.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .onSizeChanged { headerHeightPx = it.height }
+                    .background(panelScrim(panelColor, fromTop = true))
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.in_app_notifications_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(subtitleRes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            // Кнопки висят над лентой без своей плашки: фон уходит в прозрачность,
+            // текст уезжает под них и пропадает.
             Row(
                 modifier = Modifier
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .onSizeChanged { footerHeightPx = it.height }
+                    .background(panelScrim(panelColor, fromTop = false))
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (allowDismiss && notifications.isNotEmpty()) {
-                    TextButton(
+                    FilledTonalButton(
                         onClick = onClearAll,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
                         ),
                     ) {
                         Text(stringResource(R.string.in_app_notifications_clear))
@@ -406,6 +451,7 @@ private fun NotificationListItem(
     } else {
         MaterialTheme.colorScheme.primaryContainer
     }
+    val accent = textColors.titlePrefix
 
     Surface(
         onClick = onClick,
@@ -417,24 +463,69 @@ private fun NotificationListItem(
             baseColor
         },
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(
-                text = titleText,
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = bodyText,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Text(
-                text = timeLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 6.dp),
-            )
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+        ) {
+            // Кружок с типом события: по нему карточка узнаётся раньше, чем
+            // прочитан заголовок с длинным именем.
+            Box(
+                modifier = Modifier
+                    .size(NotificationSwipeStyle.iconBadgeSize)
+                    .background(accent.copy(alpha = 0.18f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = notificationIcon(kind),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(NotificationSwipeStyle.iconSize),
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        text = titleText,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = NotificationSwipeStyle.TITLE_MAX_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = timeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+                    )
+                }
+                Text(
+                    text = bodyText,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = NotificationSwipeStyle.BODY_MAX_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
         }
     }
+}
+
+/** Иконка типа события — те же значки, что на экране настроек уведомлений. */
+private fun notificationIcon(kind: SessionEventType?): ImageVector = when (kind) {
+    SessionEventType.NEW_BOOKING -> Icons.Rounded.Event
+    SessionEventType.CANCELLED -> Icons.Rounded.EventBusy
+    SessionEventType.RESCHEDULED -> Icons.Rounded.EventRepeat
+    SessionEventType.DELETED -> Icons.Rounded.DeleteOutline
+    SessionEventType.CLIENT_CONFIRMED -> Icons.Rounded.CheckCircle
+    SessionEventType.CLIENT_ARRIVED -> Icons.Rounded.AddCircle
+    SessionEventType.REMINDER -> Icons.Rounded.Schedule
+    SessionEventType.TODAY_DIGEST -> Icons.Rounded.Today
+    SessionEventType.TOMORROW_DIGEST -> Icons.Rounded.WbTwilight
+    SessionEventType.ARCHIVE_REMINDER -> Icons.Rounded.Storage
+    null -> Icons.Rounded.NotificationsNone
 }
 
 @Preview(showBackground = true, name = "All Notification Variants")
