@@ -295,9 +295,12 @@ class SessionNotificationPreferences(context: Context) {
         // навязывает — она про чистую установку и про новый телефон.
         //
         // По умолчанию приходят все изменения в расписании, кроме отметки
-        // «пришёл» (её ставят в YClients весь день, и это шум), напоминание
-        // перед занятием и обе сводки. Напоминание об архиве выключено:
-        // переносить занятия в архив нужно не каждому.
+        // «пришёл»: её ставят в YClients весь день, и это шум.
+        //
+        // Из расписания по умолчанию включено только напоминание об архиве:
+        // без него занятия за прошлые дни так и остаются неперенесёнными.
+        // Напоминание перед занятием и обе сводки выключены — они приходят
+        // каждый день независимо от того, изменилось ли что-нибудь.
         private const val DEFAULT_ENABLED = true
         private const val DEFAULT_NOTIFY_NEW = true
         private const val DEFAULT_NOTIFY_CANCELLED = true
@@ -305,10 +308,10 @@ class SessionNotificationPreferences(context: Context) {
         private const val DEFAULT_NOTIFY_DELETED = true
         private const val DEFAULT_NOTIFY_CONFIRMED = true
         private const val DEFAULT_NOTIFY_ARRIVED = false
-        private const val DEFAULT_NOTIFY_REMINDER = true
-        private const val DEFAULT_NOTIFY_TODAY_DIGEST = true
-        private const val DEFAULT_NOTIFY_TOMORROW_DIGEST = true
-        private const val DEFAULT_NOTIFY_ARCHIVE_REMINDER = false
+        private const val DEFAULT_NOTIFY_REMINDER = false
+        private const val DEFAULT_NOTIFY_TODAY_DIGEST = false
+        private const val DEFAULT_NOTIFY_TOMORROW_DIGEST = false
+        private const val DEFAULT_NOTIFY_ARCHIVE_REMINDER = true
 
         private const val DEFAULT_REMINDER_MINUTES = 30
         private const val DEFAULT_TODAY_DIGEST_TIME_MINUTES = 8 * 60
