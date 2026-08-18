@@ -42,8 +42,10 @@ import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -818,12 +820,33 @@ fun CalendarScreenContent(
                     .padding(bottom = 16.dp, end = 16.dp)
                     .navigationBarsPadding(),
             ) {
+                // Со стеклом кнопка просвечивает и теряет тень — иначе она
+                // единственная плотная плашка поверх стеклянного экрана.
+                val glass = LocalGlassEnabled.current
+                val todayShape = RoundedCornerShape(12.dp)
+
                 ExtendedFloatingActionButton(
                     onClick = onTodayClick,
-                    modifier = Modifier.heightIn(min = 40.dp),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier
+                        .heightIn(min = 40.dp)
+                        .glassBorder(todayShape),
+                    containerColor = if (glass) {
+                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = TodayButtonGlassAlpha)
+                    } else {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    },
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    shape = RoundedCornerShape(12.dp),
+                    elevation = if (glass) {
+                        FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 0.dp,
+                            focusedElevation = 0.dp,
+                            hoveredElevation = 0.dp,
+                        )
+                    } else {
+                        FloatingActionButtonDefaults.elevation()
+                    },
+                    shape = todayShape,
                     icon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     text = { Text(stringResource(R.string.calendar_go_to_today), style = MaterialTheme.typography.labelLarge) },
                 )
@@ -831,6 +854,9 @@ fun CalendarScreenContent(
         }
     }
 }
+
+/** Прозрачность кнопки «Сегодня» при включённом стеклянном виде. */
+private const val TodayButtonGlassAlpha = 0.55f
 
 /**
  * Связи с сервером нет — в календаре сохранённые данные.

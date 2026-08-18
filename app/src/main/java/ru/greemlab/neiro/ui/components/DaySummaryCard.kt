@@ -32,7 +32,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.theme.ExpectedAmber
+import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
@@ -58,6 +60,10 @@ private val daySummarySlotHeight: Dp
 
 /** Высота строки даты — не даёт контенту раздувать карточку. */
 private val DaySummaryHeaderRowHeight: Dp = 26.dp
+
+/** Прозрачность плашки дня и её плиток при включённом стеклянном виде. */
+private const val DaySummaryGlassAlpha = 0.18f
+private const val DayMetricGlassAlpha = 0.3f
 
 @Composable
 fun DaySummarySlot(
@@ -100,11 +106,19 @@ private fun DaySummaryCard(
         }
     }
 
+    // Со стеклом плашка почти растворяется в фоне и получает блик по краю;
+    // без стекла всё как было.
+    val glass = LocalGlassEnabled.current
+    val cardShape = RoundedCornerShape(14.dp)
+    val containerAlpha = if (glass) DaySummaryGlassAlpha else 0.35f
+
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .glassBorder(cardShape),
+        shape = cardShape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = containerAlpha),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -241,7 +255,9 @@ private fun DaySummaryMetric(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+        color = MaterialTheme.colorScheme.surface.copy(
+            alpha = if (LocalGlassEnabled.current) DayMetricGlassAlpha else 0.55f,
+        ),
     ) {
         Column(
             modifier = Modifier
