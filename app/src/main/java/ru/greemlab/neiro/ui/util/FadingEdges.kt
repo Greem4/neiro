@@ -12,6 +12,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/** Запас растворения у краёв прокручиваемого блока внутри диалога. */
+val DialogEdgeFade: Dp = 16.dp
+
 /**
  * Заливка под шапкой или под кнопками, лежащими поверх ленты: плотная у края
  * панели и сходящая на нет к содержимому. В паре с [fadingEdges] граница

@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.ui.util.DialogEdgeFade
+import ru.greemlab.neiro.ui.util.fadingEdges
 
 /** Вариант иконки для выбора (номер → подстановка в код). */
 data class ArchiveIconOption(
@@ -101,7 +103,10 @@ fun ArchiveIconPickerDialog(
 @Composable
 fun ArchiveIconPickerContent(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
+        // Список растворяется у краёв, а не обрывается на полстроки.
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(

@@ -85,7 +85,9 @@ import ru.greemlab.neiro.ui.components.daydetails.buildIntensiveTimeSlotOptions
 import ru.greemlab.neiro.ui.components.daydetails.intensiveDefaultTimeSlot
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import androidx.compose.material.icons.rounded.Warning
+import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.fadingEdges
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -600,7 +602,8 @@ private fun ArchiveMismatchDetailsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 details.forEach { line ->

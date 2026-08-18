@@ -30,7 +30,9 @@ import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
+import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.fadingEdges
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -82,7 +84,8 @@ fun LessonsDetailsDialog(
                 // него AlertDialog просто обрезал бы нижние строки.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Column(
@@ -197,7 +200,8 @@ fun ProfitDetailsDialog(
                 // него AlertDialog просто обрезал бы нижние строки.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (display.showNetProfit) {

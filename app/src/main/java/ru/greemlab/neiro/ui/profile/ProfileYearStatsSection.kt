@@ -72,7 +72,9 @@ import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.components.LabelValueRow
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.cappedSp
+import ru.greemlab.neiro.ui.util.fadingEdges
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Month
 import java.time.YearMonth
@@ -714,7 +716,9 @@ private fun MonthDiscrepancyDialog(
             Column(
                 // Разбор расхождения — самый длинный диалог: при крупном
                 // системном шрифте варианты внизу иначе не поместились бы.
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
