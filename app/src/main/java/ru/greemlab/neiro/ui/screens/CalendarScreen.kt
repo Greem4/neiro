@@ -41,8 +41,10 @@ import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.earningsContext
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
@@ -586,9 +588,13 @@ fun CalendarScreen(
             if (showArchiveOverwriteConfirm && dayContext != null) {
                 AlertDialog(
                     onDismissRequest = { showArchiveOverwriteConfirm = false },
+                    containerColor = glassContainerColor(),
                     title = { Text(stringResource(R.string.archive_sync_overwrite_title)) },
                     text = { Text(stringResource(R.string.archive_sync_overwrite_message)) },
                     confirmButton = {
+                        // Размытие за окном включается изнутри диалога — только здесь
+                        // composable сидит в его собственном окне.
+                        ApplyDialogGlass()
                         TextButton(
                             onClick = {
                                 viewModel.archiveDay(dayContext.date, dayContext.synced)

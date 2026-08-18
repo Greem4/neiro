@@ -60,8 +60,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.domain.models.PriceOrigin
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.MonthPriceMeta
 import ru.greemlab.neiro.ui.calendar.PriceSource
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
@@ -649,6 +651,7 @@ private fun MonthPriceEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         shape = RoundedCornerShape(28.dp),
         title = { Text("Цена занятия · ${getMonthName(month)}") },
         text = {
@@ -660,6 +663,9 @@ private fun MonthPriceEditorDialog(
             )
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = { price?.let(onConfirm) },
                 enabled = price != null && price > 0.0,
@@ -701,6 +707,7 @@ private fun MonthDiscrepancyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         shape = RoundedCornerShape(28.dp),
         title = { Text("${getMonthName(month)} — расхождение") },
         text = {
@@ -756,6 +763,9 @@ private fun MonthDiscrepancyDialog(
             }
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = {
                     if (choice == DiscrepancyChoice.FACT) {

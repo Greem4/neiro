@@ -68,8 +68,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.StatusRedBody
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalTime
 import kotlin.math.abs
@@ -399,8 +401,12 @@ private fun IntensiveTimeManualPickerDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text("Время интенсива") },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = {
                     val raw = LocalTime.of(pickerState.hour, pickerState.minute)

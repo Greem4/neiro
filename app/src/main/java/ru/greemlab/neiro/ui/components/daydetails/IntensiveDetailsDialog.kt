@@ -22,8 +22,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassBorder
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
@@ -79,13 +83,20 @@ private fun IntensiveDetailsCard(
 
     val totalToReport = if (isFutureFar) children.size else confirmedCount
 
+    // Стекло: карточка полупрозрачная, тень убираем — на просвечивающей
+    // поверхности она читается как грязь.
+    ApplyDialogGlass()
+    val glass = LocalGlassEnabled.current
+    val cardShape = MaterialTheme.shapes.extraLarge
+
     Card(
         modifier = Modifier
             .fillMaxWidth(0.88f)
-            .padding(vertical = 24.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+            .padding(vertical = 24.dp)
+            .glassBorder(cardShape),
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = glassContainerColor()),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (glass) 0.dp else 10.dp),
     ) {
         Column(
             modifier = Modifier

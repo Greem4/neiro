@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.RU_LOCALE
@@ -57,9 +59,13 @@ fun LessonsDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         modifier = StatsDialogModifier,
         properties = StatsDialogProperties,
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(onClick = onDismiss) { Text("Закрыть") }
         },
         shape = RoundedCornerShape(28.dp),
@@ -168,9 +174,13 @@ fun ProfitDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         modifier = StatsDialogModifier,
         properties = StatsDialogProperties,
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(onClick = onDismiss) { Text("Закрыть") }
         },
         shape = RoundedCornerShape(28.dp),
@@ -359,9 +369,13 @@ fun RegistrationPromptDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text("Требуется профиль") },
         text = { Text("Чтобы планировать занятия и видеть статистику, нужно сначала настроить ваш профиль.") },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             Button(onClick = onConfirm) { Text("Создать профиль") }
         },
         dismissButton = {

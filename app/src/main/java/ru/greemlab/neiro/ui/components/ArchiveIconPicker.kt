@@ -46,7 +46,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.glassContainerColor
 
 /** Вариант иконки для выбора (номер → подстановка в код). */
 data class ArchiveIconOption(
@@ -80,11 +82,15 @@ fun ArchiveIconPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text("Иконки архива") },
         text = {
             ArchiveIconPickerContent(modifier = Modifier.height(420.dp))
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(onClick = onDismiss) {
                 Text("Закрыть")
             }

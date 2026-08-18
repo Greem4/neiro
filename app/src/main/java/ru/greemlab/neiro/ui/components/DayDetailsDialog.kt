@@ -64,10 +64,12 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.EarningsContext
+import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.StatusExpectedMint
+import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -591,6 +593,7 @@ private fun ArchiveMismatchDetailsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text(stringResource(R.string.archive_sync_mismatch_details_title)) },
         text = {
             Column(
@@ -609,6 +612,9 @@ private fun ArchiveMismatchDetailsDialog(
             }
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.archive_sync_mismatch_details_ok))
             }
