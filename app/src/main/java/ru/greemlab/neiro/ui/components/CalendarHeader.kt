@@ -1,8 +1,10 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -13,8 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.calendar.getMonthName
+import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.YearMonth
 
 /**
@@ -56,6 +57,12 @@ object CalendarHeaderLayout {
 
     val bellButtonSize: Dp = 44.dp
     val bellIconSize: Dp = 24.dp
+
+    /** Счётчик непрочитанных рисуется внутри кнопки, поэтому его держим компактным. */
+    val badgeMinSize: Dp = 16.dp
+    val badgeHorizontalPadding: Dp = 4.dp
+    val badgeFontSize @Composable get() = cappedSp(9.dp)
+    val badgeLineHeight @Composable get() = cappedSp(11.dp)
 }
 
 /**
@@ -159,24 +166,12 @@ private fun NotificationsBellButton(
     unreadCount: Int,
     onClick: () -> Unit,
 ) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(CalendarHeaderLayout.bellButtonSize),
-    ) {
-        BadgedBox(
-            badge = {
-                if (unreadCount > 0) {
-                    Badge(
-                        containerColor = Color.Red,
-                        contentColor = Color.White
-                    ) {
-                        Text(
-                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                }
-            },
+    // Бейдж — сосед кнопки, а не её содержимое: IconButton клипует контент по
+    // круглому state-layer, и вынесенный наружу счётчик срезало сверху и справа.
+    Box(modifier = Modifier.size(CalendarHeaderLayout.bellButtonSize)) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.size(CalendarHeaderLayout.bellButtonSize),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Notifications,
@@ -185,6 +180,46 @@ private fun NotificationsBellButton(
                 tint = MaterialTheme.colorScheme.onBackground,
             )
         }
+
+        if (unreadCount > 0) {
+            UnreadCountBadge(
+                count = unreadCount,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
+    }
+}
+
+/**
+ * Красная пилюля со счётчиком непрочитанных.
+ * Без Surface и clickable — иначе бейдж съедал бы нажатие вместо колокольчика.
+ */
+@Composable
+private fun UnreadCountBadge(
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .defaultMinSize(
+                minWidth = CalendarHeaderLayout.badgeMinSize,
+                minHeight = CalendarHeaderLayout.badgeMinSize,
+            )
+            .background(Color.Red, RoundedCornerShape(50))
+            .padding(horizontal = CalendarHeaderLayout.badgeHorizontalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = CalendarHeaderLayout.badgeFontSize,
+                lineHeight = CalendarHeaderLayout.badgeLineHeight,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = Color.White,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -215,6 +250,8 @@ private fun CalendarHeaderDarkPreview() {
                 onPreviousMonth = {},
                 onNextMonth = {},
                 onMenuClick = {},
+                onNotificationsClick = {},
+                unreadNotificationCount = 128,
             )
         }
     }
