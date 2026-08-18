@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,6 +35,7 @@ import ru.greemlab.neiro.data.THEME_DARK
 import ru.greemlab.neiro.data.THEME_LIGHT
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.theme.ApplySystemBars
+import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.profile.ProfileViewModel
 import ru.greemlab.neiro.ui.screens.CalendarScreen
@@ -168,6 +170,7 @@ private fun NeiroApp(
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val theme by settingsViewModel.theme.collectAsStateWithLifecycle()
+    val glassEnabled by settingsViewModel.glassEnabled.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
 
     val isDarkTheme = when (theme) {
@@ -177,18 +180,22 @@ private fun NeiroApp(
     }
 
     NeiroTheme(darkTheme = isDarkTheme) {
-        ApplySystemBars(darkTheme = isDarkTheme)
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
-        ) {
-            CalendarScreen(
-                profileViewModel = profileViewModel,
-                openDateFromNotification = openDateFromNotification,
-                highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
-                notificationDeepLinkVersion = notificationDeepLinkVersion,
-                openAboutFromNotification = openAboutFromNotification,
-            )
+        // Стекло — оформление поверх темы, поэтому едет отдельным CompositionLocal:
+        // диалоги достают его сами, не протаскивая параметр через все экраны.
+        CompositionLocalProvider(LocalGlassEnabled provides glassEnabled) {
+            ApplySystemBars(darkTheme = isDarkTheme)
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                CalendarScreen(
+                    profileViewModel = profileViewModel,
+                    openDateFromNotification = openDateFromNotification,
+                    highlightSlotKeyFromNotification = highlightSlotKeyFromNotification,
+                    notificationDeepLinkVersion = notificationDeepLinkVersion,
+                    openAboutFromNotification = openAboutFromNotification,
+                )
+            }
         }
     }
 }

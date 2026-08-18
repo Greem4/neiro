@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Storage
@@ -59,6 +60,7 @@ fun AppSettingsScreen(
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val glassEnabled by viewModel.glassEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // Известная из прошлой проверки версия — только чтобы подписать пункт
     // «О программе». В сеть отсюда не ходим.
@@ -133,6 +135,14 @@ fun AppSettingsScreen(
                         selected = theme == THEME_DARK,
                         onClick = { viewModel.setTheme(THEME_DARK) },
                         icon = Icons.Rounded.DarkMode,
+                        showDivider = true,
+                    )
+                    SettingsSwitchRow(
+                        title = "Стеклянный вид",
+                        subtitle = "Диалоги становятся полупрозрачными, календарь за ними размывается",
+                        icon = Icons.Rounded.BlurOn,
+                        checked = glassEnabled,
+                        onCheckedChange = viewModel::setGlassEnabled,
                         showDivider = true,
                     )
                 }

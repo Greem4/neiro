@@ -7,16 +7,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -40,6 +46,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +58,8 @@ import kotlinx.coroutines.flow.first
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.notifications.InAppNotification
 import ru.greemlab.neiro.notifications.SessionEventType
+import ru.greemlab.neiro.theme.GlassPanel
+import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import java.time.LocalDate
@@ -77,6 +86,13 @@ private object NotificationSwipeStyle {
 
     /** Насколько уезжающая карточка успевает погаснуть к краю экрана. */
     const val CONTENT_FADE = 0.4f
+
+    /** Доля высоты экрана под ленту: ниже — футер с кнопками, он всегда виден. */
+    const val LIST_MAX_SCREEN_FRACTION = 0.45f
+    val listMinHeight: Dp = 160.dp
+
+    /** На стекле карточки тоже просвечивают, иначе панель выглядит заклеенной. */
+    const val CARD_GLASS_ALPHA = 0.62f
 }
 
 /**
@@ -124,14 +140,27 @@ private fun NotificationsContent(
     onDismissNotification: (InAppNotification) -> Unit,
     onClearAll: () -> Unit,
 ) {
-    Surface(
+    // Лента не должна выдавливать кнопки за экран: ей отдаём долю высоты,
+    // остальное остаётся футеру.
+    val maxListHeight = with(LocalConfiguration.current) {
+        (screenHeightDp * NotificationSwipeStyle.LIST_MAX_SCREEN_FRACTION).dp
+            .coerceAtLeast(NotificationSwipeStyle.listMinHeight)
+    }
+
+    GlassPanel(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(28.dp),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.padding(
+                start = 20.dp,
+                end = 20.dp,
+                top = 20.dp,
+                bottom = 12.dp,
+            ),
+        ) {
             Text(
                 text = stringResource(R.string.in_app_notifications_title),
                 style = MaterialTheme.typography.titleLarge,
@@ -155,7 +184,9 @@ private fun NotificationsContent(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 8.dp),
-                    modifier = Modifier.heightIn(max = 420.dp),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .heightIn(max = maxListHeight),
                 ) {
                     items(notifications, key = { it.id }) { item ->
                         // Соседи смыкаются пружиной, ушедший элемент гаснет — без этого
@@ -186,19 +217,34 @@ private fun NotificationsContent(
                 }
             }
 
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End),
+            // Кнопки отделены линией и стоят в один ряд: раньше они шли двумя
+            // строками сразу под обрезанной карточкой и читались как её часть.
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.in_app_notifications_close))
-            }
+                if (allowDismiss && notifications.isNotEmpty()) {
+                    TextButton(
+                        onClick = onClearAll,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.in_app_notifications_clear))
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
 
-            if (allowDismiss && notifications.isNotEmpty()) {
-                TextButton(
-                    onClick = onClearAll,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.Start),
-                ) {
-                    Text(stringResource(R.string.in_app_notifications_clear))
+                FilledTonalButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.in_app_notifications_close))
                 }
             }
         }
@@ -355,14 +401,20 @@ private fun NotificationListItem(
         buildNotificationBody(item.body, kind, textColors)
     }
 
+    val baseColor = if (item.read) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(NotificationSwipeStyle.cornerRadius),
-        color = if (item.read) {
-            MaterialTheme.colorScheme.surfaceVariant
+        color = if (LocalGlassEnabled.current) {
+            baseColor.copy(alpha = NotificationSwipeStyle.CARD_GLASS_ALPHA)
         } else {
-            MaterialTheme.colorScheme.primaryContainer
+            baseColor
         },
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {

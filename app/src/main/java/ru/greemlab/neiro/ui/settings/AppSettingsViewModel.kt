@@ -30,6 +30,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val syncPreferences = SyncPreferences.get(application)
     private val notificationPreferences = SessionNotificationPreferences.get(application)
     private val profitDisplayPreferences = ProfitDisplayPreferences.get(application)
+    private val appearancePreferences = AppearancePreferences.get(application)
 
     val theme: StateFlow<String> = repository.themeFlow
         .stateIn(
@@ -40,6 +41,13 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     fun setTheme(theme: String) {
         viewModelScope.launch { repository.saveTheme(theme) }
+    }
+
+    /** Стеклянные диалоги — оформление поверх выбранной темы. */
+    val glassEnabled: StateFlow<Boolean> = appearancePreferences.glassEnabledFlow
+
+    fun setGlassEnabled(enabled: Boolean) {
+        appearancePreferences.isGlassEnabled = enabled
     }
 
     private val _autoSyncEnabled = MutableStateFlow(syncPreferences.isAutoSyncEnabled)
