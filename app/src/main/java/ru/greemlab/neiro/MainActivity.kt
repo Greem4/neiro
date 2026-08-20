@@ -31,8 +31,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import ru.greemlab.neiro.data.THEME_DARK
-import ru.greemlab.neiro.data.THEME_LIGHT
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.theme.ApplySystemBars
 import ru.greemlab.neiro.theme.LocalGlassEnabled
@@ -169,16 +167,14 @@ private fun NeiroApp(
 ) {
     val settingsViewModel: AppSettingsViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
-    val theme by settingsViewModel.theme.collectAsStateWithLifecycle()
+    val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
     val glassEnabled by settingsViewModel.glassEnabled.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
 
-    val isDarkTheme = when (theme) {
-        THEME_LIGHT -> false
-        THEME_DARK -> true
-        else -> systemDark
-    }
+    val isDarkTheme = themeMode.isDark(systemDark)
 
+    // Палитра пока одна — выбор оформления появится отдельным пунктом; тема
+    // уже умеет принимать любую из NeiroPalettes.
     NeiroTheme(darkTheme = isDarkTheme) {
         // Стекло — оформление поверх темы, поэтому едет отдельным CompositionLocal:
         // диалоги достают его сами, не протаскивая параметр через все экраны.

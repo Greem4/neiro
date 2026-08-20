@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -20,6 +21,7 @@ import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.SyncPreferences
+import ru.greemlab.neiro.theme.ThemeMode
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -32,15 +34,20 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val profitDisplayPreferences = ProfitDisplayPreferences.get(application)
     private val appearancePreferences = AppearancePreferences.get(application)
 
-    val theme: StateFlow<String> = repository.themeFlow
+    /**
+     * Светлая/тёмная/системная. В хранилище остаётся строкой ([ThemeMode.storageId]) —
+     * это значение уезжает в экспорт архива, менять его нельзя.
+     */
+    val themeMode: StateFlow<ThemeMode> = repository.themeFlow
+        .map { ThemeMode.fromStorageId(it) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = CalendarDataStoreProvider.peekTheme(application),
+            initialValue = ThemeMode.fromStorageId(CalendarDataStoreProvider.peekTheme(application)),
         )
 
-    fun setTheme(theme: String) {
-        viewModelScope.launch { repository.saveTheme(theme) }
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { repository.saveTheme(mode.storageId) }
     }
 
     /** Стеклянные диалоги — оформление поверх выбранной темы. */
