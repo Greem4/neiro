@@ -146,6 +146,28 @@ fun glassDividerColor(): Color {
 
 private const val GLASS_DIVIDER_ALPHA = 0.14f
 
+/**
+ * Стекло для мелкого элемента, висящего над лентой, — кнопки или чипа.
+ *
+ * Плотность ниже, чем у панели: панель закрывает пол-экрана и обязана держать
+ * текст читаемым, а кнопка при той же плотности смотрится куском панели,
+ * забытым поверх календаря. Материал тот же, что у панелей, — акцент кнопке
+ * даёт цвет содержимого, а не заливка.
+ *
+ * Без стекла возвращает `secondaryContainer`: кнопка остаётся ровно такой,
+ * какой была.
+ */
+@Composable
+fun glassControlColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    if (!LocalGlassEnabled.current) return scheme.secondaryContainer
+    val dark = scheme.surface.luminance() < 0.5f
+    val base = if (dark) scheme.surfaceVariant else scheme.surface
+    return base.copy(alpha = (GLASS_CONTROL_ALPHA + extraAlphaWithoutBlur()).coerceAtMost(1f))
+}
+
+private const val GLASS_CONTROL_ALPHA = 0.5f
+
 /** Блик по краю панели: сверху ярче, снизу почти незаметен. */
 @Composable
 fun Modifier.glassBorder(shape: Shape): Modifier {

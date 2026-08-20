@@ -47,6 +47,7 @@ import ru.greemlab.neiro.theme.MutedSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.glassControlColor
 import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
@@ -821,8 +822,10 @@ fun CalendarScreenContent(
                     .padding(bottom = 16.dp, end = 16.dp)
                     .navigationBarsPadding(),
             ) {
-                // Со стеклом кнопка просвечивает и теряет тень — иначе она
-                // единственная плотная плашка поверх стеклянного экрана.
+                // Со стеклом кнопка сделана из того же материала, что панели:
+                // полупрозрачная подложка плюс блик по краю, а выделяется она
+                // цветом содержимого. Плотная заливка поверх стеклянного
+                // экрана читалась как чужая наклейка.
                 val glass = LocalGlassEnabled.current
                 val todayShape = RoundedCornerShape(12.dp)
 
@@ -831,12 +834,12 @@ fun CalendarScreenContent(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
                         .glassBorder(todayShape),
-                    containerColor = if (glass) {
-                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = TodayButtonGlassAlpha)
+                    containerColor = glassControlColor(),
+                    contentColor = if (glass) {
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.secondaryContainer
+                        MaterialTheme.colorScheme.onSecondaryContainer
                     },
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     elevation = if (glass) {
                         FloatingActionButtonDefaults.elevation(
                             defaultElevation = 0.dp,
@@ -855,9 +858,6 @@ fun CalendarScreenContent(
         }
     }
 }
-
-/** Прозрачность кнопки «Сегодня» при включённом стеклянном виде. */
-private const val TodayButtonGlassAlpha = 0.55f
 
 /**
  * Связи с сервером нет — в календаре сохранённые данные.
