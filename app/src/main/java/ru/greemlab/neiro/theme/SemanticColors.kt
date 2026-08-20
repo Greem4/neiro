@@ -98,7 +98,7 @@ object NeiroSurfaceAlpha {
     const val PANEL = 0.41f
 
     /** Карточка внутри панели: плашка дня. */
-    const val CARD = 0.26f
+    const val CARD = 0f
 
     /** Плитка внутри панели или карточки: счётчики, суммы. */
     const val TILE = 0.40f
