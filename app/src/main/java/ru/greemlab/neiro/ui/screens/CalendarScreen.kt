@@ -4,11 +4,15 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
@@ -27,6 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -72,6 +77,20 @@ import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+
+// КНОПКА «СЕГОДНЯ» — ВСЁ КРУТИТСЯ ЭТИМИ ЧИСЛАМИ, БОЛЬШЕ В НЕЙ НИЧЕГО НЕТ.
+// Дробные значения можно, вплоть до сотых: 6.5.dp, 4.25.dp.
+//
+// Размер стекла. Подпись и иконка не меняются: у текста отключены служебные
+// поля шрифта, поэтому стекло режется вплотную к буквам, а не к пустоте.
+private val TodayGlassSideGap = 12.dp     // стекло слева и справа от строки
+private val TodayGlassTopGap = 7.dp       // стекло сверху и снизу от строки
+private val TodayIconTextGap = 8.dp       // просвет между иконкой и подписью
+private val TodayIconSize = 18.dp        // сама иконка: она выше строки текста
+
+// Где висит плашка — отступ от края экрана:
+private val TodayOffsetEnd = 37.dp        // от правого края
+private val TodayOffsetBottom = 30.dp     // от низа
 
 /**
  * Все типы overlay, отображающихся поверх календаря.
@@ -819,7 +838,7 @@ fun CalendarScreenContent(
                 exit = fadeOut() + scaleOut(targetScale = 0.8f),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 16.dp, end = 16.dp)
+                    .padding(bottom = TodayOffsetBottom, end = TodayOffsetEnd)
                     .navigationBarsPadding(),
             ) {
                 // Со стеклом кнопка сделана из того же материала, что панели:
@@ -829,31 +848,53 @@ fun CalendarScreenContent(
                 val glass = LocalGlassEnabled.current
                 val todayShape = RoundedCornerShape(12.dp)
 
-                ExtendedFloatingActionButton(
-                    onClick = onTodayClick,
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .glassBorder(todayShape),
-                    containerColor = glassControlColor(),
-                    contentColor = if (glass) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    },
-                    elevation = if (glass) {
-                        FloatingActionButtonDefaults.elevation(
-                            defaultElevation = 0.dp,
-                            pressedElevation = 0.dp,
-                            focusedElevation = 0.dp,
-                            hoveredElevation = 0.dp,
+                // Размер плашки задают только четыре числа сверху файла.
+                // ExtendedFloatingActionButton для этого не годится: у него
+                // минимальный размер зашит внутри (56 dp в высоту, 80 в ширину)
+                // и полями не ужимается.
+                // Слои идут строго по порядку: заливка, поверх неё кромка,
+                // и только потом клик. Через Surface рамка уходила под его
+                // собственную заливку, и от неё оставались только боковые
+                // линии — грани получались разными.
+                val contentColor = if (glass) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                }
+                CompositionLocalProvider(LocalContentColor provides contentColor) {
+                    Row(
+                        modifier = Modifier
+                            .clip(todayShape)
+                            .background(glassControlColor(), todayShape)
+                            .glassBorder(todayShape)
+                            .clickable(onClick = onTodayClick)
+                            .padding(
+                                horizontal = TodayGlassSideGap,
+                                vertical = TodayGlassTopGap,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(TodayIconTextGap),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Today,
+                            contentDescription = null,
+                            modifier = Modifier.size(TodayIconSize),
                         )
-                    } else {
-                        FloatingActionButtonDefaults.elevation()
-                    },
-                    shape = todayShape,
-                    icon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    text = { Text(stringResource(R.string.calendar_go_to_today), style = MaterialTheme.typography.labelLarge) },
-                )
+                        Text(
+                            text = stringResource(R.string.calendar_go_to_today),
+                            // Кегль прежний. Убраны только служебные поля шрифта
+                            // и лишняя высота строки — иначе внутри плашки
+                            // остаётся пустая полоса, которую полями не срезать.
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = LineHeightStyle(
+                                    alignment = LineHeightStyle.Alignment.Center,
+                                    trim = LineHeightStyle.Trim.Both,
+                                ),
+                            ),
+                        )
+                    }
+                }
             }
         }
     }
