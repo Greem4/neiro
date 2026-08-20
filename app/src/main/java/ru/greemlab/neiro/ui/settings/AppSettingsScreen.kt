@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Storage
@@ -41,12 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
+import ru.greemlab.neiro.theme.ThemeMode
 import ru.greemlab.neiro.data.ImportResult
 import ru.greemlab.neiro.data.archiveExportSuggestedFileName
-import ru.greemlab.neiro.data.THEME_DARK
-import ru.greemlab.neiro.data.THEME_LIGHT
 import ru.greemlab.neiro.BuildConfig
-import ru.greemlab.neiro.data.THEME_SYSTEM
 import ru.greemlab.neiro.update.UpdateNotifier
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +57,8 @@ fun AppSettingsScreen(
     onOpenAbout: () -> Unit = {},
     viewModel: AppSettingsViewModel = viewModel(),
 ) {
-    val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val glassEnabled by viewModel.glassEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // Известная из прошлой проверки версия — только чтобы подписать пункт
     // «О программе». В сеть отсюда не ходим.
@@ -117,22 +117,30 @@ fun AppSettingsScreen(
                 SettingsGroupCard {
                     SettingsRadioRow(
                         title = "Системная",
-                        selected = theme == THEME_SYSTEM,
-                        onClick = { viewModel.setTheme(THEME_SYSTEM) },
+                        selected = themeMode == ThemeMode.SYSTEM,
+                        onClick = { viewModel.setThemeMode(ThemeMode.SYSTEM) },
                         icon = Icons.Rounded.SettingsSuggest,
                     )
                     SettingsRadioRow(
                         title = "Светлая",
-                        selected = theme == THEME_LIGHT,
-                        onClick = { viewModel.setTheme(THEME_LIGHT) },
+                        selected = themeMode == ThemeMode.LIGHT,
+                        onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
                         icon = Icons.Rounded.LightMode,
                         showDivider = true,
                     )
                     SettingsRadioRow(
                         title = "Тёмная",
-                        selected = theme == THEME_DARK,
-                        onClick = { viewModel.setTheme(THEME_DARK) },
+                        selected = themeMode == ThemeMode.DARK,
+                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) },
                         icon = Icons.Rounded.DarkMode,
+                        showDivider = true,
+                    )
+                    SettingsSwitchRow(
+                        title = "Стеклянный вид",
+                        subtitle = "Диалоги становятся полупрозрачными, календарь за ними размывается",
+                        icon = Icons.Rounded.BlurOn,
+                        checked = glassEnabled,
+                        onCheckedChange = viewModel::setGlassEnabled,
                         showDivider = true,
                     )
                 }

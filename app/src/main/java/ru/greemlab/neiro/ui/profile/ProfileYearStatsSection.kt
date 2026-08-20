@@ -60,8 +60,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.greemlab.neiro.domain.models.PriceOrigin
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.MutedSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.MonthPriceMeta
 import ru.greemlab.neiro.ui.calendar.PriceSource
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
@@ -70,7 +73,9 @@ import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.components.LabelValueRow
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
+import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.cappedSp
+import ru.greemlab.neiro.ui.util.fadingEdges
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Month
 import java.time.YearMonth
@@ -239,7 +244,7 @@ fun ProfileYearStatsSection(
                                 label = "Чистыми за год",
                                 value = formatRubles(animatedStats.totalNetEarned),
                                 icon = Icons.Rounded.Payments,
-                                tint = ScheduleHeaderGreen,
+                                tint = neiroSemanticColors.scheduleHeader,
                             )
                             // Считается по налогу каждого месяца из истории ЗП —
                             // тому же, что уже вычтен из «чистыми за год».
@@ -381,7 +386,7 @@ private fun MonthPriceDetails(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha),
     ) {
         Column(
             modifier = Modifier
@@ -570,14 +575,14 @@ private fun MonthActionChip(
     Surface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 34.dp),
+        modifier = modifier.heightIn(min = 44.dp),
         shape = RoundedCornerShape(10.dp),
         color = tint.copy(alpha = if (enabled) 0.12f else 0.06f),
         contentColor = contentColor,
     ) {
         Row(
             // Без fillMaxHeight: при неограниченной высоте он схлопнул бы строку
-            // до минимальных 34.dp и обрезал подпись на крупном шрифте.
+            // до минимальных 44.dp и обрезал подпись на крупном шрифте.
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -649,6 +654,7 @@ private fun MonthPriceEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         shape = RoundedCornerShape(28.dp),
         title = { Text("Цена занятия · ${getMonthName(month)}") },
         text = {
@@ -660,6 +666,9 @@ private fun MonthPriceEditorDialog(
             )
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = { price?.let(onConfirm) },
                 enabled = price != null && price > 0.0,
@@ -701,13 +710,16 @@ private fun MonthDiscrepancyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         shape = RoundedCornerShape(28.dp),
         title = { Text("${getMonthName(month)} — расхождение") },
         text = {
             Column(
                 // Разбор расхождения — самый длинный диалог: при крупном
                 // системном шрифте варианты внизу иначе не поместились бы.
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
@@ -756,6 +768,9 @@ private fun MonthDiscrepancyDialog(
             }
         },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = {
                     if (choice == DiscrepancyChoice.FACT) {
@@ -810,7 +825,7 @@ private fun YearSelectorRow(
         IconButton(
             onClick = onOlder,
             enabled = canGoOlder,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(48.dp),
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
@@ -825,7 +840,7 @@ private fun YearSelectorRow(
         IconButton(
             onClick = onNewer,
             enabled = canGoNewer,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(48.dp),
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -910,11 +925,11 @@ private fun YearNetProfitChart(
     val errorColor = MaterialTheme.colorScheme.error
     val primary = MaterialTheme.colorScheme.primary
     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
-    val accent = ScheduleHeaderGreen
+    val accent = neiroSemanticColors.scheduleHeader
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f)
-    val chartSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha)
+    val chartSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha)
     val chartBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
     val maxValue = remember(monthlyNet) { monthlyNet.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0 }
@@ -925,9 +940,9 @@ private fun YearNetProfitChart(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(chartSurface)
-            .border(1.dp, chartBorder, RoundedCornerShape(14.dp))
+            .border(1.dp, chartBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = 2.dp, vertical = 8.dp),
     ) {
         Box(
@@ -1230,7 +1245,7 @@ private fun SelectedMonthSummary(
             Text(
                 text = amount,
                 style = MaterialTheme.typography.bodySmall,
-                color = ScheduleHeaderGreen,
+                color = neiroSemanticColors.scheduleHeader,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
             )

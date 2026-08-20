@@ -68,8 +68,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
-import ru.greemlab.neiro.theme.StatusRedBody
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalTime
 import kotlin.math.abs
@@ -93,6 +94,7 @@ fun EditIntensiveItem(
 
     val cardShape = RoundedCornerShape(12.dp)
     val colors = MaterialTheme.colorScheme
+    val semantic = neiroSemanticColors
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -193,17 +195,17 @@ fun EditIntensiveItem(
                         text = "₽",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = ScheduleHeaderGreen,
+                        color = semantic.scheduleHeader,
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Delete,
                             contentDescription = "Удалить интенсив",
-                            tint = StatusRedBody,
+                            tint = colors.error,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -399,8 +401,12 @@ private fun IntensiveTimeManualPickerDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text("Время интенсива") },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             TextButton(
                 onClick = {
                     val raw = LocalTime.of(pickerState.hour, pickerState.minute)

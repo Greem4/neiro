@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.theme.neiroSemanticColors
 
 private val WEEK_DAYS = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 private const val WEEKEND_START_INDEX = 5
@@ -28,7 +29,7 @@ fun WeekDaysRow() {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val weekdayColor = MaterialTheme.colorScheme.onSurfaceVariant
-        val weekendColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+        val weekendColor = neiroSemanticColors.weekend
         WEEK_DAYS.forEachIndexed { index, day ->
             Text(
                 text = day,

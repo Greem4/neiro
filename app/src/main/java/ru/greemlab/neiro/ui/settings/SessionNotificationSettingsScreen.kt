@@ -27,6 +27,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.glassContainerColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -288,8 +290,12 @@ private fun NotificationTimeSelector(
         )
         AlertDialog(
             onDismissRequest = { showPicker = false },
+            containerColor = glassContainerColor(),
             title = { Text(stringResource(R.string.notification_settings_delivery_time_dialog)) },
             confirmButton = {
+                // Размытие за окном включается изнутри диалога — только здесь
+                // composable сидит в его собственном окне.
+                ApplyDialogGlass()
                 TextButton(
                     onClick = {
                         onTimeChange(

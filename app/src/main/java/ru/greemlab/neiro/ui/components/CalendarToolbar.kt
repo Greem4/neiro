@@ -1,5 +1,9 @@
 package ru.greemlab.neiro.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -16,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,11 +28,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.greemlab.neiro.theme.LocalGlassEnabled
+import ru.greemlab.neiro.theme.LocalGlassPanelAbove
 import ru.greemlab.neiro.theme.OnYClientsYellow
 import ru.greemlab.neiro.theme.YClientsYellow
+import ru.greemlab.neiro.theme.glassControlColor
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 
 private val ToolbarHeight = 40.dp
+
+/**
+ * Как гаснет фирменная плашка, когда сверху встаёт стеклянная панель.
+ *
+ * Задержка — потому что окно диалога со стеклом появляется на кадр-другой позже
+ * смены состояния: без неё плашка успевала посереть на глазах, и только потом
+ * её накрывало стекло. За [GlassMuteDelayMillis] панель уже стоит, и переход
+ * доживает под ней.
+ */
+private const val GlassMuteDelayMillis = 150
+private const val GlassMuteFadeMillis = 220
 
 /**
  * Панель над сеткой: переключатель источника данных (YClients / архив).
@@ -108,9 +127,18 @@ private fun SourceTab(
     modifier: Modifier = Modifier,
     badgeCount: Int = 0,
 ) {
+    // Жёлтый — фирменный цвет YClients, и на самом экране он остаётся при любом
+    // оформлении. Гаснет он только пока сверху стоит стеклянный диалог: сквозь
+    // размытие плашка светится жёлтым пятном и тянет взгляд с цифр в диалоге.
+    // На это время вкладка берёт тот же серый тон, что и элементы поверх ленты.
+    val mutedByGlassPanel = LocalGlassEnabled.current && LocalGlassPanelAbove.current
     val bg: Color
     val contentColor: Color
     when {
+        selected && brandSelected && mutedByGlassPanel -> {
+            bg = glassControlColor()
+            contentColor = MaterialTheme.colorScheme.onSurface
+        }
         selected && brandSelected -> {
             bg = YClientsYellow
             contentColor = OnYClientsYellow
@@ -125,13 +153,32 @@ private fun SourceTab(
         }
     }
 
+    // Плавно — только уход в серый под панель. Обратно жёлтый возвращается
+    // мгновенно: к этому кадру панели над экраном уже нет. Переключение вкладок
+    // тоже осталось мгновенным, как было.
+    val fadeSpec: AnimationSpec<Color> = if (mutedByGlassPanel) {
+        tween(durationMillis = GlassMuteFadeMillis, delayMillis = GlassMuteDelayMillis)
+    } else {
+        snap()
+    }
+    val animatedBg by animateColorAsState(
+        targetValue = bg,
+        animationSpec = fadeSpec,
+        label = "sourceTabBackground",
+    )
+    val animatedContentColor by animateColorAsState(
+        targetValue = contentColor,
+        animationSpec = fadeSpec,
+        label = "sourceTabContent",
+    )
+
     Surface(
         modifier = modifier
             .heightIn(min = ToolbarHeight - 6.dp)
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = bg,
+        color = animatedBg,
     ) {
         Row(
             modifier = Modifier
@@ -144,7 +191,7 @@ private fun SourceTab(
                 icon,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = contentColor,
+                tint = animatedContentColor,
             )
             // Вкладок ровно две и они делят ширину поровну: при крупном шрифте
             // подпись ужимается по кеглю, но не обрезается и не выдавливает бейдж.
@@ -153,7 +200,7 @@ private fun SourceTab(
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 ),
-                color = contentColor,
+                color = animatedContentColor,
                 modifier = Modifier
                     .weight(1f, fill = false)
                     .padding(start = 5.dp),

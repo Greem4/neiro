@@ -1,6 +1,7 @@
 package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,12 +30,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.theme.ExpectedAmber
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.NeiroSurfaceAlpha
+import ru.greemlab.neiro.theme.glassBorder
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
@@ -58,6 +61,34 @@ private val daySummarySlotHeight: Dp
 
 /** Высота строки даты — не даёт контенту раздувать карточку. */
 private val DaySummaryHeaderRowHeight: Dp = 26.dp
+
+/**
+ * Плашка дня говорит на языке шапки месяца.
+ *
+ * Раньше здесь был свой набор правил — голубая подложка, цветные подложки у
+ * сумм, иконка над числом по центру, — и день выглядел вставкой из другого
+ * приложения. Теперь плитка устроена как «Занятий» и «Прибыль» наверху:
+ * иконка в цветном чипе слева, подпись над значением. Плашка при этом уходит
+ * темнее панели, чтобы день читался отдельной группой, а не продолжением
+ * вкладок.
+ *
+ * Тон плашки и плиток — не свои числа, а ступени общей лестницы
+ * ([NeiroSurfaceAlpha]): день стоит на ступень выше панели вкладок, плитки —
+ * ещё на ступень выше дня. Раньше плашка бралась от `background` и на амоледе
+ * проваливалась в чёрный.
+ */
+/** Заливка чипа под иконкой — та же доля акцента, что у плиток шапки месяца. */
+private const val DayChipAlpha = 0.14f
+
+/** Подложка плашки — ступень над панелью вкладок. */
+private val dayCardColor: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+        .copy(alpha = NeiroSurfaceAlpha.CARD)
+
+/** Плитка внутри плашки: одна на метрики и на суммы, ступень над плашкой. */
+private val dayTileColor: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+        .copy(alpha = NeiroSurfaceAlpha.TILE)
 
 @Composable
 fun DaySummarySlot(
@@ -100,12 +131,15 @@ private fun DaySummaryCard(
         }
     }
 
+    val semanticColors = neiroSemanticColors
+    val cardShape = RoundedCornerShape(14.dp)
+
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .glassBorder(cardShape),
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = dayCardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -135,28 +169,33 @@ private fun DaySummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                DaySummaryMetric(
+                // Третья плитка в ряду отбирает ширину у подписей: в тесном
+                // ряду чип ужимается, иначе «проведено» упирается в многоточие.
+                DayTile(
                     icon = Icons.Rounded.School,
-                    tint = MaterialTheme.colorScheme.primary,
-                    value = lessonsValue,
+                    accent = MaterialTheme.colorScheme.primary,
                     label = "занятий",
+                    value = lessonsValue,
+                    compact = showIntensiveMetric,
                     modifier = Modifier.weight(1f),
                 )
-                DaySummaryMetric(
+                DayTile(
                     icon = Icons.Rounded.CheckCircle,
-                    tint = ScheduleHeaderGreen,
+                    accent = semanticColors.scheduleHeader,
+                    label = "проведено",
                     value = if (stats.totalLessons > 0) {
                         "${stats.attendedLessons}/${stats.totalLessons}"
                     } else "0",
-                    label = "проведено",
+                    compact = showIntensiveMetric,
                     modifier = Modifier.weight(1f),
                 )
                 if (showIntensiveMetric) {
-                    DaySummaryMetric(
+                    DayTile(
                         icon = Icons.Rounded.Groups,
-                        tint = Color(0xFFE53935),
-                        value = intensiveConductedText,
+                        accent = MaterialTheme.colorScheme.error,
                         label = "интенсив",
+                        value = intensiveConductedText,
+                        compact = true,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -166,19 +205,28 @@ private fun DaySummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                DayMoneyCard(
+                DayTile(
+                    icon = Icons.Rounded.Payments,
+                    accent = semanticColors.scheduleHeader,
                     label = "Заработано",
-                    amountText = earnedText,
-                    amountColor = ScheduleHeaderGreen,
-                    background = ScheduleHeaderGreen.copy(alpha = 0.14f),
+                    value = earnedText,
+                    valueColor = semanticColors.scheduleHeader,
                     modifier = Modifier.weight(1f),
                 )
-                DayMoneyCard(
+                // Нулевое ожидание не новость — сумма уходит в серый, а чип
+                // остаётся цветным, чтобы плитка не выпадала из ряда.
+                val nothingExpected = stats.expected <= 0.0
+                DayTile(
+                    icon = Icons.Rounded.Schedule,
+                    accent = semanticColors.expected,
                     label = "Ожидается",
-                    amountText = expectedText,
-                    amountColor = ExpectedAmber,
-                    background = ExpectedAmber.copy(alpha = 0.16f),
-                    muted = stats.expected <= 0.0,
+                    value = expectedText,
+                    valueColor = if (nothingExpected) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    } else {
+                        semanticColors.expected
+                    },
+                    muted = nothingExpected,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -186,89 +234,77 @@ private fun DaySummaryCard(
     }
 }
 
+/**
+ * Плитка дня: иконка в цветном чипе, подпись над значением.
+ *
+ * Тот же кирпич, что «Занятий» и «Прибыль» в шапке месяца — размеры чипа,
+ * доля акцента в его заливке и кегли повторены оттуда намеренно, чтобы два
+ * блока на экране читались одним набором.
+ *
+ * @param compact ряд из трёх плиток — чип ужимается ради подписи.
+ * @param muted значение не несёт новости (нулевое ожидание) — подпись глуше.
+ */
 @Composable
-private fun DayMoneyCard(
+private fun DayTile(
+    icon: ImageVector,
+    accent: Color,
     label: String,
-    amountText: String,
-    amountColor: Color,
-    background: Color,
+    value: String,
     modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    compact: Boolean = false,
     muted: Boolean = false,
 ) {
-    val labelAlpha = if (muted) 0.55f else 1f
-    val amountAlpha = if (muted) 0.65f else 1f
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        color = background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = labelAlpha),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            // Половина ширины карточки на сумму — при крупном шрифте кегль
-            // подбирается по месту, чтобы «161 500 ₽» не превращалось в «161 5…».
-            AutoShrinkText(
-                text = amountText,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = amountColor.copy(alpha = amountAlpha),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DaySummaryMetric(
-    icon: ImageVector,
-    tint: Color,
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
+    val chipSize = if (compact) 26.dp else 32.dp
+    val iconSize = if (compact) 15.dp else 17.dp
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(14.dp),
+        color = dayTileColor,
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(1.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(14.dp),
-            )
-            AutoShrinkText(
-                text = value,
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = accent.copy(alpha = DayChipAlpha),
+                modifier = Modifier.size(chipSize),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(iconSize),
+                        tint = accent,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = if (muted) 0.6f else 1f,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Кегль подбирается по месту: «17 500 ₽» при крупном системном
+                // шрифте иначе превращается в «17 5…».
+                AutoShrinkText(
+                    text = value,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = valueColor,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

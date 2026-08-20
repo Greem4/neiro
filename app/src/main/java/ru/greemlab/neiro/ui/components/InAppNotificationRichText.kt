@@ -1,6 +1,5 @@
 package ru.greemlab.neiro.ui.components
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -13,11 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import ru.greemlab.neiro.notifications.InAppNotification
 import ru.greemlab.neiro.notifications.SessionEventType
-import ru.greemlab.neiro.theme.ExpectedAmber
-import ru.greemlab.neiro.theme.RescheduleNotificationDark
-import ru.greemlab.neiro.theme.RescheduleNotificationLight
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
-import ru.greemlab.neiro.theme.StatusRedBody
+import ru.greemlab.neiro.theme.neiroSemanticColors
 
 /**
  * Палитра акцентов для карточки in-app уведомления (согласована с [MaterialTheme]).
@@ -39,9 +34,8 @@ fun rememberNotificationTextColors(
     onTintedBackground: Boolean,
 ): NotificationTextColors {
     val scheme = MaterialTheme.colorScheme
-    val darkTheme = isSystemInDarkTheme()
-    val rescheduleAccent = if (darkTheme) RescheduleNotificationDark else RescheduleNotificationLight
-    return remember(kind, read, onTintedBackground, darkTheme) {
+    val semantic = neiroSemanticColors
+    return remember(kind, read, onTintedBackground, semantic) {
         val titleDetail = if (onTintedBackground && !read) {
             scheme.onPrimaryContainer
         } else {
@@ -64,11 +58,11 @@ fun rememberNotificationTextColors(
 
             SessionEventType.CANCELLED,
             SessionEventType.DELETED,
-            -> StatusRedBody
+            -> semantic.statusCancelled
 
-            SessionEventType.RESCHEDULED -> rescheduleAccent
-            SessionEventType.CLIENT_CONFIRMED -> ExpectedAmber
-            SessionEventType.CLIENT_ARRIVED -> ScheduleHeaderGreen
+            SessionEventType.RESCHEDULED -> semantic.rescheduleNotification
+            SessionEventType.CLIENT_CONFIRMED -> semantic.expected
+            SessionEventType.CLIENT_ARRIVED -> semantic.scheduleHeader
             SessionEventType.ARCHIVE_REMINDER -> scheme.secondary
             null -> scheme.onSurfaceVariant
         }
@@ -76,11 +70,11 @@ fun rememberNotificationTextColors(
         val accent = when (kind) {
             SessionEventType.CANCELLED,
             SessionEventType.DELETED,
-            -> StatusRedBody
+            -> semantic.statusCancelled
 
-            SessionEventType.RESCHEDULED -> rescheduleAccent
-            SessionEventType.CLIENT_CONFIRMED -> ExpectedAmber
-            SessionEventType.CLIENT_ARRIVED -> ScheduleHeaderGreen
+            SessionEventType.RESCHEDULED -> semantic.rescheduleNotification
+            SessionEventType.CLIENT_CONFIRMED -> semantic.expected
+            SessionEventType.CLIENT_ARRIVED -> semantic.scheduleHeader
             SessionEventType.ARCHIVE_REMINDER -> scheme.secondary
             else -> scheme.primary
         }

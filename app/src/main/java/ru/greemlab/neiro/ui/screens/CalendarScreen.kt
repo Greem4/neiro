@@ -4,11 +4,15 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
@@ -27,6 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,8 +46,15 @@ import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.earningsContext
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.LocalGlassEnabled
+import ru.greemlab.neiro.theme.LocalGlassPanelAbove
+import ru.greemlab.neiro.theme.NeiroSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.glassBorder
+import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.glassControlColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
@@ -67,6 +79,20 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 
+// КНОПКА «СЕГОДНЯ» — ВСЁ КРУТИТСЯ ЭТИМИ ЧИСЛАМИ, БОЛЬШЕ В НЕЙ НИЧЕГО НЕТ.
+// Дробные значения можно, вплоть до сотых: 6.5.dp, 4.25.dp.
+//
+// Размер стекла. Подпись и иконка не меняются: у текста отключены служебные
+// поля шрифта, поэтому стекло режется вплотную к буквам, а не к пустоте.
+private val TodayGlassSideGap = 12.dp     // стекло слева и справа от строки
+private val TodayGlassTopGap = 7.dp       // стекло сверху и снизу от строки
+private val TodayIconTextGap = 8.dp       // просвет между иконкой и подписью
+private val TodayIconSize = 18.dp        // сама иконка: она выше строки текста
+
+// Где висит плашка — отступ от края экрана:
+private val TodayOffsetEnd = 37.dp        // от правого края
+private val TodayOffsetBottom = 30.dp     // от низа
+
 /**
  * Все типы overlay, отображающихся поверх календаря.
  * Хранение в одном sealed класс гарантирует, что одновременно открыт
@@ -86,6 +112,23 @@ private sealed interface CalendarOverlay {
     data object DayDetails : CalendarOverlay
     data object Notifications : CalendarOverlay
 }
+
+/**
+ * Оверлей стоит стеклянной панелью поверх календаря, а не вместо него.
+ *
+ * Полноэкранные разделы (настройки, вход, «О программе») закрывают календарь
+ * целиком — подстраивать под них то, что осталось внизу, незачем.
+ */
+private val CalendarOverlay.isGlassDialogAboveCalendar: Boolean
+    get() = when (this) {
+        CalendarOverlay.RegistrationPrompt,
+        CalendarOverlay.ProfitDetails,
+        CalendarOverlay.LessonsDetails,
+        CalendarOverlay.DayDetails,
+        CalendarOverlay.Notifications -> true
+
+        else -> false
+    }
 
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
 private fun CalendarOverlay.onSystemBack(
@@ -351,64 +394,70 @@ fun CalendarScreen(
                 }
             },
         ) {
-            CalendarScreenContent(
-                currentMonth = currentMonth,
-                selectedDate = selectedDate,
-                selectedDaySessions = selectedDayContext?.effective.orEmpty(),
-                monthDayData = currentMonthDayData,
-                archiveMismatchDates = archiveMismatchDates,
-                daysNeedingArchive = daysNeedingArchive,
-                calendarMode = calendarMode,
-                onModeChange = viewModel::setCalendarMode,
-                stats = stats,
-                workingDays = profile.workingDays,
-                isRegistered = profile.isRegistered,
-                onPreviousMonth = viewModel::previousMonth,
-                onNextMonth = viewModel::nextMonth,
-                onMonthSelected = viewModel::setMonth,
-                onTodayClick = viewModel::goToToday,
-                onMenuClick = { scope.launch { drawerState.open() } },
-                onSyncClick = {
-                    if (isYClientsLoggedIn) {
-                        syncViewModel.syncMonth(currentMonth)
-                    } else {
-                        yClientsReturnOverlay = CalendarOverlay.None
-                        overlay = CalendarOverlay.YClients
-                    }
-                },
-                isSyncing = syncState.isLoading,
-                isOffline = syncState.isOffline && isYClientsLoggedIn,
-                rates = rates,
-                selectedDayFact = selectedDayFact,
-                profitDisplay = profitDisplay,
-                onDateClick = { date ->
-                    if (!profile.isRegistered) {
-                        overlay = CalendarOverlay.RegistrationPrompt
-                        return@CalendarScreenContent
-                    }
-                    if (selectedDate == date) {
-                        overlay = CalendarOverlay.DayDetails
-                    } else {
-                        viewModel.selectDate(date)
-                    }
-                },
-                onProfitClick = {
-                    overlay = if (profile.isRegistered) {
-                        CalendarOverlay.ProfitDetails
-                    } else {
-                        CalendarOverlay.RegistrationPrompt
-                    }
-                },
-                onLessonsClick = {
-                    overlay = if (profile.isRegistered) {
-                        CalendarOverlay.LessonsDetails
-                    } else {
-                        CalendarOverlay.RegistrationPrompt
-                    }
-                },
-                onNotificationsClick = { overlay = CalendarOverlay.Notifications },
-                unreadNotificationCount = unreadNotificationCount,
-            )
+            // Пока сверху стоит стеклянный диалог, календарь под ним просвечивает
+            // сквозь размытие — элементам с яркой заливкой это сигнал приглушиться.
+            CompositionLocalProvider(
+                LocalGlassPanelAbove provides overlay.isGlassDialogAboveCalendar,
+            ) {
+                CalendarScreenContent(
+                    currentMonth = currentMonth,
+                    selectedDate = selectedDate,
+                    selectedDaySessions = selectedDayContext?.effective.orEmpty(),
+                    monthDayData = currentMonthDayData,
+                    archiveMismatchDates = archiveMismatchDates,
+                    daysNeedingArchive = daysNeedingArchive,
+                    calendarMode = calendarMode,
+                    onModeChange = viewModel::setCalendarMode,
+                    stats = stats,
+                    workingDays = profile.workingDays,
+                    isRegistered = profile.isRegistered,
+                    onPreviousMonth = viewModel::previousMonth,
+                    onNextMonth = viewModel::nextMonth,
+                    onMonthSelected = viewModel::setMonth,
+                    onTodayClick = viewModel::goToToday,
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onSyncClick = {
+                        if (isYClientsLoggedIn) {
+                            syncViewModel.syncMonth(currentMonth)
+                        } else {
+                            yClientsReturnOverlay = CalendarOverlay.None
+                            overlay = CalendarOverlay.YClients
+                        }
+                    },
+                    isSyncing = syncState.isLoading,
+                    isOffline = syncState.isOffline && isYClientsLoggedIn,
+                    rates = rates,
+                    selectedDayFact = selectedDayFact,
+                    profitDisplay = profitDisplay,
+                    onDateClick = { date ->
+                        if (!profile.isRegistered) {
+                            overlay = CalendarOverlay.RegistrationPrompt
+                            return@CalendarScreenContent
+                        }
+                        if (selectedDate == date) {
+                            overlay = CalendarOverlay.DayDetails
+                        } else {
+                            viewModel.selectDate(date)
+                        }
+                    },
+                    onProfitClick = {
+                        overlay = if (profile.isRegistered) {
+                            CalendarOverlay.ProfitDetails
+                        } else {
+                            CalendarOverlay.RegistrationPrompt
+                        }
+                    },
+                    onLessonsClick = {
+                        overlay = if (profile.isRegistered) {
+                            CalendarOverlay.LessonsDetails
+                        } else {
+                            CalendarOverlay.RegistrationPrompt
+                        }
+                    },
+                    onNotificationsClick = { overlay = CalendarOverlay.Notifications },
+                    unreadNotificationCount = unreadNotificationCount,
+                )
+            }
         }
 
         if (overlay is CalendarOverlay.Settings) {
@@ -586,9 +635,13 @@ fun CalendarScreen(
             if (showArchiveOverwriteConfirm && dayContext != null) {
                 AlertDialog(
                     onDismissRequest = { showArchiveOverwriteConfirm = false },
+                    containerColor = glassContainerColor(),
                     title = { Text(stringResource(R.string.archive_sync_overwrite_title)) },
                     text = { Text(stringResource(R.string.archive_sync_overwrite_message)) },
                     confirmButton = {
+                        // Размытие за окном включается изнутри диалога — только здесь
+                        // composable сидит в его собственном окне.
+                        ApplyDialogGlass()
                         TextButton(
                             onClick = {
                                 viewModel.archiveDay(dayContext.date, dayContext.synced)
@@ -749,7 +802,8 @@ fun CalendarScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    .copy(alpha = NeiroSurfaceAlpha.PANEL),
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
@@ -809,18 +863,63 @@ fun CalendarScreenContent(
                 exit = fadeOut() + scaleOut(targetScale = 0.8f),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 16.dp, end = 16.dp)
+                    .padding(bottom = TodayOffsetBottom, end = TodayOffsetEnd)
                     .navigationBarsPadding(),
             ) {
-                ExtendedFloatingActionButton(
-                    onClick = onTodayClick,
-                    modifier = Modifier.heightIn(min = 40.dp),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    icon = { Icon(Icons.Rounded.Today, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    text = { Text(stringResource(R.string.calendar_go_to_today), style = MaterialTheme.typography.labelLarge) },
-                )
+                // Со стеклом кнопка сделана из того же материала, что панели:
+                // полупрозрачная подложка плюс блик по краю, а выделяется она
+                // цветом содержимого. Плотная заливка поверх стеклянного
+                // экрана читалась как чужая наклейка.
+                val glass = LocalGlassEnabled.current
+                val todayShape = RoundedCornerShape(12.dp)
+
+                // Размер плашки задают только четыре числа сверху файла.
+                // ExtendedFloatingActionButton для этого не годится: у него
+                // минимальный размер зашит внутри (56 dp в высоту, 80 в ширину)
+                // и полями не ужимается.
+                // Слои идут строго по порядку: заливка, поверх неё кромка,
+                // и только потом клик. Через Surface рамка уходила под его
+                // собственную заливку, и от неё оставались только боковые
+                // линии — грани получались разными.
+                val contentColor = if (glass) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                }
+                CompositionLocalProvider(LocalContentColor provides contentColor) {
+                    Row(
+                        modifier = Modifier
+                            .clip(todayShape)
+                            .background(glassControlColor(), todayShape)
+                            .glassBorder(todayShape)
+                            .clickable(onClick = onTodayClick)
+                            .padding(
+                                horizontal = TodayGlassSideGap,
+                                vertical = TodayGlassTopGap,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(TodayIconTextGap),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Today,
+                            contentDescription = null,
+                            modifier = Modifier.size(TodayIconSize),
+                        )
+                        Text(
+                            text = stringResource(R.string.calendar_go_to_today),
+                            // Кегль прежний. Убраны только служебные поля шрифта
+                            // и лишняя высота строки — иначе внутри плашки
+                            // остаётся пустая полоса, которую полями не срезать.
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = LineHeightStyle(
+                                    alignment = LineHeightStyle.Alignment.Center,
+                                    trim = LineHeightStyle.Trim.Both,
+                                ),
+                            ),
+                        )
+                    }
+                }
             }
         }
     }
@@ -908,7 +1007,8 @@ private fun MonthOverviewCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                .copy(alpha = NeiroSurfaceAlpha.PANEL),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -929,7 +1029,7 @@ private fun MonthOverviewCard(
                     label = "Прибыль",
                     value = profitValue,
                     icon = Icons.Rounded.Payments,
-                    color = ScheduleHeaderGreen,
+                    color = neiroSemanticColors.scheduleHeader,
                     modifier = Modifier.weight(1f),
                     onClick = onProfitClick,
                 )
@@ -1022,7 +1122,7 @@ private fun CompactStatTile(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = NeiroSurfaceAlpha.TILE),
         modifier = modifier,
     ) {
         Row(

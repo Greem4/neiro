@@ -37,11 +37,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import ru.greemlab.neiro.theme.MutedSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
-
-private val CancelledIndicatorRed = Color(0xFFF44336)
 
 /**
  * Элемент расписания: фон стандартный, цвет меняется только у имени.
@@ -67,9 +66,10 @@ fun ScheduleSlotItem(
 ) {
     val nameColor = AttendanceStatusVisuals.nameColor(status)
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
+    val diagnosticsNameColor = neiroSemanticColors.diagnostics
     val indicatorBars = indicatorColors?.takeIf { it.isNotEmpty() } ?: listOf(indicatorColor)
 
-    val baseSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    val baseSurface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha)
     val highlightSurface = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
     val surfaceColor by animateColorAsState(
         targetValue = if (highlighted) highlightSurface else baseSurface,
@@ -143,7 +143,7 @@ fun ScheduleSlotItem(
                             MaterialTheme.typography.bodyMedium
                         },
                         fontWeight = FontWeight.Bold,
-                        color = if (isDiagnostics) Color(0xFF5C6BC0) else nameColor,
+                        color = if (isDiagnostics) diagnosticsNameColor else nameColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -336,8 +336,9 @@ fun ExpandableReplacementSlot(
                 )
             },
     ) {
-        val indicators = remember(removed.size) {
-            List(removed.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+        val semantic = neiroSemanticColors
+        val indicators = remember(removed.size, semantic) {
+            List(removed.size) { semantic.statusCancelled } + semantic.scheduleHeader
         }
 
         ExpansionSplitLayout(
@@ -362,8 +363,8 @@ fun ExpandableReplacementSlot(
                                 compactForTimeline = compactForTimeline,
                                 highlighted = highlighted,
                                 onContentClick = onContentClick?.let { { it(entry) } },
-                                indicatorColors = listOf(CancelledIndicatorRed),
-                                rightIndicatorColors = if (showRightIndicators) listOf(ScheduleHeaderGreen) else null,
+                                indicatorColors = listOf(semantic.statusCancelled),
+                                rightIndicatorColors = if (showRightIndicators) listOf(semantic.scheduleHeader) else null,
                                 onRightIndicatorClick = {
                                     scope.launch {
                                         expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
@@ -386,7 +387,7 @@ fun ExpandableReplacementSlot(
                 if (showCollapsedPart) {
                     val currentIndicators = when {
                         collapsedShowsAllIndicators -> indicators
-                        else -> listOf(ScheduleHeaderGreen)
+                        else -> listOf(semantic.scheduleHeader)
                     }
 
                     ScheduleSlotItem(
@@ -556,9 +557,10 @@ fun ExpandableIntensiveCoverSlot(
                 } else Modifier
             ),
     ) {
-        val indicators = remember(covered.size) {
+        val semantic = neiroSemanticColors
+        val indicators = remember(covered.size, semantic) {
             if (hasCovered) {
-                List(covered.size) { CancelledIndicatorRed } + ScheduleHeaderGreen
+                List(covered.size) { semantic.statusCancelled } + semantic.scheduleHeader
             } else null
         }
 
@@ -584,8 +586,8 @@ fun ExpandableIntensiveCoverSlot(
                                 compactForTimeline = compactForTimeline,
                                 highlighted = highlighted,
                                 onContentClick = onCoveredContentClick?.let { { it(entry) } },
-                                indicatorColors = listOf(CancelledIndicatorRed),
-                                rightIndicatorColors = if (showRightIndicators) listOf(ScheduleHeaderGreen) else null,
+                                indicatorColors = listOf(semantic.statusCancelled),
+                                rightIndicatorColors = if (showRightIndicators) listOf(semantic.scheduleHeader) else null,
                                 onRightIndicatorClick = {
                                     scope.launch {
                                         expansion.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
@@ -609,7 +611,7 @@ fun ExpandableIntensiveCoverSlot(
                     val currentIndicators = when {
                         !hasCovered -> null
                         collapsedShowsAllIndicators -> indicators
-                        else -> listOf(ScheduleHeaderGreen)
+                        else -> listOf(semantic.scheduleHeader)
                     }
 
                     IntensiveTimelineChip(

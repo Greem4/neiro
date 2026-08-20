@@ -23,8 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.util.cappedSp
 import java.time.LocalDate
 
@@ -37,7 +37,7 @@ import java.time.LocalDate
  * @param isSelected Выбрана ли эта дата пользователем.
  * @param namesLabel Текстовая метка количества записей (например, "8/1" или "9").
  * @param isWorkingDay Подсвечивать ли как рабочий день.
- * @param archiveMismatch Архив дня расходится с синхронизацией (янтарная точка справа сверху).
+ * @param archiveMismatch Архив дня расходится с синхронизацией (точка справа сверху).
  * @param needsArchive Прошедший день с занятиями ещё не перенесён в архив (красная точка слева сверху).
  * @param onDateClick Обработчик нажатия.
  */
@@ -56,6 +56,8 @@ fun DayCard(
     modifier: Modifier = Modifier,
 ) {
     val isToday = date == today
+    // Семантика поднимается в val: цвета используются в Modifier-цепочках ниже.
+    val semanticColors = neiroSemanticColors
     val backgroundColor =
         if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
 
@@ -87,7 +89,7 @@ fun DayCard(
                     .align(Alignment.TopEnd)
                     .padding(5.dp)
                     .size(7.dp)
-                    .background(color = ExpectedAmber, shape = CircleShape),
+                    .background(color = semanticColors.expected, shape = CircleShape),
             )
         }
 
@@ -158,7 +160,7 @@ fun DayCard(
                         Box(
                             modifier = Modifier
                                 .size(4.dp)
-                                .background(color = Color.Red, shape = CircleShape),
+                                .background(color = MaterialTheme.colorScheme.error, shape = CircleShape),
                         )
                     }
                 }

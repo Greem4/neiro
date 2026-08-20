@@ -43,7 +43,7 @@ import ru.greemlab.neiro.notifications.SessionNotificationSyncSimulation
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.OnYClientsYellow
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.theme.YClientsYellow
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
 import ru.greemlab.neiro.ui.calendar.ProfileYearStats
@@ -714,14 +714,14 @@ private fun YClientsStatusLine(
             } else {
                 "Готово · новых записей нет"
             }
-            Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, label)
+            Triple(Icons.Rounded.CheckCircle, neiroSemanticColors.scheduleHeader, label)
         }
         isLoading -> Triple(
             Icons.Rounded.Sync,
             MaterialTheme.colorScheme.onSurfaceVariant,
             "Загружаю записи…",
         )
-        isLoggedIn -> Triple(Icons.Rounded.CheckCircle, ScheduleHeaderGreen, "Подключено")
+        isLoggedIn -> Triple(Icons.Rounded.CheckCircle, neiroSemanticColors.scheduleHeader, "Подключено")
         else -> Triple(
             Icons.Rounded.CloudSync,
             MaterialTheme.colorScheme.onSurfaceVariant,

@@ -2,18 +2,38 @@ package ru.greemlab.neiro.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Sell
+import androidx.compose.material.icons.rounded.Summarize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,10 +45,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.ApplyDialogGlass
+import ru.greemlab.neiro.theme.glassBorder
+import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.glassDividerColor
+import ru.greemlab.neiro.theme.glassNestedSurfaceColor
+import ru.greemlab.neiro.theme.glassReadingSurfaceColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.fadingScrollEdges
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -40,6 +67,9 @@ import java.time.format.DateTimeFormatter
 private val StatsDialogMaxWidth: Dp = 560.dp
 private val StatsDialogProperties = DialogProperties(usePlatformDefaultWidth = false)
 
+/** Скругление плашки с телом диалога: мягче панели (28dp), крупнее вложенных (14dp). */
+private val BodyPlaqueCornerRadius: Dp = 20.dp
+
 private val StatsDialogModifier: Modifier
     get() = Modifier
         .widthIn(max = StatsDialogMaxWidth)
@@ -47,6 +77,99 @@ private val StatsDialogModifier: Modifier
         .padding(horizontal = 12.dp, vertical = 24.dp)
 
 /** Диалог с подробной статистикой занятий за месяц. */
+/**
+ * Каркас диалога статистики: заголовок, прокручиваемое тело и кнопка «Закрыть».
+ *
+ * Не `AlertDialog`: у него между текстом и кнопкой зашиты 24dp, под кнопкой ещё
+ * 24dp, и в коротком диалоге снизу оставалась широкая пустая полоса. Здесь
+ * отступы свои, а вид — тот же: тот же радиус, тот же стеклянный фон, кнопка
+ * так же прижата вправо.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StatsDialogScaffold(
+    title: String,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = StatsDialogModifier,
+        properties = StatsDialogProperties,
+    ) {
+        // Размытие за окном включается изнутри диалога — только здесь
+        // composable сидит в его собственном окне.
+        ApplyDialogGlass()
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = glassContainerColor(),
+        ) {
+            Column(
+                // Поля панели сняты до 16dp: тело диалога теперь лежит в своей
+                // плашке, и её внутренние 12dp добирают отступ до прежних 24dp.
+                modifier = Modifier.padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 24.dp,
+                    bottom = 12.dp,
+                ),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    // Заголовок и «Закрыть» равняются по краю панели, а не по плашке.
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Растворение краёв — только когда список правда уезжает под край.
+                // Безусловное гасило первую строку и там, где прокручивать нечего.
+                val scrollState = rememberScrollState()
+                // Тело диалога — плашка формы зарплатной сводки, но заливка
+                // обратная: она гасит календарь под цифрами, чтобы пёстрый фон
+                // не тянул взгляд с сумм.
+                val bodyShape = RoundedCornerShape(BodyPlaqueCornerRadius)
+                Card(
+                    // weight без fill: короткий список занимает свою высоту, длинный
+                    // упирается в экран и прокручивается внутри плашки.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .glassBorder(bodyShape),
+                    shape = bodyShape,
+                    colors = CardDefaults.cardColors(containerColor = glassReadingSurfaceColor()),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                ) {
+                    Column(
+                        // Скролл: при крупном системном шрифте контент выше диалога, и
+                        // без него нижние строки просто обрезало бы.
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .fadingScrollEdges(scrollState)
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        content = content,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Закрыть") }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun LessonsDetailsDialog(
     currentMonth: YearMonth,
@@ -55,101 +178,80 @@ fun LessonsDetailsDialog(
 ) {
     val title = remember(currentMonth) { "Занятия за ${getMonthName(currentMonth)}" }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = StatsDialogModifier,
-        properties = StatsDialogProperties,
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Закрыть") }
-        },
-        shape = RoundedCornerShape(28.dp),
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+    StatsDialogScaffold(title = title, onDismiss = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LessonStatRow(
+                label = "Проведено",
+                value = stats.completedCount,
+                color = MaterialTheme.colorScheme.primary,
+                isBold = true,
+                icon = Icons.Rounded.CheckCircle,
+                iconTint = neiroSemanticColors.scheduleHeader,
             )
-        },
-        text = {
+
             Column(
-                // Скролл: при крупном системном шрифте контент выше диалога, и без
-                // него AlertDialog просто обрезал бы нижние строки.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LessonStatRow(
-                        label = "Проведено",
-                        value = stats.completedCount,
-                        color = MaterialTheme.colorScheme.primary,
-                        isBold = true,
-                    )
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        LessonStatRow(
-                            label = "Занятий",
-                            value = stats.completedSessionsCount,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        LessonStatRow(
-                            label = "Диагностик",
-                            value = stats.completedDiagnosticsCount,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LessonStatRow(
-                        label = "Всего запланировано",
-                        value = stats.totalScheduled,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-
-                    LessonStatRow(
-                        label = "Осталось / Не подтверждено",
-                        value = stats.remainingCount,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                if (stats.completedIntensives.isNotEmpty()) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    Text(
-                        text = "Проведенные интенсивы (${stats.completedIntensivesCount}):",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                    )
-
-                    stats.completedIntensives.forEachIndexed { index, intensive ->
-                        val dateStr = intensive.date.format(DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE))
-                        val name = intensive.name.ifBlank { "Интенсив" }
-                        Text(
-                            text = "• $name №${index + 1} проведен $dateStr",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                LessonStatRow(
+                    label = "Занятий",
+                    value = stats.completedSessionsCount,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LessonStatRow(
+                    label = "Диагностик",
+                    value = stats.completedDiagnosticsCount,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        },
-    )
+        }
+
+        HorizontalDivider(color = glassDividerColor())
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LessonStatRow(
+                label = "Всего запланировано",
+                value = stats.totalScheduled,
+                color = MaterialTheme.colorScheme.onSurface,
+                icon = Icons.Rounded.Event,
+                iconTint = MaterialTheme.colorScheme.primary,
+            )
+
+            LessonStatRow(
+                label = "Осталось / Не подтверждено",
+                value = stats.remainingCount,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (stats.completedIntensives.isNotEmpty()) {
+            HorizontalDivider(color = glassDividerColor())
+            Text(
+                text = "Проведённые интенсивы (${stats.completedIntensivesCount}):",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+            )
+
+            stats.completedIntensives.forEachIndexed { index, intensive ->
+                val dateStr = intensive.date.format(DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE))
+                val name = intensive.name.ifBlank { "Интенсив" }
+                Text(
+                    text = "• $name №${index + 1} проведён $dateStr",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 /** Диалог с подробной информацией о прибыли за месяц. */
@@ -166,115 +268,106 @@ fun ProfitDetailsDialog(
 ) {
     val title = remember(currentMonth) { "Финансы за ${getMonthName(currentMonth)}" }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = StatsDialogModifier,
-        properties = StatsDialogProperties,
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Закрыть") }
-        },
-        shape = RoundedCornerShape(28.dp),
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+    StatsDialogScaffold(title = title, onDismiss = onDismiss) {
+        if (display.showNetProfit) {
+            ProfitRow(
+                label = "Чистый доход",
+                value = stats.netProfit,
+                color = neiroSemanticColors.scheduleHeader,
+                isBold = true,
+                icon = Icons.Rounded.Payments,
+                iconTint = neiroSemanticColors.scheduleHeader,
             )
-        },
-        text = {
-            Column(
-                // Скролл: при крупном системном шрифте контент выше диалога, и без
-                // него AlertDialog просто обрезал бы нижние строки.
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                if (display.showNetProfit) {
-                    ProfitRow(
-                        label = "Чистый доход",
-                        value = stats.netProfit,
-                        color = ScheduleHeaderGreen,
-                        isBold = true,
-                    )
-                }
+        }
 
-                if (display.showGrossEarned) {
-                    if (display.showNetProfit) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    }
-                    ProfitRow(
-                        label = "Заработано всего",
-                        value = stats.totalEarned,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                if (display.showTax && stats.taxAmount > 0.0) {
-                    // Удержать больше заработанного за месяц нельзя — иначе при
-                    // gross < taxAmount строка показывала абсурдный минус (P5).
-                    ProfitRow(
-                        label = "Налог за месяц",
-                        value = minOf(stats.taxAmount, stats.totalEarned),
-                        color = MaterialTheme.colorScheme.error,
-                        prefix = "−",
-                    )
-                }
-
-                if (display.showIntensiveEarnings && stats.intensiveEarnings > 0.0) {
-                    ProfitRow(
-                        label = "Заработано интенсив",
-                        value = stats.intensiveEarnings,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                if (display.showDiagnosticsEarnings && stats.diagnosticsEarnings > 0.0) {
-                    ProfitRow(
-                        label = "Заработано диагностика",
-                        value = stats.diagnosticsEarnings,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                if (display.showExpectedIncome) {
-                    ProfitRow(
-                        label = "Ожидаемый доход",
-                        value = stats.expectedIncome,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-
-                if (display.showPricePerSession && rates.pricePerSession > 0.0) {
-                    ProfitRow(
-                        label = "Стоимость одного занятия",
-                        value = rates.pricePerSession,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                if (display.showTotalProfit) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ProfitRow(
-                        label = "Всего",
-                        value = stats.netProfit + stats.expectedIncome,
-                        color = ScheduleHeaderGreen,
-                        isBold = true,
-                    )
-                }
-
-                val totalOnCard = salaryAdvanceOnCard + salaryMainOnCard
-                if (totalOnCard > 0.0 || salaryOnCardFallback > 0.0) {
-                    SalarySummaryPlaque(
-                        salaryAdvanceOnCard = salaryAdvanceOnCard,
-                        salaryMainOnCard = salaryMainOnCard,
-                        salaryOnCardFallback = salaryOnCardFallback,
-                        netProfit = stats.netProfit,
-                    )
-                }
+        if (display.showGrossEarned) {
+            if (display.showNetProfit) {
+                HorizontalDivider(color = glassDividerColor())
             }
-        },
-    )
+            ProfitRow(
+                label = "Заработано всего",
+                value = stats.totalEarned,
+                color = MaterialTheme.colorScheme.onSurface,
+                icon = Icons.Rounded.AccountBalanceWallet,
+                iconTint = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        if (display.showTax && stats.taxAmount > 0.0) {
+            // Удержать больше заработанного за месяц нельзя — иначе при
+            // gross < taxAmount строка показывала абсурдный минус (P5).
+            ProfitRow(
+                label = "Налог за месяц",
+                value = minOf(stats.taxAmount, stats.totalEarned),
+                color = MaterialTheme.colorScheme.error,
+                prefix = "−",
+                icon = Icons.Rounded.Receipt,
+                iconTint = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        if (display.showIntensiveEarnings && stats.intensiveEarnings > 0.0) {
+            ProfitRow(
+                label = "Заработано интенсив",
+                value = stats.intensiveEarnings,
+                color = MaterialTheme.colorScheme.onSurface,
+                icon = Icons.Rounded.Groups,
+                iconTint = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+
+        if (display.showDiagnosticsEarnings && stats.diagnosticsEarnings > 0.0) {
+            ProfitRow(
+                label = "Заработано диагностика",
+                value = stats.diagnosticsEarnings,
+                color = MaterialTheme.colorScheme.onSurface,
+                icon = Icons.Rounded.School,
+                iconTint = neiroSemanticColors.diagnostics,
+            )
+        }
+
+        if (display.showExpectedIncome) {
+            ProfitRow(
+                label = "Ожидаемый доход",
+                value = stats.expectedIncome,
+                color = MaterialTheme.colorScheme.primary,
+                icon = Icons.Rounded.Schedule,
+                iconTint = neiroSemanticColors.expected,
+            )
+        }
+
+        if (display.showPricePerSession && rates.pricePerSession > 0.0) {
+            ProfitRow(
+                label = "Стоимость одного занятия",
+                value = rates.pricePerSession,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                icon = Icons.Rounded.Sell,
+                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (display.showTotalProfit) {
+            HorizontalDivider(color = glassDividerColor())
+            ProfitRow(
+                label = "Всего",
+                value = stats.netProfit + stats.expectedIncome,
+                color = neiroSemanticColors.scheduleHeader,
+                isBold = true,
+                icon = Icons.Rounded.Summarize,
+                iconTint = neiroSemanticColors.scheduleHeader,
+            )
+        }
+
+        val totalOnCard = salaryAdvanceOnCard + salaryMainOnCard
+        if (totalOnCard > 0.0 || salaryOnCardFallback > 0.0) {
+            SalarySummaryPlaque(
+                salaryAdvanceOnCard = salaryAdvanceOnCard,
+                salaryMainOnCard = salaryMainOnCard,
+                salaryOnCardFallback = salaryOnCardFallback,
+                netProfit = stats.netProfit,
+            )
+        }
+    }
 }
 
 @Composable
@@ -293,12 +386,16 @@ private fun SalarySummaryPlaque(
         (netProfit - totalOnCard).coerceAtLeast(0.0)
     }
     val showBreakdown = salaryAdvanceOnCard > 0.0 || salaryMainOnCard > 0.0
+    // Плашка внутри стеклянной панели: со стеклом плотная заливка превращала её
+    // в мутный прямоугольник поверх размытия, поэтому цвет и блик по краю берём
+    // те же, что у самой панели диалога.
+    val plaqueShape = RoundedCornerShape(14.dp)
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .glassBorder(plaqueShape),
+        shape = plaqueShape,
+        colors = CardDefaults.cardColors(containerColor = glassNestedSurfaceColor()),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -311,10 +408,12 @@ private fun SalarySummaryPlaque(
                 color = MaterialTheme.colorScheme.onSurface,
                 approximate = true,
                 isBold = true,
+                icon = Icons.Rounded.CreditCard,
+                iconTint = MaterialTheme.colorScheme.primary,
             )
             if (showBreakdown) {
                 Column(
-                    modifier = Modifier.padding(start = 10.dp),
+                    modifier = Modifier.padding(start = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     if (salaryAdvanceOnCard > 0.0) {
@@ -338,14 +437,16 @@ private fun SalarySummaryPlaque(
                 }
             }
             HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                color = glassDividerColor(),
                 modifier = Modifier.padding(vertical = 2.dp),
             )
             ProfitRow(
                 label = "Зарплата на руки",
                 value = salaryInHand,
-                color = ScheduleHeaderGreen,
+                color = neiroSemanticColors.scheduleHeader,
                 isBold = true,
+                icon = Icons.Rounded.Savings,
+                iconTint = neiroSemanticColors.scheduleHeader,
             )
         }
     }
@@ -359,9 +460,13 @@ fun RegistrationPromptDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = glassContainerColor(),
         title = { Text("Требуется профиль") },
         text = { Text("Чтобы планировать занятия и видеть статистику, нужно сначала настроить ваш профиль.") },
         confirmButton = {
+            // Размытие за окном включается изнутри диалога — только здесь
+            // composable сидит в его собственном окне.
+            ApplyDialogGlass()
             Button(onClick = onConfirm) { Text("Создать профиль") }
         },
         dismissButton = {

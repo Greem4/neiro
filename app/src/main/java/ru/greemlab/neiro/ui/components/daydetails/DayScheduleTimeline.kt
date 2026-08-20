@@ -27,7 +27,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -41,15 +40,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import ru.greemlab.neiro.notifications.SessionSlotKey
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlin.time.Duration.Companion.milliseconds
-
-private val NowLineRed = Color(0xFFE53935)
-private val HourLabelColor = Color(0xFF9E9E9E)
 
 /** Высота одного часа на шкале при системном шрифте 100%. */
 private val TimelineHourHeight: Dp = 72.dp
@@ -75,6 +72,12 @@ fun DayScheduleTimeline(
     date: LocalDate,
     modifier: Modifier = Modifier,
     highlightSlotKey: String? = null,
+    /**
+     * Отступы под шапкой и нижней панелью, лежащими поверх расписания.
+     * Уходят внутрь прокрутки, а не наружу: слот должен уезжать под панель и
+     * там растворяться, а не упираться в её край.
+     */
+    contentPadding: PaddingValues = PaddingValues(),
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     onTopReachedChanged: (Boolean) -> Unit = {},
@@ -91,6 +94,11 @@ fun DayScheduleTimeline(
     val pxPerMinute = with(density) {
         (TimelineHourHeight * density.fontScale.coerceIn(1f, TimelineMaxFontScale) / 60).toPx()
     }
+    val topInset = contentPadding.calculateTopPadding()
+    val bottomInset = contentPadding.calculateBottomPadding()
+    // Прокрутка считается по содержимому, а верхний отступ — его часть: без
+    // поправки автоскролл к «сейчас» уводил линию под шапку.
+    val topInsetPx = with(density) { topInset.toPx() }
 
     val onStudentClick = remember(context) {
         { name: String ->
@@ -104,7 +112,7 @@ fun DayScheduleTimeline(
         val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
         delay(80.milliseconds)
         val offsetMinutes = minutesFromAxisStart(currentLayout.axisStart, target.layoutAppointment.start)
-        val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
+        val scrollTarget = ((offsetMinutes * pxPerMinute) + topInsetPx - with(density) { 72.dp.toPx() })
             .toInt()
             .coerceAtLeast(0)
         scrollState.animateScrollTo(
@@ -128,7 +136,7 @@ fun DayScheduleTimeline(
         val nowLinePx = minutesFromAxisStart(currentLayout.axisStart, now) * pxPerMinute
         val viewportPx = scrollState.viewportSize.takeIf { it > 0 }
             ?: with(density) { TimelineViewportMaxHeight.toPx() }.toInt()
-        val scrollTarget = (nowLinePx - viewportPx / 2f)
+        val scrollTarget = (nowLinePx + topInsetPx - viewportPx / 2f)
             .toInt()
             .coerceIn(0, scrollState.maxValue)
         scrollState.animateScrollTo(
@@ -193,7 +201,13 @@ fun DayScheduleTimeline(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState),
+                        .verticalScroll(scrollState)
+                        // padding после verticalScroll — значит внутри ленты:
+                        // отступ прокручивается вместе с ней.
+                        .padding(
+                            top = topInset,
+                            bottom = if (untimedEntries.isEmpty()) bottomInset else 0.dp,
+                        ),
                 ) {
                 Row(
                     modifier = Modifier
@@ -371,6 +385,7 @@ fun DayScheduleTimeline(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(bottomInset))
         }
     }
 }
@@ -392,7 +407,7 @@ private fun TimelineTimeAxis(
             Text(
                 text = formatHourLabel(hour),
                 style = MaterialTheme.typography.labelSmall,
-                color = HourLabelColor,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(y = topOffset)
@@ -410,6 +425,7 @@ private fun CurrentTimeIndicator(
 ) {
     val density = LocalDensity.current
     val pillShape = RoundedCornerShape(percent = 50)
+    val nowLineColor = neiroSemanticColors.nowLine
 
     Row(
         modifier = modifier,
@@ -418,7 +434,7 @@ private fun CurrentTimeIndicator(
         Surface(
             shape = pillShape,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(NowLineStroke, NowLineRed),
+            border = BorderStroke(NowLineStroke, nowLineColor),
             shadowElevation = 0.dp,
             tonalElevation = 0.dp,
         ) {
@@ -426,7 +442,7 @@ private fun CurrentTimeIndicator(
                 text = formatNowLabel(time),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = NowLineRed,
+                color = nowLineColor,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
@@ -442,7 +458,7 @@ private fun CurrentTimeIndicator(
             val strokePx = with(density) { NowLineStroke.toPx() }
             val centerY = size.height / 2f
             drawLine(
-                color = NowLineRed,
+                color = nowLineColor,
                 start = androidx.compose.ui.geometry.Offset(0f, centerY),
                 end = androidx.compose.ui.geometry.Offset(size.width, centerY),
                 strokeWidth = strokePx,
@@ -511,6 +527,9 @@ private fun computeSlotGeometry(
     val appt = positioned.layoutAppointment
     val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
     val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
+    // Стандартное занятие (50 минут) визуально чуть растягивается: без этого
+    // запаса соседние слоты вплотную слипались и роспись читалась сплошной
+    // полосой. На нестандартную длительность запас не действует.
     val visualDurationMinutes = when {
         durationMinutes in (SESSION_DURATION_MINUTES - 2)..(SESSION_DURATION_MINUTES + 2) ->
             durationMinutes + 8
