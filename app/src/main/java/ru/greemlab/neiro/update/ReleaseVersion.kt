@@ -42,6 +42,14 @@ data class ReleaseVersion(
             )
         }
 
+        /**
+         * Версия без `v` — в таком виде она приходит в пуше `app_update` и
+         * лежит в `version.properties`. Разбор общий с тегом: две разные
+         * реализации однажды разошлись бы на «0.1.100».
+         */
+        fun parseName(name: String): ReleaseVersion? =
+            parseTag("v" + name.trim().removePrefix("v"))
+
         /** null — тег не нашей схемы; такой релиз молча игнорируем. */
         fun parseTag(tag: String): ReleaseVersion? {
             val m = TAG_REGEX.matchEntire(tag.trim()) ?: return null

@@ -10,9 +10,11 @@ import kotlinx.coroutines.CancellationException
  * Суточная проверка обновлений. Работа уникальная (`update_check`), в чужие
  * цепочки — push и уведомления о занятиях — не вмешивается.
  *
+ * Тем же воркером идёт и разовая проверка по пушу `app_update` — там работа
+ * ставится под своим именем (`update_check_push`) и с `force = true`.
+ *
  * Сам ничего не решает: спрашивает [UpdateCheckCoordinator.checkNow] и
- * переводит ответ в `Result`. Показ уведомления о найденной версии появится на
- * этапе 5.
+ * переводит ответ в `Result`.
  */
 class UpdateCheckWorker(
     appContext: Context,
@@ -20,7 +22,11 @@ class UpdateCheckWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val status = runCatching { UpdateCheckCoordinator.checkNow(applicationContext) }
+        // Суточная работа приходит без входных данных — для неё force = false,
+        // и суточный троттлинг остаётся на месте. true ставит только пуш о
+        // вышедшем релизе: ждать там нечего, версия уже опубликована.
+        val force = inputData.getBoolean(KEY_FORCE, false)
+        val status = runCatching { UpdateCheckCoordinator.checkNow(applicationContext, force) }
             // Отмену не глушим: иначе Result.retry() воскресил бы работу,
             // остановленную системой.
             .onFailure { if (it is CancellationException) throw it }
@@ -39,7 +45,10 @@ class UpdateCheckWorker(
         }
     }
 
-    private companion object {
-        const val TAG = "UpdateCheckWorker"
+    companion object {
+        /** Ключ входных данных: игнорировать суточный троттлинг. */
+        const val KEY_FORCE = "force"
+
+        private const val TAG = "UpdateCheckWorker"
     }
 }

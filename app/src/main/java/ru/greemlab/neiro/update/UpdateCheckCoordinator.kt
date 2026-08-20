@@ -7,9 +7,13 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,7 +22,7 @@ import ru.greemlab.neiro.BuildConfig
 import java.util.concurrent.TimeUnit
 
 /**
- * Когда приложение спрашивает GitHub о новой версии. Два триггера, один вход.
+ * Когда приложение спрашивает GitHub о новой версии. Три триггера, один вход.
  *
  * 1. [UpdateCheckWorker] раз в сутки — `PeriodicWorkRequest`, а не
  *    самопланирующийся `OneTimeWorkRequest`, как у `PushKeepAliveCoordinator`.
@@ -30,6 +34,11 @@ import java.util.concurrent.TimeUnit
  *    образцу `AutoSyncCoordinator`. Воркер может задержаться на день в Doze;
  *    открытие приложения — самый естественный момент спросить. Суточный порог
  *    считает сам [UpdateChecker], здесь порога нет.
+ * 3. Пуш `app_update` от neiro-push — [onUpdatePush]. Первые два триггера
+ *    отвечают на вопрос «не вышло ли чего», третий приходит в тот момент,
+ *    когда релиз действительно вышел: `release.yml` после публикации дёргает
+ *    сервер, сервер рассылает пуш. Без него телефон в кармане узнавал бы о
+ *    версии только на следующие сутки.
  *
  * Скачивание отсюда не запускается никогда — только по нажатию пользователя
  * (этап 6). Пятнадцать мегабайт по мобильному интернету без спроса не прощают.
@@ -37,6 +46,9 @@ import java.util.concurrent.TimeUnit
 object UpdateCheckCoordinator {
 
     const val WORK_NAME = "update_check"
+
+    /** Разовая проверка по пушу — отдельно от суточной, чтобы не сбивать её расписание. */
+    const val PUSH_WORK_NAME = "update_check_push"
 
     private const val TAG = "UpdateCheck"
 
@@ -118,6 +130,46 @@ object UpdateCheckCoordinator {
         return status
     }
 
+    /**
+     * Пуш «вышел релиз». Вызывается из `NeiroFirebaseMessagingService`, то
+     * есть с фонового потока FCM и в любом состоянии приложения.
+     *
+     * В сеть отсюда не ходим: у обработчика пуша считанные секунды, а проверка
+     * тянет за собой GitHub, скачивание заметок и уведомление. Ставим разовую
+     * работу — тот же [UpdateCheckWorker], но с `force`, потому что суточный
+     * троттлинг здесь бессмысленен: релиз уже опубликован.
+     *
+     * @param versionName версия из пуша (`0.2.2`) или null, если сервер её не
+     * прислал. Нужна только чтобы не дёргать GitHub из-за новости о версии,
+     * которая на телефоне уже стоит — так бывает у того, кто обновился первым.
+     */
+    fun onUpdatePush(context: Context, versionName: String?) {
+        val appContext = context.applicationContext
+
+        val blocked = UpdateChannelGate.blockReason(appContext)
+        if (blocked != null) {
+            Log.i(TAG, "Пуш о релизе пришёл, но самообновление выключено: $blocked")
+            return
+        }
+
+        // Выключенная автопроверка — это «не ходи в GitHub сам», и пуш её не
+        // отменяет: у пользователя остаётся кнопка на экране «О программе».
+        if (!UpdatePreferences.get(appContext).isAutoCheckEnabled) {
+            Log.i(TAG, "Пуш о релизе пришёл, но автопроверка выключена")
+            return
+        }
+
+        // Версия не разобралась — проверяем: пуш пришёл, значит релиз был, а
+        // разошедшийся формат версии не повод пропустить обновление.
+        val pushed = versionName?.let { ReleaseVersion.parseName(it) }
+        if (pushed != null && !pushed.isNewerThan(BuildConfig.VERSION_CODE)) {
+            Log.i(TAG, "Пуш о версии ${pushed.versionName}: она не новее установленной")
+            return
+        }
+
+        enqueuePushCheck(appContext)
+    }
+
     /** Настройка «проверять автоматически» на экране «О программе» (этап 8). */
     fun onAutoCheckToggled(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
@@ -147,6 +199,29 @@ object UpdateCheckCoordinator {
         Log.i(TAG, "Убрал скачанный APK версии $pending — она уже не новее установленной")
     }
 
+    private fun enqueuePushCheck(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<UpdateCheckWorker>()
+            // Разовый запрос к GitHub и уведомление — квоты expedited на такое
+            // тратить незачем, но и ждать общего окна WorkManager не хочется.
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .setInputData(workDataOf(UpdateCheckWorker.KEY_FORCE to true))
+            .setConstraints(constraints)
+            .build()
+
+        // REPLACE, а не APPEND: два пуша подряд (перевыпуск того же релиза) —
+        // одна новость, и ходить к GitHub дважды незачем. Батарею здесь, в
+        // отличие от суточной работы, не сторожим: проверка разовая.
+        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            PUSH_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
+
     private fun schedulePeriodic(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -173,6 +248,11 @@ object UpdateCheckCoordinator {
     }
 
     fun cancel(context: Context) {
-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_NAME)
+        WorkManager.getInstance(context.applicationContext).apply {
+            cancelUniqueWork(WORK_NAME)
+            // Снимаем и разовую: выключили автопроверку — значит и работа,
+            // поставленная пушем минуту назад, в GitHub уже не идёт.
+            cancelUniqueWork(PUSH_WORK_NAME)
+        }
     }
 }

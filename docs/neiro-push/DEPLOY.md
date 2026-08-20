@@ -115,6 +115,7 @@ neiro-push/
 ```bash
 API_KEY=…                  # ключ приложения: только POST /v1/auth/login
 ADMIN_API_KEY=…            # ПАРОЛЬ ОТ ДАШБОРДА, плюс /health и /v1/admin/*
+RELEASE_NOTIFY_KEY=…       # GitHub Actions: только POST /v1/release/notify
 TOKEN_ENCRYPTION_KEY=…     # Fernet: шифрование user_token в БД
 YCLIENTS_PARTNER_TOKEN=…   # единственное место, где он теперь живёт
 YCLIENTS_COMPANY_ID=…      # филиал по умолчанию при входе
@@ -151,6 +152,40 @@ ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'        # в приложени�
 ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только админ: health, test-push
 ```
 
+### Пуш о новом релизе
+
+`POST /v1/release/notify` (см. [API.md](API.md#post-v1releasenotify)) закрыт
+своим ключом, и пока его нет в `.env`, эндпоинт отвечает `503` — релиз просто
+выходит молча, как раньше.
+
+Включается в двух местах, значение одно:
+
+```bash
+KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+
+# 1. Pi: строка в .env и перезапуск
+ssh roster-b3 "printf 'RELEASE_NOTIFY_KEY=%s\n' '$KEY' >> ~/neiro-push/.env \
+  && cd ~/neiro-push && docker compose up -d"
+
+# 2. GitHub: секрет, которым release.yml дёргает сервер
+gh secret set NEIRO_PUSH_RELEASE_NOTIFY_KEY --body "$KEY"
+```
+
+Проверка без выпуска релиза — тем же запросом, что делает workflow. Версия
+должна быть не новее установленной на телефонах, иначе придёт настоящее
+уведомление:
+
+```bash
+curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"version_name":"0.0.1"}'
+# {"version_name":"0.0.1","devices":1,"sent":1,"failed":0}
+```
+
+`devices` — сколько телефонов с живым токеном FCM знает сервер, `sent` —
+скольким пуш ушёл. `sent: 0` при `devices > 0` значит мёртвые токены: они
+гасятся, телефон пришлёт новый сам через `POST /v1/devices/fcm`.
+
 ### Карта секретов
 
 Где что лежит и что делать, если потерялось. Правило простое: **боевое значение
@@ -161,6 +196,7 @@ ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только адми�
 | `YCLIENTS_PARTNER_TOKEN` | `~/neiro-push/.env` на Pi | закомментирован в `local.properties`, снимки `env-*.txt` | взять новый в `developer.yclients.com`, положить в `.env`, перезапустить |
 | `API_KEY` (ключ приложения) | `~/neiro-push/.env` | `neiro-push/.env`, `local.properties` → `NEIRO_PUSH_API_KEY` | сгенерировать заново — но APK придётся пересобрать и раскатать |
 | `ADMIN_API_KEY` (дашборд) | `~/neiro-push/.env` | `neiro-push/.env` | сгенерировать заново; приложение его не знает и не заметит |
+| `RELEASE_NOTIFY_KEY` | `~/neiro-push/.env` | GitHub Secrets → `NEIRO_PUSH_RELEASE_NOTIFY_KEY` | сгенерировать заново в обоих местах; до этого релиз выйдет молча |
 | `TOKEN_ENCRYPTION_KEY` | `~/neiro-push/.env` | снимки `env-*.txt` в `neiro-push/backups/` | **ничем**: `user_token_enc` не расшифровать, всем нужен повторный вход |
 | `user_token` YClients | БД сервера, шифрован Fernet | снимки БД | повторный вход логином и паролем |
 | `device_token` | только телефон; в БД лишь `sha256` | — | повторный вход |

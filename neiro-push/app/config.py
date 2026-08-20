@@ -8,6 +8,11 @@ class Settings(BaseSettings):
 
     api_key: str
     admin_api_key: str
+    # Ключ только для POST /v1/release/notify — он уезжает в GitHub Secrets, и
+    # админский ключ туда класть незачем: тем можно удалять устройства и ходить
+    # в прокси, а этому нужно ровно одно — сказать «вышел релиз».
+    # Пустой ключ означает «эндпоинт выключен», а не «пускать всех».
+    release_notify_key: str = ""
     database_path: str = "/data/neiro_push.db"
     poll_interval_seconds: int = 10
     poll_night_interval_seconds: int = 3600

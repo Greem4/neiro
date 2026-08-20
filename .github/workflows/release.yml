@@ -143,6 +143,27 @@ jobs:
               "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt.gz" dist/SHA256SUMS.txt
           fi
 
+      # Телефоны узнают о релизе в ту же минуту: neiro-push рассылает
+      # data-push app_update, приложение проверяет GitHub и показывает
+      # уведомление. Без этого шага новость ждала бы суточной проверки.
+      #
+      # continue-on-error: недоступный Pi — не повод отмечать релиз упавшим.
+      # APK уже опубликован, и телефоны найдут его сами, просто позже.
+      - name: Сказать телефонам о релизе
+        continue-on-error: true
+        env:
+          BASE_URL: ${{ secrets.NEIRO_PUSH_API_BASE_URL }}
+          RELEASE_NOTIFY_KEY: ${{ secrets.NEIRO_PUSH_RELEASE_NOTIFY_KEY }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$RELEASE_NOTIFY_KEY" ]; then
+            echo "::notice::секретов для neiro-push нет, пуш о релизе пропускаю"
+            exit 0
+          fi
+          curl -fsS --max-time 60 -X POST "${BASE_URL%/}/v1/release/notify" \
+            -H "Authorization: Bearer $RELEASE_NOTIFY_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"version_name\":\"$VERSION\"}"
+
       # Ключи не должны пережить сборку даже на одноразовой машине.
       - name: Убрать секреты
         if: always()

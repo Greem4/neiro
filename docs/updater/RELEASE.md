@@ -253,11 +253,35 @@ jobs:
               "dist/neiro-$VERSION.apk" "dist/mapping-$VERSION.txt.gz" dist/SHA256SUMS.txt
           fi
 
+      # Телефоны узнают о релизе в ту же минуту, а не на суточной проверке.
+      # Недоступный Pi релиз не роняет: APK уже опубликован.
+      - name: Сказать телефонам о релизе
+        continue-on-error: true
+        env:
+          BASE_URL: ${{ secrets.NEIRO_PUSH_API_BASE_URL }}
+          RELEASE_NOTIFY_KEY: ${{ secrets.NEIRO_PUSH_RELEASE_NOTIFY_KEY }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$RELEASE_NOTIFY_KEY" ]; then
+            echo "::notice::секретов для neiro-push нет, пуш о релизе пропускаю"
+            exit 0
+          fi
+          curl -fsS --max-time 60 -X POST "${BASE_URL%/}/v1/release/notify" \
+            -H "Authorization: Bearer $RELEASE_NOTIFY_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"version_name\":\"$VERSION\"}"
+
       # Ключи не должны пережить сборку даже на одноразовой машине.
       - name: Убрать секреты
         if: always()
         run: rm -f app/release.jks app/google-services.json local.properties
 ```
+
+Последний шаг — единственное место, где релиз разговаривает с чужой системой.
+Что происходит дальше: сервер рассылает всем телефонам data-push `app_update`,
+приложение проверяет GitHub и показывает уведомление о новой версии
+([ARCHITECTURE.md § Пуш о релизе](ARCHITECTURE.md#пуш-о-релизе)). Секрета нет —
+шаг пишет notice и выходит с нулём: обновление в этом случае доедет само, но
+в пределах суток.
 
 ## Секреты
 
@@ -276,6 +300,9 @@ gh secret set RELEASE_KEY_ALIAS        -R Greem4/neiro
 gh secret set RELEASE_KEY_PASSWORD     -R Greem4/neiro
 gh secret set NEIRO_PUSH_API_BASE_URL  -R Greem4/neiro
 gh secret set NEIRO_PUSH_API_KEY       -R Greem4/neiro
+
+# ключ пуша о релизе — то же значение, что в RELEASE_NOTIFY_KEY на Pi
+gh secret set NEIRO_PUSH_RELEASE_NOTIFY_KEY -R Greem4/neiro
 ```
 
 | Секрет | Откуда взять |
@@ -284,6 +311,7 @@ gh secret set NEIRO_PUSH_API_KEY       -R Greem4/neiro
 | `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` | `local.properties` |
 | `GOOGLE_SERVICES_JSON_BASE64` | `app/google-services.json` |
 | `NEIRO_PUSH_API_BASE_URL`, `NEIRO_PUSH_API_KEY` | `local.properties`, ключ также `ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'` |
+| `NEIRO_PUSH_RELEASE_NOTIFY_KEY` | `ssh roster-b3 'grep ^RELEASE_NOTIFY_KEY= ~/neiro-push/.env'`; включение — [DEPLOY.md § Пуш о новом релизе](../neiro-push/DEPLOY.md#пуш-о-новом-релизе) |
 
 **Keystore незаменим.** Потеряется файл или пароль — обновить установленное
 приложение станет нечем: подпись не совпадёт, и всем придётся удалять Neiro и
