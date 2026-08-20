@@ -460,8 +460,10 @@ private fun DayDetailsContent(
     }
 }
 
-// Тач-зона кнопок нижней панели — минимум 48dp (Material a11y).
 private val DayDetailsBottomBarButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
+/** Минимальная тач-зона кнопок нижней панели — 48dp (Material a11y). */
+private val DayDetailsBottomBarMinHeight = 48.dp
 
 @Composable
 private fun DayDetailsBottomBar(
@@ -498,7 +500,7 @@ private fun DayDetailsBottomBar(
                         },
                     ),
                     contentPadding = DayDetailsBottomBarButtonPadding,
-                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = DayDetailsBottomBarMinHeight),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Storage,
@@ -522,7 +524,7 @@ private fun DayDetailsBottomBar(
             TextButton(
                 onClick = onDismiss,
                 contentPadding = DayDetailsBottomBarButtonPadding,
-                modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                modifier = Modifier.defaultMinSize(minHeight = DayDetailsBottomBarMinHeight),
             ) {
                 Text(
                     text = "Закрыть",
@@ -536,7 +538,7 @@ private fun DayDetailsBottomBar(
                     onClick = onSave,
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = DayDetailsBottomBarMinHeight),
                 ) {
                     Text("Сохранить", fontWeight = FontWeight.Bold)
                 }

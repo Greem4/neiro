@@ -27,7 +27,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -41,14 +40,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import ru.greemlab.neiro.notifications.SessionSlotKey
 import ru.greemlab.neiro.theme.NeiroTheme
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlin.time.Duration.Companion.milliseconds
-
-private val NowLineRed = Color(0xFFE53935)
 
 /** Высота одного часа на шкале при системном шрифте 100%. */
 private val TimelineHourHeight: Dp = 72.dp
@@ -409,6 +407,7 @@ private fun CurrentTimeIndicator(
 ) {
     val density = LocalDensity.current
     val pillShape = RoundedCornerShape(percent = 50)
+    val nowLineColor = neiroSemanticColors.nowLine
 
     Row(
         modifier = modifier,
@@ -417,7 +416,7 @@ private fun CurrentTimeIndicator(
         Surface(
             shape = pillShape,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(NowLineStroke, NowLineRed),
+            border = BorderStroke(NowLineStroke, nowLineColor),
             shadowElevation = 0.dp,
             tonalElevation = 0.dp,
         ) {
@@ -425,7 +424,7 @@ private fun CurrentTimeIndicator(
                 text = formatNowLabel(time),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = NowLineRed,
+                color = nowLineColor,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
@@ -441,7 +440,7 @@ private fun CurrentTimeIndicator(
             val strokePx = with(density) { NowLineStroke.toPx() }
             val centerY = size.height / 2f
             drawLine(
-                color = NowLineRed,
+                color = nowLineColor,
                 start = androidx.compose.ui.geometry.Offset(0f, centerY),
                 end = androidx.compose.ui.geometry.Offset(size.width, centerY),
                 strokeWidth = strokePx,

@@ -21,10 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ru.greemlab.neiro.R
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 
 @Composable
@@ -43,7 +43,7 @@ fun AttendanceStatusPickerIcon(
                 .minimumInteractiveComponentSize()
                 .size(24.dp),
             shape = CircleShape,
-            color = Color.White,
+            color = neiroSemanticColors.statusIconSurface,
             onClick = { expanded = true },
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -99,36 +99,37 @@ fun AttendanceStatusReadOnlyIcon(
     onClick: (() -> Unit)? = null,
 ) {
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
-    // Кликабельная зона 48dp (Material a11y); видимый круг остаётся 24dp.
-    Box(
+    // Тач-зона расширяется до минимума Material (48dp) только когда по иконке
+    // действительно можно нажать: без onClick это просто индикатор статуса, и
+    // лишние 24dp отъедали бы ширину у имени ученика в строке расписания.
+    // minimumInteractiveComponentSize, а не ручной Box: тем же способом это
+    // делает AttendanceStatusPickerIcon выше, и он уважает выключение минимума
+    // через LocalMinimumInteractiveComponentSize в плотных списках.
+    val touchTarget = if (onClick != null) {
+        Modifier
+            .minimumInteractiveComponentSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+    } else {
+        Modifier
+    }
+    Surface(
         modifier = modifier
-            .size(48.dp)
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick,
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-        contentAlignment = Alignment.Center,
+            .then(touchTarget)
+            .size(24.dp),
+        shape = CircleShape,
+        color = neiroSemanticColors.statusIconSurface,
     ) {
-        Surface(
-            modifier = Modifier.size(24.dp),
-            shape = CircleShape,
-            color = Color.White,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = AttendanceStatusVisuals.icon(status),
-                    contentDescription = null,
-                    tint = indicatorColor,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = AttendanceStatusVisuals.icon(status),
+                contentDescription = null,
+                tint = indicatorColor,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }

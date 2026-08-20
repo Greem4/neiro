@@ -15,6 +15,10 @@ import androidx.compose.ui.graphics.Color
  * есть пара (`*Light`/`*Dark` в [Color.kt]). Палитру заполняет [NeiroTheme] по
  * флагу `darkTheme` — то есть цвета следуют теме, выбранной в приложении,
  * а не системной (чем грешил `isSystemInDarkTheme()` в точках вызова).
+ *
+ * Здесь лежит **весь** цвет приложения, которого нет в Material-схеме: если для
+ * нового элемента понадобился оттенок, его место тут, а не `Color(0xFF…)` по
+ * месту — иначе он не переключится вместе с палитрой.
  */
 @Immutable
 data class NeiroSemanticColors(
@@ -32,6 +36,12 @@ data class NeiroSemanticColors(
     val diagnostics: Color,
     /** Акцент «перенос» в in-app уведомлениях. */
     val rescheduleNotification: Color,
+    /** Подпись выходного дня (Сб/Вс) в шапке календаря. */
+    val weekend: Color,
+    /** Линия текущего времени на шкале дня. */
+    val nowLine: Color,
+    /** Подложка круглой иконки статуса в строке расписания. */
+    val statusIconSurface: Color,
 )
 
 val LightSemanticColors = NeiroSemanticColors(
@@ -42,6 +52,9 @@ val LightSemanticColors = NeiroSemanticColors(
     statusCancelled = StatusCancelledLight,
     diagnostics = DiagnosticsIndigo,
     rescheduleNotification = RescheduleNotificationLight,
+    weekend = WeekendLight,
+    nowLine = NowLineRed,
+    statusIconSurface = StatusIconSurface,
 )
 
 val DarkSemanticColors = NeiroSemanticColors(
@@ -52,6 +65,9 @@ val DarkSemanticColors = NeiroSemanticColors(
     statusCancelled = StatusCancelledDark,
     diagnostics = DiagnosticsIndigo,
     rescheduleNotification = RescheduleNotificationDark,
+    weekend = WeekendDark,
+    nowLine = NowLineRed,
+    statusIconSurface = StatusIconSurface,
 )
 
 val LocalNeiroSemanticColors = staticCompositionLocalOf { LightSemanticColors }

@@ -18,7 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.greemlab.neiro.theme.LogoGradientEnd
+import ru.greemlab.neiro.theme.LogoGradientStart
 import ru.greemlab.neiro.ui.util.cappedSp
+
+// Знак бренда, а не тема: цвета круга не меняются ни от светлой/тёмной темы,
+// ни от выбранной палитры. Brush собирается один раз на файл, а не на каждую
+// рекомпозицию заголовка.
+private val LogoBrush = Brush.verticalGradient(
+    colors = listOf(LogoGradientStart, LogoGradientEnd),
+)
 
 /**
  * Логотип приложения: синий круг с буквой «N» и опционально подпись «Neiro».
@@ -55,12 +64,7 @@ fun NeiroLogo(
                         Modifier
                     },
                 )
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color(0xFF24A1DE), Color(0xFF1E96C8))
-                    ),
-                    shape = CircleShape,
-                ),
+                .background(brush = LogoBrush, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
