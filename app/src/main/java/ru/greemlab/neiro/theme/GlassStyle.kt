@@ -51,8 +51,11 @@ object GlassStyle {
     /** Затемнение за диалогом: со стеклом оно мягче штатного. */
     const val SCRIM_ALPHA = 0.28f
 
-    const val DARK_TOP_ALPHA = 0.72f
-    const val DARK_BOTTOM_ALPHA = 0.56f
+    // Плотнее, чем просилось бы «красивым стеклом»: сквозь панель просвечивал
+    // пёстрый календарь, фон под цифрами получался неоднородным, и суммы
+    // приходилось вычитывать. Читаемость важнее прозрачности.
+    const val DARK_TOP_ALPHA = 0.82f
+    const val DARK_BOTTOM_ALPHA = 0.72f
     const val LIGHT_TOP_ALPHA = 0.86f
     const val LIGHT_BOTTOM_ALPHA = 0.74f
 
@@ -100,10 +103,14 @@ fun GlassPanel(
 fun glassContainerColor(): Color {
     val scheme = MaterialTheme.colorScheme
     if (!LocalGlassEnabled.current) return scheme.surface
-    val dark = scheme.surface.luminance() < 0.5f
-    val base = if (dark) scheme.surfaceVariant else scheme.surface
-    val alpha = if (dark) GlassStyle.DARK_TOP_ALPHA else GlassStyle.LIGHT_TOP_ALPHA
-    return base.copy(alpha = alpha + extraAlphaWithoutBlur())
+    // База — `surface`, а не `surfaceVariant`: тот заметно светлее фона, и
+    // панель поверх тёмного календаря выходила серой, съедая контраст у сумм.
+    val alpha = if (scheme.surface.luminance() < 0.5f) {
+        GlassStyle.DARK_TOP_ALPHA
+    } else {
+        GlassStyle.LIGHT_TOP_ALPHA
+    }
+    return scheme.surface.copy(alpha = alpha + extraAlphaWithoutBlur())
 }
 
 /**
@@ -149,10 +156,10 @@ private const val GLASS_DIVIDER_ALPHA = 0.14f
 /**
  * Стекло для мелкого элемента, висящего над лентой, — кнопки или чипа.
  *
- * Плотность ниже, чем у панели: панель закрывает пол-экрана и обязана держать
- * текст читаемым, а кнопка при той же плотности смотрится куском панели,
- * забытым поверх календаря. Материал тот же, что у панелей, — акцент кнопке
- * даёт цвет содержимого, а не заливка.
+ * Прозрачнее и на тон светлее панели: панель закрывает пол-экрана и обязана
+ * держать текст читаемым, а кнопка висит над календарём, и при плотности
+ * панели смотрится её забытым куском. Акцент кнопке даёт цвет содержимого,
+ * а не заливка.
  *
  * Без стекла возвращает `secondaryContainer`: кнопка остаётся ровно такой,
  * какой была.
@@ -211,7 +218,7 @@ fun ApplyDialogGlass(radius: Dp = GlassStyle.blurRadius) {
 private fun glassPanelBrush(): Brush {
     val scheme = MaterialTheme.colorScheme
     val dark = scheme.surface.luminance() < 0.5f
-    val base = if (dark) scheme.surfaceVariant else scheme.surface
+    val base = scheme.surface
     val extra = extraAlphaWithoutBlur()
     val top = if (dark) GlassStyle.DARK_TOP_ALPHA else GlassStyle.LIGHT_TOP_ALPHA
     val bottom = if (dark) GlassStyle.DARK_BOTTOM_ALPHA else GlassStyle.LIGHT_BOTTOM_ALPHA
