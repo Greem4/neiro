@@ -39,13 +39,10 @@ import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
+import ru.greemlab.neiro.ui.util.formatDayMonth
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-
-private val ShortDateFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE)
 
 /** Базовая высота слота при системном шрифте 100%. */
 private val DaySummarySlotBaseHeight: Dp = 166.dp
@@ -114,7 +111,7 @@ private fun DaySummaryCard(
     val dateLabel = remember(date) {
         val weekday = date.dayOfWeek.getDisplayName(TextStyle.SHORT, RU_LOCALE)
             .replaceFirstChar { it.uppercase(RU_LOCALE) }
-        "$weekday, ${date.format(ShortDateFormat)}"
+        "$weekday ${formatDayMonth(date)}"
     }
     val earnedText = remember(stats.earned) { formatRubles(stats.earned) }
     val expectedText = remember(stats.expected) { formatRubles(stats.expected) }
