@@ -107,12 +107,12 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             calendarRepository.clearAllData()
             LogoutCoordinator.logout(getApplication())
 
+            // Цены не проставляем: их привезёт синк, и привезёт сегодняшние.
+            // Вписанные сюда руками жили до первого синка и показывали ставку
+            // прошлого года, из-за чего дев-сборка после сброса врала.
+            // Налог YClients не знает — он всегда ручной.
             calendarRepository.updateProfile { profile ->
-                profile.copy(
-                    pricePerSession = 1400.0,
-                    pricePerDiagnostics = 2250.0,
-                    monthlyTaxAmount = 6500.0,
-                )
+                profile.copy(monthlyTaxAmount = 6500.0)
             }
 
             devLogin(autoSync = true)

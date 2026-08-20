@@ -611,19 +611,29 @@ class YClientsRepository(context: Context) {
             when (latest) {
                 is ApiResult.Error -> return@withContext latest
                 is ApiResult.Success -> {
-                    val id = latest.data ?: continue
-                    return@withContext requestCalculationRates(id, generation)
+                    val summary = latest.data ?: continue
+                    val id = summary.id ?: continue
+                    val rates = requestCalculationRates(id, generation)
+                    // Дата конца начисления едет вместе со ставками: по ней
+                    // видно, где кончается их правда и начинается посуточный
+                    // расчёт текущего месяца.
+                    return@withContext when (rates) {
+                        is ApiResult.Error -> rates
+                        is ApiResult.Success -> ApiResult.Success(
+                            rates.data.copy(periodEnd = summary.periodEndOrNull()),
+                        )
+                    }
                 }
             }
         }
         ApiResult.Success(SalaryRatesFromApi())
     }
 
-    /** id самого свежего начисления периода или `null`, если начислений нет. */
+    /** Самое свежее начисление периода или `null`, если начислений нет. */
     private suspend fun requestLatestCalculation(
         period: ClosedRange<LocalDate>,
         generation: Int,
-    ): ApiResult<Long?> {
+    ): ApiResult<SalaryCalculationSummary?> {
         val all = when (val result = requestCalculations(period, generation)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> return result
@@ -635,15 +645,11 @@ class YClientsRepository(context: Context) {
         // Свежесть — по date_to; если его нет, берём наибольший id.
         val latest = items.maxWithOrNull(
             compareBy<SalaryCalculationSummary>(
-                { summary ->
-                    summary.dateTo?.take(10)?.let { raw ->
-                        runCatching { LocalDate.parse(raw) }.getOrNull()
-                    }
-                },
+                { summary -> summary.periodEndOrNull() },
                 { summary -> summary.id },
             ),
         )
-        return ApiResult.Success(latest?.id)
+        return ApiResult.Success(latest)
     }
 
     /** Начисления периода: месяц, сумма, признак «проведено». */
