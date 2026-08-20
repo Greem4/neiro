@@ -48,6 +48,7 @@ import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.LocalGlassEnabled
+import ru.greemlab.neiro.theme.LocalGlassPanelAbove
 import ru.greemlab.neiro.theme.MutedSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.glassBorder
@@ -111,6 +112,23 @@ private sealed interface CalendarOverlay {
     data object DayDetails : CalendarOverlay
     data object Notifications : CalendarOverlay
 }
+
+/**
+ * Оверлей стоит стеклянной панелью поверх календаря, а не вместо него.
+ *
+ * Полноэкранные разделы (настройки, вход, «О программе») закрывают календарь
+ * целиком — подстраивать под них то, что осталось внизу, незачем.
+ */
+private val CalendarOverlay.isGlassDialogAboveCalendar: Boolean
+    get() = when (this) {
+        CalendarOverlay.RegistrationPrompt,
+        CalendarOverlay.ProfitDetails,
+        CalendarOverlay.LessonsDetails,
+        CalendarOverlay.DayDetails,
+        CalendarOverlay.Notifications -> true
+
+        else -> false
+    }
 
 /** Куда вернуться по «Назад» с текущего overlay (иерархия настроек). */
 private fun CalendarOverlay.onSystemBack(
@@ -376,64 +394,70 @@ fun CalendarScreen(
                 }
             },
         ) {
-            CalendarScreenContent(
-                currentMonth = currentMonth,
-                selectedDate = selectedDate,
-                selectedDaySessions = selectedDayContext?.effective.orEmpty(),
-                monthDayData = currentMonthDayData,
-                archiveMismatchDates = archiveMismatchDates,
-                daysNeedingArchive = daysNeedingArchive,
-                calendarMode = calendarMode,
-                onModeChange = viewModel::setCalendarMode,
-                stats = stats,
-                workingDays = profile.workingDays,
-                isRegistered = profile.isRegistered,
-                onPreviousMonth = viewModel::previousMonth,
-                onNextMonth = viewModel::nextMonth,
-                onMonthSelected = viewModel::setMonth,
-                onTodayClick = viewModel::goToToday,
-                onMenuClick = { scope.launch { drawerState.open() } },
-                onSyncClick = {
-                    if (isYClientsLoggedIn) {
-                        syncViewModel.syncMonth(currentMonth)
-                    } else {
-                        yClientsReturnOverlay = CalendarOverlay.None
-                        overlay = CalendarOverlay.YClients
-                    }
-                },
-                isSyncing = syncState.isLoading,
-                isOffline = syncState.isOffline && isYClientsLoggedIn,
-                rates = rates,
-                selectedDayFact = selectedDayFact,
-                profitDisplay = profitDisplay,
-                onDateClick = { date ->
-                    if (!profile.isRegistered) {
-                        overlay = CalendarOverlay.RegistrationPrompt
-                        return@CalendarScreenContent
-                    }
-                    if (selectedDate == date) {
-                        overlay = CalendarOverlay.DayDetails
-                    } else {
-                        viewModel.selectDate(date)
-                    }
-                },
-                onProfitClick = {
-                    overlay = if (profile.isRegistered) {
-                        CalendarOverlay.ProfitDetails
-                    } else {
-                        CalendarOverlay.RegistrationPrompt
-                    }
-                },
-                onLessonsClick = {
-                    overlay = if (profile.isRegistered) {
-                        CalendarOverlay.LessonsDetails
-                    } else {
-                        CalendarOverlay.RegistrationPrompt
-                    }
-                },
-                onNotificationsClick = { overlay = CalendarOverlay.Notifications },
-                unreadNotificationCount = unreadNotificationCount,
-            )
+            // Пока сверху стоит стеклянный диалог, календарь под ним просвечивает
+            // сквозь размытие — элементам с яркой заливкой это сигнал приглушиться.
+            CompositionLocalProvider(
+                LocalGlassPanelAbove provides overlay.isGlassDialogAboveCalendar,
+            ) {
+                CalendarScreenContent(
+                    currentMonth = currentMonth,
+                    selectedDate = selectedDate,
+                    selectedDaySessions = selectedDayContext?.effective.orEmpty(),
+                    monthDayData = currentMonthDayData,
+                    archiveMismatchDates = archiveMismatchDates,
+                    daysNeedingArchive = daysNeedingArchive,
+                    calendarMode = calendarMode,
+                    onModeChange = viewModel::setCalendarMode,
+                    stats = stats,
+                    workingDays = profile.workingDays,
+                    isRegistered = profile.isRegistered,
+                    onPreviousMonth = viewModel::previousMonth,
+                    onNextMonth = viewModel::nextMonth,
+                    onMonthSelected = viewModel::setMonth,
+                    onTodayClick = viewModel::goToToday,
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onSyncClick = {
+                        if (isYClientsLoggedIn) {
+                            syncViewModel.syncMonth(currentMonth)
+                        } else {
+                            yClientsReturnOverlay = CalendarOverlay.None
+                            overlay = CalendarOverlay.YClients
+                        }
+                    },
+                    isSyncing = syncState.isLoading,
+                    isOffline = syncState.isOffline && isYClientsLoggedIn,
+                    rates = rates,
+                    selectedDayFact = selectedDayFact,
+                    profitDisplay = profitDisplay,
+                    onDateClick = { date ->
+                        if (!profile.isRegistered) {
+                            overlay = CalendarOverlay.RegistrationPrompt
+                            return@CalendarScreenContent
+                        }
+                        if (selectedDate == date) {
+                            overlay = CalendarOverlay.DayDetails
+                        } else {
+                            viewModel.selectDate(date)
+                        }
+                    },
+                    onProfitClick = {
+                        overlay = if (profile.isRegistered) {
+                            CalendarOverlay.ProfitDetails
+                        } else {
+                            CalendarOverlay.RegistrationPrompt
+                        }
+                    },
+                    onLessonsClick = {
+                        overlay = if (profile.isRegistered) {
+                            CalendarOverlay.LessonsDetails
+                        } else {
+                            CalendarOverlay.RegistrationPrompt
+                        }
+                    },
+                    onNotificationsClick = { overlay = CalendarOverlay.Notifications },
+                    unreadNotificationCount = unreadNotificationCount,
+                )
+            }
         }
 
         if (overlay is CalendarOverlay.Settings) {

@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -36,6 +37,20 @@ import androidx.compose.ui.window.DialogWindowProvider
  * `AppearancePreferences`, сюда её кладёт `NeiroApp`.
  */
 val LocalGlassEnabled = staticCompositionLocalOf { false }
+
+/**
+ * Над этим содержимым сейчас стоит стеклянная панель — открыт диалог с
+ * размытием.
+ *
+ * Экран под панелью не исчезает: он просвечивает сквозь размытие. Яркое пятно —
+ * фирменная плашка, акцентная кнопка — в этот момент читается сквозь стекло
+ * отдельным объектом и тянет взгляд с того, ради чего диалог открыли. Кто так
+ * себя ведёт, на это время уходит в нейтральный тон.
+ *
+ * Не `static`: значение меняется на каждом открытии диалога, и перерисовать
+ * нужно только тех, кто его читает, а не весь экран.
+ */
+val LocalGlassPanelAbove = compositionLocalOf { false }
 
 /**
  * ПАРАМЕТРЫ СТЕКЛА (Твикай здесь)
