@@ -3,7 +3,10 @@ package ru.greemlab.neiro.theme
 import androidx.compose.ui.graphics.Color
 
 // --- Тёмная тема ---
-val DarkBackground = Color(0xFF121212)
+// Фон — истинно чёрный: на амоледе это выключенные пиксели, а не серое пятно.
+// Прежний #121212 на таком экране читался мутной подложкой, и панели поверх
+// него сливались в кашу из близких тёмно-серых.
+val DarkBackground = Color(0xFF000000)
 val DarkSurface = Color(0xFF1E1E1E)
 val PrimaryDark = Color(0xFF90CAF9)
 val OnPrimaryDark = Color(0xFF003258)

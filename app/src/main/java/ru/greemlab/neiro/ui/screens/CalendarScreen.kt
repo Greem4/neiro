@@ -49,7 +49,7 @@ import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.LocalGlassPanelAbove
-import ru.greemlab.neiro.theme.MutedSurfaceAlpha
+import ru.greemlab.neiro.theme.NeiroSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
@@ -802,7 +802,8 @@ fun CalendarScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha),
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    .copy(alpha = NeiroSurfaceAlpha.PANEL),
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
@@ -1006,7 +1007,8 @@ private fun MonthOverviewCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                .copy(alpha = NeiroSurfaceAlpha.PANEL),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -1120,7 +1122,7 @@ private fun CompactStatTile(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = NeiroSurfaceAlpha.TILE),
         modifier = modifier,
     ) {
         Row(
