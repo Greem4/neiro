@@ -208,26 +208,59 @@ fun AutoShrinkText(
     }
 }
 
+/**
+ * Числа с табличными цифрами: в шрифте по умолчанию цифры разной ширины, из-за
+ * чего в колонке значений разряды не совпадали по вертикали и суммы «плавали».
+ */
+fun TextStyle.tabularFigures(): TextStyle = copy(fontFeatureSettings = "tnum")
+
+/**
+ * Значок слева от подписи строки: по нему строка находится глазом раньше, чем
+ * прочитан текст. Размер и отступ такие, чтобы высота строки не менялась.
+ */
+@Composable
+private fun RowStatIcon(icon: ImageVector, tint: Color) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier
+            .padding(end = 8.dp)
+            .size(StatRowIconSize),
+    )
+}
+
+private val StatRowIconSize: Dp = 16.dp
+
 @Composable
 fun LessonStatRow(
     label: String,
     value: Int,
     color: Color,
     isBold: Boolean = false,
+    icon: ImageVector? = null,
+    iconTint: Color = color,
 ) {
     LabelValueRow(
         modifier = Modifier.fillMaxWidth(),
         label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) RowStatIcon(icon = icon, tint = iconTint)
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         value = {
             Text(
                 text = value.toString(),
-                style = if (isBold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+                style = if (isBold) {
+                    MaterialTheme.typography.titleMedium.tabularFigures()
+                } else {
+                    MaterialTheme.typography.bodyLarge.tabularFigures()
+                },
                 fontWeight = if (isBold) FontWeight.ExtraBold else FontWeight.SemiBold,
                 color = color,
             )
@@ -251,7 +284,7 @@ fun StatRow(label: String, value: String, isHighlight: Boolean = false) {
         value = {
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.tabularFigures(),
                 fontWeight = FontWeight.Bold,
                 color = if (isHighlight) {
                     MaterialTheme.colorScheme.primary
@@ -273,6 +306,8 @@ fun ProfitRow(
     compact: Boolean = false,
     approximate: Boolean = false,
     prefix: String = "",
+    icon: ImageVector? = null,
+    iconTint: Color = color,
 ) {
     val formattedValue = remember(value, prefix, approximate) {
         val amount = "$prefix${formatRubles(value)}"
@@ -286,7 +321,7 @@ fun ProfitRow(
         isBold && !compact -> MaterialTheme.typography.titleMedium
         compact -> MaterialTheme.typography.bodyMedium
         else -> MaterialTheme.typography.bodyLarge
-    }
+    }.tabularFigures()
     val valueWeight = when {
         isBold -> FontWeight.ExtraBold
         compact -> FontWeight.Medium
@@ -296,11 +331,14 @@ fun ProfitRow(
         modifier = modifier.fillMaxWidth(),
         horizontalGap = if (compact) 8.dp else 12.dp,
         label = {
-            Text(
-                text = label,
-                style = labelStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) RowStatIcon(icon = icon, tint = iconTint)
+                Text(
+                    text = label,
+                    style = labelStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         value = {
             Text(

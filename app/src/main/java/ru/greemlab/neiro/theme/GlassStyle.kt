@@ -106,6 +106,46 @@ fun glassContainerColor(): Color {
     return base.copy(alpha = alpha + extraAlphaWithoutBlur())
 }
 
+/**
+ * Плашка внутри стеклянной панели — вложенная группа строк (например, разбивка
+ * зарплаты в диалоге финансов).
+ *
+ * Без стекла — приглушённая `surfaceVariant`, как было. Со стеклом панель уже
+ * полупрозрачная, и та же заливка поверх неё читается мутным пятном: берём
+ * тонкий светлый слой, который только отделяет группу от фона, не перекрывая
+ * размытие под диалогом.
+ */
+@Composable
+fun glassNestedSurfaceColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    if (!LocalGlassEnabled.current) {
+        return scheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha)
+    }
+    val dark = scheme.surface.luminance() < 0.5f
+    val tint = if (dark) Color.White else scheme.onSurface
+    return tint.copy(alpha = if (dark) GLASS_NESTED_DARK_ALPHA else GLASS_NESTED_LIGHT_ALPHA)
+}
+
+private const val GLASS_NESTED_DARK_ALPHA = 0.07f
+private const val GLASS_NESTED_LIGHT_ALPHA = 0.05f
+
+/**
+ * Разделитель внутри стеклянной панели.
+ *
+ * `outlineVariant` рассчитан на непрозрачную поверхность и на просвечивающем
+ * стекле почти пропадает — со стеклом берём тот же светлый тон, что у блика.
+ */
+@Composable
+fun glassDividerColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    if (!LocalGlassEnabled.current) return scheme.outlineVariant.copy(alpha = 0.5f)
+    val dark = scheme.surface.luminance() < 0.5f
+    val tint = if (dark) Color.White else scheme.onSurface
+    return tint.copy(alpha = GLASS_DIVIDER_ALPHA)
+}
+
+private const val GLASS_DIVIDER_ALPHA = 0.14f
+
 /** Блик по краю панели: сверху ярче, снизу почти незаметен. */
 @Composable
 fun Modifier.glassBorder(shape: Shape): Modifier {

@@ -1,5 +1,7 @@
 package ru.greemlab.neiro.ui.util
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -68,3 +70,21 @@ fun Modifier.fadingEdges(top: Dp = 0.dp, bottom: Dp = 0.dp): Modifier = this
             )
         }
     }
+
+/**
+ * Растворение краёв прокручиваемой области — только с той стороны, где
+ * действительно спрятан контент.
+ *
+ * Безусловное растворение приглушало первую и последнюю строку даже там, где
+ * список помещается целиком и не двигается: текст выглядел выцветшим без
+ * причины, а цифры — недорисованными.
+ */
+@Composable
+fun Modifier.fadingScrollEdges(
+    scrollState: ScrollState,
+    top: Dp = DialogEdgeFade,
+    bottom: Dp = DialogEdgeFade,
+): Modifier = fadingEdges(
+    top = if (scrollState.canScrollBackward) top else 0.dp,
+    bottom = if (scrollState.canScrollForward) bottom else 0.dp,
+)
