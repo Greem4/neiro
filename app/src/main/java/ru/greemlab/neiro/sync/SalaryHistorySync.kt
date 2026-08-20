@@ -11,6 +11,7 @@ import ru.greemlab.neiro.data.SalaryLedger
 import ru.greemlab.neiro.data.SalaryLedgerStore
 import ru.greemlab.neiro.data.mergeFact
 import ru.greemlab.neiro.data.network.ApiResult
+import ru.greemlab.neiro.data.network.SalaryRatesFromApi
 import ru.greemlab.neiro.data.network.YClientsRepository
 import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.earningsContext
@@ -70,7 +71,7 @@ class SalaryHistorySync private constructor(context: Context) {
     suspend fun syncRecentMonths(today: LocalDate = LocalDate.now()): SalaryPullResult {
         val staffId = staffIdOrNull() ?: return SalaryPullResult.NoStaff
         ledgerStore.warmUp()
-        updateAutoProfileRates()
+        updateAutoProfileRates(today)
 
         val previousMonth = YearMonth.from(today).minusMonths(1)
         val previousFrozen = ledgerStore.ledger.value.month(staffId, previousMonth)?.frozen == true
@@ -91,7 +92,7 @@ class SalaryHistorySync private constructor(context: Context) {
     ): SalaryPullResult {
         val staffId = staffIdOrNull() ?: return SalaryPullResult.NoStaff
         ledgerStore.warmUp()
-        updateAutoProfileRates()
+        updateAutoProfileRates(today)
         return pull(staffId = staffId, from = from, to = today, today = today)
     }
 
@@ -173,21 +174,58 @@ class SalaryHistorySync private constructor(context: Context) {
     }
 
     /**
-     * АВТО-цены профиля из детализации последнего начисления (FOUNDATION 6.2).
+     * АВТО-цены профиля: ставки закрытого начисления (FOUNDATION 6.2) плюс
+     * ставка занятия из посуточного расчёта за дни после него.
+     *
+     * Двух источников не избежать. Начисление знает, чем занятие отличается от
+     * диагностики, но появляется только в конце месяца и весь идущий месяц
+     * отдаёт прошлую ставку — из-за этого 20.08.2026 в профиле стояли июльские
+     * 1400 при фактических 1500. Посуточный расчёт отстать не может, но видов
+     * работ не различает, поэтому цену занятия из него достаёт
+     * [sessionRateFromDailyFacts] — и только по дням, где заняты одни занятия.
      *
      * Живёт здесь, а не в календарном синке: тот вызывается и live-опросом,
      * который трогать нельзя. Ручные цены не переписываются никогда.
      */
-    private suspend fun updateAutoProfileRates() {
-        val rates = when (val result = repository.fetchLatestSalaryRates()) {
+    private suspend fun updateAutoProfileRates(today: LocalDate) {
+        val rates = when (val result = repository.fetchLatestSalaryRates(today)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> {
                 Log.w(TAG, "Ставки из начисления не получены (code=${result.code})")
-                return
+                SalaryRatesFromApi()
             }
         }
-        if (rates.isEmpty) return
-        calendarRepository.updateProfile { profile -> applyApiRatesToProfile(profile, rates) }
+        val dailyRate = latestDailySessionRate(today)
+        if (rates.isEmpty && dailyRate == null) return
+
+        // Одним обновлением: иначе профиль моргнёт прошлой ставкой, пока не
+        // доедет свежая.
+        calendarRepository.updateProfile { profile ->
+            applyDailyRateToProfile(
+                profile = applyApiRatesToProfile(profile, rates),
+                rate = dailyRate,
+                periodEnd = rates.periodEnd,
+            )
+        }
+    }
+
+    /**
+     * Ставка занятия из последнего дня, где YClients уже начислил, а работали
+     * одни занятия. Глубина [DAILY_RATE_DEPTH_DAYS] закрывает отпуск и
+     * новогодние каникулы, дальше смотреть смысла нет: там ставка уже своя.
+     */
+    private suspend fun latestDailySessionRate(today: LocalDate): DailySessionRate? {
+        val from = today.minusDays(DAILY_RATE_DEPTH_DAYS)
+        val facts = when (val result = repository.fetchSalaryDaily(from, today, today)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> {
+                Log.w(TAG, "Посуточный расчёт не получен (code=${result.code})")
+                return null
+            }
+        }
+        if (facts.isEmpty()) return null
+        val dayData = calendarRepository.dayDataFlow.first()
+        return sessionRateFromDailyFacts(facts = facts, dayData = dayData, today = today)
     }
 
     /**

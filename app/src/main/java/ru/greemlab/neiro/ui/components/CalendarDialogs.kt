@@ -56,6 +56,7 @@ import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.fadingScrollEdges
+import ru.greemlab.neiro.ui.util.pluralRu
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -308,7 +309,10 @@ fun ProfitDetailsDialog(
 
         if (display.showIntensiveEarnings && stats.intensiveEarnings > 0.0) {
             ProfitRow(
-                label = "Заработано интенсив",
+                label = pluralRu(
+                    stats.completedIntensivesCount,
+                    "Интенсив", "Интенсива", "Интенсивов",
+                ),
                 value = stats.intensiveEarnings,
                 color = MaterialTheme.colorScheme.onSurface,
                 icon = Icons.Rounded.Groups,
@@ -318,7 +322,10 @@ fun ProfitDetailsDialog(
 
         if (display.showDiagnosticsEarnings && stats.diagnosticsEarnings > 0.0) {
             ProfitRow(
-                label = "Заработано диагностика",
+                label = pluralRu(
+                    stats.completedDiagnosticsCount,
+                    "Диагностика", "Диагностики", "Диагностик",
+                ),
                 value = stats.diagnosticsEarnings,
                 color = MaterialTheme.colorScheme.onSurface,
                 icon = Icons.Rounded.School,

@@ -3,6 +3,7 @@ package ru.greemlab.neiro.sync
 import ru.greemlab.neiro.data.network.SalaryRatesFromApi
 import ru.greemlab.neiro.domain.models.PriceOrigin
 import ru.greemlab.neiro.domain.models.UserProfile
+import java.time.LocalDate
 
 /**
  * Переносит ставки из детализации начисления в профиль (FOUNDATION 6.1).
@@ -37,4 +38,27 @@ fun applyApiRatesToProfile(profile: UserProfile, rates: SalaryRatesFromApi): Use
     }
 
     return updated
+}
+
+/**
+ * Ставка занятия из посуточного расчёта — поверх ставки закрытого начисления.
+ *
+ * Начисление отстаёт на месяц: пока август идёт, единственное проведённое —
+ * июльское, и оно честно отдаёт июльскую ставку. Августовскую видно только по
+ * дням ([sessionRateFromDailyFacts]), поэтому свежий день главнее.
+ *
+ * Сравнение с [periodEnd] — не формальность: чистых дней в новом месяце может
+ * не оказаться вовсе (все с диагностиками), и тогда посуточный источник
+ * вернёт день из прошлого, чью ставку начисление уже уточнило.
+ */
+fun applyDailyRateToProfile(
+    profile: UserProfile,
+    rate: DailySessionRate?,
+    periodEnd: LocalDate? = null,
+): UserProfile {
+    if (rate == null || rate.pricePerSession <= 0.0) return profile
+    if (profile.sessionPriceOrigin != PriceOrigin.AUTO) return profile
+    if (periodEnd != null && !rate.date.isAfter(periodEnd)) return profile
+    if (rate.pricePerSession == profile.pricePerSession) return profile
+    return profile.copy(pricePerSession = rate.pricePerSession)
 }

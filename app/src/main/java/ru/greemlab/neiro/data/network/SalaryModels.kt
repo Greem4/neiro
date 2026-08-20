@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
+import java.time.LocalDate
 
 /**
  * Модели зарплатных ответов YClients (API-HOWTO 5.1 и 5.2).
@@ -146,6 +147,11 @@ data class SalaryCalculationSummary(
     val status: String?,
 ) {
     val isConfirmed: Boolean get() = status.equals("confirmed", ignoreCase = true)
+
+    /** Последний день периода начисления; `null`, если `date_to` не разобрался. */
+    fun periodEndOrNull(): LocalDate? = dateTo?.take(10)?.let { raw ->
+        runCatching { LocalDate.parse(raw) }.getOrNull()
+    }
 }
 
 /** Список начислений: `data` — массив. */
@@ -219,6 +225,12 @@ data class DayFact(
 data class SalaryRatesFromApi(
     val pricePerSession: Double? = null,
     val pricePerDiagnostics: Double? = null,
+    /**
+     * Последний день месяца, из начисления за который взяты ставки. По нему
+     * видно, насколько источник отстал: за дни после этой даты ставку знает
+     * только посуточный расчёт.
+     */
+    val periodEnd: LocalDate? = null,
 ) {
     val isEmpty: Boolean get() = pricePerSession == null && pricePerDiagnostics == null
 }
