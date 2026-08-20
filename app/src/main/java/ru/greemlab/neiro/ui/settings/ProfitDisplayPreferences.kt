@@ -38,6 +38,31 @@ class ProfitDisplayPreferences(context: Context) {
     // другой.
     private val defaults = ProfitDisplaySettings()
 
+    init {
+        turnOffLegacyOptIns()
+    }
+
+    /**
+     * Одноразово гасит «Налог за месяц» и «Стоимость одного занятия».
+     *
+     * `showTax` когда-то был включён по умолчанию, а [save] пишет все ключи
+     * разом — стоило один раз тронуть любой тумблер, и `true` уезжало в prefs
+     * навсегда. Смена значения по умолчанию такие установки уже не чинит, и
+     * строка продолжала появляться в диалоге «Финансы» сама по себе.
+     *
+     * Обе строки — служебные, для проверки расчётов, поэтому гасим их, а не
+     * пытаемся угадать, где значение осознанное. Флаг не даёт миграции
+     * повториться: включённое вручную после неё остаётся включённым.
+     */
+    private fun turnOffLegacyOptIns() {
+        if (prefs.getBoolean(KEY_LEGACY_OPT_INS_CLEARED, false)) return
+        prefs.edit()
+            .putBoolean(KEY_SHOW_TAX, false)
+            .putBoolean(KEY_SHOW_SESSION_PRICE, false)
+            .putBoolean(KEY_LEGACY_OPT_INS_CLEARED, true)
+            .apply()
+    }
+
     fun read(): ProfitDisplaySettings = ProfitDisplaySettings(
         showNetProfit = prefs.getBoolean(KEY_SHOW_NET, defaults.showNetProfit),
         showGrossEarned = prefs.getBoolean(KEY_SHOW_GROSS, defaults.showGrossEarned),
@@ -85,6 +110,7 @@ class ProfitDisplayPreferences(context: Context) {
         private const val KEY_SHOW_TOTAL = "show_total_profit"
         private const val KEY_EXPECTED_INCLUDES_NET = "expected_includes_net"
         private const val KEY_SHOW_DISCREPANCY = "show_discrepancy"
+        private const val KEY_LEGACY_OPT_INS_CLEARED = "legacy_opt_ins_cleared"
 
         @Volatile
         private var instance: ProfitDisplayPreferences? = null
