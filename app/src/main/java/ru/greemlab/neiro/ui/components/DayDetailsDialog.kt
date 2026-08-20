@@ -37,10 +37,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -52,7 +55,6 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ import ru.greemlab.neiro.ui.components.daydetails.buildIntensiveTimeSlotOptions
 import ru.greemlab.neiro.ui.components.daydetails.intensiveDefaultTimeSlot
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import androidx.compose.material.icons.rounded.Warning
+import ru.greemlab.neiro.ui.util.panelScrim
 import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.fadingEdges
@@ -250,73 +253,31 @@ private fun DayDetailsContent(
         buildIntensiveTimeSlotOptions(lessonTimes)
     }
 
-    Column(
+    // Шапка и нижняя панель лежат поверх ленты, а не отнимают у неё высоту:
+    // расписание уезжает под них и там растворяется в цвет фона — как
+    // закреплённое сообщение в Telegram. Высоты меряем, чтобы лента знала,
+    // сколько отступа положить внутрь прокрутки.
+    val density = LocalDensity.current
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    var footerHeightPx by remember { mutableIntStateOf(0) }
+    val headerHeight = with(density) { headerHeightPx.toDp() }
+    val footerHeight = with(density) { footerHeightPx.toDp() }
+    val panelColor = MaterialTheme.colorScheme.background
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(panelColor),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp)
-                .padding(top = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = dateText,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-
-                if (showPlanningMode) {
-                    IconButton(
-                        onClick = { isPlanningMode = !isPlanningMode },
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                    ) {
-                        Icon(
-                            imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
-                            contentDescription = "Режим редактирования",
-                            tint = if (isPlanningMode) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (archiveMismatch) {
-                ArchiveMismatchBanner(
-                    onClick = if (archiveMismatchDetails.isNotEmpty()) {
-                        { showArchiveMismatchDetails = true }
-                    } else {
-                        null
-                    },
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            StatsRow(stats = stats, date = date)
-
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
         // Список записей
         if (entries.isEmpty() && !isPlanningMode) {
             DayDetailsRefreshableSection(
                 isRefreshing = isRefreshing,
                 onRefresh = onRefresh,
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = headerHeight, bottom = footerHeight),
             ) {
                 EmptySchedule()
             }
@@ -349,9 +310,9 @@ private fun DayDetailsContent(
                 isRefreshing = isRefreshing,
                 onRefresh = if (allowStatusEdit) null else onRefresh,
                 onStudentStatusChange = handleStudentStatusChange,
+                contentPadding = PaddingValues(top = headerHeight, bottom = footerHeight),
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(horizontal = 16.dp),
             )
         } else {
@@ -365,11 +326,13 @@ private fun DayDetailsContent(
 
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(
+                    top = headerHeight + 4.dp,
+                    bottom = footerHeight + 4.dp,
+                ),
             ) {
                 items(
                     count = intensiveIndices.size,
@@ -434,22 +397,88 @@ private fun DayDetailsContent(
             }
         }
 
-        DayDetailsBottomBar(
-            isPlanningMode = isPlanningMode,
-            allowStatusEdit = allowStatusEdit,
-            isArchived = isArchived,
-            showArchiveAction = onStudentStatusChange == null || isArchived,
-            onArchiveClick = {
-                when {
-                    isArchived && archiveMismatch -> onRequestOverwriteArchive()
-                    allowStatusEdit && isArchived -> onUnarchive()
-                    isArchived -> onUnarchive()
-                    else -> onMoveToArchive()
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .onSizeChanged { headerHeightPx = it.height }
+                // Заливка идёт до самого верха, под строку состояния: иначе
+                // слот, уехавший под шапку, виден сквозь неё нетронутым.
+                .background(panelScrim(panelColor, fromTop = true))
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp)
+                .padding(top = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = dateText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+
+                if (showPlanningMode) {
+                    IconButton(
+                        onClick = { isPlanningMode = !isPlanningMode },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            imageVector = if (isPlanningMode) Icons.Rounded.History else Icons.Rounded.Edit,
+                            contentDescription = "Режим редактирования",
+                            tint = if (isPlanningMode) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
                 }
-            },
-            onDismiss = onDismiss,
-            onSave = { onSave(currentNames.toList()) },
-        )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (archiveMismatch) {
+                ArchiveMismatchBanner(
+                    onClick = if (archiveMismatchDetails.isNotEmpty()) {
+                        { showArchiveMismatchDetails = true }
+                    } else {
+                        null
+                    },
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            StatsRow(stats = stats, date = date)
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .onSizeChanged { footerHeightPx = it.height }
+                .background(panelScrim(panelColor, fromTop = false)),
+        ) {
+            DayDetailsBottomBar(
+                isPlanningMode = isPlanningMode,
+                allowStatusEdit = allowStatusEdit,
+                isArchived = isArchived,
+                showArchiveAction = onStudentStatusChange == null || isArchived,
+                onArchiveClick = {
+                    when {
+                        isArchived && archiveMismatch -> onRequestOverwriteArchive()
+                        allowStatusEdit && isArchived -> onUnarchive()
+                        isArchived -> onUnarchive()
+                        else -> onMoveToArchive()
+                    }
+                },
+                onDismiss = onDismiss,
+                onSave = { onSave(currentNames.toList()) },
+            )
+        }
     }
 
     if (showArchiveMismatchDetails) {
@@ -480,9 +509,8 @@ private fun DayDetailsBottomBar(
             .fillMaxWidth()
             .navigationBarsPadding(),
     ) {
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-        )
+        // Разделителя нет намеренно: панель отделяется от ленты мягкой заливкой
+        // (panelScrim), а линия поверх неё читалась бы как обрез списка.
         Row(
             modifier = Modifier
                 .fillMaxWidth()

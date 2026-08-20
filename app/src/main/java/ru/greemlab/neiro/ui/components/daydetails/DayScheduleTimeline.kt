@@ -72,6 +72,12 @@ fun DayScheduleTimeline(
     date: LocalDate,
     modifier: Modifier = Modifier,
     highlightSlotKey: String? = null,
+    /**
+     * Отступы под шапкой и нижней панелью, лежащими поверх расписания.
+     * Уходят внутрь прокрутки, а не наружу: слот должен уезжать под панель и
+     * там растворяться, а не упираться в её край.
+     */
+    contentPadding: PaddingValues = PaddingValues(),
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     onTopReachedChanged: (Boolean) -> Unit = {},
@@ -88,6 +94,11 @@ fun DayScheduleTimeline(
     val pxPerMinute = with(density) {
         (TimelineHourHeight * density.fontScale.coerceIn(1f, TimelineMaxFontScale) / 60).toPx()
     }
+    val topInset = contentPadding.calculateTopPadding()
+    val bottomInset = contentPadding.calculateBottomPadding()
+    // Прокрутка считается по содержимому, а верхний отступ — его часть: без
+    // поправки автоскролл к «сейчас» уводил линию под шапку.
+    val topInsetPx = with(density) { topInset.toPx() }
 
     val onStudentClick = remember(context) {
         { name: String ->
@@ -101,7 +112,7 @@ fun DayScheduleTimeline(
         val target = currentLayout.positioned.firstOrNull { it.matchesHighlight(key, date) } ?: return@LaunchedEffect
         delay(80.milliseconds)
         val offsetMinutes = minutesFromAxisStart(currentLayout.axisStart, target.layoutAppointment.start)
-        val scrollTarget = ((offsetMinutes * pxPerMinute) - with(density) { 72.dp.toPx() })
+        val scrollTarget = ((offsetMinutes * pxPerMinute) + topInsetPx - with(density) { 72.dp.toPx() })
             .toInt()
             .coerceAtLeast(0)
         scrollState.animateScrollTo(
@@ -125,7 +136,7 @@ fun DayScheduleTimeline(
         val nowLinePx = minutesFromAxisStart(currentLayout.axisStart, now) * pxPerMinute
         val viewportPx = scrollState.viewportSize.takeIf { it > 0 }
             ?: with(density) { TimelineViewportMaxHeight.toPx() }.toInt()
-        val scrollTarget = (nowLinePx - viewportPx / 2f)
+        val scrollTarget = (nowLinePx + topInsetPx - viewportPx / 2f)
             .toInt()
             .coerceIn(0, scrollState.maxValue)
         scrollState.animateScrollTo(
@@ -190,7 +201,13 @@ fun DayScheduleTimeline(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState),
+                        .verticalScroll(scrollState)
+                        // padding после verticalScroll — значит внутри ленты:
+                        // отступ прокручивается вместе с ней.
+                        .padding(
+                            top = topInset,
+                            bottom = if (untimedEntries.isEmpty()) bottomInset else 0.dp,
+                        ),
                 ) {
                 Row(
                     modifier = Modifier
@@ -368,6 +385,7 @@ fun DayScheduleTimeline(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(bottomInset))
         }
     }
 }
