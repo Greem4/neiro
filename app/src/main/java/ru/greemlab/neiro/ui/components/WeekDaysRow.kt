@@ -28,7 +28,7 @@ fun WeekDaysRow() {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val weekdayColor = MaterialTheme.colorScheme.onSurfaceVariant
-        val weekendColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+        val weekendColor = MaterialTheme.colorScheme.tertiary
         WEEK_DAYS.forEachIndexed { index, day ->
             Text(
                 text = day,

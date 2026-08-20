@@ -49,7 +49,6 @@ import java.time.LocalTime
 import kotlin.time.Duration.Companion.milliseconds
 
 private val NowLineRed = Color(0xFFE53935)
-private val HourLabelColor = Color(0xFF9E9E9E)
 
 /** Высота одного часа на шкале при системном шрифте 100%. */
 private val TimelineHourHeight: Dp = 72.dp
@@ -392,7 +391,7 @@ private fun TimelineTimeAxis(
             Text(
                 text = formatHourLabel(hour),
                 style = MaterialTheme.typography.labelSmall,
-                color = HourLabelColor,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(y = topOffset)
@@ -511,6 +510,9 @@ private fun computeSlotGeometry(
     val appt = positioned.layoutAppointment
     val offsetMinutes = minutesFromAxisStart(layout.axisStart, appt.start)
     val durationMinutes = Duration.between(appt.start, appt.end).toMinutes().toInt()
+    // Стандартное занятие (50 минут) визуально чуть растягивается: без этого
+    // запаса соседние слоты вплотную слипались и роспись читалась сплошной
+    // полосой. На нестандартную длительность запас не действует.
     val visualDurationMinutes = when {
         durationMinutes in (SESSION_DURATION_MINUTES - 2)..(SESSION_DURATION_MINUTES + 2) ->
             durationMinutes + 8

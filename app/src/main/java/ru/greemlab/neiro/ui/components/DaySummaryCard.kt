@@ -31,10 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.LocalGlassEnabled
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.glassBorder
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
@@ -109,6 +108,7 @@ private fun DaySummaryCard(
     // Со стеклом плашка почти растворяется в фоне и получает блик по краю;
     // без стекла всё как было.
     val glass = LocalGlassEnabled.current
+    val semanticColors = neiroSemanticColors
     val cardShape = RoundedCornerShape(14.dp)
     val containerAlpha = if (glass) DaySummaryGlassAlpha else 0.35f
 
@@ -158,7 +158,7 @@ private fun DaySummaryCard(
                 )
                 DaySummaryMetric(
                     icon = Icons.Rounded.CheckCircle,
-                    tint = ScheduleHeaderGreen,
+                    tint = semanticColors.scheduleHeader,
                     value = if (stats.totalLessons > 0) {
                         "${stats.attendedLessons}/${stats.totalLessons}"
                     } else "0",
@@ -168,7 +168,7 @@ private fun DaySummaryCard(
                 if (showIntensiveMetric) {
                     DaySummaryMetric(
                         icon = Icons.Rounded.Groups,
-                        tint = Color(0xFFE53935),
+                        tint = MaterialTheme.colorScheme.error,
                         value = intensiveConductedText,
                         label = "интенсив",
                         modifier = Modifier.weight(1f),
@@ -183,15 +183,15 @@ private fun DaySummaryCard(
                 DayMoneyCard(
                     label = "Заработано",
                     amountText = earnedText,
-                    amountColor = ScheduleHeaderGreen,
-                    background = ScheduleHeaderGreen.copy(alpha = 0.14f),
+                    amountColor = semanticColors.scheduleHeader,
+                    background = semanticColors.scheduleHeader.copy(alpha = 0.14f),
                     modifier = Modifier.weight(1f),
                 )
                 DayMoneyCard(
                     label = "Ожидается",
                     amountText = expectedText,
-                    amountColor = ExpectedAmber,
-                    background = ExpectedAmber.copy(alpha = 0.16f),
+                    amountColor = semanticColors.expected,
+                    background = semanticColors.expected.copy(alpha = 0.16f),
                     muted = stats.expected <= 0.0,
                     modifier = Modifier.weight(1f),
                 )

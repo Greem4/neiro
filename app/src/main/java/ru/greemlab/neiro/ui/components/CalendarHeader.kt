@@ -43,9 +43,9 @@ import java.time.YearMonth
  */
 object CalendarHeaderLayout {
     val rowStartPadding: Dp = 12.dp
-    val rowEndPadding: Dp = 4.dp
+    val rowEndPadding: Dp = 12.dp
     val rowVerticalPadding: Dp = 6.dp
-    val rowHeight: Dp = 44.dp
+    val rowHeight: Dp = 48.dp
 
     val logoSize: Dp = 36.dp
 
@@ -130,7 +130,9 @@ fun CalendarHeader(
                         .width(CalendarHeaderLayout.monthTitleWidth)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(onClick = onMonthTitleClick)
-                        .padding(vertical = 4.dp),
+                        // Вертикальный padding расширяет зону нажатия до ~48dp,
+                        // не раздувая сам текст.
+                        .padding(vertical = 12.dp),
                 )
 
                 IconButton(
@@ -205,7 +207,7 @@ private fun UnreadCountBadge(
                 minWidth = CalendarHeaderLayout.badgeMinSize,
                 minHeight = CalendarHeaderLayout.badgeMinSize,
             )
-            .background(Color.Red, RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.error, RoundedCornerShape(50))
             .padding(horizontal = CalendarHeaderLayout.badgeHorizontalPadding),
         contentAlignment = Alignment.Center,
     ) {
@@ -216,7 +218,7 @@ private fun UnreadCountBadge(
                 lineHeight = CalendarHeaderLayout.badgeLineHeight,
                 fontWeight = FontWeight.Bold,
             ),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onError,
             maxLines = 1,
             textAlign = TextAlign.Center,
         )

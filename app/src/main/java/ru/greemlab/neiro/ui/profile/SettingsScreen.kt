@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.UserProfile
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.components.DayChip
 import ru.greemlab.neiro.ui.settings.SettingsGroupCard
 import ru.greemlab.neiro.ui.settings.SettingsSwitchRow
@@ -392,14 +392,14 @@ private fun YClientsAccountSection(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = null,
-                                tint = ScheduleHeaderGreen,
+                                tint = neiroSemanticColors.scheduleHeader,
                                 modifier = Modifier.size(14.dp),
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Подключено",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = ScheduleHeaderGreen,
+                                color = neiroSemanticColors.scheduleHeader,
                             )
                         }
                     }

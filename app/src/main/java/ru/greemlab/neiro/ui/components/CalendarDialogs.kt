@@ -26,8 +26,8 @@ import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.domain.models.CalendarMonthStats
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.DialogEdgeFade
@@ -140,7 +140,7 @@ fun LessonsDetailsDialog(
                 if (stats.completedIntensives.isNotEmpty()) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     Text(
-                        text = "Проведенные интенсивы (${stats.completedIntensivesCount}):",
+                        text = "Проведённые интенсивы (${stats.completedIntensivesCount}):",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
@@ -150,7 +150,7 @@ fun LessonsDetailsDialog(
                         val dateStr = intensive.date.format(DateTimeFormatter.ofPattern("d MMMM", RU_LOCALE))
                         val name = intensive.name.ifBlank { "Интенсив" }
                         Text(
-                            text = "• $name №${index + 1} проведен $dateStr",
+                            text = "• $name №${index + 1} проведён $dateStr",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -208,7 +208,7 @@ fun ProfitDetailsDialog(
                     ProfitRow(
                         label = "Чистый доход",
                         value = stats.netProfit,
-                        color = ScheduleHeaderGreen,
+                        color = neiroSemanticColors.scheduleHeader,
                         isBold = true,
                     )
                 }
@@ -272,7 +272,7 @@ fun ProfitDetailsDialog(
                     ProfitRow(
                         label = "Всего",
                         value = stats.netProfit + stats.expectedIncome,
-                        color = ScheduleHeaderGreen,
+                        color = neiroSemanticColors.scheduleHeader,
                         isBold = true,
                     )
                 }
@@ -328,7 +328,7 @@ private fun SalarySummaryPlaque(
             )
             if (showBreakdown) {
                 Column(
-                    modifier = Modifier.padding(start = 10.dp),
+                    modifier = Modifier.padding(start = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     if (salaryAdvanceOnCard > 0.0) {
@@ -352,13 +352,13 @@ private fun SalarySummaryPlaque(
                 }
             }
             HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 modifier = Modifier.padding(vertical = 2.dp),
             )
             ProfitRow(
                 label = "Зарплата на руки",
                 value = salaryInHand,
-                color = ScheduleHeaderGreen,
+                color = neiroSemanticColors.scheduleHeader,
                 isBold = true,
             )
         }

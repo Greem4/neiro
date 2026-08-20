@@ -99,9 +99,10 @@ fun AttendanceStatusReadOnlyIcon(
     onClick: (() -> Unit)? = null,
 ) {
     val indicatorColor = AttendanceStatusVisuals.indicatorColor(status, isDiagnostics)
-    Surface(
+    // Кликабельная зона 48dp (Material a11y); видимый круг остаётся 24dp.
+    Box(
         modifier = modifier
-            .size(24.dp)
+            .size(48.dp)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -113,16 +114,21 @@ fun AttendanceStatusReadOnlyIcon(
                     Modifier
                 },
             ),
-        shape = CircleShape,
-        color = Color.White,
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = AttendanceStatusVisuals.icon(status),
-                contentDescription = null,
-                tint = indicatorColor,
-                modifier = Modifier.size(16.dp),
-            )
+        Surface(
+            modifier = Modifier.size(24.dp),
+            shape = CircleShape,
+            color = Color.White,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = AttendanceStatusVisuals.icon(status),
+                    contentDescription = null,
+                    tint = indicatorColor,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }

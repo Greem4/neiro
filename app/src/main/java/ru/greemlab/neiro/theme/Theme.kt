@@ -8,7 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -27,8 +27,12 @@ private val DarkColorScheme = darkColorScheme(
     tertiaryContainer = TertiaryContainerDark,
     onTertiaryContainer = OnTertiaryContainerDark,
     error = ErrorDark,
-    onBackground = Color.White,
-    onSurface = Color.White,
+    onBackground = OnSurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -47,8 +51,12 @@ private val LightColorScheme = lightColorScheme(
     tertiaryContainer = TertiaryContainerLight,
     onTertiaryContainer = OnTertiaryContainerLight,
     error = ErrorLight,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
+    onBackground = OnSurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
 )
 
 /**
@@ -78,6 +86,11 @@ fun NeiroTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(
+            LocalNeiroSemanticColors provides if (darkTheme) DarkSemanticColors else LightSemanticColors,
+        ) {
+            content()
+        }
+    }
 }

@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -65,11 +66,9 @@ import androidx.compose.ui.Alignment
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
-import ru.greemlab.neiro.theme.ExpectedAmber
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
-import ru.greemlab.neiro.theme.StatusExpectedMint
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -301,7 +300,7 @@ private fun DayDetailsContent(
                         null
                     },
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             StatsRow(stats = stats, date = date)
@@ -461,6 +460,7 @@ private fun DayDetailsContent(
     }
 }
 
+// Тач-зона кнопок нижней панели — минимум 48dp (Material a11y).
 private val DayDetailsBottomBarButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
 
 @Composable
@@ -498,7 +498,7 @@ private fun DayDetailsBottomBar(
                         },
                     ),
                     contentPadding = DayDetailsBottomBarButtonPadding,
-                    modifier = Modifier.defaultMinSize(minHeight = 36.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Storage,
@@ -522,7 +522,7 @@ private fun DayDetailsBottomBar(
             TextButton(
                 onClick = onDismiss,
                 contentPadding = DayDetailsBottomBarButtonPadding,
-                modifier = Modifier.defaultMinSize(minHeight = 36.dp),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             ) {
                 Text(
                     text = "Закрыть",
@@ -536,7 +536,7 @@ private fun DayDetailsBottomBar(
                     onClick = onSave,
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    modifier = Modifier.defaultMinSize(minHeight = 36.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
                     Text("Сохранить", fontWeight = FontWeight.Bold)
                 }
@@ -547,6 +547,7 @@ private fun DayDetailsBottomBar(
 
 @Composable
 private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
+    val semantic = neiroSemanticColors
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(onClick = onClick)
     } else {
@@ -557,7 +558,7 @@ private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
             .fillMaxWidth()
             .then(clickableModifier),
         shape = RoundedCornerShape(12.dp),
-        color = ExpectedAmber.copy(alpha = 0.14f),
+        color = semantic.expected.copy(alpha = 0.14f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -566,7 +567,7 @@ private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
             Icon(
                 imageVector = Icons.Rounded.Warning,
                 contentDescription = null,
-                tint = ExpectedAmber,
+                tint = semantic.expected,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(10.dp))
@@ -580,7 +581,7 @@ private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = stringResource(R.string.archive_sync_mismatch_banner_cd),
-                    tint = ExpectedAmber,
+                    tint = semantic.expected,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -649,6 +650,7 @@ private fun updateIntensiveAt(
  */
 @Composable
 private fun StatsRow(stats: DayStats, date: LocalDate) {
+    val semantic = neiroSemanticColors
     val today = remember { LocalDate.now() }
     val isFuture = date.isAfter(today)
     val noLessonsStarted = stats.arrivedCount == 0
@@ -667,13 +669,13 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Подтверждено",
                     value = stats.confirmedCount.toString(),
-                    color = ExpectedAmber,
+                    color = semantic.expected,
                     modifier = Modifier.weight(1f),
                 )
                 StatBadge(
                     label = "Ожидают",
                     value = stats.expectedCount.toString(),
-                    color = StatusExpectedMint,
+                    color = semantic.statusExpected,
                     modifier = Modifier.weight(1f),
                 )
             } else {
@@ -687,7 +689,7 @@ private fun StatsRow(stats: DayStats, date: LocalDate) {
                 StatBadge(
                     label = "Итог",
                     value = formatRubles(stats.totalMoney),
-                    color = ScheduleHeaderGreen,
+                    color = semantic.scheduleHeader,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -719,12 +721,19 @@ private fun StatBadge(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = color.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = " $value",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Black,
                 color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // weight без fill: длинная сумма обрезается эллипсисом,
+                // а не раздувает бейдж на узком экране.
+                modifier = Modifier.weight(1f, fill = false),
             )
         }
     }

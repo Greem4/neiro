@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -36,9 +37,9 @@ import androidx.compose.ui.window.DialogProperties
 import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.LocalGlassEnabled
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.intensiveChildrenLabel
@@ -79,6 +80,7 @@ private fun IntensiveDetailsCard(
 ) {
     val today = LocalDate.now()
     val isFutureFar = date.isAfter(today.plusDays(1))
+    val semantic = neiroSemanticColors
 
     val timeLabel = formatIntensiveTimeLabel(time)
     val arrivedCount = children.count { it.status == AttendanceStatus.ARRIVED }
@@ -174,6 +176,8 @@ private fun IntensiveDetailsCard(
                     text = "Интенсив · $countLabel",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -184,8 +188,10 @@ private fun IntensiveDetailsCard(
                         amountLabel?.let { append(" · $it") }
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = ScheduleHeaderGreen,
+                    color = semantic.scheduleHeader,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 

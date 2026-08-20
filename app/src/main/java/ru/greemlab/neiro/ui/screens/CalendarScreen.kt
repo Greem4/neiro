@@ -43,10 +43,11 @@ import ru.greemlab.neiro.domain.models.EarningsContext
 import ru.greemlab.neiro.domain.models.earningsContext
 import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.LocalGlassEnabled
+import ru.greemlab.neiro.theme.MutedSurfaceAlpha
 import ru.greemlab.neiro.theme.NeiroTheme
-import ru.greemlab.neiro.theme.ScheduleHeaderGreen
 import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
+import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
@@ -757,7 +758,7 @@ fun CalendarScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha),
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
@@ -828,7 +829,7 @@ fun CalendarScreenContent(
                 ExtendedFloatingActionButton(
                     onClick = onTodayClick,
                     modifier = Modifier
-                        .heightIn(min = 40.dp)
+                        .heightIn(min = 48.dp)
                         .glassBorder(todayShape),
                     containerColor = if (glass) {
                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = TodayButtonGlassAlpha)
@@ -961,7 +962,7 @@ private fun MonthOverviewCard(
                     label = "Прибыль",
                     value = profitValue,
                     icon = Icons.Rounded.Payments,
-                    color = ScheduleHeaderGreen,
+                    color = neiroSemanticColors.scheduleHeader,
                     modifier = Modifier.weight(1f),
                     onClick = onProfitClick,
                 )
