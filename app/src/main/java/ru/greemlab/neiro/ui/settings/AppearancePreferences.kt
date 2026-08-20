@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * Живёт в отдельных prefs, а не в DataStore рядом с темой: тема уезжает в
  * синхронизацию и экспорт, а вид поверхностей — местная настройка телефона.
  *
- * Стеклянный вид по умолчанию выключен — у того, кто ничего не трогал, всё
- * остаётся как было.
+ * Стеклянный вид включён по умолчанию: приложение с ним и задумано, и первый
+ * запуск должен показать его сразу. Дефолт срабатывает только пока ключа в
+ * prefs нет — стоит переключить тумблер, и дальше решает выбор пользователя:
+ * выключил стекло — оно остаётся выключенным.
  */
 class AppearancePreferences(context: Context) {
 
@@ -33,7 +35,7 @@ class AppearancePreferences(context: Context) {
     companion object {
         private const val PREFS_NAME = "neiro_appearance_prefs"
         private const val KEY_GLASS = "glass_surfaces"
-        private const val DEFAULT_GLASS = false
+        private const val DEFAULT_GLASS = true
 
         @Volatile
         private var instance: AppearancePreferences? = null
