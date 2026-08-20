@@ -50,6 +50,7 @@ import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.theme.glassDividerColor
 import ru.greemlab.neiro.theme.glassNestedSurfaceColor
+import ru.greemlab.neiro.theme.glassReadingSurfaceColor
 import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.getMonthName
 import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
@@ -65,6 +66,9 @@ import java.time.format.DateTimeFormatter
  */
 private val StatsDialogMaxWidth: Dp = 560.dp
 private val StatsDialogProperties = DialogProperties(usePlatformDefaultWidth = false)
+
+/** Скругление плашки с телом диалога: мягче панели (28dp), крупнее вложенных (14dp). */
+private val BodyPlaqueCornerRadius: Dp = 20.dp
 
 private val StatsDialogModifier: Modifier
     get() = Modifier
@@ -101,9 +105,11 @@ private fun StatsDialogScaffold(
             color = glassContainerColor(),
         ) {
             Column(
+                // Поля панели сняты до 16dp: тело диалога теперь лежит в своей
+                // плашке, и её внутренние 12dp добирают отступ до прежних 24dp.
                 modifier = Modifier.padding(
-                    start = 24.dp,
-                    end = 24.dp,
+                    start = 16.dp,
+                    end = 16.dp,
                     top = 24.dp,
                     bottom = 12.dp,
                 ),
@@ -112,6 +118,8 @@ private fun StatsDialogScaffold(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
+                    // Заголовок и «Закрыть» равняются по краю панели, а не по плашке.
+                    modifier = Modifier.padding(horizontal = 8.dp),
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -119,22 +127,40 @@ private fun StatsDialogScaffold(
                 // Растворение краёв — только когда список правда уезжает под край.
                 // Безусловное гасило первую строку и там, где прокручивать нечего.
                 val scrollState = rememberScrollState()
-                Column(
-                    // Скролл: при крупном системном шрифте контент выше диалога, и
-                    // без него нижние строки просто обрезало бы.
+                // Тело диалога — плашка формы зарплатной сводки, но заливка
+                // обратная: она гасит календарь под цифрами, чтобы пёстрый фон
+                // не тянул взгляд с сумм.
+                val bodyShape = RoundedCornerShape(BodyPlaqueCornerRadius)
+                Card(
                     // weight без fill: короткий список занимает свою высоту, длинный
-                    // упирается в экран и начинает прокручиваться.
+                    // упирается в экран и прокручивается внутри плашки.
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .verticalScroll(scrollState)
-                        .fadingScrollEdges(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    content = content,
-                )
+                        .glassBorder(bodyShape),
+                    shape = bodyShape,
+                    colors = CardDefaults.cardColors(containerColor = glassReadingSurfaceColor()),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                ) {
+                    Column(
+                        // Скролл: при крупном системном шрифте контент выше диалога, и
+                        // без него нижние строки просто обрезало бы.
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .fadingScrollEdges(scrollState)
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        content = content,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) { Text("Закрыть") }

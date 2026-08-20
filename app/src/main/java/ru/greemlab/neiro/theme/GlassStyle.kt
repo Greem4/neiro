@@ -137,6 +137,32 @@ private const val GLASS_NESTED_DARK_ALPHA = 0.07f
 private const val GLASS_NESTED_LIGHT_ALPHA = 0.05f
 
 /**
+ * Плашка под блоком цифр — не подсветка группы, а глушитель фона.
+ *
+ * Панель диалога пропускает календарь под собой, и пёстрое пятно за суммами
+ * тянет взгляд на себя. Здесь поверх панели кладётся ещё один слой `surface`:
+ * вместе они дают почти непрозрачный фон (0.82 + 0.6 ≈ 0.93), фон под цифрами
+ * гаснет, а стекло остаётся видно по краям панели и за заголовком.
+ *
+ * Без стекла гасить нечего — панель и так непрозрачная, и плашка остаётся
+ * прежним приглушённым блоком, только чтобы отделить группу.
+ */
+@Composable
+fun glassReadingSurfaceColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    if (!LocalGlassEnabled.current) {
+        return scheme.surfaceVariant.copy(alpha = MutedSurfaceAlpha)
+    }
+    val dark = scheme.surface.luminance() < 0.5f
+    return scheme.surface.copy(
+        alpha = if (dark) GLASS_READING_DARK_ALPHA else GLASS_READING_LIGHT_ALPHA,
+    )
+}
+
+private const val GLASS_READING_DARK_ALPHA = 0.60f
+private const val GLASS_READING_LIGHT_ALPHA = 0.64f
+
+/**
  * Разделитель внутри стеклянной панели.
  *
  * `outlineVariant` рассчитан на непрозрачную поверхность и на просвечивающем
