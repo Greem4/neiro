@@ -53,6 +53,7 @@ import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.CalendarMode
 import ru.greemlab.neiro.ui.calendar.CalendarViewModel
+import ru.greemlab.neiro.ui.calendar.DaySummaryStats
 import ru.greemlab.neiro.ui.calendar.computeDayStats
 import ru.greemlab.neiro.ui.calendar.rememberMonthEarnings
 import ru.greemlab.neiro.ui.components.*
@@ -91,6 +92,10 @@ private sealed interface CalendarOverlay {
     data object About : CalendarOverlay
     data object LessonsDetails : CalendarOverlay
     data object DayDetails : CalendarOverlay
+    data object DayLessons : CalendarOverlay
+    data object DayConducted : CalendarOverlay
+    data object DayEarned : CalendarOverlay
+    data object DayExpected : CalendarOverlay
     data object Notifications : CalendarOverlay
 }
 
@@ -106,6 +111,10 @@ private val CalendarOverlay.isGlassDialogAboveCalendar: Boolean
         CalendarOverlay.ProfitDetails,
         CalendarOverlay.LessonsDetails,
         CalendarOverlay.DayDetails,
+        CalendarOverlay.DayLessons,
+        CalendarOverlay.DayConducted,
+        CalendarOverlay.DayEarned,
+        CalendarOverlay.DayExpected,
         CalendarOverlay.Notifications -> true
 
         else -> false
@@ -258,6 +267,12 @@ fun CalendarScreen(
     val selectedDayFact = remember(salaryLedger, salaryStaffId, selectedDate) {
         selectedDate?.let { salaryLedger.dayFact(salaryStaffId, it) }
     }
+    val daySummaryStats = rememberDaySummaryStats(
+        selectedDate = selectedDate,
+        sessions = selectedDayContext?.effective.orEmpty(),
+        rates = rates,
+        dayFact = selectedDayFact,
+    )
 
     val context = LocalContext.current
     val activeNotificationStore = remember(context) { InAppNotificationStore.get(context) }
@@ -435,6 +450,10 @@ fun CalendarScreen(
                             CalendarOverlay.RegistrationPrompt
                         }
                     },
+                    onDayLessonsClick = { overlay = CalendarOverlay.DayLessons },
+                    onDayConductedClick = { overlay = CalendarOverlay.DayConducted },
+                    onDayEarnedClick = { overlay = CalendarOverlay.DayEarned },
+                    onDayExpectedClick = { overlay = CalendarOverlay.DayExpected },
                     onNotificationsClick = { overlay = CalendarOverlay.Notifications },
                     unreadNotificationCount = unreadNotificationCount,
                 )
@@ -564,6 +583,38 @@ fun CalendarScreen(
             onDismiss = { overlay = CalendarOverlay.None },
         )
 
+        is CalendarOverlay.DayLessons -> DayTileDialogHost(
+            date = selectedDate,
+            stats = daySummaryStats,
+            onDismiss = { overlay = CalendarOverlay.None },
+        ) { date, dayStats, dismiss ->
+            DayLessonsDialog(date = date, stats = dayStats, onDismiss = dismiss)
+        }
+
+        is CalendarOverlay.DayConducted -> DayTileDialogHost(
+            date = selectedDate,
+            stats = daySummaryStats,
+            onDismiss = { overlay = CalendarOverlay.None },
+        ) { date, dayStats, dismiss ->
+            DayConductedDialog(date = date, stats = dayStats, onDismiss = dismiss)
+        }
+
+        is CalendarOverlay.DayEarned -> DayTileDialogHost(
+            date = selectedDate,
+            stats = daySummaryStats,
+            onDismiss = { overlay = CalendarOverlay.None },
+        ) { date, dayStats, dismiss ->
+            DayEarnedDialog(date = date, stats = dayStats, onDismiss = dismiss)
+        }
+
+        is CalendarOverlay.DayExpected -> DayTileDialogHost(
+            date = selectedDate,
+            stats = daySummaryStats,
+            onDismiss = { overlay = CalendarOverlay.None },
+        ) { date, dayStats, dismiss ->
+            DayExpectedDialog(date = date, stats = dayStats, onDismiss = dismiss)
+        }
+
         is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(
             currentMonth = currentMonth,
             stats = stats,
@@ -663,6 +714,10 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             CalendarOverlay.About -> "about"
             CalendarOverlay.LessonsDetails -> "lessons"
             CalendarOverlay.DayDetails -> "day"
+            CalendarOverlay.DayLessons -> "day_lessons"
+            CalendarOverlay.DayConducted -> "day_conducted"
+            CalendarOverlay.DayEarned -> "day_earned"
+            CalendarOverlay.DayExpected -> "day_expected"
             CalendarOverlay.Notifications -> "notifications"
         }
     },
@@ -679,11 +734,53 @@ private val OverlaySaver = Saver<CalendarOverlay, String>(
             "about" -> CalendarOverlay.About
             "lessons" -> CalendarOverlay.LessonsDetails
             "day" -> CalendarOverlay.DayDetails
+            "day_lessons" -> CalendarOverlay.DayLessons
+            "day_conducted" -> CalendarOverlay.DayConducted
+            "day_earned" -> CalendarOverlay.DayEarned
+            "day_expected" -> CalendarOverlay.DayExpected
             "notifications" -> CalendarOverlay.Notifications
             else -> CalendarOverlay.None
         }
     },
 )
+
+/**
+ * Диалог плитки дня живёт, пока жив сам день.
+ *
+ * Дата и сводка приходят из одного источника, так что пустыми они бывают
+ * только вместе — и только когда дня правда нет: после смерти процесса или
+ * пока профиль не настроен. Разбор дня без дня показывать нечего.
+ */
+@Composable
+private fun DayTileDialogHost(
+    date: LocalDate?,
+    stats: DaySummaryStats?,
+    onDismiss: () -> Unit,
+    content: @Composable (LocalDate, DaySummaryStats, () -> Unit) -> Unit,
+) {
+    if (date == null || stats == null) {
+        LaunchedEffect(Unit) { onDismiss() }
+        return
+    }
+    content(date, stats, onDismiss)
+}
+
+/**
+ * Сводка выбранного дня.
+ *
+ * Считается в двух местах — в плашке дня и в её диалогах, — поэтому живёт
+ * отдельной функцией: аргументы одни, и разойтись цифрам негде.
+ */
+@Composable
+private fun rememberDaySummaryStats(
+    selectedDate: LocalDate?,
+    sessions: List<String>,
+    rates: EarningsContext,
+    dayFact: Double?,
+): DaySummaryStats? = remember(selectedDate, sessions, rates, dayFact) {
+    if (selectedDate == null) return@remember null
+    computeDayStats(sessions, rates, dayFact)
+}
 
 /**
  * Чистый UI календарного экрана (без drawer и overlay).
@@ -720,13 +817,19 @@ fun CalendarScreenContent(
     onDateClick: (LocalDate) -> Unit,
     onProfitClick: () -> Unit = {},
     onLessonsClick: () -> Unit = {},
+    onDayLessonsClick: () -> Unit = {},
+    onDayConductedClick: () -> Unit = {},
+    onDayEarnedClick: () -> Unit = {},
+    onDayExpectedClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
 ) {
-    val daySummaryStats = remember(selectedDate, selectedDaySessions, rates, selectedDayFact) {
-        if (selectedDate == null) return@remember null
-        computeDayStats(selectedDaySessions, rates, selectedDayFact)
-    }
+    val daySummaryStats = rememberDaySummaryStats(
+        selectedDate = selectedDate,
+        sessions = selectedDaySessions,
+        rates = rates,
+        dayFact = selectedDayFact,
+    )
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
     val scrollableState = rememberScrollableState { 0f }
@@ -800,6 +903,10 @@ fun CalendarScreenContent(
                                     DaySummarySlot(
                                         date = selectedDate,
                                         stats = daySummaryStats,
+                                        onLessonsClick = onDayLessonsClick,
+                                        onConductedClick = onDayConductedClick,
+                                        onEarnedClick = onDayEarnedClick,
+                                        onExpectedClick = onDayExpectedClick,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                 }

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.School
@@ -37,7 +36,6 @@ import ru.greemlab.neiro.theme.NeiroSurfaceAlpha
 import ru.greemlab.neiro.theme.glassBorder
 import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
-import ru.greemlab.neiro.ui.calendar.formatIntensiveConductedLabel
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.formatDayMonth
 import ru.greemlab.neiro.ui.util.formatRubles
@@ -73,6 +71,12 @@ private val DaySummaryHeaderRowHeight: Dp = 26.dp
  * ([NeiroSurfaceAlpha]): день стоит на ступень выше панели вкладок, плитки —
  * ещё на ступень выше дня. Раньше плашка бралась от `background` и на амоледе
  * проваливалась в чёрный.
+ *
+ * Плиток всегда четыре, по две в ряду. Интенсив когда-то вставал третьей
+ * плиткой в верхний ряд, и подписи в нём ужимались до «заня…», «пров…»,
+ * «инте…»: чип с иконкой съедает половину узкой плитки. Теперь интенсив
+ * живёт внутри разбора, который открывается нажатием на плитку. В счётчик
+ * занятий он не входит — интенсив не занятие.
  */
 /** Заливка чипа под иконкой — та же доля акцента, что у плиток шапки месяца. */
 private const val DayChipAlpha = 0.14f
@@ -92,10 +96,18 @@ fun DaySummarySlot(
     date: LocalDate,
     stats: DaySummaryStats,
     modifier: Modifier = Modifier,
+    onLessonsClick: () -> Unit = {},
+    onConductedClick: () -> Unit = {},
+    onEarnedClick: () -> Unit = {},
+    onExpectedClick: () -> Unit = {},
 ) {
     DaySummaryCard(
         date = date,
         stats = stats,
+        onLessonsClick = onLessonsClick,
+        onConductedClick = onConductedClick,
+        onEarnedClick = onEarnedClick,
+        onExpectedClick = onExpectedClick,
         modifier = modifier
             .fillMaxWidth()
             .height(daySummarySlotHeight),
@@ -106,6 +118,10 @@ fun DaySummarySlot(
 private fun DaySummaryCard(
     date: LocalDate,
     stats: DaySummaryStats,
+    onLessonsClick: () -> Unit,
+    onConductedClick: () -> Unit,
+    onEarnedClick: () -> Unit,
+    onExpectedClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dateLabel = remember(date) {
@@ -115,17 +131,18 @@ private fun DaySummaryCard(
     }
     val earnedText = remember(stats.earned) { formatRubles(stats.earned) }
     val expectedText = remember(stats.expected) { formatRubles(stats.expected) }
-    val intensiveConductedText = remember(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren) {
-        formatIntensiveConductedLabel(stats.confirmedIntensiveChildren, stats.pendingIntensiveChildren)
-    }
-    val showIntensiveMetric = stats.hasIntensive
 
+    // Интенсив занятием не считается: день с одним интенсивом честно
+    // показывает «занятий 0», а сам интенсив ждёт в разборе по нажатию.
     val lessonsValue = remember(stats) {
         if (stats.pendingLessons > 0) {
             "${stats.confirmedLessons + stats.attendedLessons}/${stats.pendingLessons}"
         } else {
             stats.totalLessons.toString()
         }
+    }
+    val conductedValue = remember(stats) {
+        if (stats.totalLessons > 0) "${stats.attendedLessons}/${stats.totalLessons}" else "0"
     }
 
     val semanticColors = neiroSemanticColors
@@ -166,36 +183,22 @@ private fun DaySummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Третья плитка в ряду отбирает ширину у подписей: в тесном
-                // ряду чип ужимается, иначе «проведено» упирается в многоточие.
                 DayTile(
                     icon = Icons.Rounded.School,
                     accent = MaterialTheme.colorScheme.primary,
                     label = "занятий",
                     value = lessonsValue,
-                    compact = showIntensiveMetric,
+                    onClick = onLessonsClick,
                     modifier = Modifier.weight(1f),
                 )
                 DayTile(
                     icon = Icons.Rounded.CheckCircle,
                     accent = semanticColors.scheduleHeader,
                     label = "проведено",
-                    value = if (stats.totalLessons > 0) {
-                        "${stats.attendedLessons}/${stats.totalLessons}"
-                    } else "0",
-                    compact = showIntensiveMetric,
+                    value = conductedValue,
+                    onClick = onConductedClick,
                     modifier = Modifier.weight(1f),
                 )
-                if (showIntensiveMetric) {
-                    DayTile(
-                        icon = Icons.Rounded.Groups,
-                        accent = MaterialTheme.colorScheme.error,
-                        label = "интенсив",
-                        value = intensiveConductedText,
-                        compact = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
             }
 
             Row(
@@ -208,6 +211,7 @@ private fun DaySummaryCard(
                     label = "Заработано",
                     value = earnedText,
                     valueColor = semanticColors.scheduleHeader,
+                    onClick = onEarnedClick,
                     modifier = Modifier.weight(1f),
                 )
                 // Нулевое ожидание не новость — сумма уходит в серый, а чип
@@ -224,6 +228,7 @@ private fun DaySummaryCard(
                         semanticColors.expected
                     },
                     muted = nothingExpected,
+                    onClick = onExpectedClick,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -238,7 +243,6 @@ private fun DaySummaryCard(
  * доля акцента в его заливке и кегли повторены оттуда намеренно, чтобы два
  * блока на экране читались одним набором.
  *
- * @param compact ряд из трёх плиток — чип ужимается ради подписи.
  * @param muted значение не несёт новости (нулевое ожидание) — подпись глуше.
  */
 @Composable
@@ -247,14 +251,13 @@ private fun DayTile(
     accent: Color,
     label: String,
     value: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
-    compact: Boolean = false,
     muted: Boolean = false,
 ) {
-    val chipSize = if (compact) 26.dp else 32.dp
-    val iconSize = if (compact) 15.dp else 17.dp
     Surface(
+        onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
         color = dayTileColor,
@@ -264,18 +267,18 @@ private fun DayTile(
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = accent.copy(alpha = DayChipAlpha),
-                modifier = Modifier.size(chipSize),
+                modifier = Modifier.size(32.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        modifier = Modifier.size(iconSize),
+                        modifier = Modifier.size(17.dp),
                         tint = accent,
                     )
                 }
