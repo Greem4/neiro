@@ -31,6 +31,47 @@ jobs:
       - name: Юнит-тесты
         run: ./gradlew testDebugUnitTest
 
+  # Заметки к релизу пишутся тем же PR, которым вносится изменение. Галочка в
+  # шаблоне PR это уже просит — и её ставили, не заполняя раздел: 0.2.0 и 0.2.1
+  # вышли с заметками, собранными из git-лога. Проверяет машина.
+  changelog:
+    name: Заметки к релизу
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Раздел «Не выпущено» заполнен
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          # Ровно те же два условия, при которых release-on-merge.yml не
+          # выпускает релиз: нечего выпускать — нечего и описывать.
+          if echo "$LABELS" | grep -qF 'без-релиза'; then
+            echo "Метка «без-релиза» — заметки не нужны"
+            exit 0
+          fi
+
+          FILES="$(gh pr view "$PR" --json files --jq '.files[].path')"
+          if [ -z "$(printf '%s\n' "$FILES" | grep -vE '(^docs/|\.md$)' || true)" ]; then
+            echo "PR тронул только документацию — заметки не нужны"
+            exit 0
+          fi
+
+          # Логика «что считается записью» одна на проверку и на выпуск —
+          # она живёт в скрипте, здесь только повод его дёрнуть.
+          if ! python3 scripts/bump-version.py --check-unreleased; then
+            echo "::error file=CHANGELOG.md::раздел «Не выпущено» пуст — допишите заметку к релизу"
+            exit 1
+          fi
+
   backend:
     runs-on: ubuntu-latest
     steps:

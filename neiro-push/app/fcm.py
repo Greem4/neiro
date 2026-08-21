@@ -68,6 +68,34 @@ class FcmSender:
             }
         )
 
+        result = await self._send(token=token, data=data)
+        if result.token_invalid:
+            return result
+        return FcmSendResult(nudged=nudged)
+
+    async def send_app_update_push(self, *, token: str, version_name: str) -> FcmSendResult:
+        """Шлёт `app_update` — «на GitHub вышла версия version_name».
+
+        Сама версия в payload нужна только чтобы телефон не ходил в сеть из-за
+        пуша о версии, которая у него уже стоит. Ссылку на APK и заметки он
+        берёт у GitHub сам: тащить их через пуш значило бы завести второй
+        источник правды о релизе.
+        """
+        if not self.is_configured:
+            raise RuntimeError("FCM is not configured on the server")
+
+        return await self._send(
+            token=token,
+            data={"action": "app_update", "version_name": version_name},
+        )
+
+    async def _send(self, *, token: str, data: dict[str, str]) -> FcmSendResult:
+        """Отправка одного data-сообщения. Разбор payload — на вызывающем.
+
+        priority HIGH: сообщение без notification-части в Doze иначе ждёт
+        выхода из режима, а обе новости — и событие занятия, и новый релиз —
+        нужны тогда, когда они случились.
+        """
         access_token = self._access_token()
         url = f"https://fcm.googleapis.com/v1/projects/{self._project_id}/messages:send"
         body = {
@@ -92,7 +120,7 @@ class FcmSender:
             raise RuntimeError(
                 f"FCM error {response.status_code}: {response.text[:300]}"
             )
-        return FcmSendResult(nudged=nudged)
+        return FcmSendResult()
 
     def _is_invalid_token_error(self, response: httpx.Response) -> bool:
         """Токен мёртв — устройство можно удалять.

@@ -72,6 +72,7 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 | GET | `/v1/yclients/salary/daily` | `device_token` | Начисления по дням |
 | GET | `/v1/yclients/salary/calculations` | `device_token` | Расчёты за период |
 | GET | `/v1/yclients/salary/calculations/{id}` | `device_token` | Детализация расчёта |
+| POST | `/v1/release/notify` | `RELEASE_NOTIFY_KEY` | Рассылает пуш «вышла новая версия приложения»; дёргается из release.yml |
 | POST | `/v1/admin/devices/{id}/revoke` | `ADMIN_API_KEY` | Отзыв `device_token` устройства; строка остаётся в списке |
 | DELETE | `/v1/admin/devices/{id}` | `ADMIN_API_KEY` | Удаление устройства совсем; телефону придётся войти заново |
 | POST | `/v1/admin/accounts/{id}/reset` | `ADMIN_API_KEY` | Потребовать повторный вход паролем |

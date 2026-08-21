@@ -12,6 +12,14 @@
     python3 scripts/bump-version.py patch --dry-run
 
 Печатает новую версию в stdout последней строкой — её и читает workflow.
+
+Отдельно от подъёма версии:
+
+    python3 scripts/bump-version.py --check-unreleased
+
+Проверяет, что в «Не выпущено» есть записи, и падает, если их нет. Дёргается
+из CI на каждом PR с кодом — раздел пуст ровно до тех пор, пока о нём не
+вспомнят, а вспоминают в день выпуска, когда уже поздно.
 """
 
 from __future__ import annotations
@@ -121,12 +129,59 @@ def move_unreleased(version: str, today: str) -> str:
     return f"перенёс «Не выпущено» в [{version}] — {today}"
 
 
+def check_unreleased() -> None:
+    """Раздел «Не выпущено» пуст — выходим с ошибкой и объясняем, что делать.
+
+    Та же [has_real_entries], что и у переноса: «есть записи» должно значить
+    одно и то же в проверке и в выпуске, иначе CI пропустит раздел, который
+    [move_unreleased] потом сочтёт пустым — и версия выйдет без заметок.
+    """
+    if not CHANGELOG.exists():
+        sys.exit("CHANGELOG.md нет")
+
+    parts = split_unreleased(CHANGELOG.read_text(encoding="utf-8"))
+    if parts is None:
+        sys.exit(f"В CHANGELOG.md нет раздела «{UNRELEASED_HEADING}»")
+
+    _, body, _ = parts
+    if not has_real_entries(body):
+        sys.exit(
+            "Раздел «Не выпущено» в CHANGELOG.md пуст.\n"
+            "\n"
+            "Слияние в main выпускает релиз сразу, и заметки к нему берутся\n"
+            "отсюда. Пустой раздел — значит версия выйдет со списком коммитов\n"
+            "вместо человеческого описания, и дописать его будет уже некуда.\n"
+            "\n"
+            "Что сделать: добавить в «Не выпущено» строку о том, что изменилось\n"
+            "для того, кто пользуется приложением, под заголовком «Добавлено»,\n"
+            "«Изменено», «Исправлено» или «Убрано».\n"
+            "\n"
+            "Если выпускать нечего (правка тестов, рефакторинг без следов на\n"
+            "экране) — метка «без-релиза» на PR: тогда ни релиза, ни этой\n"
+            "проверки."
+        )
+
+    print("«Не выпущено» заполнен")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Поднять версию и закрыть раздел CHANGELOG")
-    parser.add_argument("kind", choices=["major", "minor", "patch", "keep"])
+    parser.add_argument("kind", nargs="?", choices=["major", "minor", "patch", "keep"])
     parser.add_argument("--dry-run", action="store_true", help="ничего не писать, только показать")
     parser.add_argument("--date", default=datetime.date.today().isoformat())
+    parser.add_argument(
+        "--check-unreleased",
+        action="store_true",
+        help="только проверить, что «Не выпущено» не пуст (для CI)",
+    )
     args = parser.parse_args()
+
+    if args.check_unreleased:
+        check_unreleased()
+        return
+
+    if args.kind is None:
+        parser.error("нужен разряд версии: major, minor, patch или keep")
 
     current = read_version()
     new = bump(current, args.kind)

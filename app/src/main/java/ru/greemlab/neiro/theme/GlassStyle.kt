@@ -32,9 +32,13 @@ import androidx.compose.ui.window.DialogWindowProvider
 /**
  * Стеклянный вид поверхностей — тумблер в «Настройки → Внешний вид».
  *
- * Выключен по умолчанию: при `false` всё рисуется ровно как раньше, обычным
- * [Surface] с непрозрачным цветом схемы. Настройка живёт в
- * `AppearancePreferences`, сюда её кладёт `NeiroApp`.
+ * Включён по умолчанию (`AppearancePreferences.DEFAULT_GLASS`) — приложение с
+ * ним и задумано. При `false` всё рисуется ровно как раньше, обычным
+ * [Surface] с непрозрачным цветом схемы; настройку сюда кладёт `NeiroApp`.
+ *
+ * Значение по умолчанию самого `CompositionLocal` — `false`: превью и тесты,
+ * которые про стекло ничего не знают, должны получать простую поверхность, а
+ * не лезть за настройкой в `Context`.
  */
 val LocalGlassEnabled = staticCompositionLocalOf { false }
 

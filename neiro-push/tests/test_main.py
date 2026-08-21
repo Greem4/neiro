@@ -29,6 +29,10 @@ def _event(record_id: int, date: str = TODAY) -> DerivedEvent:
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("API_KEY", "test-api-key")
     monkeypatch.setenv("ADMIN_API_KEY", "test-admin-key")
+    # Явно пустой: у разработчика рядом лежит neiro-push/.env с боевым
+    # значением, и Settings подхватил бы его — тест «без ключа эндпоинт
+    # закрыт» проходил бы в CI и падал локально.
+    monkeypatch.setenv("RELEASE_NOTIFY_KEY", "")
     monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "test-token-key")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "events.db"))
     monkeypatch.setenv("FCM_CREDENTIALS_PATH", str(tmp_path / "missing-fcm.json"))
@@ -447,3 +451,162 @@ def test_health_requires_admin_key(client: TestClient) -> None:
     body = response.json()
     assert body["accounts"] == 0
     assert body["devices"] == 0
+
+
+class _FakeFcm:
+    """Подмена FcmSender: настоящий уходит в Google, а нам нужен список вызовов."""
+
+    def __init__(self, *, invalid_tokens: set[str] | None = None, fail: bool = False) -> None:
+        self.sent: list[tuple[str, str]] = []
+        self.is_configured = True
+        self._invalid = invalid_tokens or set()
+        self._fail = fail
+
+    async def send_app_update_push(self, *, token: str, version_name: str):
+        from app.fcm import FcmSendResult
+
+        self.sent.append((token, version_name))
+        if self._fail:
+            raise RuntimeError("FCM error 500")
+        return FcmSendResult(token_invalid=token in self._invalid)
+
+
+@pytest.fixture
+def release_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Тот же клиент, но с настроенным ключом релиза."""
+    monkeypatch.setenv("API_KEY", "test-api-key")
+    monkeypatch.setenv("ADMIN_API_KEY", "test-admin-key")
+    monkeypatch.setenv("RELEASE_NOTIFY_KEY", "test-release-key")
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "test-token-key")
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "events.db"))
+    monkeypatch.setenv("FCM_CREDENTIALS_PATH", str(tmp_path / "missing-fcm.json"))
+    get_settings.cache_clear()
+    with TestClient(app) as test_client:
+        yield test_client
+    get_settings.cache_clear()
+
+
+def test_release_notify_without_key_configured_is_closed(client: TestClient) -> None:
+    """Пустой RELEASE_NOTIFY_KEY означает «эндпоинта нет», а не «пускать всех»."""
+    response = client.post("/v1/release/notify", json={"version_name": "0.2.2"})
+    assert response.status_code == 503
+
+
+def test_release_notify_rejects_wrong_key(release_client: TestClient) -> None:
+    response = release_client.post("/v1/release/notify", json={"version_name": "0.2.2"})
+    assert response.status_code == 401
+
+    # Админский ключ сюда тоже не подходит: ключи разные не для красоты.
+    response = release_client.post(
+        "/v1/release/notify",
+        json={"version_name": "0.2.2"},
+        headers={"Authorization": "Bearer test-admin-key"},
+    )
+    assert response.status_code == 401
+
+
+def test_release_notify_rejects_broken_version(release_client: TestClient) -> None:
+    response = release_client.post(
+        "/v1/release/notify",
+        json={"version_name": "v0.2.2-rc1"},
+        headers={"Authorization": "Bearer test-release-key"},
+    )
+    assert response.status_code == 422
+
+
+def test_release_notify_sends_to_every_device(release_client: TestClient) -> None:
+    db = release_client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    other_account_id = db.upsert_account(2, 20, "pt", "ut")
+    for account, device_id, fcm in (
+        (account_id, "device-1", "token-1"),
+        (other_account_id, "device-2", "token-2"),
+        # Без токена слать некуда — в рассылку не попадает.
+        (account_id, "device-3", ""),
+    ):
+        db.upsert_device(
+            account_id=account,
+            device_id=device_id,
+            token_hash=hash_device_token(device_id),
+            fcm_token=fcm,
+            label=None,
+            app_version=None,
+        )
+
+    fake = _FakeFcm()
+    release_client.app.state.fcm = fake
+
+    response = release_client.post(
+        "/v1/release/notify",
+        json={"version_name": "0.2.2"},
+        headers={"Authorization": "Bearer test-release-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "version_name": "0.2.2",
+        "devices": 2,
+        "sent": 2,
+        "failed": 0,
+    }
+    # Новость одна на весь сервис: рассылка идёт по аккаунтам, а не внутри одного.
+    assert sorted(fake.sent) == [("token-1", "0.2.2"), ("token-2", "0.2.2")]
+
+
+def test_release_notify_clears_dead_token(release_client: TestClient) -> None:
+    """Мёртвый токен гасим, но устройство оставляем — иначе это выход из аккаунта."""
+    db = release_client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.upsert_device(
+        account_id=account_id,
+        device_id="device-1",
+        token_hash=hash_device_token("device-1"),
+        fcm_token="dead-token",
+        label=None,
+        app_version=None,
+    )
+
+    release_client.app.state.fcm = _FakeFcm(invalid_tokens={"dead-token"})
+
+    response = release_client.post(
+        "/v1/release/notify",
+        json={"version_name": "0.2.2"},
+        headers={"Authorization": "Bearer test-release-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sent"] == 0
+    assert response.json()["failed"] == 1
+    device = db.get_device("device-1")
+    assert device is not None
+    assert device.fcm_token == ""
+
+
+def test_release_notify_survives_fcm_error(release_client: TestClient) -> None:
+    """Упавшая отправка не роняет запрос: релиз уже опубликован."""
+    db = release_client.app.state.db
+    account_id = db.upsert_account(1, 10, "pt", "ut")
+    db.upsert_device(
+        account_id=account_id,
+        device_id="device-1",
+        token_hash=hash_device_token("device-1"),
+        fcm_token="token-1",
+        label=None,
+        app_version=None,
+    )
+
+    release_client.app.state.fcm = _FakeFcm(fail=True)
+
+    response = release_client.post(
+        "/v1/release/notify",
+        json={"version_name": "0.2.2"},
+        headers={"Authorization": "Bearer test-release-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "version_name": "0.2.2",
+        "devices": 1,
+        "sent": 0,
+        "failed": 1,
+    }

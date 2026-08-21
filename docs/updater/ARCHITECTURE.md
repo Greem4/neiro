@@ -25,7 +25,8 @@
 │ Приложение                                                          │
 │                                                                     │
 │  UpdateCheckWorker ──► UpdateChecker ──► UpdateStatus.Available     │
-│    (раз в сутки)            │                     │                 │
+│  (сутки / старт /           │                     │                 │
+│   пуш app_update)           │                     │                 │
 │                             │                     ▼                 │
 │                             │            UpdateNotifier             │
 │                             │        системное уведомление          │
@@ -370,7 +371,7 @@ Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageNam
 
 ## Когда проверяем
 
-Два триггера, оба через один координатор:
+Три триггера, все через один координатор:
 
 ```kotlin
 object UpdateCheckCoordinator {
@@ -393,6 +394,50 @@ object UpdateCheckCoordinator {
    по образцу `AutoSyncCoordinator`. Воркер может задержаться на день, если
    телефон лежал в Doze; открытие приложения — самый естественный момент
    спросить.
+3. **Пуш `app_update`** — `UpdateCheckCoordinator.onUpdatePush`. Первые два
+   триггера отвечают на вопрос «не вышло ли чего», третий приходит в тот
+   момент, когда релиз действительно вышел.
+
+### Пуш о релизе
+
+```
+release.yml ──► POST /v1/release/notify ──► neiro-push ──► FCM data-push
+ (после           {"version_name":            рассылка       action=app_update
+  публикации)      "0.2.2"}                   по устройствам  version_name=0.2.2
+                                                                    │
+                                                                    ▼
+                                             NeiroFirebaseMessagingService
+                                                                    │
+                                          UpdateCheckCoordinator.onUpdatePush
+                                                                    │
+                                        OneTimeWorkRequest(force=true)
+                                          work name: update_check_push
+                                                                    │
+                                     UpdateCheckWorker ──► обычная проверка
+```
+
+Почему не проще:
+
+- **Сеть в обработчике пуша не трогаем.** У `onMessageReceived` считанные
+  секунды, а проверка тянет за собой GitHub и уведомление. Работу ставит
+  WorkManager — тот же порядок, что у нуджа `sync_events`.
+- **`force = true`.** Суточный троттлинг здесь бессмысленен: релиз уже
+  опубликован. Исчерпанный лимит GitHub при этом остаётся в силе — там ждать
+  всё равно нечего.
+- **Работа отдельная (`update_check_push`), политика `REPLACE`.** Суточное
+  расписание не сбивается, а два пуша подряд (перевыпуск того же тега) — одна
+  новость, и ходить к GitHub дважды незачем.
+- **Три причины промолчать до всякой сети:** сборка не может обновляться
+  (`UpdateChannelGate`), автопроверка выключена в настройках, версия из пуша
+  не новее установленной. Последнее — про того, кто обновился первым: пуш
+  придёт и ему тоже.
+- **Заметки и ссылку на APK через пуш не передаём.** Источник правды о релизе
+  один — GitHub; данные в пуше нужны только чтобы решить, идти туда или нет.
+
+Ссылка на серверную часть: [API.md](../neiro-push/API.md#post-v1releasenotify),
+ключ и его включение — [DEPLOY.md](../neiro-push/DEPLOY.md#пуш-о-новом-релизе).
+Не настроен ключ или недоступен Pi — шаг в workflow не роняет релиз, телефоны
+узнают о версии на суточной проверке, как раньше.
 
 Скачивание автоматически **не** запускается никогда — только по нажатию
 пользователя. Пятнадцать мегабайт по мобильному интернету без спроса — не то
@@ -424,6 +469,7 @@ object UpdateCheckCoordinator {
 | `app/build.gradle.kts` | Чтение `version.properties`, `versionCode` по формуле, `buildConfigField` `UPDATE_ENABLED` и `UPDATE_REPO` |
 | `app/src/main/AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION`, регистрация `UpdateInstallReceiver` (`exported="false"`) |
 | `NeiroApplication.kt` | Одна строка: `UpdateCheckCoordinator.initialize(this)` в существующем `appScope.launch` |
+| `push/NeiroFirebaseMessagingService.kt` | Ветка `"app_update"` в разборе `action`: вызов `UpdateCheckCoordinator.onUpdatePush` |
 | `ui/screens/CalendarScreen.kt` | `CalendarOverlay.About` рядом с прочими оверлеями и его ветка отрисовки — тем же способом, что `ProfitSettings` |
 | `ui/settings/AppSettingsScreen.kt` | Секция «О программе» с `SettingsNavigationRow`: версия в подзаголовке, точка при доступном обновлении |
 | `app/src/main/res/values/strings.xml` | Строки экрана и уведомления |

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ from app.database import Database
 from app.fcm import FcmSender
 from app.poller import MOSCOW, PollService
 from app.ratelimit import RateLimiter
-from app.schemas import HealthResponse
+from app.schemas import HealthResponse, ReleaseNotifyRequest, ReleaseNotifyResponse
 from app.security import SecretBox, constant_time_equals
 from app.yclients import YClientsClient
 
@@ -73,6 +74,7 @@ async def lifespan(app: FastAPI):
     app.state.yclients = yclients_client
     app.state.limiter = RateLimiter()
     app.state.poll_service = poll_service
+    app.state.fcm = fcm_sender
     app.state.started_at = datetime.now(timezone.utc)
 
     poll_service.start()
@@ -102,6 +104,10 @@ def get_poll_service(request: Request) -> PollService:
     return request.app.state.poll_service
 
 
+def get_fcm(request: Request) -> FcmSender:
+    return request.app.state.fcm
+
+
 def verify_admin_api_key(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
@@ -113,6 +119,29 @@ def verify_admin_api_key(
     token = authorization.removeprefix("Bearer ").strip()
     if not constant_time_equals(token, settings.admin_api_key):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin api key")
+
+
+def verify_release_notify_key(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Ключ GitHub Actions. Отдельный от админского — см. `Settings`."""
+    if not settings.release_notify_key:
+        # Ключа нет — эндпоинт закрыт совсем. Иначе пустая настройка означала
+        # бы «пускать любого, кто пришёл с пустым Bearer».
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="release notify key is not configured",
+        )
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token"
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    if not constant_time_equals(token, settings.release_notify_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid release notify key"
+        )
 
 
 @app.get(
@@ -211,6 +240,82 @@ async def admin_reset_account(
     db.set_reauth_required(account_id, True)
     logger.warning("account %s marked reauth_required via admin API", account_id)
     return {"account_id": account_id, "reauth_required": True}
+
+
+@app.post(
+    "/v1/release/notify",
+    response_model=ReleaseNotifyResponse,
+    dependencies=[Depends(verify_release_notify_key)],
+)
+async def release_notify(
+    payload: ReleaseNotifyRequest,
+    db: Database = Depends(get_database),
+    fcm: FcmSender = Depends(get_fcm),
+) -> ReleaseNotifyResponse:
+    """«На GitHub вышел релиз» — дёргается шагом в release.yml.
+
+    Раньше телефон узнавал о новой версии в течение суток: раз в сутки воркер
+    плюс проверка при открытии приложения. Здесь новость приходит сразу —
+    сервер рассылает `app_update` всем живым устройствам, а телефон уже сам
+    идёт к GitHub за APK и заметками.
+
+    Ошибка отправки на одно устройство не роняет рассылку на остальные:
+    релизу от неё ни холодно ни жарко, а в ответе видно, сколько не дошло.
+    """
+    if not fcm.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="FCM is not configured",
+        )
+
+    devices = db.list_devices_with_fcm()
+    if not devices:
+        logger.info("release %s: некому слать, устройств с токеном нет", payload.version_name)
+        return ReleaseNotifyResponse(
+            version_name=payload.version_name, devices=0, sent=0, failed=0
+        )
+
+    results = await asyncio.gather(
+        *(
+            _push_app_update(fcm, db, device.device_id, device.fcm_token, payload.version_name)
+            for device in devices
+        )
+    )
+    sent = sum(1 for ok in results if ok)
+    logger.info(
+        "release %s: пуш ушёл на %s из %s устройств",
+        payload.version_name,
+        sent,
+        len(devices),
+    )
+    return ReleaseNotifyResponse(
+        version_name=payload.version_name,
+        devices=len(devices),
+        sent=sent,
+        failed=len(devices) - sent,
+    )
+
+
+async def _push_app_update(
+    fcm: FcmSender,
+    db: Database,
+    device_id: str,
+    fcm_token: str,
+    version_name: str,
+) -> bool:
+    try:
+        result = await fcm.send_app_update_push(token=fcm_token, version_name=version_name)
+    except Exception as exc:  # noqa: BLE001 — сбой одного телефона не общий сбой
+        logger.warning("release push failed device=%s: %s", device_id, str(exc)[:300])
+        return False
+
+    if result.token_invalid:
+        # Тот же порядок, что у поллера: гасим только токен пуша, строку
+        # устройства не трогаем — иначе телефон выкинуло бы из аккаунта.
+        db.clear_device_fcm(device_id)
+        logger.warning("device %s: FCM token invalid, cleared", device_id)
+        return False
+    return True
 
 
 @app.get(

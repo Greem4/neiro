@@ -62,6 +62,20 @@ class LoginResponse(BaseModel):
     last_event_id: int
 
 
+class ReleaseNotifyRequest(BaseModel):
+    # Строго `X.Y.Z` — ровно то, что лежит в version.properties и в теге без
+    # `v`. Телефон разбирает её тем же регулярным выражением (ReleaseVersion),
+    # и мусор здесь означал бы бессмысленный пуш на все устройства.
+    version_name: str = Field(pattern=r"^\d+\.\d+\.\d+$", max_length=40)
+
+
+class ReleaseNotifyResponse(BaseModel):
+    version_name: str
+    devices: int
+    sent: int
+    failed: int
+
+
 class SessionResponse(BaseModel):
     account: AccountPayload
     reauth_required: bool

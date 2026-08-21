@@ -30,6 +30,13 @@ NEIRO_PUSH_API_BASE_URL=https://push.neiro.greemlab.ru
 | `API_KEY` (он же ключ приложения, в APK) | `Authorization: Bearer <API_KEY>` | Только `POST /v1/auth/login` |
 | `device_token` (выдаётся при входе) | `Authorization: Bearer <device_token>` | Всё остальное, в пределах одного аккаунта |
 | `ADMIN_API_KEY` | `Authorization: Bearer <ADMIN_API_KEY>` | `/health`, `/v1/admin/*`, дашборд |
+| `RELEASE_NOTIFY_KEY` | `Authorization: Bearer <RELEASE_NOTIFY_KEY>` | Только `POST /v1/release/notify` |
+
+`RELEASE_NOTIFY_KEY` отдельный от админского намеренно: он лежит в GitHub
+Secrets, то есть вне Pi. Админским ключом можно удалять устройства и ходить в
+прокси YClients — класть его в чужую систему ради одного запроса незачем.
+Пустой `RELEASE_NOTIFY_KEY` означает «эндпоинт выключен» (`503`), а не
+«пускать любого».
 
 `device_token` — 32 случайных байта в base64url. На сервере хранится только
 `sha256`; восстановить его из БД нельзя, потерялся на телефоне — нужен новый
@@ -154,6 +161,63 @@ FCM, когда Firebase его перевыпустил. Заменяет ча�
 
 ---
 
+## Релиз приложения
+
+### `POST /v1/release/notify`
+
+`Bearer <RELEASE_NOTIFY_KEY>`, тело `{"version_name": "0.2.2"}`.
+
+Дёргается шагом «Сказать телефонам о релизе» в `.github/workflows/release.yml`
+сразу после публикации релиза на GitHub. Сервер рассылает всем живым
+устройствам с непустым `fcm_token` data-push `app_update`, телефон по нему идёт
+к GitHub за APK и заметками и показывает уведомление «вышла новая версия».
+
+Без этого эндпоинта приложение узнавало о релизе только на суточной проверке
+(`UpdateCheckCoordinator`) — в худшем случае через сутки после публикации.
+
+```json
+{
+  "version_name": "0.2.2",
+  "devices": 3,
+  "sent": 2,
+  "failed": 1
+}
+```
+
+`version_name` — строго `X.Y.Z`, ровно то, что лежит в `version.properties` и в
+теге без `v`; иначе `422`. Ссылка на APK, размер и заметки в пуш не кладутся:
+источник правды о релизе — GitHub, а не сервер.
+
+| Код | Когда |
+|---|---|
+| `401` | нет ключа, ключ чужой (админский тоже не подходит) |
+| `422` | `version_name` не вида `X.Y.Z` |
+| `503` | `RELEASE_NOTIFY_KEY` не задан или FCM не настроен |
+
+Ошибка отправки на одно устройство не роняет рассылку на остальные — она
+попадает в `failed`. Мёртвый токен FCM гасится (`fcm_token = ''`), сама строка
+устройства остаётся: удаление означало бы выход из аккаунта из-за проблемы с
+доставкой.
+
+---
+
+## Пуши на устройства
+
+Не эндпоинты, но часть контракта: что телефон получает от FCM и как это
+разбирает `NeiroFirebaseMessagingService`.
+
+| `action` | Payload | Что делает приложение |
+|---|---|---|
+| `session_events` | `events` (JSON), `last_event_id` | Правит календарь и показывает уведомление о занятии |
+| `sync_events` | `last_event_id` | Нудж: события не влезли в 3 КБ, приложение забирает их через `GET /v1/events` |
+| `app_update` | `version_name` | Форс-проверка GitHub и уведомление о новой версии |
+
+Все три — `data`-сообщения с `priority: HIGH`: без notification-части в Doze
+сообщение иначе ждёт выхода из режима, а обе новости нужны тогда, когда они
+случились.
+
+---
+
 ## Прокси YClients
 
 Общее для всех:
@@ -236,7 +300,7 @@ FCM, когда Firebase его перевыпустил. Заменяет ча�
 | `GET /v1/devices/{device_id}/events` | `GET /v1/events` |
 | `POST /v1/devices/{device_id}/events/ack` | `POST /v1/events/ack` |
 | `DELETE /v1/devices/{device_id}` | `POST /v1/auth/logout` |
-| — | `GET /v1/session`, `POST /v1/devices/fcm`, шесть `/v1/yclients/*` |
+| — | `GET /v1/session`, `POST /v1/devices/fcm`, шесть `/v1/yclients/*`, `POST /v1/release/notify` |
 
 Админские эндпоинты, `/health` и дашборд переносятся как есть, плюс две
 кнопки: отзыв устройства и сброс аккаунта.

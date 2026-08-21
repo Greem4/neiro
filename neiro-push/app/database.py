@@ -555,6 +555,25 @@ class Database:
             ).fetchall()
         return [_row_to_device(row) for row in rows]
 
+    def list_devices_with_fcm(self) -> list[RegisteredDevice]:
+        """Все живые телефоны с рабочим токеном — для рассылки на весь сервис.
+
+        Отличие от `list_devices_for_account`: аккаунт не важен. Новость «вышла
+        новая версия приложения» одна на всех, а не своя у каждого сотрудника.
+        Устройства без `fcm_token` отсеиваются здесь же — слать им некуда.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, account_id, device_id, fcm_token, label, app_version,
+                       last_ack_event_id
+                FROM devices
+                WHERE revoked_at IS NULL AND fcm_token != ''
+                ORDER BY id
+                """
+            ).fetchall()
+        return [_row_to_device(row) for row in rows]
+
     def update_account_poll_state(
         self,
         account_id: int,

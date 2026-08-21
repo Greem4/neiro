@@ -185,7 +185,7 @@
     <string name="about_last_check">Последняя проверка: %1$s</string>
     <string name="about_never_checked">Ещё ни разу не проверяли</string>
     <string name="about_auto_check">Проверять автоматически</string>
-    <string name="about_auto_check_hint">Раз в сутки, когда есть сеть</string>
+    <string name="about_auto_check_hint">Сразу после выхода версии и раз в сутки</string>
     <string name="about_up_to_date">Установлена последняя версия</string>
     <string name="about_available">Доступна %1$s</string>
     <string name="about_whats_new">Что изменилось:</string>

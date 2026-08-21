@@ -37,6 +37,22 @@ class ReleaseVersionTest {
     }
 
     @Test
+    fun `версия из пуша идёт без префикса v`() {
+        // Сервер шлёт то, что лежит в version.properties: «0.2.2», не «v0.2.2».
+        assertEquals(202, ReleaseVersion.parseName("0.2.2")?.versionCode)
+        assertEquals(202, ReleaseVersion.parseName(" 0.2.2\n")?.versionCode)
+        // Лишний «v» не ломает разбор: цена ошибки — пропущенное обновление.
+        assertEquals(202, ReleaseVersion.parseName("v0.2.2")?.versionCode)
+    }
+
+    @Test
+    fun `мусор в версии из пуша не разбирается`() {
+        assertNull(ReleaseVersion.parseName("0.2.2-rc1"))
+        assertNull(ReleaseVersion.parseName("latest"))
+        assertNull(ReleaseVersion.parseName(""))
+    }
+
+    @Test
     fun `тег без префикса v не наш`() {
         assertNull(ReleaseVersion.parseTag("0.2.0"))
     }

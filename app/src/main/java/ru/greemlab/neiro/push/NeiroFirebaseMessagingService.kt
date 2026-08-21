@@ -7,12 +7,17 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.runBlocking
 import ru.greemlab.neiro.data.network.YClientsRepository
+import ru.greemlab.neiro.update.UpdateCheckCoordinator
 
 /**
  * FCM: сервер шлёт события занятий (`session_events`) прямо в payload — правим
  * календарь и показываем уведомление без похода в YClients. Если пуш не влез в
  * лимит, сервер шлёт нудж (`sync_events`) — забираем через WorkManager, сеть в
  * FCM-сервисе не место (app.md §6.3).
+ *
+ * Третий вид — `app_update`: сервер получил от GitHub Actions новость о новом
+ * релизе и разослал её на телефоны, чтобы обновление не ждало суточной
+ * проверки.
  */
 class NeiroFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -20,6 +25,12 @@ class NeiroFirebaseMessagingService : FirebaseMessagingService() {
         when (message.data["action"]) {
             "session_events" -> handleSessionEvents(message)
             "sync_events" -> PushEventsSyncCoordinator.enqueue(applicationContext)
+            // «Вышел релиз» — сеть отсюда не трогаем по тем же причинам, что и
+            // при нудже: проверку ставит WorkManager (app.md §6.3).
+            "app_update" -> UpdateCheckCoordinator.onUpdatePush(
+                applicationContext,
+                message.data["version_name"],
+            )
         }
     }
 
