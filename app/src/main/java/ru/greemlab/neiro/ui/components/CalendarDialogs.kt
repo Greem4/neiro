@@ -88,7 +88,7 @@ private val StatsDialogModifier: Modifier
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StatsDialogScaffold(
+internal fun StatsDialogScaffold(
     title: String,
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
@@ -193,22 +193,26 @@ fun LessonsDetailsDialog(
                 iconTint = neiroSemanticColors.scheduleHeader,
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                LessonStatRow(
-                    label = "Занятий",
-                    value = stats.completedSessionsCount,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                LessonStatRow(
-                    label = "Диагностик",
-                    value = stats.completedDiagnosticsCount,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // Без диагностик разбивка слово в слово повторяет «Проведено» —
+            // показываем её, только когда есть что разделять.
+            if (stats.completedDiagnosticsCount > 0) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    LessonStatRow(
+                        label = "Занятий",
+                        value = stats.completedSessionsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LessonStatRow(
+                        label = "Диагностик",
+                        value = stats.completedDiagnosticsCount,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
