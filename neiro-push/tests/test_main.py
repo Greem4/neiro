@@ -29,6 +29,10 @@ def _event(record_id: int, date: str = TODAY) -> DerivedEvent:
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("API_KEY", "test-api-key")
     monkeypatch.setenv("ADMIN_API_KEY", "test-admin-key")
+    # Явно пустой: у разработчика рядом лежит neiro-push/.env с боевым
+    # значением, и Settings подхватил бы его — тест «без ключа эндпоинт
+    # закрыт» проходил бы в CI и падал локально.
+    monkeypatch.setenv("RELEASE_NOTIFY_KEY", "")
     monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "test-token-key")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "events.db"))
     monkeypatch.setenv("FCM_CREDENTIALS_PATH", str(tmp_path / "missing-fcm.json"))
