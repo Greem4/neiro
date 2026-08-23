@@ -47,4 +47,4 @@
 
 ## Коммиты
 
-Сообщения коммитов в репозитории — **на русском**. См. `.cursorrules` и `.cursor/rules/git-commits-ru.mdc`.
+Сообщения коммитов в репозитории — Conventional Commits. См. `.cursorrules` и `.cursor/rules/git-commits.mdc`.
