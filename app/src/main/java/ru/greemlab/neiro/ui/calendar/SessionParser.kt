@@ -9,20 +9,35 @@ import java.time.LocalDate
  *  - [EXPECTED] (0) — ожидание, «+», в деньги не входит
  *  - [CONFIRMED] (1) — подтвердил, что придёт, «галка», в деньги не входит
  *  - [CANCELLED] (2) — не пришёл / отказ, «−», в деньги не входит
- *  - [ARRIVED] (3) — пришёл, занятие проведено, в деньги входит
+ *  - [ARRIVED] (3) — пришёл, занятие проведено, но не оплачено: в деньги не входит
+ *  - [PAID] (4) — оплачено, «плюсик» в YClients, в деньги входит
  */
 enum class AttendanceStatus(val code: Int) {
     EXPECTED(0),
     CONFIRMED(1),
     CANCELLED(2),
-    ARRIVED(3);
+    ARRIVED(3),
 
-    /** Учитывается в заработке (только «пришёл»). */
-    val countsTowardEarnings: Boolean get() = this == ARRIVED
+    /**
+     * Занятие оплачено — в YClients это плюсик на записи (`paid_full = 1`).
+     *
+     * Отдельно от [ARRIVED] намеренно: «пришёл» в YClients значит только то,
+     * что клиент явился, деньги за это ещё не получены (решение пользователя
+     * от 01.09.2026). Пока «пришёл» считался оплатой, неоплаченное занятие
+     * уже попадало в прибыль месяца.
+     */
+    PAID(4);
+
+    /** Учитывается в заработке — только оплаченное. */
+    val countsTowardEarnings: Boolean get() = this == PAID
+
+    /** Клиент был на занятии: пришёл, а может уже и заплатил. */
+    val hasArrived: Boolean get() = this == ARRIVED || this == PAID
 
     /** Приоритет при слиянии нескольких визитов одного клиента за день. */
     val mergePriority: Int
         get() = when (this) {
+            PAID -> 5
             ARRIVED -> 4
             CONFIRMED -> 3
             CANCELLED -> 2
@@ -34,6 +49,7 @@ enum class AttendanceStatus(val code: Int) {
             1 -> CONFIRMED
             2 -> CANCELLED
             3 -> ARRIVED
+            4 -> PAID
             else -> EXPECTED
         }
 
@@ -45,22 +61,40 @@ enum class AttendanceStatus(val code: Int) {
             else -> EXPECTED
         }
 
-        fun resolveFromRecord(attendance: Int, visitAttendance: Int?): AttendanceStatus {
+        /**
+         * Статус записи YClients: посещение плюс оплата.
+         *
+         * `paid_full = 1` перекрывает посещаемость: занятие оплачено, и деньги
+         * за него уже получены. Отменённую запись оплата не воскрешает —
+         * так бывает при списании абонемента за пропуск, и занятием это не
+         * становится.
+         */
+        fun resolveFromRecord(
+            attendance: Int,
+            visitAttendance: Int?,
+            paidFull: Int? = null,
+        ): AttendanceStatus {
             val fromVisit = visitAttendance?.let { fromYClients(it) }
             val fromAttendance = fromYClients(attendance)
-            return if (fromVisit == null) {
+            val visited = if (fromVisit == null) {
                 fromAttendance
             } else {
                 maxOf(fromVisit, fromAttendance, compareBy { it.mergePriority })
             }
+            return if (paidFull == 1 && visited != CANCELLED) PAID else visited
         }
 
         /**
          * Старый формат `name|true` и ручной офлайн-ввод (в т.ч. будущее редактирование архива).
-         * Даёт только EXPECTED/ARRIVED; для YClients и таймлайна — полный код статуса в строке.
+         * Даёт только EXPECTED/PAID; для YClients и таймлайна — полный код статуса в строке.
+         *
+         * `true` — это [PAID], а не [ARRIVED]: до разделения «пришёл» и
+         * «оплачено» (01.09.2026) галочка в старом формате значила
+         * «занятие состоялось и посчитано в деньгах». Отдай она теперь
+         * «пришёл», все давние записи молча выпали бы из заработка.
          */
         fun fromBoolean(attended: Boolean): AttendanceStatus =
-            if (attended) ARRIVED else EXPECTED
+            if (attended) PAID else EXPECTED
     }
 }
 
@@ -94,9 +128,17 @@ sealed interface Session {
                 name.startsWith("–") || name.startsWith("−")
     }
 
-    /** Учитывается в заработке: только статус «пришёл», без отменённых записей. */
+    /** Учитывается в заработке: только оплаченное, без отменённых записей. */
     fun countsTowardEarnings(): Boolean =
         !isEffectivelyDeleted() && status.countsTowardEarnings
+
+    /**
+     * Занятие состоялось: клиент пришёл — заплатил он уже или ещё нет.
+     *
+     * Отдельно от [countsTowardEarnings]: «проведено 4 из 8» — про работу, а
+     * деньги идут за оплаченным (01.09.2026).
+     */
+    fun countsAsAttended(): Boolean = !isEffectivelyDeleted() && status.hasArrived
 
     @Immutable
     data class Student(
@@ -150,7 +192,17 @@ sealed interface Session {
             if (children.isNotEmpty()) {
                 return children.any { it.status.countsTowardEarnings }
             }
-            return !isEffectivelyDeleted() && status.countsTowardEarnings
+            // Интенсив без детей заведён руками: признака оплаты у него нет и
+            // взяться ему неоткуда — YClients о такой записи не знает. Здесь
+            // «пришёл» и есть отметка человека о состоявшемся занятии.
+            return !isEffectivelyDeleted() && status.hasArrived
+        }
+
+        override fun countsAsAttended(): Boolean {
+            if (children.isNotEmpty()) {
+                return children.any { it.status.hasArrived }
+            }
+            return !isEffectivelyDeleted() && status.hasArrived
         }
     }
 
@@ -449,7 +501,9 @@ object SessionParser {
     private fun parseExtraStatusField(field: String): Pair<Boolean, AttendanceStatus>? {
         val code = field.toIntOrNull() ?: return null
         val status = AttendanceStatus.fromCode(code)
-        return status.countsTowardEarnings to status
+        // `attended` — про «клиент был», а не про деньги: с разделением
+        // «пришёл» и «оплачено» это уже разные вещи (01.09.2026).
+        return status.hasArrived to status
     }
 
     private const val INTENSIVE_CHILD_SEP = ";;"

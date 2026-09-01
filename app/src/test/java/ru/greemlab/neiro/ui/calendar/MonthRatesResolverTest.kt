@@ -188,6 +188,29 @@ class MonthRatesResolverTest {
     }
 
     @Test
+    fun `corrected tax reaches a month with an old snapshot`() {
+        // Человек однажды ввёл в настройках не ту сумму налога и исправил её.
+        // Прошлые месяцы обязаны показать исправленную: задать налог отдельно
+        // на месяц негде, и слепок в записи — не решение человека (01.09.2026).
+        val withWrongTax = MonthEntry(
+            staffId = 1L,
+            year = 2026,
+            month = 5,
+            pricePerSession = 1400.0,
+            tax = 62_500.0,
+            factGross = 79_300.0,
+            factSessions = 51,
+        )
+        val resolved = resolveMonthRates(
+            month = YearMonth.of(2026, 5),
+            entry = withWrongTax,
+            profile = profile,
+            today = today,
+        )
+        assertEquals(6500.0, resolved.rates.monthlyTaxAmount, 0.0)
+    }
+
+    @Test
     fun `entry prices win over profile when set`() {
         val withPrices = MonthEntry(
             staffId = 1L,
@@ -209,7 +232,9 @@ class MonthRatesResolverTest {
         assertEquals(1250.0, resolved.rates.pricePerSession, 0.0)
         assertEquals(2000.0, resolved.rates.pricePerDiagnostics, 0.0)
         assertEquals(1250.0, resolved.rates.pricePerIntensiveChild, 0.0)
-        assertEquals(6000.0, resolved.rates.monthlyTaxAmount, 0.0)
+        // Налог — исключение: он живёт только в профиле, слепок 6000 в записи
+        // расчётом не читается (01.09.2026).
+        assertEquals(6500.0, resolved.rates.monthlyTaxAmount, 0.0)
     }
 
     @Test
@@ -346,10 +371,10 @@ class MonthRatesResolverTest {
         )
         val dayData = mapOf(
             LocalDate.of(2026, 6, 19) to listOf(
-                "Иванов|3",
-                "Петров|3",
+                "Иванов|4",
+                "Петров|4",
                 "Сидоров|0", // ещё не пришёл — в услуги месяца не идёт
-                "__DIAGNOSTICS__:2250|Аня|3",
+                "__DIAGNOSTICS__:2250|Аня|4",
                 intensive,
                 // Ученик на слоте интенсива — та же услуга, второй раз не считаем.
                 "Дима|3|18:00-18:50",
@@ -388,13 +413,13 @@ class MonthRatesResolverTest {
         )
         val dayData = mapOf(
             LocalDate.of(2026, 6, 19) to listOf(
-                "Иванов|3",
-                "__DIAGNOSTICS__:2250|Аня|3",
+                "Иванов|4",
+                "__DIAGNOSTICS__:2250|Аня|4",
                 apiIntensive,
                 manualIntensive,
             ),
             // Другой месяц — в счёт не идёт.
-            LocalDate.of(2026, 5, 19) to listOf("__DIAGNOSTICS__:2250|Оля|3"),
+            LocalDate.of(2026, 5, 19) to listOf("__DIAGNOSTICS__:2250|Оля|4"),
         )
 
         val facts = collectMonthLocalFacts(

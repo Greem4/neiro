@@ -155,7 +155,8 @@ private fun entryToTimedAppointment(entry: TimelineEntry): TimedAppointment? {
 }
 
 private fun AttendanceStatus.isReplacementTop(): Boolean =
-    this == AttendanceStatus.ARRIVED || this == AttendanceStatus.CONFIRMED || this == AttendanceStatus.EXPECTED
+    this == AttendanceStatus.PAID || this == AttendanceStatus.ARRIVED ||
+        this == AttendanceStatus.CONFIRMED || this == AttendanceStatus.EXPECTED
 
 fun computePositionedTimelineItems(appointments: List<TimedAppointment>): List<PositionedTimelineItem> {
     val sorted = appointments.sortedWith(compareBy({ it.start }, { it.entry.name }))

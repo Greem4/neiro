@@ -74,7 +74,10 @@ object SessionChangeDetector {
                 afterSession.status == AttendanceStatus.CONFIRMED ->
                     events += SessionEvent(SessionEventType.CLIENT_CONFIRMED, afterSession, beforeSession)
 
-                afterSession.status == AttendanceStatus.ARRIVED ->
+                // Оплата приходит вместе с приходом или сразу за ним: событие
+                // ставится один раз, на сам факт «клиент пришёл», а переход
+                // «пришёл → оплачено» человека не будит (01.09.2026).
+                afterSession.status.hasArrived && !beforeSession.status.hasArrived ->
                     events += SessionEvent(SessionEventType.CLIENT_ARRIVED, afterSession, beforeSession)
 
                 else -> Unit

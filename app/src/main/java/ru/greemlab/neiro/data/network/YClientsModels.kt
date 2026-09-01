@@ -31,6 +31,13 @@ data class RecordData(
     @SerializedName("seance_length") val seanceLength: Int?,
     val length: Int?,
     @SerializedName("visit_attendance") val visitAttendance: Int?,
+    /**
+     * Оплачено ли занятие — плюсик на записи в YClients. `1` — да.
+     *
+     * Отдельно от [attendance]: «пришёл» деньгами не является, и в заработок
+     * занятие попадает только с оплатой (решение от 01.09.2026).
+     */
+    @SerializedName("paid_full") val paidFull: Int? = null,
     val deleted: Boolean? = null,
     @SerializedName("last_change_date") val lastChangeDate: String? = null,
     /** Групповое событие (интенсив и прочие группы). У обычной записи `null`. */

@@ -265,6 +265,50 @@ class YClientsCalendarSyncTest {
         assertEquals(listOf(manual), retained)
     }
 
+    @Test
+    fun `full API answer drops local entries without a pair`() {
+        val student = SessionFormat.serializeStudentExtended(
+            name = "Иванов",
+            status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.ARRIVED,
+            time = "10:00-10:50",
+        )
+        val intensive = SessionFormat.serializeIntensive(
+            price = "5600",
+            name = "Интенсив",
+            status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.ARRIVED,
+            time = "19:00-19:50",
+            amountFixed = true,
+        )
+        val survived = YClientsCalendarSync.survivingLocalEntries(
+            unmatched = listOf(student, intensive),
+            dropUnmatched = true,
+        )
+        assertEquals(listOf(intensive), survived)
+    }
+
+    @Test
+    fun `incremental answer keeps the rest of the day`() {
+        // Догон по changed_after отдаёт одну изменившуюся запись; остальные
+        // занятия дня в ответе не участвуют и удалению не подлежат.
+        val untouched = listOf(
+            SessionFormat.serializeStudentExtended(
+                name = "Иванов",
+                status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.ARRIVED,
+                time = "10:00-10:50",
+            ),
+            SessionFormat.serializeStudentExtended(
+                name = "Петров",
+                status = ru.greemlab.neiro.ui.calendar.AttendanceStatus.EXPECTED,
+                time = "11:00-11:50",
+            ),
+        )
+        val survived = YClientsCalendarSync.survivingLocalEntries(
+            unmatched = untouched,
+            dropUnmatched = false,
+        )
+        assertEquals(untouched, survived)
+    }
+
     private fun fakeRecord() = ru.greemlab.neiro.data.network.RecordData(
         id = 1L,
         companyId = 1,

@@ -323,12 +323,23 @@ class YClientsCalendarSync(
      * Ученика или диагностику в synced-календаре руками не завести
      * (`CalendarViewModel.saveNamesForDate` берёт из ввода только интенсивы),
      * поэтому отбросить может лишь то, что и так пришло из YClients.
+     *
+     * Всё это верно, только когда [records] — полный ответ за диапазон. У
+     * инкрементального опроса (`changed_after`) в руках лишь изменившиеся
+     * записи, и «не найденное в API» там значит «не менялось», а не «снято».
+     * Для него есть [dropUnmatchedLocal] = `false`: день дополняется, а не
+     * пересобирается.
+     *
+     * @param dropUnmatchedLocal день авторитативен: локальные записи без пары
+     *   в [records] удаляются (кроме ручных интенсивов). `false` — они
+     *   остаются нетронутыми.
      */
     private suspend fun mergeRecordsToCalendar(
         records: List<RecordData>,
         startDate: LocalDate,
         endDate: LocalDate,
         clearMissingDaysInRange: Boolean = true,
+        dropUnmatchedLocal: Boolean = true,
     ): DayMergeStats {
         val userProfile = calendarRepository.userProfileFlow.first()
         rememberRecordsMeta(records)
@@ -414,7 +425,13 @@ class YClientsCalendarSync(
 
                 newlyAdded += mergeIntensivesFromApi(intensiveDayRecords, userProfile, pool, syncedEntries)
 
-                val merged = syncedEntries + retainManualLocalEntries(pool)
+                // Из инкрементального опроса приходит только изменившееся:
+                // остальные занятия дня в `pool` живы и в YClients, выбросить
+                // их — оставить в дне одну запись из уведомления.
+                val merged = syncedEntries + survivingLocalEntries(
+                    unmatched = pool.map { it.first },
+                    dropUnmatched = dropUnmatchedLocal,
+                )
                 if (merged != existingRaw) {
                     currentDayData[date] = merged
                     changedDays++
@@ -519,6 +536,9 @@ class YClientsCalendarSync(
                 startDate = rangeStart,
                 endDate = rangeEnd,
                 clearMissingDaysInRange = false,
+                // `changed_after` отдаёт только изменившиеся записи: остальные
+                // занятия дня в ответе не участвуют и удалению не подлежат.
+                dropUnmatchedLocal = false,
             ).newlyAdded
         }
 
@@ -577,7 +597,7 @@ class YClientsCalendarSync(
      * сети, пустом подозрительном ответе или обрезанной пагинации календарь не трогаем.
      */
     private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
-        pool.map { it.first }.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
+        survivingLocalEntries(unmatched = pool.map { it.first }, dropUnmatched = true)
 
     private fun isIntensiveRecord(record: RecordData): Boolean =
         record.services?.any { it.title?.contains("интенсив", ignoreCase = true) == true } == true
@@ -871,7 +891,7 @@ class YClientsCalendarSync(
     }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
-        AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance)
+        AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance, record.paidFull)
 
     private fun formatRecordTime(record: RecordData, intensive: Boolean = false): String {
         val datetime = record.datetime ?: return ""
@@ -1000,6 +1020,23 @@ class YClientsCalendarSync(
             }
             val amount = if (unitPrice > 0.0) unitPrice * billableChildCount else 0.0
             return amount to false
+        }
+
+        /**
+         * Локальные записи дня, оставшиеся без пары в ответе API.
+         *
+         * [dropUnmatched] = `true` — ответ полный, и «не пришло из API» значит
+         * «снято в YClients»: остаются только ручные интенсивы. `false` —
+         * ответ инкрементальный (`changed_after`), в нём и не должно быть
+         * ничего, кроме изменившегося: остаётся весь день.
+         */
+        internal fun survivingLocalEntries(
+            unmatched: List<String>,
+            dropUnmatched: Boolean,
+        ): List<String> = if (dropUnmatched) {
+            unmatched.filter { raw -> raw.startsWith(SessionFormat.INTENSIVE_PREFIX) }
+        } else {
+            unmatched
         }
 
         /** Локальные интенсивы, чей слот времени не пришёл из API. */

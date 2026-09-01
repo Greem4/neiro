@@ -59,10 +59,10 @@ fun Session.Intensive.totalAmount(
 /** Сколько детей подтвердились или уже пришли на интенсив. */
 fun Session.Intensive.confirmedChildCount(): Int = when {
     children.isNotEmpty() -> children.count {
-        it.status == AttendanceStatus.CONFIRMED || it.status == AttendanceStatus.ARRIVED
+        it.status == AttendanceStatus.CONFIRMED || it.status.hasArrived
     }
     isEffectivelyDeleted() -> 0
-    status == AttendanceStatus.CONFIRMED || status == AttendanceStatus.ARRIVED -> 1
+    status == AttendanceStatus.CONFIRMED || status.hasArrived -> 1
     else -> 0
 }
 
@@ -75,7 +75,7 @@ fun Session.Intensive.pendingChildCount(): Int = when {
 
 /** Сколько детей пришло на интенсив. */
 fun Session.Intensive.arrivedChildCount(): Int = when {
-    children.isNotEmpty() -> children.count { it.status == AttendanceStatus.ARRIVED }
+    children.isNotEmpty() -> children.count { it.status.hasArrived }
     countsTowardEarnings() -> 1
     else -> 0
 }

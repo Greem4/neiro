@@ -62,6 +62,24 @@ class SessionChangeDetectorTest {
         assertEquals(SessionEventType.CLIENT_ARRIVED, events.first().type)
     }
 
+    @Test
+    fun `payment after arrival does not raise a second event`() {
+        // «Пришёл» и «оплатил» — два состояния одной записи; будить человека
+        // второй раз незачем (01.09.2026).
+        val before = listOf(session("Анна", "10:00", AttendanceStatus.ARRIVED))
+        val after = listOf(session("Анна", "10:00", AttendanceStatus.PAID))
+        assertEquals(0, SessionChangeDetector.detect(before, after).size)
+    }
+
+    @Test
+    fun `arrival noticed together with payment still notifies once`() {
+        val before = listOf(session("Анна", "10:00", AttendanceStatus.CONFIRMED))
+        val after = listOf(session("Анна", "10:00", AttendanceStatus.PAID))
+        val events = SessionChangeDetector.detect(before, after)
+        assertEquals(1, events.size)
+        assertEquals(SessionEventType.CLIENT_ARRIVED, events.first().type)
+    }
+
     private fun session(
         name: String,
         start: String,

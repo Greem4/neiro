@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import ru.greemlab.neiro.data.CalendarDataStoreProvider
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
+import ru.greemlab.neiro.push.PushDeliveryDiagnostics
 import ru.greemlab.neiro.push.PushRegistrar
 import ru.greemlab.neiro.sync.AutoSyncCoordinator
 import ru.greemlab.neiro.sync.LiveApiCoordinator
@@ -34,6 +35,9 @@ class NeiroApplication : Application() {
             LiveApiCoordinator.initialize(this@NeiroApplication)
 
             SessionNotificationCoordinator.initialize(this@NeiroApplication)
+            // До PushRegistrar: тот сразу пойдёт за токеном FCM и запишет
+            // результат, а прогрев поверх него вернул бы сохранённое старое.
+            PushDeliveryDiagnostics.warmUp(this@NeiroApplication)
             PushRegistrar.initialize(this@NeiroApplication)
 
             // Суточная проверка новой версии на GitHub. В debug выходит сразу:

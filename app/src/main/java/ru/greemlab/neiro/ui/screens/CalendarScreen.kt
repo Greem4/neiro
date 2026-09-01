@@ -28,7 +28,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,6 +76,12 @@ import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+
+/** Отступ вокруг кнопки «Сегодня»: 16.dp до края экрана и столько же до сетки. */
+private val TODAY_BUTTON_MARGIN = 32.dp
+
+/** Прежний резерв под кнопку — нижняя граница, чтобы вёрстка не «подпрыгнула». */
+private val TODAY_BUTTON_MIN_RESERVE = 80.dp
 
 /**
  * Все типы overlay, отображающихся поверх календаря.
@@ -833,6 +841,13 @@ fun CalendarScreenContent(
     var monthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
     val scrollableState = rememberScrollableState { 0f }
+    // Высота кнопки «Сегодня»: она висит поверх сетки, и место под неё внизу
+    // экрана резервируется по факту, а не константой. При системном шрифте
+    // 130–200 % кнопка перерастала прежние 80.dp и накрывала нижний ряд чисел —
+    // числа переставали нажиматься (Pixel 10, 01.09.2026).
+    var todayButtonHeight by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
+    val todayButtonReserve = maxOf(TODAY_BUTTON_MIN_RESERVE, todayButtonHeight + TODAY_BUTTON_MARGIN)
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -932,7 +947,7 @@ fun CalendarScreenContent(
                         }
                     },
                 )
-                Spacer(modifier = Modifier.navigationBarsPadding().height(80.dp))
+                Spacer(modifier = Modifier.navigationBarsPadding().height(todayButtonReserve))
             }
 
             MonthPickerOverlay(
@@ -965,6 +980,14 @@ fun CalendarScreenContent(
                     onClick = onTodayClick,
                     modifier = Modifier
                         .heightIn(min = 48.dp)
+                        // Ноль приходит на скрытии — запоминаем последний
+                        // настоящий размер, иначе сетка успевала растянуться
+                        // ровно под возвращающуюся кнопку.
+                        .onSizeChanged { size ->
+                            if (size.height > 0) {
+                                todayButtonHeight = with(density) { size.height.toDp() }
+                            }
+                        }
                         .glassBorder(todayShape),
                     containerColor = glassControlColor(),
                     contentColor = if (glass) {

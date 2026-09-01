@@ -950,7 +950,10 @@ private fun calculateStats(
         when (entry.status) {
             AttendanceStatus.EXPECTED -> if (!isIntensive) expected++
             AttendanceStatus.CONFIRMED -> if (!isIntensive) confirmed++
-            AttendanceStatus.ARRIVED -> {
+            // Пришёл — уже в счётчике состоявшихся; в деньги занятие попадает
+            // отдельно, по оплате (01.09.2026).
+            AttendanceStatus.ARRIVED -> if (!isIntensive) arrived++
+            AttendanceStatus.PAID -> {
                 if (!isIntensive) arrived++
                 money += if (!entry.isExtra) {
                     rates.pricePerSession

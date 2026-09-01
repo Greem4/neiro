@@ -109,11 +109,12 @@ class ProfileYearStatsTest {
         val intensive = SessionFormat.serializeIntensive(
             price = "",
             name = "Интенсив",
-            status = AttendanceStatus.ARRIVED,
+            status = AttendanceStatus.PAID,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                // Деньги интенсива идут за оплаченными детьми (01.09.2026).
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         val dayData = mapOf(
@@ -144,11 +145,13 @@ class ProfileYearStatsTest {
     }
 
     @Test
-    fun `year tax follows month history, not the current profile`() {
-        // Налог месяца фиксируется в истории при первой записи и после правки в
-        // профиле не пересчитывается. Пока год считался по сегодняшнему налогу
-        // профиля, «налог за год» и сумма месяцев рядом описывали разные
-        // вселенные (аудит 14.08.26, U2).
+    fun `year tax follows the profile, not the number frozen in history`() {
+        // Налог задаётся только в профиле, и правка в настройках обязана
+        // дойти до всех месяцев: слепок в записи месяца — след, а не
+        // источник. Пока расчёт читал слепок, однажды ошибочно введённая
+        // сумма оставалась в истории навсегда (01.09.2026). Согласованность
+        // «год = сумма месяцев» (аудит 14.08.26, U2) при этом сохраняется:
+        // и год, и каждый месяц берут одно и то же число из профиля.
         // pricePerSession обязателен: без своей цены резолвер месяца до налога
         // не доходит и целиком уходит в профиль (MonthRatesResolver).
         val ledger = SalaryLedger.Empty
@@ -181,9 +184,9 @@ class ProfileYearStatsTest {
             staffId = staffId,
             today = LocalDate.of(2026, 7, 30),
         )
-        // Январь и февраль — по 4000 из истории, остальные десять — по 6500
-        // из профиля: своей записи у них нет.
-        assertEquals(4000.0 * 2 + 6500.0 * 10, stats.totalTaxAmount, 0.0)
+        // Все двенадцать месяцев — по 6500 из профиля, включая январь и
+        // февраль со старым слепком 4000 в записи.
+        assertEquals(6500.0 * 12, stats.totalTaxAmount, 0.0)
     }
 
     @Test
@@ -255,7 +258,7 @@ class ProfileYearStatsTest {
     @Test
     fun `past month with fact uses price from fact and not from profile`() {
         val dayData = mapOf(
-            LocalDate.of(2025, 4, 10) to listOf("Иванов|3", "Петров|3"),
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|4", "Петров|4"),
         )
         val ledger = SalaryLedger.Empty.withMonth(
             MonthEntry(
@@ -284,7 +287,7 @@ class ProfileYearStatsTest {
         // В календаре два занятия, в YClients — 102 услуги и 127 500 ₽.
         // Показываем начисление: перемножением вышло бы 2500 вместо 127 500.
         val dayData = mapOf(
-            LocalDate.of(2025, 4, 10) to listOf("Иванов|3", "Петров|3"),
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|4", "Петров|4"),
         )
         val ledger = SalaryLedger.Empty.withMonth(
             MonthEntry(
@@ -316,7 +319,7 @@ class ProfileYearStatsTest {
         // Февраль–май 2026 в жизни: YClients считал по 1500 из-за старой схемы
         // percent, на руки было 1400 — человек ставит свою цену, и она главнее.
         val dayData = mapOf(
-            LocalDate.of(2025, 4, 10) to listOf("Иванов|3", "Петров|3"),
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|4", "Петров|4"),
         )
         val ledger = SalaryLedger.Empty.withMonth(
             MonthEntry(
@@ -382,7 +385,7 @@ class ProfileYearStatsTest {
             amountFixed = true,
         )
         val dayData = mapOf(
-            LocalDate.of(2025, 4, 10) to listOf("Иванов|3", manualIntensive),
+            LocalDate.of(2025, 4, 10) to listOf("Иванов|4", manualIntensive),
         )
         val ledger = SalaryLedger.Empty.withMonth(
             MonthEntry(
@@ -409,7 +412,7 @@ class ProfileYearStatsTest {
     fun `current month is not touched by payroll`() {
         // Текущий месяц считается по профилю: начисление за него ещё не закрыто.
         val dayData = mapOf(
-            LocalDate.of(2026, 7, 10) to listOf("Иванов|3", "Петров|3"),
+            LocalDate.of(2026, 7, 10) to listOf("Иванов|4", "Петров|4"),
         )
         val ledger = SalaryLedger.Empty.withMonth(
             MonthEntry(
@@ -452,7 +455,7 @@ class ProfileYearStatsTest {
         )
         val stats = computeProfileYearStats(
             year = 2025,
-            dayData = mapOf(LocalDate.of(2025, 4, 10) to listOf("Иванов|3")),
+            dayData = mapOf(LocalDate.of(2025, 4, 10) to listOf("Иванов|4")),
             profileRates = EarningsContext(pricePerSession = 1400.0, monthlyTaxAmount = 6500.0),
             ledger = ledger,
             staffId = staffId,

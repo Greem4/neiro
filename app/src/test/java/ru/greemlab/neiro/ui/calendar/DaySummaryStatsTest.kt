@@ -41,7 +41,7 @@ class DaySummaryStatsTest {
             status = AttendanceStatus.EXPECTED,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
                 Session.IntensiveChild("Маша", AttendanceStatus.EXPECTED),
             ),
         )
@@ -63,11 +63,11 @@ class DaySummaryStatsTest {
             status = AttendanceStatus.ARRIVED,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
             ),
         )
         val stats = computeDayStats(
-            listOf(intensive, "Дима|3|18:00-18:50"),
+            listOf(intensive, "Дима|4|18:00-18:50"),
             rates = EarningsContext(
                 pricePerSession = 1000.0,
                 pricePerIntensiveChild = 800.0,
@@ -110,7 +110,7 @@ class DaySummaryStatsTest {
     @Test
     fun `cancelled student does not count as lesson`() {
         val stats = computeDayStats(
-            listOf("Иванов|2", "Петров|3"),
+            listOf("Иванов|2", "Петров|4"),
             rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(1, stats.totalLessons)
@@ -127,6 +127,20 @@ class DaySummaryStatsTest {
         )
         assertEquals(1, stats.totalLessons)
         assertEquals(2000.0, stats.earned, 0.0)
+    }
+
+    @Test
+    fun `arrived but unpaid lesson is conducted, not earned`() {
+        // «Пришёл» в YClients — это восклицательный знак на записи, а не
+        // оплата: занятие состоялось, но деньги ещё впереди (01.09.2026).
+        val stats = computeDayStats(
+            listOf("Шкурупий|3", "Савастьянов|4"),
+            rates = EarningsContext(pricePerSession = 1500.0),
+        )
+        assertEquals(2, stats.totalLessons)
+        assertEquals(2, stats.attendedLessons)
+        assertEquals(1500.0, stats.earned, 0.0)
+        assertEquals(1500.0, stats.expected, 0.0)
     }
 
     @Test
@@ -153,12 +167,12 @@ class DaySummaryStatsTest {
             status = AttendanceStatus.EXPECTED,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
                 Session.IntensiveChild("Маша", AttendanceStatus.EXPECTED),
             ),
         )
         val stats = computeDayStats(
-            listOf(intensive, "Иванов|3", "__DIAGNOSTICS__:500|Аня|true"),
+            listOf(intensive, "Иванов|4", "__DIAGNOSTICS__:500|Аня|true"),
             rates = EarningsContext(
                 pricePerSession = 1000.0,
                 pricePerIntensiveChild = 800.0,
@@ -223,7 +237,7 @@ class DaySummaryStatsTest {
     @Test
     fun `day fact marks earnings as coming from api`() {
         val stats = computeDayStats(
-            listOf("Иванов|3"),
+            listOf("Иванов|4"),
             rates = EarningsContext(pricePerSession = 1000.0),
             dayFact = 1500.0,
         )
@@ -236,7 +250,7 @@ class DaySummaryStatsTest {
     @Test
     fun `cancelled student stays in scheduled and potential earnings`() {
         val stats = computeDayStats(
-            listOf("Иванов|2", "Петров|3"),
+            listOf("Иванов|2", "Петров|4"),
             rates = EarningsContext(pricePerSession = 1000.0),
         )
         assertEquals(1, stats.lessons.planned)
@@ -260,7 +274,7 @@ class DaySummaryStatsTest {
             time = "18:00-18:50",
             children = listOf(
                 Session.IntensiveChild("Дима", AttendanceStatus.CANCELLED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         val stats = computeDayStats(
@@ -286,7 +300,7 @@ class DaySummaryStatsTest {
             time = "19:00-19:50",
             children = listOf(
                 Session.IntensiveChild("Дима", AttendanceStatus.CANCELLED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
             amountFixed = true,
         )
@@ -310,8 +324,8 @@ class DaySummaryStatsTest {
             status = AttendanceStatus.ARRIVED,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         val stats = computeDayStats(

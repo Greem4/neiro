@@ -94,6 +94,8 @@ internal fun computeMonthStats(
 
             when (session) {
                 is Session.Intensive -> {
+                    // Интенсив занятием не считается нигде (0.2.3), поэтому
+                    // счётчик «проведено» его не касается — только деньги.
                     if (session.countsTowardEarnings()) {
                         val intensiveAmount = session.totalAmount(
                             rates.pricePerIntensiveChild,
@@ -120,9 +122,14 @@ internal fun computeMonthStats(
                 is Session.Diagnostics -> {
                     scheduled++
                     val price = if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
-                    if (session.countsTowardEarnings()) {
+                    // «Проведено» — про работу, деньги — про оплату: клиент,
+                    // который пришёл и ещё не заплатил, стоит в проведённых, а
+                    // его деньги — в ожидаемых (01.09.2026).
+                    if (session.countsAsAttended()) {
                         completed++
                         completedDiagnostics++
+                    }
+                    if (session.countsTowardEarnings()) {
                         diagnosticsEarnings += price
                         grossEarned += price
                     } else {
@@ -133,10 +140,13 @@ internal fun computeMonthStats(
                 is Session.Student -> {
                     scheduled++
                     val pay = rates.pricePerSession
-                    val isAttended = session.countsTowardEarnings()
+                    val isAttended = session.countsAsAttended()
+                    val isPaid = session.countsTowardEarnings()
                     if (isAttended) {
                         completed++
                         completedSessions++
+                    }
+                    if (isPaid) {
                         grossEarned += pay
                     } else {
                         expectedIncome += pay
@@ -148,7 +158,7 @@ internal fun computeMonthStats(
                     studentStatsMap[name] = current.copy(
                         completedCount = current.completedCount + (if (isAttended) 1 else 0),
                         totalScheduled = current.totalScheduled + 1,
-                        totalEarned = current.totalEarned + (if (isAttended) pay else 0.0)
+                        totalEarned = current.totalEarned + (if (isPaid) pay else 0.0)
                     )
                 }
             }

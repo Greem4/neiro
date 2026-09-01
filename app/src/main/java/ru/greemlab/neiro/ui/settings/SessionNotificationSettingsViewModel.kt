@@ -12,6 +12,8 @@ import ru.greemlab.neiro.notifications.ScheduledDigestKind
 import ru.greemlab.neiro.notifications.ScheduledNotificationTime
 import ru.greemlab.neiro.notifications.SessionNotificationCoordinator
 import ru.greemlab.neiro.notifications.SessionNotificationPreferences
+import ru.greemlab.neiro.push.PushDeliveryDiagnostics
+import ru.greemlab.neiro.push.PushRegistrar
 
 /**
  * Снимок настроек для экрана. Без значений по умолчанию намеренно: единственный
@@ -43,6 +45,30 @@ class SessionNotificationSettingsViewModel(application: Application) : AndroidVi
 
     private val _state = MutableStateFlow(loadState())
     val state: StateFlow<SessionNotificationSettingsState> = _state.asStateFlow()
+
+    /** Состояние канала мгновенных уведомлений — показывается отдельной плашкой. */
+    val delivery: StateFlow<PushDeliveryDiagnostics.State> = PushDeliveryDiagnostics.state
+
+    private val _deliveryChecking = MutableStateFlow(false)
+    val deliveryChecking: StateFlow<Boolean> = _deliveryChecking.asStateFlow()
+
+    /**
+     * «Проверить снова»: ещё одна попытка получить токен FCM и донести его до
+     * сервера. Firebase отказывает и по временным причинам (нет сети, спит
+     * сервис), поэтому ручная попытка имеет смысл — ждать получасового
+     * keepalive человеку незачем.
+     */
+    fun recheckDelivery() {
+        if (_deliveryChecking.value) return
+        _deliveryChecking.value = true
+        viewModelScope.launch {
+            try {
+                PushRegistrar.onAppForegroundNow(getApplication())
+            } finally {
+                _deliveryChecking.value = false
+            }
+        }
+    }
 
     init {
         // Единый источник master-тумблера (SessionNotificationPreferences.isEnabledFlow) —

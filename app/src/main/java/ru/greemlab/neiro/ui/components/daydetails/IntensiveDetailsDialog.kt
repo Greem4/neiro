@@ -83,9 +83,9 @@ private fun IntensiveDetailsCard(
     val semantic = neiroSemanticColors
 
     val timeLabel = formatIntensiveTimeLabel(time)
-    val arrivedCount = children.count { it.status == AttendanceStatus.ARRIVED }
+    val arrivedCount = children.count { it.status.hasArrived }
     val confirmedCount = children.count {
-        it.status == AttendanceStatus.CONFIRMED || it.status == AttendanceStatus.ARRIVED
+        it.status == AttendanceStatus.CONFIRMED || it.status.hasArrived
     }
     val amountLabel = if (amount > 0.0) formatRubles(amount) else null
 

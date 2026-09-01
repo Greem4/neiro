@@ -185,6 +185,25 @@ def test_repeat_login_replaces_token_and_keeps_cursor(tmp_path: Path) -> None:
     assert row["last_ack_event_id"] == 42
 
 
+def test_login_without_fcm_token_keeps_the_working_one(tmp_path: Path) -> None:
+    """Вход с пустым `fcm_token` не отключает пуши.
+
+    Приложение шлёт пустую строку, когда Firebase не успел отдать токен ко
+    входу. Пока такой вход затирал рабочий токен, устройство переставало
+    получать пуши и жило на одном догоне (01.09.2026)."""
+    db = Database(str(tmp_path / "events.db"))
+    account_id = db.upsert_account(1, 10, "ut")
+    db.upsert_device(account_id, "dev1", "hash-old", "fcm1", None, None)
+
+    db.upsert_device(account_id, "dev1", "hash-new", "", None, None)
+
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT fcm_token FROM devices WHERE device_id = 'dev1'"
+        ).fetchone()
+    assert row["fcm_token"] == "fcm1"
+
+
 def test_successful_login_clears_reauth_required(tmp_path: Path) -> None:
     db = Database(str(tmp_path / "events.db"))
     account_id = db.upsert_account(1, 10, "ut")

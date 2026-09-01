@@ -328,7 +328,12 @@ class Database:
         """Повторный вход с того же `device_id` — обычное дело: старый хэш
         затирается новым (прежний `device_token` с этого момента мёртв), отзыв
         снимается, а `last_ack_event_id` не трогается — иначе телефон потерял бы
-        события, накопившиеся за время без связи (API.md § auth/login)."""
+        события, накопившиеся за время без связи (API.md § auth/login).
+
+        Пустой `fcm_token` рабочий не затирает: приложение шлёт пустую строку,
+        когда Firebase не успел отдать токен ко входу, и такой вход отключал бы
+        пуши на устройстве, где они работали. Настоящий токен приезжает следом
+        отдельным запросом (`PUT /v1/devices/fcm-token`)."""
         now = utc_now_iso()
         with self.connect() as conn:
             conn.execute(
@@ -341,7 +346,10 @@ class Database:
                     account_id = excluded.account_id,
                     token_hash = excluded.token_hash,
                     revoked_at = NULL,
-                    fcm_token = excluded.fcm_token,
+                    fcm_token = CASE
+                        WHEN excluded.fcm_token != '' THEN excluded.fcm_token
+                        ELSE devices.fcm_token
+                    END,
                     label = excluded.label,
                     app_version = excluded.app_version,
                     last_seen_at = excluded.last_seen_at,

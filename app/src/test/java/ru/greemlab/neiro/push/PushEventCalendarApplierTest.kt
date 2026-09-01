@@ -39,6 +39,37 @@ class PushEventCalendarApplierTest {
     }
 
     @Test
+    fun `приход не сбрасывает уже отмеченную оплату`() {
+        // Сервер про `paid_full` не знает и шлёт «пришёл» и на оплаченное
+        // занятие. Понижение статуса вернуло бы деньги дня в ожидаемые до
+        // следующего полного синка (01.09.2026).
+        val paid = SessionFormat.serializeStudentExtended(
+            name = "Иванова Мария",
+            status = AttendanceStatus.PAID,
+            time = "15:00-15:50",
+        )
+        val dayData = mapOf(date to listOf(paid))
+
+        val result = applyOne(dayData, event(type = "CLIENT_ARRIVED"))
+
+        assertEquals(AttendanceStatus.PAID, statusOf(result, date, 0))
+    }
+
+    @Test
+    fun `отмена перебивает даже оплату`() {
+        val paid = SessionFormat.serializeStudentExtended(
+            name = "Иванова Мария",
+            status = AttendanceStatus.PAID,
+            time = "15:00-15:50",
+        )
+        val dayData = mapOf(date to listOf(paid))
+
+        val result = applyOne(dayData, event(type = "CANCELLED"))
+
+        assertEquals(AttendanceStatus.CANCELLED, statusOf(result, date, 0))
+    }
+
+    @Test
     fun `отмена меняет статус на CANCELLED и запись остаётся`() {
         val dayData = mapOf(date to listOf(student("Иванова Мария", "15:00-15:50")))
 

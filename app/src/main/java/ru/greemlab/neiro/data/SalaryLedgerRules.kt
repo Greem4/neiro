@@ -154,7 +154,10 @@ fun mergeFact(
             ?: profile.pricePerDiagnostics,
         priceIntensiveChild = existing?.priceIntensiveChild?.takeIf { it > 0.0 }
             ?: profile.pricePerIntensiveChild,
-        tax = existing?.tax?.takeIf { it > 0.0 } ?: profile.monthlyTaxAmount,
+        // След, а не источник: расчёт месяца берёт налог из профиля
+        // (`MonthRatesResolver`). Держим здесь свежее значение, чтобы запись
+        // месяца не хранила давно исправленную сумму.
+        tax = profile.monthlyTaxAmount,
         factGross = if (hasFact) fact.gross else existing?.factGross,
         factSessions = if (hasFact) fact.services else existing?.factSessions,
         origin = existing?.origin ?: PriceOrigin.AUTO,
