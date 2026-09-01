@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.MainActivity
 import ru.greemlab.neiro.R
 import ru.greemlab.neiro.notifications.NeiroNotificationBranding
@@ -92,19 +91,17 @@ object UpdateNotifier {
 
     /**
      * Известна ли версия новее установленной — для точки на пункте «О программе».
-     * Берётся из кэша прошлой проверки, в сеть не ходит.
+     * Берётся из сохранённого предложения, в сеть не ходит.
+     *
+     * Источник тот же, что у экрана: точка обещает готовую кнопку «Обновить», и
+     * если предложения нет (релиз без APK, откат), обещать нечего.
      *
      * @return версия для подписи или null, если показывать нечего.
      */
     fun knownNewerVersion(context: Context): ReleaseVersion? {
         val appContext = context.applicationContext
         if (!UpdateChannelGate.isAllowed(appContext)) return null
-
-        val preferences = UpdatePreferences.get(appContext)
-        val known = preferences.lastKnownVersionCode
-        if (known <= BuildConfig.VERSION_CODE) return null
-        if (known <= preferences.skippedVersionCode) return null
-        return ReleaseVersion.fromVersionCode(known)
+        return UpdatePreferences.get(appContext).usableUpdateOffer()?.version
     }
 
     /**

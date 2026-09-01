@@ -114,15 +114,27 @@ object UpdateCheckCoordinator {
     suspend fun checkNow(context: Context, force: Boolean = false): UpdateStatus {
         val appContext = context.applicationContext
         val status = UpdateChecker.create(appContext).check(force)
+        val preferences = UpdatePreferences.get(appContext)
         when (status) {
             is UpdateStatus.Available -> {
                 Log.i(TAG, "Есть обновление: ${status.info.version.versionName}")
+                // Найденное предложение переживает закрытие приложения: экран
+                // «О программе» поднимает его при открытии, и тап по
+                // уведомлению приводит сразу к кнопке «Обновить», а не к
+                // пустому экрану с повторной проверкой.
+                preferences.availableUpdate = status.info
                 // Правило «об одной версии говорим один раз» и проверка
                 // «пропустили» живут внутри UpdateNotifier — здесь не дублируем.
                 UpdateNotifier.notifyIfNeeded(appContext, status.info)
             }
 
-            is UpdateStatus.UpToDate -> Log.i(TAG, "Обновлений нет")
+            is UpdateStatus.UpToDate -> {
+                // Новее нечего — значит и предлагать нечего: релиз откатили или
+                // обновились мимо приложения. Оставленная запись предлагала бы
+                // скачать APK, которого в релизе уже нет.
+                preferences.availableUpdate = null
+                Log.i(TAG, "Обновлений нет")
+            }
             is UpdateStatus.Throttled -> Log.i(TAG, "Проверяли меньше суток назад, GitHub не трогаем")
             is UpdateStatus.Blocked -> Log.i(TAG, "Самообновление выключено: ${status.why}")
             is UpdateStatus.Failed -> Log.w(TAG, "Проверка не удалась: ${status.failure}")

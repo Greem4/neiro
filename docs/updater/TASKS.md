@@ -558,6 +558,9 @@ release-сборке в логах (`adb logcat -s UpdateCheck`) при перв
 - [x] Строки — в `strings.xml`
 - [x] Уведомление открывает экран напрямую: `EXTRA_OPEN_ABOUT` → `MainActivity`
       → `CalendarScreen`
+- [x] Экран открывается готовым: найденное обновление сохраняется целиком
+      (`available_update`, `UpdateOffer`) и поднимается при создании
+      `UpdateViewModel` — повторная проверка не нужна
 
 Макет — [ARCHITECTURE.md § Экран «О программе»](ARCHITECTURE.md#экран-о-программе).
 

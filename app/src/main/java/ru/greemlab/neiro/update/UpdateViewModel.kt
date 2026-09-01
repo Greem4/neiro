@@ -57,21 +57,33 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         UpdateChannelGate.blockReason(application)?.let { _state.value = UpdateState.Blocked(it) }
-        restoreAfterInstall()
+        restorePreviousState()
         observeInstallStatus()
     }
 
     /**
-     * Что осталось от прошлого запуска: отметка об установке и, может быть,
-     * скачанный, но не поставленный APK. Второе важнее, чем кажется: без него
-     * человек, закрывший системный диалог, качал бы те же 15 МБ заново.
+     * Что осталось от прошлого запуска: отметка об установке, скачанный, но не
+     * поставленный APK, и найденное обновление, которое ещё не поставили.
+     *
+     * Последнее — то, ради чего экран открывается готовым: человек, пришедший
+     * по уведомлению о версии, видит предложение обновиться сразу, а не жмёт
+     * «Проверить обновления», чтобы приложение узнало то, что уже знает.
+     * Скачанный APK при этом важнее найденной версии: качать те же 15 МБ
+     * заново из-за закрытого системного диалога незачем.
      */
-    private fun restoreAfterInstall() {
+    private fun restorePreviousState() {
+        // Сборке из магазина или debug обновляться нечем: ни предложения, ни
+        // готового файла показывать нельзя, даже если они остались от прошлой.
+        if (_state.value is UpdateState.Blocked) return
+
         val updatedFrom = preferences.consumeUpdatedFrom()
         if (updatedFrom in 1 until BuildConfig.VERSION_CODE) {
             _justUpdatedTo.value = BuildConfig.VERSION_NAME
             UpdateDownloader.clearDownloads(app)
             preferences.clearPendingApk()
+            // Предложение исполнено — иначе экран предлагал бы поставить то,
+            // что только что поставили.
+            preferences.availableUpdate = null
             UpdateNotifier.cancel(app)
             return
         }
@@ -84,6 +96,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
                 UpdateDownloader.clearDownloads(app)
                 preferences.clearPendingApk()
             }
+            restoreOffer()
             return
         }
 
@@ -91,6 +104,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         val version = ReleaseVersion.fromVersionCode(pendingVersion)
         if (!apk.isFile || apk.length() == 0L || version == null) {
             preferences.clearPendingApk()
+            restoreOffer()
             return
         }
 
@@ -106,6 +120,15 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
             checksumsUrl = "",
         )
         _state.value = UpdateState.ReadyToInstall(info, apk)
+    }
+
+    /**
+     * Найденное прошлой проверкой обновление — на экран, без похода в сеть.
+     * Устаревшую запись (обновились, пропустили) отсекает само хранилище.
+     */
+    private fun restoreOffer() {
+        val offer = preferences.usableUpdateOffer() ?: return
+        _state.value = UpdateState.Available(offer)
     }
 
     /** Отметку прочитали и показали — второй раз не надо. */
@@ -205,6 +228,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
             preferences.notifiedVersionCode,
             info.version.versionCode,
         )
+        preferences.availableUpdate = null
         UpdateNotifier.cancel(app)
         UpdateDownloader.clearDownloads(app)
         preferences.clearPendingApk()
@@ -241,8 +265,13 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
                 val info = _state.value.info
                 when (event) {
                     null -> Unit
-                    is UpdateInstallEvent.Installed -> _state.value =
-                        UpdateState.UpToDate(preferences.lastCheckEpochMillis)
+                    is UpdateInstallEvent.Installed -> {
+                        // Поставили — предлагать больше нечего. Обычно процесс
+                        // после установки убивают, но если он дожил, экран не
+                        // должен звать обновляться до уже стоящей версии.
+                        preferences.availableUpdate = null
+                        _state.value = UpdateState.UpToDate(preferences.lastCheckEpochMillis)
+                    }
 
                     is UpdateInstallEvent.AwaitingConfirmation ->
                         if (info != null) _state.value = UpdateState.AwaitingConfirmation(info)

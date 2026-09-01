@@ -70,6 +70,47 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         get() = prefs.getInt(KEY_SKIPPED_VERSION_CODE, 0)
         set(value) = prefs.edit().putInt(KEY_SKIPPED_VERSION_CODE, value).apply()
 
+    /**
+     * Последнее найденное обновление целиком — то самое предложение, которое
+     * показывает экран «О программе».
+     *
+     * Отдельно от [lastKnownVersionCode] потому, что это разные вопросы:
+     * там — «что вообще лежит в релизе» (нужно проверке и троттлингу, пишется
+     * даже для версии не новее нашей), здесь — «что предложить пользователю».
+     * Экран и точка «доступна версия» читают только это поле, иначе получились
+     * бы две копии одного ответа, расходящиеся при откате релиза.
+     *
+     * Пишется в [UpdateCheckCoordinator.checkNow] — единственной точке проверки.
+     */
+    var availableUpdate: UpdateInfo?
+        get() = UpdateOffer.decode(prefs.getString(KEY_AVAILABLE_UPDATE, null))
+        set(value) {
+            val editor = prefs.edit()
+            if (value == null) {
+                editor.remove(KEY_AVAILABLE_UPDATE)
+            } else {
+                editor.putString(KEY_AVAILABLE_UPDATE, UpdateOffer.encode(value))
+            }
+            editor.apply()
+        }
+
+    /**
+     * Предложение, которое ещё имеет смысл показывать: не про установленную
+     * версию и не про пропущенную.
+     *
+     * Устаревшую запись стираем на месте — иначе «Пропустить», нажатое на
+     * экране, пришлось бы дублировать в каждом читателе.
+     */
+    fun usableUpdateOffer(): UpdateInfo? {
+        val offer = UpdateOffer.usable(
+            info = availableUpdate,
+            installedVersionCode = BuildConfig.VERSION_CODE,
+            skippedVersionCode = skippedVersionCode,
+        )
+        if (offer == null) availableUpdate = null
+        return offer
+    }
+
     /** Скачанный и проверенный, но ещё не установленный APK. */
     var pendingApkPath: String?
         get() = prefs.getString(KEY_PENDING_APK_PATH, null)
@@ -132,6 +173,7 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
             .remove(KEY_LAST_CHECK_EPOCH)
             .remove(KEY_LAST_KNOWN_VERSION_CODE)
             .remove(KEY_RATE_LIMITED_UNTIL)
+            .remove(KEY_AVAILABLE_UPDATE)
             .apply()
     }
 
@@ -146,6 +188,7 @@ class UpdatePreferences(context: Context) : UpdateCheckStore {
         private const val KEY_PENDING_APK_PATH = "pending_apk_path"
         private const val KEY_PENDING_VERSION_CODE = "pending_version_code"
         private const val KEY_UPDATED_FROM_VERSION_CODE = "updated_from_version_code"
+        private const val KEY_AVAILABLE_UPDATE = "available_update"
 
         @Volatile
         private var instance: UpdatePreferences? = null
