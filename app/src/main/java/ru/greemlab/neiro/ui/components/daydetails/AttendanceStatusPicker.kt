@@ -140,4 +140,5 @@ fun attendanceStatusLabel(status: AttendanceStatus): String = when (status) {
     AttendanceStatus.CONFIRMED -> stringResource(R.string.attendance_status_confirmed)
     AttendanceStatus.CANCELLED -> stringResource(R.string.attendance_status_cancelled)
     AttendanceStatus.ARRIVED -> stringResource(R.string.attendance_status_arrived)
+    AttendanceStatus.PAID -> stringResource(R.string.attendance_status_paid)
 }

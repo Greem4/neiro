@@ -193,6 +193,42 @@ class SessionParserTest {
     }
 
     @Test
+    fun `paid record becomes PAID and counts toward earnings`() {
+        // Плюсик в YClients (`paid_full = 1`) — единственное, что заводит
+        // занятие в деньги (01.09.2026).
+        val status = AttendanceStatus.resolveFromRecord(
+            attendance = 1,
+            visitAttendance = 1,
+            paidFull = 1,
+        )
+        assertEquals(AttendanceStatus.PAID, status)
+        assertTrue(status.countsTowardEarnings)
+    }
+
+    @Test
+    fun `arrived without payment stays ARRIVED and earns nothing`() {
+        val status = AttendanceStatus.resolveFromRecord(
+            attendance = 1,
+            visitAttendance = 1,
+            paidFull = 0,
+        )
+        assertEquals(AttendanceStatus.ARRIVED, status)
+        assertFalse(status.countsTowardEarnings)
+        assertTrue(status.hasArrived)
+    }
+
+    @Test
+    fun `payment does not resurrect a cancelled record`() {
+        // Списание абонемента за пропуск: деньги прошли, а занятия не было.
+        val status = AttendanceStatus.resolveFromRecord(
+            attendance = -1,
+            visitAttendance = -1,
+            paidFull = 1,
+        )
+        assertEquals(AttendanceStatus.CANCELLED, status)
+    }
+
+    @Test
     fun `resolveFromRecord prefers cancelled over waiting`() {
         val status = AttendanceStatus.resolveFromRecord(
             attendance = 0,

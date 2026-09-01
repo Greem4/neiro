@@ -1,0 +1,29 @@
+---
+description: Conventional Commits (агент и ✨ — см. также .cursorrules)
+alwaysApply: true
+---
+
+# Git: Conventional Commits
+
+**Кнопка ✨ в Source Control** читает правила из **`.cursorrules` в корне репозитория**, а не из этого файла. Если ✨ игнорирует формат — правь `.cursorrules`.
+
+**Агент в чате** — следуй и этому файлу, и `.cursorrules`.
+
+## Формат
+
+- `<тип>[область]: <описание>`, одна строка, до 72 символов, без тела коммита.
+- Тип: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+- Описание на английском, повелительное наклонение, без точки в конце.
+- Одна суть: не перечисляй все файлы и подзадачи.
+
+## Примеры
+
+- `feat(pay): add monthly payout API`
+- `fix(drawer): panel follows finger on left-edge drag`
+- `refactor: simplify PayMonthlyChart`
+
+## Нельзя
+
+- Длинные «отчёты» на полэкрана с перечислением моделей, маршрутов и стилей.
+- `Обновил PayMonthlyChart` — старый формат, без типа
+- `drawer gestures` — нет типа и глагола-действия

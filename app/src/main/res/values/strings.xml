@@ -95,6 +95,12 @@
     <string name="notification_settings_configure">Настроить типы уведомлений…</string>
     <string name="notification_settings_title">Уведомления о занятиях</string>
     <string name="notification_settings_master_hint">Все события только по вашему расписанию после входа в YClients</string>
+    <string name="notification_settings_delivery_broken_title">Уведомления приходят с задержкой</string>
+    <string name="notification_settings_delivery_broken_hint">Телефон не получил ключ мгновенной доставки от Google, поэтому изменения приходят проверкой раз в полчаса, а не сразу. Обычно помогает включённый интернет и свежие сервисы Google Play.</string>
+    <string name="notification_settings_delivery_reason">Причина: %1$s</string>
+    <string name="notification_settings_delivery_recheck">Проверить снова</string>
+    <string name="notification_settings_delivery_checking">Проверяем…</string>
+
     <string name="notification_settings_changes">Изменения в расписании</string>
     <string name="notification_settings_schedule">Расписание</string>
 
@@ -116,6 +122,7 @@
     <string name="attendance_status_confirmed">Подтвердил</string>
     <string name="attendance_status_cancelled">Не пришёл</string>
     <string name="attendance_status_arrived">Пришёл</string>
+    <string name="attendance_status_paid">Оплачено</string>
 
     <string name="archive_sync_mismatch_banner">Архив не совпадает с данными YClients. Ручные правки в архиве могут отличаться.</string>
     <string name="archive_sync_mismatch_banner_cd">Показать отличия архива от YClients</string>
@@ -171,7 +178,7 @@
     <string name="notification_channel_updates">Обновления приложения</string>
     <string name="notification_channel_updates_desc">Сообщения о новых версиях Neiro</string>
     <string name="notification_update_title">Neiro %1$s — доступно обновление</string>
-    <string name="notification_update_body">Нажмите, чтобы посмотреть, что изменилось</string>
+    <string name="notification_update_body">Нажмите, чтобы обновиться</string>
     <string name="notification_update_skip">Пропустить</string>
     <string name="notification_update_install_title">Обновление готово</string>
     <string name="notification_update_install_body">Нажмите, чтобы установить новую версию</string>

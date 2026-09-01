@@ -1,5 +1,7 @@
 package ru.greemlab.neiro.push
 
+import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -11,18 +13,31 @@ import kotlin.coroutines.resume
  *
  * `null` — штатный исход: FCM выключен в сборке, на устройстве нет
  * Google-сервисов или Firebase не ответил. Ни вход, ни работа с данными от
- * этого не зависят, теряются только пуши.
+ * этого не зависят, теряются только пуши — но молчать об этом нельзя:
+ * причина неудачи уходит в [PushDeliveryDiagnostics] и оттуда на экран
+ * настроек уведомлений.
  */
 object PushFcmToken {
 
-    suspend fun fetch(): String? {
+    private const val TAG = "PushFcmToken"
+
+    suspend fun fetch(context: Context): String? {
         if (!PushConfig.isFcmEnabled) return null
+        val appContext = context.applicationContext
         return suspendCancellableCoroutine { cont ->
             val task = com.google.firebase.messaging.FirebaseMessaging.getInstance().token
             task.addOnSuccessListener { value ->
+                PushDeliveryDiagnostics.onTokenReceived(appContext)
                 if (cont.isActive) cont.resume(value)
             }
-            task.addOnFailureListener {
+            task.addOnFailureListener { error ->
+                // Без текста ошибки «нет Google-сервисов», «нет сети» и
+                // «Firebase не настроен» выглядят одинаково — молчащим null.
+                Log.w(TAG, "Firebase не отдал токен", error)
+                PushDeliveryDiagnostics.onTokenFailed(
+                    appContext,
+                    error.message ?: error::class.java.simpleName,
+                )
                 if (cont.isActive) cont.resume(null)
             }
             cont.invokeOnCancellation {

@@ -223,7 +223,9 @@ class SalaryLedgerRulesTest {
 
         assertEquals(PriceOrigin.MANUAL, merged.origin)
         assertEquals(1450.0, merged.pricePerSession, 0.0)
-        assertEquals(6000.0, merged.tax, 0.0)
+        // Налог ручным не бывает: в записи всегда лежит сегодняшнее значение
+        // профиля, а расчёт месяца и вовсе читает профиль напрямую.
+        assertEquals(6500.0, merged.tax, 0.0)
         assertTrue(merged.note.startsWith("договорённость с центром"))
         // Факт всё равно обновился — сверять есть с чем.
         assertEquals(172_500.0, merged.factGross!!, 0.0)

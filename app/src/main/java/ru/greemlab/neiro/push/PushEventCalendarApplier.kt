@@ -91,6 +91,14 @@ object PushEventCalendarApplier {
         // Интенсивы правит только полный синк — слияние по детям нетривиально (§5.6).
         if (SessionParser.isIntensive(raw)) return dayData
 
+        // Событие «пришёл» не отменяет уже известную оплату: про `paid_full`
+        // сервер не знает, и понижение статуса вернуло бы деньги дня в
+        // ожидаемые до следующего полного синка (01.09.2026).
+        val current = SessionParser.parse(raw).status
+        if (status.mergePriority < current.mergePriority && status != AttendanceStatus.CANCELLED) {
+            return dayData
+        }
+
         val updated = found.entries.toMutableList()
         updated[found.index] = SessionParser.withStatus(raw, status)
         return dayData + (date to updated)

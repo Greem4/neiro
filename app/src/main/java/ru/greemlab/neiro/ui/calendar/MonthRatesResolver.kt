@@ -67,7 +67,14 @@ fun resolveMonthRates(
     // Профиль — правда про «сейчас и вперёд», история его не задевает.
     if (!month.isBefore(YearMonth.from(today))) return byProfile
     if (entry == null) return byProfile
-    if (entry.origin == PriceOrigin.MANUAL) return ResolvedRates(entry.rates(), PriceSource.MANUAL)
+    if (entry.origin == PriceOrigin.MANUAL) {
+        // Руками у месяца задаётся цена занятия, но не налог: налог — одна
+        // сумма из профиля, и она же должна вычитаться из любого месяца.
+        return ResolvedRates(
+            rates = entry.rates().copy(monthlyTaxAmount = profile.monthlyTaxAmount),
+            source = PriceSource.MANUAL,
+        )
+    }
 
     // Цена месяца уже посчитана и лежит в истории — её и показываем, ничего не
     // выводя заново. Она взята из позиций начисления, где видна ставка каждого
@@ -98,7 +105,7 @@ fun resolveMonthRates(
             pricePerSession = factPrice,
             pricePerDiagnostics = entry.diagnosticsPriceOr(profile),
             pricePerIntensiveChild = entry.intensivePriceOr(profile),
-            monthlyTaxAmount = entry.taxOr(profile),
+            monthlyTaxAmount = profile.monthlyTaxAmount,
         ),
         source = PriceSource.FACT,
     )
@@ -128,13 +135,18 @@ fun sessionPriceFromFact(
  * Ставки месяца из записи, с добором недостающего из профиля.
  *
  * `entry.rates()` брать нельзя: у записи, заведённой до появления поля, цена
- * диагностики или налог лежат нулями, и месяц показал бы диагностику по 0 ₽.
+ * диагностики лежит нулём, и месяц показал бы диагностику по 0 ₽.
+ *
+ * Налог берётся из профиля всегда, а не из записи: задать его отдельно на
+ * месяц негде, в записи лежит слепок профиля на момент первого синка, и
+ * ошибочно введённая однажды сумма оставалась бы в истории навсегда
+ * (01.09.2026).
  */
 internal fun MonthEntry.ratesOr(profile: EarningsContext): EarningsContext = EarningsContext(
     pricePerSession = pricePerSession,
     pricePerDiagnostics = diagnosticsPriceOr(profile),
     pricePerIntensiveChild = intensivePriceOr(profile),
-    monthlyTaxAmount = taxOr(profile),
+    monthlyTaxAmount = profile.monthlyTaxAmount,
 )
 
 /** Цена диагностики месяца: из записи, если задана, иначе из профиля. */
@@ -144,10 +156,6 @@ internal fun MonthEntry?.diagnosticsPriceOr(profile: EarningsContext): Double =
 /** Ставка за ребёнка в интенсиве: из записи, если задана, иначе из профиля. */
 internal fun MonthEntry?.intensivePriceOr(profile: EarningsContext): Double =
     if (this != null && priceIntensiveChild > 0.0) priceIntensiveChild else profile.pricePerIntensiveChild
-
-/** Налог месяца: из записи, если задан, иначе из профиля. */
-internal fun MonthEntry?.taxOr(profile: EarningsContext): Double =
-    if (this != null && tax > 0.0) tax else profile.monthlyTaxAmount
 
 /**
  * Собирает суммы месяца из локальных записей — то, что нужно вычесть из факта

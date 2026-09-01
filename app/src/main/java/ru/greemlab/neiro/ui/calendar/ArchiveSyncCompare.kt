@@ -188,6 +188,7 @@ object ArchiveSyncCompare {
         AttendanceStatus.CONFIRMED -> "Подтвердил"
         AttendanceStatus.CANCELLED -> "Не пришёл"
         AttendanceStatus.ARRIVED -> "Пришёл"
+        AttendanceStatus.PAID -> "Оплачено"
     }
 
     private fun canonicalDay(sessions: List<String>): List<String> =

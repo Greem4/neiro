@@ -58,6 +58,8 @@ object PushRegistrar {
         // Иначе после входа под другим аккаунтом догон начнётся с чужого id
         // и пропустит его события (app.md §6.5).
         PushEventsCursor.reset(appContext)
+        // Устройство на сервере отзывается — знание «токен там есть» устарело.
+        PushDeliveryDiagnostics.onLogout(appContext)
         if (!PushConfig.isServerConfigured) return
         if (!YClientsRepository.getInstance(appContext).revokeDeviceOnServer()) {
             Log.w(TAG, "отзыв устройства не прошёл, повторим при следующем старте")
@@ -112,7 +114,7 @@ object PushRegistrar {
         val repository = YClientsRepository.getInstance(context)
         if (!repository.isLoggedIn.first()) return false
         repository.refreshSession()
-        PushFcmToken.fetch()?.let { repository.updateFcmToken(it) }
+        PushFcmToken.fetch(context)?.let { repository.updateFcmToken(it) }
         return repository.isLoggedIn.first()
     }
 }

@@ -220,10 +220,13 @@ internal fun computeDayStats(
                 totalLessons++
                 diagnosticsAcc.planned++
                 val price = if (rates.pricePerDiagnostics > 0.0) rates.pricePerDiagnostics else session.amount
-                if (session.countsTowardEarnings()) {
+                // Пришёл — уже в проведённых; в заработке — когда заплатил.
+                if (session.countsAsAttended()) {
                     attendedLessons++
-                    earned += price
                     diagnosticsAcc.attended++
+                }
+                if (session.countsTowardEarnings()) {
+                    earned += price
                     diagnosticsAcc.earned += price
                 } else {
                     expected += price
@@ -243,10 +246,12 @@ internal fun computeDayStats(
                 totalLessons++
                 lessonsAcc.planned++
                 val pay = rates.pricePerSession
-                if (session.countsTowardEarnings()) {
+                if (session.countsAsAttended()) {
                     attendedLessons++
-                    earned += pay
                     lessonsAcc.attended++
+                }
+                if (session.countsTowardEarnings()) {
+                    earned += pay
                     lessonsAcc.earned += pay
                 } else {
                     expected += pay

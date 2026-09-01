@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import ru.greemlab.neiro.BuildConfig
 import ru.greemlab.neiro.auth.LogoutCoordinator
 import ru.greemlab.neiro.push.PushConfig
+import ru.greemlab.neiro.push.PushDeliveryDiagnostics
 import ru.greemlab.neiro.push.PushDeviceId
 import ru.greemlab.neiro.push.PushEventsCursor
 import ru.greemlab.neiro.push.PushFcmToken
@@ -107,7 +108,7 @@ class YClientsRepository(context: Context) {
             // Токен FCM берём до входа: сервер регистрирует устройство тем же
             // запросом. Не дал — не беда, вход пройдёт и без пушей, а токен
             // донесёт PushRegistrar, когда Firebase его выдаст.
-            val fcmToken = PushFcmToken.fetch().orEmpty()
+            val fcmToken = PushFcmToken.fetch(appContext).orEmpty()
             try {
                 val response = neiroApi.login(
                     LoginRequest(
@@ -152,6 +153,9 @@ class YClientsRepository(context: Context) {
                 // Курсор событий: новое устройство стартует с конца журнала,
                 // известное — со своего сохранённого места (API.md § Вход).
                 PushEventsCursor.setIfAbsent(appContext, body.lastEventId)
+                // Устройство регистрируется тем же запросом: непустой токен,
+                // уехавший с логином, сервер уже принял.
+                if (fcmToken.isNotBlank()) PushDeliveryDiagnostics.onTokenDelivered(appContext)
                 ApiResult.Success(account)
             } catch (e: CancellationException) {
                 throw e
@@ -237,6 +241,11 @@ class YClientsRepository(context: Context) {
             .onSuccess { handleAuthFailure(it.code(), generation) }
             .map { it.isSuccessful }
             .getOrDefault(false)
+            .also { delivered ->
+                // Пуши идут только на устройство, чей токен доехал до сервера;
+                // до этого момента приложение живёт на догоне.
+                if (delivered) PushDeliveryDiagnostics.onTokenDelivered(appContext)
+            }
     }
 
     /**

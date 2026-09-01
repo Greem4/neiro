@@ -83,14 +83,16 @@ class CalendarStatsCalculatorTest {
 
     @Test
     fun `month stats use per-child rate for api intensives and fixed amount for manual`() {
+        // Дети интенсива из API оплачены: деньги считаются по оплате, а не по
+        // приходу (01.09.2026).
         val apiIntensive = SessionFormat.serializeIntensive(
             price = "",
             name = "Интенсив",
-            status = AttendanceStatus.ARRIVED,
+            status = AttendanceStatus.PAID,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         val manual = SessionFormat.serializeIntensive(

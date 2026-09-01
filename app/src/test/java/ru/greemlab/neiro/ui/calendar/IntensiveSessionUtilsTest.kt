@@ -14,8 +14,8 @@ class IntensiveSessionUtilsTest {
             status = AttendanceStatus.ARRIVED,
             amountFixed = true,
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         assertEquals(5600.0, session.totalAmount(1400.0, onlyArrived = true), 0.0)
@@ -31,7 +31,8 @@ class IntensiveSessionUtilsTest {
             status = AttendanceStatus.EXPECTED,
             amountFixed = false,
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
+                // Деньги интенсива считаются по оплаченным детям (01.09.2026).
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
                 Session.IntensiveChild("Маша", AttendanceStatus.EXPECTED),
                 Session.IntensiveChild("Петя", AttendanceStatus.CANCELLED),
             ),

@@ -11,8 +11,8 @@
 
 ## Чек-лист
 
-- [ ] Коммиты по [правилам проекта](../blob/main/CONTRIBUTING.md#правила-коммитов):
-      одна строка, до 72 символов, по-русски, глагол в прошедшем времени
+- [ ] Коммиты по [Conventional Commits](https://www.conventionalcommits.org/) —
+      см. [правила проекта](../blob/main/CONTRIBUTING.md#правила-коммитов)
 - [ ] `./gradlew :app:testDebugUnitTest` зелёный
 - [ ] Заметки к релизу лежат в разделе «Не выпущено»
       [CHANGELOG.md](../blob/main/CHANGELOG.md) — их пишет агент по команде

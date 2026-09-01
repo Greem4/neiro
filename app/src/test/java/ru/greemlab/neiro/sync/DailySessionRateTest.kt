@@ -19,7 +19,7 @@ class DailySessionRateTest {
 
     private val today = LocalDate.of(2026, 8, 20)
 
-    private fun students(count: Int): List<String> = List(count) { "Ученик $it|3" }
+    private fun students(count: Int): List<String> = List(count) { "Ученик $it|4" }
 
     @Test
     fun `price comes from the last clean day`() {
@@ -48,7 +48,7 @@ class DailySessionRateTest {
             cleanDay to DayFact(salary = 9000.0, servicesCount = 6, groupServicesCount = 0),
         )
         val dayData = mapOf(
-            mixedDay to students(5) + "__DIAGNOSTICS__:2250|Аня|3",
+            mixedDay to students(5) + "__DIAGNOSTICS__:2250|Аня|4",
             cleanDay to students(6),
         )
 

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +38,8 @@ fun SessionNotificationSettingsScreen(
     viewModel: SessionNotificationSettingsViewModel = viewModel(),
 ) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
+    val delivery by viewModel.delivery.collectAsStateWithLifecycle()
+    val deliveryChecking by viewModel.deliveryChecking.collectAsStateWithLifecycle()
     var reminderExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -63,6 +66,14 @@ fun SessionNotificationSettingsScreen(
                 checked = settings.isEnabled,
                 onCheckedChange = viewModel::setEnabled,
             )
+
+            if (settings.isEnabled && delivery.isSupported && !delivery.isWorking) {
+                DeliveryProblemCard(
+                    reason = delivery.lastError,
+                    checking = deliveryChecking,
+                    onRecheck = viewModel::recheckDelivery,
+                )
+            }
 
             if (settings.isEnabled) {
                 SettingsSection(title = stringResource(R.string.notification_settings_changes)) {
@@ -185,6 +196,69 @@ fun SessionNotificationSettingsScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Канал мгновенных уведомлений не поднялся.
+ *
+ * Пуш приходит только на устройство с живым токеном Firebase. Не получив его,
+ * приложение молча жило на получасовом догоне — уведомления приходили, но с
+ * задержкой, и понять, почему, было неоткуда (IN2010, 01.09.2026).
+ */
+@Composable
+private fun DeliveryProblemCard(
+    reason: String,
+    checking: Boolean,
+    onRecheck: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.CloudOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    text = stringResource(R.string.notification_settings_delivery_broken_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.notification_settings_delivery_broken_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.9f),
+            )
+            if (reason.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.notification_settings_delivery_reason, reason),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onRecheck, enabled = !checking) {
+                Text(
+                    stringResource(
+                        if (checking) {
+                            R.string.notification_settings_delivery_checking
+                        } else {
+                            R.string.notification_settings_delivery_recheck
+                        },
+                    ),
+                )
             }
         }
     }
