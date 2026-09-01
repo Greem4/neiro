@@ -612,7 +612,12 @@ fun CalendarScreen(
             stats = daySummaryStats,
             onDismiss = { overlay = CalendarOverlay.None },
         ) { date, dayStats, dismiss ->
-            DayEarnedDialog(date = date, stats = dayStats, onDismiss = dismiss)
+            DayEarnedDialog(
+                date = date,
+                stats = dayStats,
+                display = profitDisplay,
+                onDismiss = dismiss,
+            )
         }
 
         is CalendarOverlay.DayExpected -> DayTileDialogHost(
@@ -620,7 +625,12 @@ fun CalendarScreen(
             stats = daySummaryStats,
             onDismiss = { overlay = CalendarOverlay.None },
         ) { date, dayStats, dismiss ->
-            DayExpectedDialog(date = date, stats = dayStats, onDismiss = dismiss)
+            DayExpectedDialog(
+                date = date,
+                stats = dayStats,
+                display = profitDisplay,
+                onDismiss = dismiss,
+            )
         }
 
         is CalendarOverlay.ProfitDetails -> ProfitDetailsDialog(

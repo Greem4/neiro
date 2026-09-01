@@ -91,6 +91,8 @@
     <string name="settings_profit_session_price_hint">Рядом с ожидаемым доходом (для проверки расчётов)</string>
     <string name="settings_profit_intensive">Заработано интенсив</string>
     <string name="settings_profit_diagnostics">Заработано диагностика</string>
+    <string name="settings_profit_cancelled">Потеряно на отменах</string>
+    <string name="settings_profit_cancelled_hint">Строка со сгоревшей суммой в диалогах «Заработано» и «Ожидается»</string>
 
     <string name="notification_settings_configure">Настроить типы уведомлений…</string>
     <string name="notification_settings_title">Уведомления о занятиях</string>

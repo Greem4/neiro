@@ -388,7 +388,8 @@ object SessionParser {
             val comment = parts.getOrNull(4).orEmpty()
             Session.Student(
                 name = name,
-                attended = status.countsTowardEarnings,
+                // `attended` — про «клиент был», а не про деньги (01.09.2026).
+                attended = status.hasArrived,
                 time = time,
                 phone = phone,
                 comment = comment,

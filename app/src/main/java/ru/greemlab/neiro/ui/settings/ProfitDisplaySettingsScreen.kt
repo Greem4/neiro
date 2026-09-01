@@ -151,6 +151,13 @@ fun ProfitDisplaySettingsScreen(
                         onCheckedChange = { enabled -> updateProfit { it.copy(showDiagnosticsEarnings = enabled) } },
                         showDivider = true,
                     )
+                    ProfitDisplaySwitch(
+                        title = stringResource(R.string.settings_profit_cancelled),
+                        subtitle = stringResource(R.string.settings_profit_cancelled_hint),
+                        checked = profitDisplay.showCancelledLoss,
+                        onCheckedChange = { enabled -> updateProfit { it.copy(showCancelledLoss = enabled) } },
+                        showDivider = true,
+                    )
                 }
             }
         }

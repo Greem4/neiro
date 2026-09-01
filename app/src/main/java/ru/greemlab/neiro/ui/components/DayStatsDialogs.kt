@@ -23,6 +23,7 @@ import ru.greemlab.neiro.theme.glassDividerColor
 import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.DayKindStats
 import ru.greemlab.neiro.ui.calendar.DaySummaryStats
+import ru.greemlab.neiro.ui.settings.ProfitDisplaySettings
 import ru.greemlab.neiro.ui.util.formatDayMonth
 import java.time.LocalDate
 
@@ -320,6 +321,7 @@ private fun KindProgressRow(label: String, kind: DayKindStats) {
 fun DayEarnedDialog(
     date: LocalDate,
     stats: DaySummaryStats,
+    display: ProfitDisplaySettings,
     onDismiss: () -> Unit,
 ) {
     val title = remember(date) { "Заработано ${formatDayMonth(date)}" }
@@ -384,7 +386,8 @@ fun DayEarnedDialog(
             }
         }
 
-        if (stats.expected > 0.0 || stats.cancelledAmount > 0.0) {
+        val showCancelledLoss = display.showCancelledLoss && stats.cancelledAmount > 0.0
+        if (stats.expected > 0.0 || showCancelledLoss) {
             HorizontalDivider(color = glassDividerColor())
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -399,7 +402,7 @@ fun DayEarnedDialog(
                         iconTint = semanticColors.expected,
                     )
                 }
-                if (stats.cancelledAmount > 0.0) {
+                if (showCancelledLoss) {
                     ProfitRow(
                         label = "Потеряно на отменах",
                         value = stats.cancelledAmount,
@@ -430,6 +433,7 @@ fun DayEarnedDialog(
 fun DayExpectedDialog(
     date: LocalDate,
     stats: DaySummaryStats,
+    display: ProfitDisplaySettings,
     onDismiss: () -> Unit,
 ) {
     val title = remember(date) { "Ожидается ${formatDayMonth(date)}" }
@@ -506,7 +510,7 @@ fun DayExpectedDialog(
             )
             // Отменённое не попадает ни в заработок, ни в ожидание — иначе день
             // всё утро висел бы с суммой, которая уже никогда не придёт.
-            if (stats.cancelledAmount > 0.0) {
+            if (display.showCancelledLoss && stats.cancelledAmount > 0.0) {
                 ProfitRow(
                     label = "Потеряно на отменах",
                     value = stats.cancelledAmount,

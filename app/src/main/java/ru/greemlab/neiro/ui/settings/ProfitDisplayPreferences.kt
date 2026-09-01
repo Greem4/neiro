@@ -27,6 +27,14 @@ data class ProfitDisplaySettings(
      * следов (FOUNDATION 5).
      */
     val showDiscrepancy: Boolean = true,
+    /**
+     * Показывать строку «Потеряно на отменах» в диалогах дня.
+     *
+     * Выключено по умолчанию: сумма за отменённые занятия никогда не придёт, а
+     * висящий минус в дне читается как долг (решение пользователя 01.09.2026).
+     * Считается она в любом случае — «Можно было заработать» её включает.
+     */
+    val showCancelledLoss: Boolean = false,
 )
 
 class ProfitDisplayPreferences(context: Context) {
@@ -75,6 +83,7 @@ class ProfitDisplayPreferences(context: Context) {
         showTotalProfit = prefs.getBoolean(KEY_SHOW_TOTAL, defaults.showTotalProfit),
         expectedIncludesNet = prefs.getBoolean(KEY_EXPECTED_INCLUDES_NET, defaults.expectedIncludesNet),
         showDiscrepancy = prefs.getBoolean(KEY_SHOW_DISCREPANCY, defaults.showDiscrepancy),
+        showCancelledLoss = prefs.getBoolean(KEY_SHOW_CANCELLED_LOSS, defaults.showCancelledLoss),
     )
 
     fun save(settings: ProfitDisplaySettings) {
@@ -90,6 +99,7 @@ class ProfitDisplayPreferences(context: Context) {
             .putBoolean(KEY_SHOW_TOTAL, settings.showTotalProfit)
             .putBoolean(KEY_EXPECTED_INCLUDES_NET, settings.expectedIncludesNet)
             .putBoolean(KEY_SHOW_DISCREPANCY, settings.showDiscrepancy)
+            .putBoolean(KEY_SHOW_CANCELLED_LOSS, settings.showCancelledLoss)
             .apply()
     }
 
@@ -110,6 +120,9 @@ class ProfitDisplayPreferences(context: Context) {
         private const val KEY_SHOW_TOTAL = "show_total_profit"
         private const val KEY_EXPECTED_INCLUDES_NET = "expected_includes_net"
         private const val KEY_SHOW_DISCREPANCY = "show_discrepancy"
+        // Ключ новый: у тех, кто уже трогал настройки, его в prefs нет, и
+        // строка гаснет сама — отдельная миграция не нужна.
+        private const val KEY_SHOW_CANCELLED_LOSS = "show_cancelled_loss"
         private const val KEY_LEGACY_OPT_INS_CLEARED = "legacy_opt_ins_cleared"
 
         @Volatile

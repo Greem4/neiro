@@ -17,9 +17,11 @@ class ArchiveSyncCompareTest {
 
     @Test
     fun `not differs for same session different string format`() {
+        // `true` старого формата — это «оплачено»: до разделения «пришёл» и
+        // «оплачено» галочка значила «занятие посчитано в деньгах» (01.09.2026).
         val synced = listOf("Иванов|true")
         val archived = listOf(
-            SessionFormat.serializeStudentExtended("Иванов", AttendanceStatus.ARRIVED),
+            SessionFormat.serializeStudentExtended("Иванов", AttendanceStatus.PAID),
         )
         assertFalse(ArchiveSyncCompare.differs(synced, archived))
     }

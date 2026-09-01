@@ -400,8 +400,10 @@ class MonthRatesResolverTest {
             status = AttendanceStatus.ARRIVED,
             time = "18:00-18:50",
             children = listOf(
-                Session.IntensiveChild("Дима", AttendanceStatus.ARRIVED),
-                Session.IntensiveChild("Маша", AttendanceStatus.ARRIVED),
+                // Деньги — по оплате: пришедший, но не оплативший ребёнок в
+                // факт месяца не идёт (01.09.2026).
+                Session.IntensiveChild("Дима", AttendanceStatus.PAID),
+                Session.IntensiveChild("Маша", AttendanceStatus.PAID),
             ),
         )
         val manualIntensive = SessionFormat.serializeIntensive(
