@@ -784,32 +784,16 @@ class YClientsCalendarSync(
                 val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
                 LocalDate.parse(dateString, formatter)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             try {
                 LocalDate.parse(dateString.take(10))
-            } catch (e2: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }
     }
 
-    private fun extractClientName(record: RecordData): String {
-        val client = record.client ?: return ""
-
-        return when {
-            !client.displayName.isNullOrBlank() -> client.displayName
-            !client.name.isNullOrBlank() -> {
-                buildString {
-                    append(client.name)
-                    if (!client.surname.isNullOrBlank()) {
-                        append(" ")
-                        append(client.surname)
-                    }
-                }
-            }
-            else -> ""
-        }.trim()
-    }
+    private fun extractClientName(record: RecordData): String = recordDisplayName(record)
 
     private fun createEntryFromRecord(record: RecordData, userProfile: UserProfile): String {
         val clientName = extractClientName(record)
@@ -832,7 +816,7 @@ class YClientsCalendarSync(
 
         val time = formatRecordTime(record)
         val phone = record.client?.phone.orEmpty()
-        val comment = record.comment.orEmpty()
+        val comment = recordComment(record)
 
         return SessionFormat.serializeStudentExtended(
             name = clientName,
@@ -840,6 +824,7 @@ class YClientsCalendarSync(
             time = time,
             phone = phone,
             comment = comment,
+            notCounted = !hasPayableService(record),
         )
     }
 
@@ -879,7 +864,7 @@ class YClientsCalendarSync(
 
         val time = formatRecordTime(record)
         val phone = record.client?.phone.orEmpty()
-        val comment = record.comment.orEmpty()
+        val comment = recordComment(record)
 
         return SessionFormat.serializeStudentExtended(
             name = session.name,
@@ -887,11 +872,12 @@ class YClientsCalendarSync(
             time = time,
             phone = phone,
             comment = comment,
+            notCounted = !hasPayableService(record),
         )
     }
 
     private fun mapAttendanceStatus(record: RecordData): AttendanceStatus =
-        AttendanceStatus.resolveFromRecord(record.attendance, record.visitAttendance, record.paidFull)
+        attendanceStatusOf(record)
 
     private fun formatRecordTime(record: RecordData, intensive: Boolean = false): String {
         val datetime = record.datetime ?: return ""
@@ -915,13 +901,95 @@ class YClientsCalendarSync(
             val endTime = startTime.plusMinutes(durationMinutes.toLong())
 
             "${startTime.format(TIME_FORMAT)}-${endTime.format(TIME_FORMAT)}"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ""
         }
     }
 
     companion object {
         private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
+
+        /**
+         * Имя записи для экрана дня.
+         *
+         * Обычно это клиент. Но время в журнале занимают и без карточки
+         * клиента — тогда подпись слота YClients кладёт либо в имя
+         * (`client_fictive_name`: «Кац», «ДИАГНОСТИКИ…»), либо в комментарий
+         * записи («Пирогов», «Сапожникова», «Савостьянов», «Чудаев»).
+         *
+         * Второй случай до 15.09.2026 терялся целиком: имя выходило пустым, а
+         * запись с пустым именем отсеивалась в [collapseDuplicateRecords] и в
+         * день не попадала вовсе — в журнале слот занят, в приложении пусто.
+         *
+         * Берётся первая непустая строка комментария: YClients хранит его с
+         * переносом на конце («Сапожникова\n»).
+         */
+        fun recordDisplayName(record: RecordData): String {
+            val client = record.client
+            val fromClient = when {
+                client == null -> ""
+                !client.displayName.isNullOrBlank() -> client.displayName
+                !client.name.isNullOrBlank() -> buildString {
+                    append(client.name)
+                    if (!client.surname.isNullOrBlank()) {
+                        append(" ")
+                        append(client.surname)
+                    }
+                }
+                else -> ""
+            }.trim()
+            if (fromClient.isNotBlank()) return fromClient
+
+            return record.comment.orEmpty()
+                .lineSequence()
+                .firstOrNull { it.isNotBlank() }
+                ?.trim()
+                .orEmpty()
+        }
+
+        /**
+         * Комментарий записи. Пустой, если он уже ушёл в имя
+         * ([recordDisplayName]) — иначе одна и та же подпись показывалась бы в
+         * карточке дважды.
+         */
+        fun recordComment(record: RecordData): String {
+            val client = record.client
+            val hasClientName = client != null &&
+                (!client.displayName.isNullOrBlank() || !client.name.isNullOrBlank())
+            return if (hasClientName) record.comment.orEmpty() else ""
+        }
+
+        /**
+         * Статус записи YClients: оплату признаём только там, где есть услуга.
+         *
+         * Без услуги `paid_full` ничего не доказывает — YClients ставит
+         * «оплачено полностью» всему, где платить нечего. Сам статус при этом
+         * настоящий: «не пришёл» так и остаётся «не пришёл».
+         */
+        fun attendanceStatusOf(record: RecordData): AttendanceStatus =
+            AttendanceStatus.resolveFromRecord(
+                attendance = record.attendance,
+                visitAttendance = record.visitAttendance,
+                paidFull = if (hasPayableService(record)) record.paidFull else null,
+            )
+
+        /**
+         * Есть ли у записи услуга — то, за что в YClients берут деньги.
+         *
+         * Нет услуги — нет и занятия: так в журнале занимают время. Слот
+         * подписывают одним именем, без карточки клиента («Кац»,
+         * «Сапожникова»), или оставляют себе памятку — «ДИАГНОСТИКИ (если нет
+         * никого…)», «если Филиппов отменится, никого не ставить». YClients за
+         * такие записи не начисляет ничего, и приложение обязано считать так же:
+         * запись видна в дне, но ни в один счётчик не входит
+         * ([Session.isNotCounted]).
+         *
+         * Пока этой проверки не было, запись без услуги приезжала оплаченным
+         * занятием на полную ставку: 10.09.2026 приложение показывало
+         * «Занятий 7, итог 10 500 ₽» там, где YClients начислил 9 000 ₽.
+         */
+        fun hasPayableService(record: RecordData): Boolean =
+            !record.services.isNullOrEmpty()
 
         /**
          * Можно ли доверять ответу API и удалять локальные записи без пары.

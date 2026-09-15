@@ -462,6 +462,15 @@ release.yml ──► POST /v1/release/notify ──► neiro-push ──► FCM
 Запись стирается тогда же, когда перестаёт быть правдой: проверка вернула
 «новее нечего», пользователь нажал «Пропустить», обновление установилось.
 
+Вторая половина этого пути — `MainActivity`: уведомление кладёт в интент
+`EXTRA_OPEN_ABOUT`, а активити обязана его прочитать **в любом случае**, а не
+только когда `savedInstanceState == null`. Система убивает процесс, а задачу
+оставляет в недавних, и тап по уведомлению воссоздаёт активити со старым
+состоянием и новым интентом; `onNewIntent` при этом не приходит — экземпляр
+новый. Пока разбор стоял в ветке `else`, такой тап открывал обычный календарь,
+и человек шёл искать кнопку «Проверить обновления» руками. Тем же местом
+ломался и переход в день по напоминанию о занятии.
+
 Об одной и той же версии уведомляем один раз (`notified_version_code`).
 Кнопка «Пропустить» в уведомлении пишет `skipped_version_code` — молчим до
 следующего релиза.
@@ -483,6 +492,7 @@ release.yml ──► POST /v1/release/notify ──► neiro-push ──► FCM
 | `NeiroApplication.kt` | Одна строка: `UpdateCheckCoordinator.initialize(this)` в существующем `appScope.launch` |
 | `push/NeiroFirebaseMessagingService.kt` | Ветка `"app_update"` в разборе `action`: вызов `UpdateCheckCoordinator.onUpdatePush` |
 | `ui/screens/CalendarScreen.kt` | `CalendarOverlay.About` рядом с прочими оверлеями и его ветка отрисовки — тем же способом, что `ProfitSettings` |
+| `MainActivity.kt` | `EXTRA_OPEN_ABOUT` и его разбор: интент читается и при восстановлении из `savedInstanceState` |
 | `ui/settings/AppSettingsScreen.kt` | Секция «О программе» с `SettingsNavigationRow`: версия в подзаголовке, точка при доступном обновлении |
 | `app/src/main/res/values/strings.xml` | Строки экрана и уведомления |
 

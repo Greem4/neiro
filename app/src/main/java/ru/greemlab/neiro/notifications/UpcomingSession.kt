@@ -61,6 +61,8 @@ object UpcomingSessionsCollector {
 
             for (raw in entries) {
                 val session = SessionParser.parse(raw)
+                // Запись без услуги — не занятие: напоминать не о чем.
+                if (session.isNotCounted) continue
                 // Если сессия удалена целиком (или все дети в интенсиве), пропускаем.
                 if (session.isEffectivelyDeleted()) continue
                 if (session.status == AttendanceStatus.CANCELLED) continue

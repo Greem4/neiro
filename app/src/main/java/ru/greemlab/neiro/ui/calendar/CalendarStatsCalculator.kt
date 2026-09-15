@@ -90,6 +90,10 @@ internal fun computeMonthStats(
         for (raw in sessions) {
             val session = SessionParser.parse(raw)
 
+            // Запись без услуги занятием не является — ни в заработок, ни в
+            // ожидаемое, ни в счётчик проведённых (Session.isNotCounted).
+            if (session.isNotCounted) continue
+
             if (session.isEffectivelyDeleted()) continue
 
             when (session) {
@@ -192,12 +196,12 @@ fun getMonthName(month: YearMonth): String =
         .replaceFirstChar { it.uppercase(RU_LOCALE) }
 
 /** Короткое название месяца для сетки выбора (например, «Янв»). */
-fun getShortMonthName(month: java.time.Month): String =
+fun getShortMonthName(month: Month): String =
     month.getDisplayName(TextStyle.SHORT_STANDALONE, RU_LOCALE)
         .replaceFirstChar { it.uppercase(RU_LOCALE) }
 
 /** Сокращения месяцев для графиков: «Янв», «Фев», … без точки. */
-fun getChartMonthAbbreviation(month: java.time.Month): String =
+fun getChartMonthAbbreviation(month: Month): String =
     CHART_MONTH_ABBREVIATIONS[month.ordinal]
 
 private val CHART_MONTH_ABBREVIATIONS = listOf(
