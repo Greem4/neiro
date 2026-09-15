@@ -118,6 +118,8 @@ private data class ScheduleEntry(
     val extraAmount: Double = 0.0,
     val intensiveChildren: List<Session.IntensiveChild> = emptyList(),
     val coveredEntries: List<ScheduleEntry> = emptyList(),
+    /** Запись без услуги в YClients: показываем, но ни во что не считаем. */
+    val notCounted: Boolean = false,
     val sourceIndex: Int,
 )
 
@@ -867,6 +869,7 @@ private fun parseEntries(
                         time = normalizeSessionTime(session.time),
                         comment = session.comment,
                         status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                        notCounted = session.notCounted,
                         sourceIndex = index,
                     )
                     coveredByIntensiveTime
@@ -880,6 +883,7 @@ private fun parseEntries(
                         time = normalizeSessionTime(session.time),
                         comment = session.comment,
                         status = if (isDeleted) AttendanceStatus.CANCELLED else session.status,
+                        notCounted = session.notCounted,
                         sourceIndex = index,
                     ),
                 )
@@ -945,6 +949,11 @@ private fun calculateStats(
     var money = 0.0
 
     for (entry in entries) {
+        // Занятое время без услуги: в шапке дня «Занятий» и «Итог» его нет —
+        // в YClients за него не начисляют (10.09.2026: было 7 и 10 500 ₽,
+        // стало 6 и 9 000 ₽, ровно как в начислении).
+        if (entry.notCounted) continue
+
         val isIntensive = entry.isExtra && entry.extraType == "Интенсив"
 
         when (entry.status) {

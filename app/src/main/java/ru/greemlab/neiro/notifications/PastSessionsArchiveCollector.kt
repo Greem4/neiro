@@ -53,6 +53,9 @@ object PastSessionsArchiveCollector {
     fun sessionCount(entries: List<String>): Int =
         entries.count { raw ->
             val session = SessionParser.parse(raw)
-            !session.isEffectivelyDeleted() && session.status != AttendanceStatus.CANCELLED
+            // День, в котором осталось только занятое время, не архивируем.
+            !session.isNotCounted &&
+                !session.isEffectivelyDeleted() &&
+                session.status != AttendanceStatus.CANCELLED
         }
 }

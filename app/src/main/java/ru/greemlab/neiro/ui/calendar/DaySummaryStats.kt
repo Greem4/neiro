@@ -141,6 +141,11 @@ internal fun computeDayStats(
     val intensiveChildrenByTime = buildIntensiveChildrenByTime(parsed)
 
     for (session in parsed) {
+        // Запись без услуги в YClients — не занятие: ни в «Заработано», ни в
+        // «Ожидается», ни в «Потеряно на отменах». Проверка стоит до
+        // отменённых: «Кац» отмечен «не пришёл», но терять там нечего.
+        if (session.isNotCounted) continue
+
         if (session.isEffectivelyDeleted()) {
             if (session is Session.Intensive) hasIntensive = true
             val price = when (session) {

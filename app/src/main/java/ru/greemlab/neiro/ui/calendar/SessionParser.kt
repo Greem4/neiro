@@ -128,9 +128,21 @@ sealed interface Session {
                 name.startsWith("–") || name.startsWith("−")
     }
 
+    /**
+     * Запись, которая в счётчики не входит: в YClients у неё нет услуги, а
+     * значит и денег за неё там не начисляют.
+     *
+     * Так выглядит занятое время — слот, подписанный одним именем («Кац»), и
+     * памятка в расписании («ДИАГНОСТИКИ, если нет никого…»). Показываем её как
+     * обычную запись, со статусом из YClients, но ни в «Занятий», ни в
+     * «Проведено», ни в «Заработано», ни в «Ожидается», ни в «Потеряно на
+     * отменах» она не попадает.
+     */
+    val isNotCounted: Boolean get() = (this as? Student)?.notCounted == true
+
     /** Учитывается в заработке: только оплаченное, без отменённых записей. */
     fun countsTowardEarnings(): Boolean =
-        !isEffectivelyDeleted() && status.countsTowardEarnings
+        !isNotCounted && !isEffectivelyDeleted() && status.countsTowardEarnings
 
     /**
      * Занятие состоялось: клиент пришёл — заплатил он уже или ещё нет.
@@ -138,7 +150,8 @@ sealed interface Session {
      * Отдельно от [countsTowardEarnings]: «проведено 4 из 8» — про работу, а
      * деньги идут за оплаченным (01.09.2026).
      */
-    fun countsAsAttended(): Boolean = !isEffectivelyDeleted() && status.hasArrived
+    fun countsAsAttended(): Boolean =
+        !isNotCounted && !isEffectivelyDeleted() && status.hasArrived
 
     @Immutable
     data class Student(
@@ -148,6 +161,8 @@ sealed interface Session {
         val phone: String = "",       // Телефон клиента
         val comment: String = "",     // Комментарий к записи
         override val status: AttendanceStatus = AttendanceStatus.fromBoolean(attended),
+        /** Запись без услуги в YClients — показывается, но не считается. */
+        val notCounted: Boolean = false,
     ) : Session
 
     @Immutable
@@ -230,6 +245,12 @@ object SessionParser {
         raw.startsWith(SessionFormat.DIAGNOSTICS_PREFIX) ->
             parseExtra(raw, SessionFormat.DIAGNOSTICS_PREFIX.length, intensive = false)
 
+        // Занятое время без услуги: дальше обычная строка ученика, отличается
+        // только тем, что в счётчики не идёт.
+        raw.startsWith(SessionFormat.NOT_COUNTED_PREFIX) ->
+            parseStudent(raw.substring(SessionFormat.NOT_COUNTED_PREFIX.length))
+                .copy(notCounted = true)
+
         else -> parseStudent(raw)
     }
 
@@ -272,6 +293,7 @@ object SessionParser {
      */
     fun countsAsCalendarLesson(raw: String): Boolean {
         val session = parse(raw)
+        if (session.isNotCounted) return false
         if (session.isEffectivelyDeleted()) return false
         return session is Session.Student || session is Session.Diagnostics
     }
@@ -283,7 +305,8 @@ object SessionParser {
         return parsed.count { session ->
             when (session) {
                 is Session.Student ->
-                    !session.isEffectivelyDeleted() &&
+                    !session.isNotCounted &&
+                        !session.isEffectivelyDeleted() &&
                         !isStudentCoveredByIntensive(session, intensiveChildrenByTime)
                 is Session.Diagnostics -> !session.isEffectivelyDeleted()
                 else -> false
@@ -305,7 +328,8 @@ object SessionParser {
         var pending = 0
         parsed.forEach { session ->
             val isLesson = when (session) {
-                is Session.Student -> !session.isEffectivelyDeleted() &&
+                is Session.Student -> !session.isNotCounted &&
+                    !session.isEffectivelyDeleted() &&
                     !isStudentCoveredByIntensive(session, intensiveChildrenByTime)
                 is Session.Diagnostics -> !session.isEffectivelyDeleted()
                 else -> false
@@ -336,6 +360,7 @@ object SessionParser {
         is Session.Student -> SessionFormat.serializeStudentExtended(
             name = session.name,
             status = status,
+            notCounted = session.notCounted,
             time = session.time,
             phone = session.phone,
             comment = session.comment,
@@ -522,6 +547,14 @@ object SessionFormat {
     /** Старый формат (для обратной совместимости). */
     fun serializeStudent(name: String, attended: Boolean): String = "$name|$attended"
 
+    /**
+     * Занятое время без услуги: та же строка ученика, но с этим префиксом.
+     * Префиксом, а не кодом статуса, — чтобы статус остался настоящим
+     * («не пришёл» у «Каца» виден как отмена), а признак «не считать» ехал
+     * отдельно и не путался со статусами старых записей.
+     */
+    const val NOT_COUNTED_PREFIX = "__NOSVC__:"
+
     /** Расширенный формат: `name|statusCode|time|phone|comment`. */
     fun serializeStudentExtended(
         name: String,
@@ -529,7 +562,11 @@ object SessionFormat {
         time: String = "",
         phone: String = "",
         comment: String = "",
-    ): String = "$name|${status.code}|$time|$phone|$comment"
+        notCounted: Boolean = false,
+    ): String {
+        val base = "$name|${status.code}|$time|$phone|$comment"
+        return if (notCounted) "$NOT_COUNTED_PREFIX$base" else base
+    }
 
     fun serializeIntensive(price: String, name: String, attended: Boolean, time: String = ""): String =
         serializeIntensive(price, name, AttendanceStatus.fromBoolean(attended), time)
