@@ -72,9 +72,21 @@ jobs:
           fi
 
           # Версию подняли прямо в PR — уважаем её и не поднимаем второй раз.
-          if printf '%s\n' "$FILES" | grep -qx 'version.properties'; then
-            echo "version.properties поднят в самом PR — беру его версию как есть"
+          # Смотрим на само значение VERSION, а не на список файлов PR: правка
+          # пробела или комментария в version.properties версией не является, а
+          # KIND=keep на ней упирается в уже занятый тег и роняет выпуск. Так
+          # сгорел релиз после PR #42: две пустые строки в конце файла — и
+          # workflow попытался выпустить уже вышедший 0.2.5.
+          read_version() {
+            sed -n 's/^VERSION=//p' | tr -d '[:space:]'
+          }
+          VERSION_NOW="$(read_version < version.properties)"
+          VERSION_WAS="$(git show 'HEAD~1:version.properties' 2>/dev/null | read_version || true)"
+          if [ -n "$VERSION_NOW" ] && [ -n "$VERSION_WAS" ] && [ "$VERSION_NOW" != "$VERSION_WAS" ]; then
+            echo "версия поднята в самом PR ($VERSION_WAS → $VERSION_NOW) — беру её как есть"
             KIND=keep
+          else
+            echo "версия в main не менялась ($VERSION_NOW) — поднимаю сам"
           fi
 
           echo "разряд: $KIND"
