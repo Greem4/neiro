@@ -71,9 +71,18 @@ class MainActivity : ComponentActivity() {
             highlightSlotKey = savedInstanceState.getString(STATE_HIGHLIGHT_SLOT_KEY)
             notificationDeepLinkVersion = savedInstanceState.getInt(STATE_DEEP_LINK_VERSION, 0)
             openAbout = savedInstanceState.getBoolean(STATE_OPEN_ABOUT, false)
-        } else {
-            applyNotificationExtras(intent)
         }
+
+        // Extras разбираются всегда, а не только при пустом savedInstanceState.
+        // Система убивает процесс, а задачу оставляет в недавних: тап по
+        // уведомлению воссоздаёт активити со старым состоянием и новым
+        // intent'ом, и `onNewIntent` при этом не приходит — экземпляр новый.
+        // Пока разбор стоял в ветке `else`, такой тап открывал обычный
+        // календарь: ни дня из напоминания о занятии, ни «О программе» с
+        // готовой кнопкой «Обновить». Повторный разбор того же intent'а при
+        // обычном пересоздании ничего не сдвигает — [applyNotificationExtras]
+        // поднимает версию только при изменении полей.
+        applyNotificationExtras(intent)
 
         setContent {
             val deepLinkVersion = notificationDeepLinkVersion
