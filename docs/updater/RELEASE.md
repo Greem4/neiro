@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0          # нужен весь лог: заметки собираются с прошлого тега
 
@@ -146,13 +146,13 @@ jobs:
           echo "VERSION=$SRC" >> "$GITHUB_ENV"
 
       - name: Установить JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Настроить Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # Секреты восстанавливаются в файлы, которых нет в репозитории.
       # local.properties собирается целиком здесь: build.gradle.kts читает
