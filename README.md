@@ -121,7 +121,7 @@
 сами решаете, куда положить файл.
 
 **На сервере владельца:** токены YClients (`partner_token`, `user_token`) и
-FCM-токены устройств. Сервер — Raspberry Pi владельца проекта, не облако:
+FCM-токены устройств. Сервер — арендованный VPS владельца проекта (до 19.10.2026 — Raspberry Pi):
 именно он ходит в YClients вместо телефона и присылает push об изменениях.
 Пароль от YClients не хранится нигде — он используется один раз при входе.
 Устройство отзывается кнопкой в дашборде, после чего его токен перестаёт
@@ -156,7 +156,7 @@ FCM-токены устройств. Сервер — Raspberry Pi владел�
 app/                 Android-приложение (Kotlin, Compose)
 app/.../push/        Регистрация FCM, приём push
 app/.../update/      Самообновление (по плану docs/updater/)
-neiro-push/          Сервис на Pi: токены и прокси YClients (по плану docs/neiro-push/)
+neiro-push/          Сервис на VPS: токены и прокси YClients (по плану docs/neiro-push/)
 scripts/             Версия, скриншоты, генерация иконки
 docs/                Документация
 ```
@@ -168,11 +168,11 @@ docs/                Документация
 | `local.properties` | SDK, `NEIRO_PUSH_*`, подпись release |
 | `app/google-services.json` | Firebase |
 | `.signing/` | Ключи публикации |
-| `~/neiro-push/.env` на Pi | `API_KEY`, `ADMIN_API_KEY`, шифрование токенов, `YCLIENTS_PARTNER_TOKEN` |
-| `~/neiro-push/secrets/` на Pi | FCM service account JSON |
+| `~/neiro-push/.env` на VPS | `API_KEY`, `ADMIN_API_KEY`, шифрование токенов, `YCLIENTS_PARTNER_TOKEN` |
+| `~/neiro-push/secrets/` на VPS | FCM service account JSON |
 
 Ключей YClients в сборке нет: `partner_token` и `user_token` живут только на
-Pi, приложение ходит к ним через прокси ([docs/neiro-push/](docs/neiro-push/README.md)).
+сервере (VPS), приложение ходит к ним через прокси ([docs/neiro-push/](docs/neiro-push/README.md)).
 
 Те же значения, что нужны сборке релиза, лежат в секретах GitHub Actions —
 список в [docs/updater/RELEASE.md](docs/updater/RELEASE.md#секреты). Ключ

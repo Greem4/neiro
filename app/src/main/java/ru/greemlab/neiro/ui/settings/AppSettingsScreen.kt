@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.SettingsSuggest
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ButtonDefaults
@@ -65,6 +66,7 @@ fun AppSettingsScreen(
     val newerVersion = remember { UpdateNotifier.knownNewerVersion(context) }
     val autoSyncEnabled by viewModel.autoSyncEnabled.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.sessionNotificationsEnabled.collectAsStateWithLifecycle()
+    val archiveRollbackAvailable by viewModel.archiveMigrationRollbackAvailable.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -223,6 +225,38 @@ fun AppSettingsScreen(
                     ) {
                         Icon(Icons.Rounded.Storage, contentDescription = null)
                         Text("Импорт архива", modifier = Modifier.padding(start = 8.dp))
+                    }
+                    // Виден, только пока есть что откатывать: после отката перевод
+                    // «Пришёл → Оплачено» больше не запускается.
+                    if (archiveRollbackAvailable) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.rollbackArchiveMigration { restored ->
+                                    Toast.makeText(
+                                        context,
+                                        context.resources.getQuantityString(
+                                            R.plurals.settings_archive_paid_rollback_done,
+                                            restored,
+                                            restored,
+                                        ),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(12.dp),
+                        ) {
+                            Icon(Icons.Rounded.Restore, contentDescription = null)
+                            Text(
+                                stringResource(R.string.settings_archive_paid_rollback),
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.settings_archive_paid_rollback_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

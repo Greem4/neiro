@@ -1,6 +1,7 @@
 # neiro-push
 
-FastAPI-сервис на Raspberry Pi: держит ключи YClients у себя, пускает
+FastAPI-сервис на VPS (`roster-vps`, до 19.10.2026 жил на Raspberry Pi —
+[DEPLOY.md § Где живёт сейчас](../docs/neiro-push/DEPLOY.md#где-живёт-сейчас-vps-а-не-pi)): держит ключи YClients у себя, пускает
 приложение по отзываемому `device_token` и проксирует запросы в YClients.
 Плюс всё, что умеет второе поколение: опрашивает YClients, превращает
 изменения записей в события (новая запись, подтверждение, приход, отмена,
@@ -33,7 +34,7 @@ YClients уходят из APK. План — [TASKS.md](../docs/neiro-push/TASKS
 - `API_KEY` — ключ приложения, только для `POST /v1/auth/login`. Его копия
   лежит в `local.properties` как `NEIRO_PUSH_API_KEY`.
 
-Источник правды — `~/neiro-push/.env` на самом Pi; локальный файл ещё и
+Источник правды — `~/neiro-push/.env` на VPS; локальный файл ещё и
 конфигурация для `dev.sh`. В `local.properties` держим только то, что читает
 Gradle: адрес сервиса и ключ приложения.
 
@@ -93,7 +94,9 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 ## Эксплуатация
 
 ```bash
-./neiro-push/scripts/deploy.sh                    # выкатить на Pi
+# Скрипты по умолчанию идут на VPS (roster-vps); Pi — только при откате,
+# явно: PI_SSH=roster-b3 ./neiro-push/scripts/deploy.sh
+./neiro-push/scripts/deploy.sh                    # выкатить на VPS
 ./neiro-push/scripts/logs.sh --errors             # ошибки за сутки
 ./neiro-push/scripts/backup.sh                    # база и .env на Mac
 ./neiro-push/scripts/restore.sh <файл>            # откат базы

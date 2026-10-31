@@ -42,6 +42,7 @@ import ru.greemlab.neiro.notifications.SessionSlotKey
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.neiroSemanticColors
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
+import ru.greemlab.neiro.ui.util.fadingEdges
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.Duration
 import java.time.LocalDate
@@ -99,6 +100,10 @@ fun DayScheduleTimeline(
     // Прокрутка считается по содержимому, а верхний отступ — его часть: без
     // поправки автоскролл к «сейчас» уводил линию под шапку.
     val topInsetPx = with(density) { topInset.toPx() }
+
+    // Смена статуса передаётся только в архиве — тогда её получают и плашки
+    // замены/интенсива, а не только одиночные слоты.
+    val statusChangeAllowed = onStudentStatusChange != null
 
     val onStudentClick = remember(context) {
         { name: String ->
@@ -201,6 +206,13 @@ fun DayScheduleTimeline(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        // Растворение до verticalScroll — по краям видимой области:
+                        // слот, уехавший под шапку диалога, гаснет, а не просвечивает
+                        // сквозь баннер расхождения и иконку «!».
+                        .fadingEdges(
+                            top = topInset,
+                            bottom = if (untimedEntries.isEmpty()) bottomInset else 0.dp,
+                        )
                         .verticalScroll(scrollState)
                         // padding после verticalScroll — значит внутри ленты:
                         // отступ прокручивается вместе с ней.
@@ -284,14 +296,19 @@ fun DayScheduleTimeline(
                                     val expanded = expandedReplacements[slotKey] == true
 
                                     ExpandableReplacementSlot(
-                                        replacement = pair.replacement.entry.toSlotContent(),
-                                        removed = pair.removed.map { it.entry.toSlotContent() },
+                                        replacement = pair.replacement.entry.toSlotContent(statusChangeAllowed),
+                                        removed = pair.removed.map { it.entry.toSlotContent(statusChangeAllowed) },
                                         expanded = expanded,
                                         onToggle = {
                                             expandedReplacements[slotKey] = !expanded
                                         },
                                         onContentClick = { content ->
                                             onStudentClick(content.name)
+                                        },
+                                        onStatusChange = onStudentStatusChange?.let { change ->
+                                            { content: ScheduleSlotContent, status: AttendanceStatus ->
+                                                change(content.sourceIndex, status)
+                                            }
                                         },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
@@ -317,7 +334,7 @@ fun DayScheduleTimeline(
                                     ExpandableIntensiveCoverSlot(
                                         intensiveTitle = intensiveEntry.name,
                                         intensiveStatus = intensiveEntry.status,
-                                        covered = pair.covered.map { it.entry.toSlotContent() },
+                                        covered = pair.covered.map { it.entry.toSlotContent(statusChangeAllowed) },
                                         expanded = expanded,
                                         onToggle = {
                                             expandedIntensiveCovers[slotKey] = !expanded
@@ -325,6 +342,11 @@ fun DayScheduleTimeline(
                                         onIntensiveDetails = { selectedIntensive = intensiveEntry },
                                         onCoveredContentClick = { content ->
                                             onStudentClick(content.name)
+                                        },
+                                        onCoveredStatusChange = onStudentStatusChange?.let { change ->
+                                            { content: ScheduleSlotContent, status: AttendanceStatus ->
+                                                change(content.sourceIndex, status)
+                                            }
                                         },
                                         compactForTimeline = true,
                                         highlighted = slotHighlighted,
@@ -475,9 +497,7 @@ private fun TimelineScheduleSlot(
     highlighted: Boolean = false,
     onStudentStatusChange: ((sourceIndex: Int, status: AttendanceStatus) -> Unit)? = null,
 ) {
-    val statusEditable = onStudentStatusChange != null &&
-        !entry.isExtra &&
-        entry.sourceIndex >= 0
+    val statusEditable = onStudentStatusChange != null && entry.isStatusEditable()
 
     ScheduleSlotItem(
         time = entry.time,
@@ -560,7 +580,11 @@ private fun TimelineEntry.displayName(): String =
         name
     }
 
-private fun TimelineEntry.toSlotContent(): ScheduleSlotContent =
+/** Статус можно менять только у настоящей записи дня, не у доп. услуги. */
+private fun TimelineEntry.isStatusEditable(): Boolean = !isExtra && sourceIndex >= 0
+
+/** [statusChangeAllowed] — передана ли вообще смена статуса (только в архиве). */
+private fun TimelineEntry.toSlotContent(statusChangeAllowed: Boolean): ScheduleSlotContent =
     ScheduleSlotContent(
         time = time,
         name = displayName(),
@@ -568,6 +592,8 @@ private fun TimelineEntry.toSlotContent(): ScheduleSlotContent =
         status = status,
         isDiagnostics = isExtra && extraType == "Диагностика",
         showTime = false,
+        sourceIndex = sourceIndex,
+        statusEditable = statusChangeAllowed && isStatusEditable(),
     )
 
 @Composable

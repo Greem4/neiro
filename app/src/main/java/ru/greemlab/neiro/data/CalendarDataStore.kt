@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -45,6 +46,10 @@ private const val DAY_DATA_KEY = "day_data_json"
 private const val SAVED_DAY_DATA_KEY = "saved_day_data_json"
 private const val PROFILE_KEY = "user_profile_json"
 private const val THEME_KEY = "app_theme"
+/** Исходные дни архива до автоматической правки (см. migrateArchiveDays) — для отката. */
+private const val ARCHIVE_MIGRATION_ORIGINALS_KEY = "archive_migration_originals_json"
+/** Откат сделан — автоматическая правка архива больше не запускается. */
+private const val ARCHIVE_MIGRATION_DISABLED_KEY = "archive_migration_disabled"
 private const val EMPTY_OBJECT = "{}"
 private const val SYNC_CACHE_NAME = "neiro_sync_cache"
 
@@ -102,6 +107,8 @@ class CalendarDataStore(context: Context) : CalendarRepository {
     private val savedDataKey = stringPreferencesKey(SAVED_DAY_DATA_KEY)
     private val profileKey = stringPreferencesKey(PROFILE_KEY)
     private val themeKey = stringPreferencesKey(THEME_KEY)
+    private val migrationOriginalsKey = stringPreferencesKey(ARCHIVE_MIGRATION_ORIGINALS_KEY)
+    private val migrationDisabledKey = booleanPreferencesKey(ARCHIVE_MIGRATION_DISABLED_KEY)
 
     private val syncCache: SharedPreferences =
         appContext.getSharedPreferences(SYNC_CACHE_NAME, Context.MODE_PRIVATE)
@@ -271,6 +278,59 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         }
     }
 
+    override suspend fun migrateArchiveDays(
+        compute: (
+            synced: Map<LocalDate, List<String>>,
+            archived: Map<LocalDate, List<String>>,
+        ) -> Map<LocalDate, List<String>>,
+    ): Int = writeMutex.withLock {
+        var changedDays = 0
+        var nextArchive: Map<LocalDate, List<String>>? = null
+        appContext.dataStore.edit { prefs ->
+            if (prefs[migrationDisabledKey] == true) return@edit
+            val archived = parseDayData(prefs[savedDataKey])
+            if (archived.isEmpty()) return@edit
+            val changes = compute(parseDayData(prefs[dataKey]), archived)
+                .filter { (date, lines) -> archived[date] != null && archived[date] != lines }
+            if (changes.isEmpty()) return@edit
+
+            // Исходник пишется только первый раз: повторная правка того же дня
+            // не должна затереть то, к чему откатываться.
+            val originals = parseDayData(prefs[migrationOriginalsKey]).toMutableMap()
+            for (date in changes.keys) {
+                originals.putIfAbsent(date, archived.getValue(date))
+            }
+            val merged = archived + changes
+            prefs[savedDataKey] = serializeDayData(merged)
+            prefs[migrationOriginalsKey] = serializeDayData(originals)
+            nextArchive = merged
+            changedDays = changes.size
+        }
+        nextArchive?.let { cachedState.value = cachedState.value.copy(savedDayData = it) }
+        changedDays
+    }
+
+    override val archiveMigrationRollbackAvailable: Flow<Boolean> = appContext.dataStore.data
+        .map { prefs -> parseDayData(prefs[migrationOriginalsKey]).isNotEmpty() }
+        .distinctUntilChanged()
+
+    override suspend fun rollbackArchiveMigration(): Int = writeMutex.withLock {
+        var restoredDays = 0
+        var nextArchive: Map<LocalDate, List<String>>? = null
+        appContext.dataStore.edit { prefs ->
+            val originals = parseDayData(prefs[migrationOriginalsKey])
+            prefs[migrationDisabledKey] = true
+            prefs.remove(migrationOriginalsKey)
+            if (originals.isEmpty()) return@edit
+            val merged = parseDayData(prefs[savedDataKey]) + originals
+            prefs[savedDataKey] = serializeDayData(merged)
+            nextArchive = merged
+            restoredDays = originals.size
+        }
+        nextArchive?.let { cachedState.value = cachedState.value.copy(savedDayData = it) }
+        restoredDays
+    }
+
     override suspend fun clearAllData() {
         writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
@@ -348,6 +408,9 @@ class CalendarDataStore(context: Context) : CalendarRepository {
         writeMutex.withLock {
             appContext.dataStore.edit { prefs ->
                 prefs[savedDataKey] = savedDayJson
+                // Исходники отката относятся к прежнему архиву: после импорта откат
+                // вернул бы старые дни поверх только что загруженных.
+                prefs.remove(migrationOriginalsKey)
             }
             cachedState.value = cachedState.value.copy(savedDayData = parsedSavedDayData)
         }

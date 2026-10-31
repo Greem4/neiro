@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# Деплой neiro-push на Raspberry Pi. Одна команда, из любой сети:
+# Деплой neiro-push на VPS. Одна команда, из любой сети:
 #
 #   ./neiro-push/scripts/deploy.sh
 #
-# Куда попадёт — выбирает scripts/_ssh.sh: из дома напрямую (roster-b3), извне
-# через VPS (roster-pi-remote). Переопределить: PI_SSH=<хост> ./scripts/deploy.sh
+# Куда попадёт — scripts/_ssh.sh: по умолчанию roster-vps. Pi — только для
+# отката и только явно: PI_SSH=roster-b3 ./neiro-push/scripts/deploy.sh
 #
 # ПУБЛИЧНЫЙ МАРШРУТ (DEPLOY.md § Публичный маршрут):
 #
 #   https://push.neiro.greemlab.ru/v1/*
 #     -> DNS 176.12.65.86 = VPS
 #     -> nginx на VPS, TLS от Certbot
-#     -> location /v1/ -> proxy_pass 127.0.0.1:18083   (БЕЗ слеша: префикс не срезается)
-#     -> reverse SSH-туннель neiro-push-tunnel.service (юнит на Pi)
-#     -> Pi 127.0.0.1:8012 -> контейнер
+#     -> location /v1/ -> proxy_pass 127.0.0.1:8012   (БЕЗ слеша: префикс не срезается)
+#     -> контейнер на том же VPS
+#
+# До 19.10.2026 между nginx и контейнером был reverse SSH-туннель на Pi
+# (VPS:18083 -> Pi:8012). Туннель проверяется, только если его юнит есть на
+# целевой машине, — то есть при откате на Pi.
 #
 # Прежние поколения (8010 и 8011) погашены — этот скрипт их не касался и
 # тогда, а сейчас их просто нет.
@@ -74,7 +77,7 @@ source .env
 if [[ -z "${YCLIENTS_PARTNER_TOKEN:-}" ]]; then
   echo "  ОШИБКА: YCLIENTS_PARTNER_TOKEN пуст в ~/neiro-push/.env" >&2
   echo "  Без него вход и опрос YClients работать не будут. Положите значение руками:" >&2
-  echo "    ssh <pi> \"nano ~/neiro-push/.env\"" >&2
+  echo "    ssh <сервер> \"nano ~/neiro-push/.env\"" >&2
   exit 1
 fi
 if [[ -z "${YCLIENTS_COMPANY_ID:-}" || "${YCLIENTS_COMPANY_ID}" == "0" ]]; then
@@ -94,9 +97,11 @@ fi
 docker network inspect server_web >/dev/null 2>&1 || docker network create server_web
 docker compose up -d --build
 
-# Туннель — единственное звено между VPS и этим Pi. Контейнер может подняться,
-# а публичный адрес всё равно молчать, если юнит лёг.
-if ! systemctl --user is-active --quiet "${TUNNEL_UNIT}"; then
+# Туннель нужен, только когда сервис на Pi (откат): тогда он — единственное
+# звено между VPS и Pi, и без него публичный адрес молчит. На VPS юнита нет,
+# и проверять нечего.
+if systemctl --user cat "${TUNNEL_UNIT}" >/dev/null 2>&1 &&
+   ! systemctl --user is-active --quiet "${TUNNEL_UNIT}"; then
   echo "  туннель ${TUNNEL_UNIT} не активен, поднимаю"
   systemctl --user restart "${TUNNEL_UNIT}" || {
     echo "  НЕ УДАЛОСЬ поднять туннель — публичный /v1 работать не будет" >&2
@@ -104,7 +109,7 @@ if ! systemctl --user is-active --quiet "${TUNNEL_UNIT}"; then
   }
 fi
 
-# Пересобранный контейнер на Pi поднимается небыстро: Docker уже слушает порт,
+# Пересобранный контейнер поднимается небыстро: Docker уже слушает порт,
 # а uvicorn внутри ещё стартует, и curl получает "reset by peer". Ждём до 90 с
 # и молчим про промежуточные неудачи — иначе экран заливает мусором.
 echo -n "  жду приложение"
@@ -130,8 +135,8 @@ REMOTE
 echo ""
 echo -n "Проверяю публичный адрес"
 ADMIN_API_KEY="$(ssh_pi "grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-")"
-# Тоже с повторами: nginx на VPS может успеть отдать 502, пока туннель
-# переподключается к только что пересозданному контейнеру.
+# Тоже с повторами: nginx может успеть отдать 502, пока только что
+# пересозданный контейнер (или туннель при откате на Pi) поднимается.
 public_ok=""
 for _ in $(seq 1 10); do
   if curl -fsS -o /dev/null --max-time 10 \
@@ -146,7 +151,7 @@ done
 echo
 if [[ -z "${public_ok}" ]]; then
   echo "  НЕ ОТВЕЧАЕТ: ${NEIRO_PUSH_PUBLIC_URL}/health" >&2
-  echo "  Проверь туннель (scripts/install-tunnel.sh) и nginx (scripts/patch-vps-nginx-v1.sh)." >&2
+  echo "  Проверь nginx на VPS (scripts/patch-vps-nginx-v1.sh), при откате на Pi — туннель (scripts/install-tunnel.sh)." >&2
   exit 1
 fi
 echo "  ОК: ${NEIRO_PUSH_PUBLIC_URL}/health"

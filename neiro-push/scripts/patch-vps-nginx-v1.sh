@@ -18,7 +18,10 @@ set -euo pipefail
 
 VPS_SSH="${NEIRO_PUSH_VPS_SSH:-roster-vps}"
 NEIRO_PUSH_PUBLIC_HOST="${NEIRO_PUSH_PUBLIC_HOST:-push.neiro.greemlab.ru}"
-TUNNEL_PORT="${NEIRO_PUSH_TUNNEL_PORT:-18083}"
+# С 19.10.2026 контейнер на самом VPS, nginx ходит прямо в 8012. До переезда
+# здесь стоял порт туннеля с Pi (18083): повторный запуск со старым значением
+# увёл бы /v1 в никуда. Для отката на Pi — NEIRO_PUSH_TUNNEL_PORT=18083.
+TUNNEL_PORT="${NEIRO_PUSH_TUNNEL_PORT:-8012}"
 
 ssh "${VPS_SSH}" env HOST="${NEIRO_PUSH_PUBLIC_HOST}" TUNNEL_PORT="${TUNNEL_PORT}" bash -s <<'REMOTE'
 set -euo pipefail

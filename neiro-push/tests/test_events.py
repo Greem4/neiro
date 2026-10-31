@@ -193,3 +193,58 @@ def test_no_change_produces_no_events() -> None:
 def _state(record: YClientsRecord):
     _, states = derive_events({}, [record])
     return states[record.record_id]
+
+
+# --- Давняя запись, которую снимок не застал (31.10.2026) ---------------------
+# Подтверждение постоянного ребёнка, созданного в июле, уходило как
+# «новая запись»: запись въехала в окно опроса после сидирования, и сервер
+# впервые увидел её в момент подтверждения.
+
+from datetime import datetime  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+from app.database import RecordState  # noqa: E402
+
+_CURSOR = datetime(2026, 10, 31, 16, 30, tzinfo=ZoneInfo("Europe/Moscow"))
+
+
+def _known(record_id: int = 99) -> dict[int, RecordState]:
+    _, states = derive_events({}, [_record(record_id=record_id)])
+    return states
+
+
+def _with_created(record: YClientsRecord, create_date: str) -> YClientsRecord:
+    from dataclasses import replace
+
+    return replace(record, create_date=create_date)
+
+
+def test_old_unseen_confirmed_record_is_confirmation_not_new_booking() -> None:
+    record = _with_created(_record(attendance=2), "2026-07-19T16:34:57+0300")
+    events, states = derive_events(_known(), [record], created_since=_CURSOR)
+    assert [e.type for e in events] == ["CLIENT_CONFIRMED"]
+    assert 1 in states
+
+
+def test_old_unseen_expected_record_is_silent() -> None:
+    record = _with_created(_record(attendance=0), "2026-07-19T16:34:57+0300")
+    events, states = derive_events(_known(), [record], created_since=_CURSOR)
+    assert events == []
+    assert 1 in states
+
+
+def test_old_unseen_cancelled_record_is_cancellation() -> None:
+    record = _with_created(_record(attendance=-1), "2026-07-19T16:34:57+0300")
+    events, _ = derive_events(_known(), [record], created_since=_CURSOR)
+    assert [e.type for e in events] == ["CANCELLED"]
+
+
+def test_record_created_after_cursor_is_new_booking() -> None:
+    record = _with_created(_record(attendance=0), "2026-10-31T16:31:00+0300")
+    events, _ = derive_events(_known(), [record], created_since=_CURSOR)
+    assert [e.type for e in events] == ["NEW_BOOKING"]
+
+
+def test_unknown_create_date_keeps_new_booking() -> None:
+    events, _ = derive_events(_known(), [_record(attendance=0)], created_since=_CURSOR)
+    assert [e.type for e in events] == ["NEW_BOOKING"]

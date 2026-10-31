@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -104,9 +105,11 @@ fun ScheduleSlotItem(
                     .fillMaxHeight()
                     .then(
                         if (onContentClick != null) {
+                            // Ripple, а не indication = null: без отклика плашка ощущалась
+                            // неинтерактивной, особенно в слотах замены и интенсива.
                             Modifier.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
+                                indication = ripple(),
                                 onClick = onContentClick,
                             )
                         } else {
@@ -275,6 +278,7 @@ fun ExpandableReplacementSlot(
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
+    onStatusChange: ((ScheduleSlotContent, AttendanceStatus) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val gap = if (compactForTimeline) 4.dp else 6.dp
@@ -363,6 +367,7 @@ fun ExpandableReplacementSlot(
                                 compactForTimeline = compactForTimeline,
                                 highlighted = highlighted,
                                 onContentClick = onContentClick?.let { { it(entry) } },
+                                onStatusChange = statusChangeFor(entry, onStatusChange),
                                 indicatorColors = listOf(semantic.statusCancelled),
                                 rightIndicatorColors = if (showRightIndicators) listOf(semantic.scheduleHeader) else null,
                                 onRightIndicatorClick = {
@@ -401,6 +406,7 @@ fun ExpandableReplacementSlot(
                         indicatorColors = currentIndicators,
                         highlighted = highlighted,
                         onContentClick = onContentClick?.let { { it(replacement) } },
+                        onStatusChange = statusChangeFor(replacement, onStatusChange),
                         onIndicatorClick = {
                             scope.launch {
                                 expansion.animateTo(0.5f, spring(stiffness = Spring.StiffnessLow))
@@ -493,6 +499,7 @@ fun ExpandableIntensiveCoverSlot(
     modifier: Modifier = Modifier,
     compactForTimeline: Boolean = false,
     highlighted: Boolean = false,
+    onCoveredStatusChange: ((ScheduleSlotContent, AttendanceStatus) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val gap = if (compactForTimeline) 4.dp else 6.dp
@@ -586,6 +593,7 @@ fun ExpandableIntensiveCoverSlot(
                                 compactForTimeline = compactForTimeline,
                                 highlighted = highlighted,
                                 onContentClick = onCoveredContentClick?.let { { it(entry) } },
+                                onStatusChange = statusChangeFor(entry, onCoveredStatusChange),
                                 indicatorColors = listOf(semantic.statusCancelled),
                                 rightIndicatorColors = if (showRightIndicators) listOf(semantic.scheduleHeader) else null,
                                 onRightIndicatorClick = {
@@ -636,6 +644,13 @@ fun ExpandableIntensiveCoverSlot(
     }
 }
 
+/**
+ * Содержимое одной плашки внутри составного слота.
+ *
+ * [statusEditable] — можно ли менять статус с этой плашки (только в архиве и только
+ * для настоящих записей, не для доп. услуг); [sourceIndex] — индекс строки дня,
+ * которую правит смена статуса.
+ */
 data class ScheduleSlotContent(
     val time: String,
     val name: String,
@@ -643,7 +658,19 @@ data class ScheduleSlotContent(
     val status: AttendanceStatus,
     val isDiagnostics: Boolean = false,
     val showTime: Boolean = true,
+    val sourceIndex: Int = -1,
+    val statusEditable: Boolean = false,
 )
+
+private fun statusChangeFor(
+    content: ScheduleSlotContent,
+    onStatusChange: ((ScheduleSlotContent, AttendanceStatus) -> Unit)?,
+): ((AttendanceStatus) -> Unit)? =
+    if (onStatusChange != null && content.statusEditable) {
+        { newStatus -> onStatusChange(content, newStatus) }
+    } else {
+        null
+    }
 
 @Preview(showBackground = true)
 @Composable

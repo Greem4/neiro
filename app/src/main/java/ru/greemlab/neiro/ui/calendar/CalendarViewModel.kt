@@ -5,11 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -20,6 +22,7 @@ import ru.greemlab.neiro.data.CalendarRepository
 import ru.greemlab.neiro.notifications.PastSessionsArchiveCollector
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.time.Duration.Companion.seconds
 
 enum class CalendarMode {
     SYNCED, PERSONAL
@@ -44,6 +47,7 @@ data class SelectedDayContext(
  *
  * Месяц/выбранная дата/режим переживают process death через [SavedStateHandle].
  */
+@OptIn(FlowPreview::class)
 class CalendarViewModel(
     application: Application,
     private val savedStateHandle: SavedStateHandle,
@@ -101,6 +105,19 @@ class CalendarViewModel(
             started = SharingStarted.Eagerly,
             initialValue = CalendarDataStoreProvider.peekSavedDayData(application),
         )
+
+    init {
+        // Архив до 0.2.5 не знает «Оплачено»: где YClients уже отдал «оплачено»,
+        // а архив помнит «Пришёл» при прочих равных, статус поднимается (см.
+        // ArchivePaidMigration). Пересчёт после каждой правки любого из
+        // календарей: старые месяцы приходят из YClients не сразу, а по мере
+        // синхронизации. Пауза — чтобы пачка правок синка дала один проход.
+        viewModelScope.launch(Dispatchers.Default) {
+            combine(dayData, savedDayData) { _, _ -> }
+                .debounce(ARCHIVE_MIGRATION_DEBOUNCE)
+                .collect { repository.migrateArchiveDays(ArchivePaidMigration::migrate) }
+        }
+    }
 
     // Initial-значения по восстановленным mode/month, а не всегда «synced + текущий
     // месяц» — иначе после восстановления (SavedStateHandle) первый кадр мигал бы
@@ -359,6 +376,7 @@ class CalendarViewModel(
         const val KEY_MONTH = "calendar_month"
         const val KEY_SELECTED_DATE = "calendar_selected_date"
         const val KEY_MODE = "calendar_mode"
+        val ARCHIVE_MIGRATION_DEBOUNCE = 1.seconds
     }
 }
 

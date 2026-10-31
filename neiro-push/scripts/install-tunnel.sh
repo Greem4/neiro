@@ -6,6 +6,14 @@
 #   NEIRO_PUSH_TUNNEL_HOST=176.12.65.86 ./neiro-push/scripts/install-tunnel.sh
 set -euo pipefail
 
+# Туннель нужен только при откате сервиса на Pi: с 19.10.2026 контейнер
+# живёт на VPS, и _ssh.sh по умолчанию смотрит туда. Без явного PI_SSH юнит
+# встал бы на сам VPS и гонял трафик по кругу.
+if [[ -z "${PI_SSH:-}" ]]; then
+  echo "Туннель ставится только на Pi при откате: PI_SSH=roster-b3 $0" >&2
+  exit 1
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=./_ssh.sh
 source "${ROOT_DIR}/scripts/_ssh.sh"

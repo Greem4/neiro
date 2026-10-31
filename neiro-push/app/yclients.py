@@ -25,6 +25,9 @@ class YClientsRecord:
     client_name: str
     kind: str
     last_change_date: str | None
+    # Когда запись создана в YClients. Отличает правда новую запись от давно
+    # существующей, которую сервер просто ещё не видел (см. events.derive_events).
+    create_date: str | None = None
 
 
 class YClientsClient:
@@ -223,6 +226,7 @@ class YClientsClient:
             client_name=str(name).strip(),
             kind="DIAGNOSTICS" if is_diagnostics else "LESSON",
             last_change_date=raw.get("last_change_date"),
+            create_date=raw.get("create_date"),
         )
 
 
@@ -247,6 +251,13 @@ def next_changed_after(records: list[YClientsRecord]) -> str | None:
         return None
     overlap = latest - timedelta(seconds=5)
     return overlap.astimezone(zone).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_yclients_timestamp(value: str | None) -> datetime | None:
+    """Время из YClients или курсора `changed_after`; без пояса — московское."""
+    if not value:
+        return None
+    return _parse_timestamp(value, ZoneInfo("Europe/Moscow"))
 
 
 def _parse_timestamp(value: str, zone: ZoneInfo) -> datetime | None:

@@ -599,8 +599,30 @@ class YClientsCalendarSync(
     private fun retainManualLocalEntries(pool: List<Pair<String, Session>>): List<String> =
         survivingLocalEntries(unmatched = pool.map { it.first }, dropUnmatched = true)
 
+    /**
+     * Групповая запись: интенсив, нейройога, подгрупповое, «Мы вместе».
+     *
+     * Главный признак — `activity_id`: групповое событие приходит отдельной записью
+     * на каждого ребёнка, у всех один `activity_id`, а у обычной записи его нет
+     * (docs/pricing-from-api/GAPS.md, § 2). Слово «интенсив» в названии услуги —
+     * запасной признак для записей, где `activity_id` не пришёл.
+     */
     private fun isIntensiveRecord(record: RecordData): Boolean =
+        (record.activityId ?: 0L) != 0L || hasIntensiveService(record)
+
+    private fun hasIntensiveService(record: RecordData): Boolean =
         record.services?.any { it.title?.contains("интенсив", ignoreCase = true) == true } == true
+
+    /**
+     * Название групповой плашки: «Интенсив» для интенсива, для прочих групп —
+     * название услуги из YClients, чтобы нейройога не подписывалась интенсивом.
+     */
+    private fun groupTitle(group: List<RecordData>): String {
+        if (group.any(::hasIntensiveService)) return "Интенсив"
+        return group.firstNotNullOfOrNull { record ->
+            record.services?.firstNotNullOfOrNull { it.title?.trim()?.takeIf(String::isNotEmpty) }
+        } ?: "Интенсив"
+    }
 
     private fun purgeIntensiveStudentsFromPool(
         pool: MutableList<Pair<String, Session>>,
@@ -635,7 +657,9 @@ class YClientsCalendarSync(
     ): Int {
         if (records.isEmpty()) return 0
         var added = 0
-        val groups = records.groupBy { recordStartTimeKey(it) }
+        // Одно групповое событие — один activity_id; время — для записей без него.
+        // Без activity_id в ключе две разные группы в одно время слились бы в одну.
+        val groups = records.groupBy { "${it.activityId ?: 0L}|${recordStartTimeKey(it)}" }
         for ((_, group) in groups) {
             if (group.isEmpty()) continue
             val time = formatRecordTime(group.first(), intensive = true)
@@ -660,7 +684,7 @@ class YClientsCalendarSync(
             )
             val entry = SessionFormat.serializeIntensive(
                 price = SessionFormat.intensivePriceField(amount, amountFixed),
-                name = "Интенсив",
+                name = groupTitle(group),
                 status = status,
                 time = time,
                 children = children,
