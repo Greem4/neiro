@@ -21,133 +21,166 @@ object ArchiveSyncCompare {
     fun differs(synced: List<String>, archived: List<String>): Boolean =
         canonicalDay(synced) != canonicalDay(archived)
 
-    /** Человекочитаемый список отличий между YClients и архивом за день. */
-    fun describeDiff(synced: List<String>, archived: List<String>): List<String> {
+    /** Где запись нашлась при сравнении дня. */
+    enum class Presence { BOTH, ONLY_SYNCED, ONLY_ARCHIVED }
+
+    /** Одно поле, которое разошлось: значение в YClients и в архиве («—», если пусто). */
+    data class FieldDiff(
+        val field: String,
+        val synced: String,
+        val archived: String,
+    )
+
+    /**
+     * Отличие по одной записи дня. Для [Presence.BOTH] — список разошедшихся полей,
+     * для записи только с одной стороны поля пустые.
+     */
+    data class SessionDiff(
+        val time: String,
+        val title: String,
+        val presence: Presence,
+        val fields: List<FieldDiff> = emptyList(),
+    )
+
+    /**
+     * Отличия между YClients и архивом за день — по записям, отсортированы по времени.
+     *
+     * Записи сопоставляются в два прохода: сначала по типу, имени и времени, затем
+     * оставшиеся — по типу и имени. Без второго прохода перенос занятия на другое
+     * время выглядел как две несвязанные записи «только в YClients» и «только в архиве».
+     */
+    fun describeDiff(synced: List<String>, archived: List<String>): List<SessionDiff> {
         if (!differs(synced, archived)) return emptyList()
 
         val syncedSessions = synced.filter { it.isNotBlank() }.map { SessionParser.parse(it) }
         val archivedSessions = archived.filter { it.isNotBlank() }.map { SessionParser.parse(it) }
 
+        val pairs = arrayOfNulls<Int>(syncedSessions.size)
         val matchedArchive = BooleanArray(archivedSessions.size)
-        val lines = mutableListOf<String>()
-
-        syncedSessions.forEach { syncedSession ->
-            val archiveIndex = archivedSessions.indices.firstOrNull { index ->
-                !matchedArchive[index] &&
-                    sessionIdentity(syncedSession) == sessionIdentity(archivedSessions[index])
+        listOf(::sessionIdentity, ::sessionNameIdentity).forEach { identity ->
+            syncedSessions.forEachIndexed { syncedIndex, syncedSession ->
+                if (pairs[syncedIndex] != null) return@forEachIndexed
+                val archiveIndex = archivedSessions.indices.firstOrNull { index ->
+                    !matchedArchive[index] && identity(syncedSession) == identity(archivedSessions[index])
+                } ?: return@forEachIndexed
+                pairs[syncedIndex] = archiveIndex
+                matchedArchive[archiveIndex] = true
             }
-            if (archiveIndex == null) {
-                lines += "Только в YClients: ${sessionLabel(syncedSession)}"
-                return@forEach
-            }
-            matchedArchive[archiveIndex] = true
-            lines += fieldDiffLines(syncedSession, archivedSessions[archiveIndex])
         }
 
+        val diffs = mutableListOf<SessionDiff>()
+        syncedSessions.forEachIndexed { syncedIndex, syncedSession ->
+            val archiveIndex = pairs[syncedIndex]
+            if (archiveIndex == null) {
+                diffs += sessionDiff(syncedSession, Presence.ONLY_SYNCED)
+                return@forEachIndexed
+            }
+            val fields = fieldDiffs(syncedSession, archivedSessions[archiveIndex])
+            if (fields.isNotEmpty()) {
+                diffs += sessionDiff(syncedSession, Presence.BOTH, fields)
+            }
+        }
         archivedSessions.forEachIndexed { index, archivedSession ->
             if (!matchedArchive[index]) {
-                lines += "Только в архиве: ${sessionLabel(archivedSession)}"
+                diffs += sessionDiff(archivedSession, Presence.ONLY_ARCHIVED)
             }
         }
 
-        return lines
+        return diffs.sortedWith(compareBy<SessionDiff>({ it.time.isBlank() }, { it.time }))
     }
 
-    private fun fieldDiffLines(synced: Session, archived: Session): List<String> {
-        val label = sessionLabel(synced)
-        val lines = mutableListOf<String>()
+    private fun sessionDiff(
+        session: Session,
+        presence: Presence,
+        fields: List<FieldDiff> = emptyList(),
+    ) = SessionDiff(
+        time = sessionTime(session),
+        title = sessionTitle(session),
+        presence = presence,
+        fields = fields,
+    )
+
+    private fun fieldDiffs(synced: Session, archived: Session): List<FieldDiff> {
+        val fields = mutableListOf<FieldDiff>()
         when {
             synced is Session.Student && archived is Session.Student -> {
-                addFieldChange(lines, label, "статус", statusLabel(synced.status), statusLabel(archived.status))
-                addFieldChange(lines, label, "время", synced.time, archived.time)
-                addFieldChange(lines, label, "телефон", synced.phone, archived.phone)
-                addFieldChange(lines, label, "комментарий", synced.comment, archived.comment)
+                addFieldChange(fields, "Статус", statusLabel(synced.status), statusLabel(archived.status))
+                addFieldChange(fields, "Время", synced.time, archived.time)
+                addFieldChange(fields, "Телефон", synced.phone, archived.phone)
+                addFieldChange(fields, "Комментарий", synced.comment, archived.comment)
             }
             synced is Session.Intensive && archived is Session.Intensive -> {
-                addFieldChange(lines, label, "статус", statusLabel(synced.status), statusLabel(archived.status))
-                addFieldChange(lines, label, "время", synced.time, archived.time)
+                addFieldChange(fields, "Статус", statusLabel(synced.status), statusLabel(archived.status))
+                addFieldChange(fields, "Время", synced.time, archived.time)
+                addFieldChange(fields, "Сумма", formatAmount(synced.amount), formatAmount(archived.amount))
                 addFieldChange(
-                    lines,
-                    label,
-                    "сумма",
-                    formatAmount(synced.amount),
-                    formatAmount(archived.amount),
-                )
-                addFieldChange(
-                    lines,
-                    label,
-                    "сумма фиксирована",
+                    fields,
+                    "Сумма фиксирована",
                     fixedLabel(synced.amountFixed),
                     fixedLabel(archived.amountFixed),
                 )
-                addFieldChange(lines, label, "название", synced.name, archived.name)
-                lines += intensiveChildrenDiffLines(label, synced.children, archived.children)
+                addFieldChange(fields, "Название", synced.name, archived.name)
+                fields += intensiveChildrenDiffs(synced.children, archived.children)
             }
             synced is Session.Diagnostics && archived is Session.Diagnostics -> {
-                addFieldChange(lines, label, "статус", statusLabel(synced.status), statusLabel(archived.status))
-                addFieldChange(lines, label, "время", synced.time, archived.time)
-                addFieldChange(
-                    lines,
-                    label,
-                    "сумма",
-                    formatAmount(synced.amount),
-                    formatAmount(archived.amount),
-                )
-                addFieldChange(lines, label, "название", synced.name, archived.name)
+                addFieldChange(fields, "Статус", statusLabel(synced.status), statusLabel(archived.status))
+                addFieldChange(fields, "Время", synced.time, archived.time)
+                addFieldChange(fields, "Сумма", formatAmount(synced.amount), formatAmount(archived.amount))
+                addFieldChange(fields, "Название", synced.name, archived.name)
             }
         }
-        return lines
+        return fields
     }
 
-    private fun intensiveChildrenDiffLines(
-        parentLabel: String,
+    private fun intensiveChildrenDiffs(
         syncedChildren: List<Session.IntensiveChild>,
         archivedChildren: List<Session.IntensiveChild>,
-    ): List<String> {
+    ): List<FieldDiff> {
         val matchedArchive = BooleanArray(archivedChildren.size)
-        val lines = mutableListOf<String>()
+        val fields = mutableListOf<FieldDiff>()
 
         syncedChildren.forEach { syncedChild ->
+            val childName = syncedChild.name.trim()
             val archiveIndex = archivedChildren.indices.firstOrNull { index ->
                 !matchedArchive[index] &&
                     childIdentity(syncedChild) == childIdentity(archivedChildren[index])
             }
             if (archiveIndex == null) {
-                lines += "$parentLabel — только в YClients: ${syncedChild.name.trim()}"
+                fields += FieldDiff(childName, synced = CHILD_PRESENT, archived = CHILD_ABSENT)
                 return@forEach
             }
             matchedArchive[archiveIndex] = true
             val archivedChild = archivedChildren[archiveIndex]
-            val childLabel = "${syncedChild.name.trim()} ($parentLabel)"
             addFieldChange(
-                lines,
-                childLabel,
-                "статус",
+                fields,
+                "$childName: статус",
                 statusLabel(syncedChild.status),
                 statusLabel(archivedChild.status),
             )
-            addFieldChange(lines, childLabel, "телефон", syncedChild.phone, archivedChild.phone)
-            addFieldChange(lines, childLabel, "комментарий", syncedChild.comment, archivedChild.comment)
+            addFieldChange(fields, "$childName: телефон", syncedChild.phone, archivedChild.phone)
+            addFieldChange(fields, "$childName: комментарий", syncedChild.comment, archivedChild.comment)
         }
 
         archivedChildren.forEachIndexed { index, archivedChild ->
             if (!matchedArchive[index]) {
-                lines += "$parentLabel — только в архиве: ${archivedChild.name.trim()}"
+                fields += FieldDiff(archivedChild.name.trim(), synced = CHILD_ABSENT, archived = CHILD_PRESENT)
             }
         }
 
-        return lines
+        return fields
     }
 
+    private const val CHILD_PRESENT = "в группе"
+    private const val CHILD_ABSENT = "нет"
+
     private fun addFieldChange(
-        lines: MutableList<String>,
-        sessionLabel: String,
+        fields: MutableList<FieldDiff>,
         field: String,
         syncedValue: String,
         archivedValue: String,
     ) {
         if (syncedValue.trim() == archivedValue.trim()) return
-        lines += "$sessionLabel, $field: YClients — ${displayValue(syncedValue)}, архив — ${displayValue(archivedValue)}"
+        fields += FieldDiff(field, displayValue(syncedValue), displayValue(archivedValue))
     }
 
     private fun displayValue(value: String): String =
@@ -169,18 +202,22 @@ object ArchiveSyncCompare {
 
     private fun normalize(value: String): String = value.trim().lowercase()
 
-    private fun sessionLabel(session: Session): String {
-        val time = when (session) {
-            is Session.Student -> session.time
-            is Session.Intensive -> session.time
-            is Session.Diagnostics -> session.time
-        }.trim()
-        val timePrefix = if (time.isBlank()) "" else "$time — "
-        return when (session) {
-            is Session.Student -> "$timePrefix${session.name.trim()}"
-            is Session.Intensive -> "$timePrefix${session.name.trim().ifBlank { "Интенсив" }}"
-            is Session.Diagnostics -> "$timePrefix${session.name.trim()} (диагностика)"
-        }
+    private fun sessionNameIdentity(session: Session): String = when (session) {
+        is Session.Student -> "student:${normalize(session.name)}"
+        is Session.Intensive -> "intensive:${normalize(session.name)}"
+        is Session.Diagnostics -> "diagnostics:${normalize(session.name)}"
+    }
+
+    private fun sessionTime(session: Session): String = when (session) {
+        is Session.Student -> session.time
+        is Session.Intensive -> session.time
+        is Session.Diagnostics -> session.time
+    }.trim()
+
+    private fun sessionTitle(session: Session): String = when (session) {
+        is Session.Student -> session.name.trim()
+        is Session.Intensive -> session.name.trim().ifBlank { "Интенсив" }
+        is Session.Diagnostics -> "${session.name.trim()} (диагностика)"
     }
 
     private fun statusLabel(status: AttendanceStatus): String = when (status) {

@@ -48,10 +48,12 @@ class ArchiveSyncCompareTest {
         )
         val diff = ArchiveSyncCompare.describeDiff(synced, archived)
         assertEquals(1, diff.size)
-        assertTrue(diff[0].contains("Иванов"))
-        assertTrue(diff[0].contains("статус"))
-        assertTrue(diff[0].contains("Пришёл"))
-        assertTrue(diff[0].contains("Ожидает"))
+        assertEquals("Иванов", diff[0].title)
+        assertEquals(ArchiveSyncCompare.Presence.BOTH, diff[0].presence)
+        assertEquals(
+            listOf(ArchiveSyncCompare.FieldDiff("Статус", synced = "Пришёл", archived = "Ожидает")),
+            diff[0].fields,
+        )
     }
 
     @Test
@@ -62,8 +64,26 @@ class ArchiveSyncCompareTest {
         )
         val diff = ArchiveSyncCompare.describeDiff(synced, archived)
         assertEquals(1, diff.size)
-        assertTrue(diff[0].contains("Только в архиве"))
-        assertTrue(diff[0].contains("Петров"))
+        assertEquals("Петров", diff[0].title)
+        assertEquals(ArchiveSyncCompare.Presence.ONLY_ARCHIVED, diff[0].presence)
+        assertTrue(diff[0].fields.isEmpty())
+    }
+
+    @Test
+    fun `describeDiff pairs moved session by name and reports time change`() {
+        val synced = listOf(
+            SessionFormat.serializeStudentExtended("Сухова", AttendanceStatus.ARRIVED, "12:00-12:50"),
+        )
+        val archived = listOf(
+            SessionFormat.serializeStudentExtended("Сухова", AttendanceStatus.ARRIVED, "12:30-13:20"),
+        )
+        val diff = ArchiveSyncCompare.describeDiff(synced, archived)
+        assertEquals(1, diff.size)
+        assertEquals(ArchiveSyncCompare.Presence.BOTH, diff[0].presence)
+        assertEquals(
+            listOf(ArchiveSyncCompare.FieldDiff("Время", synced = "12:00-12:50", archived = "12:30-13:20")),
+            diff[0].fields,
+        )
     }
 
     @Test

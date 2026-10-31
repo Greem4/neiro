@@ -62,6 +62,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.ui.Alignment
@@ -71,6 +72,7 @@ import ru.greemlab.neiro.theme.ApplyDialogGlass
 import ru.greemlab.neiro.theme.NeiroTheme
 import ru.greemlab.neiro.theme.glassContainerColor
 import ru.greemlab.neiro.theme.neiroSemanticColors
+import ru.greemlab.neiro.ui.calendar.ArchiveSyncCompare
 import ru.greemlab.neiro.ui.calendar.AttendanceStatus
 import ru.greemlab.neiro.ui.calendar.Session
 import ru.greemlab.neiro.ui.calendar.SessionFormat
@@ -87,9 +89,8 @@ import ru.greemlab.neiro.ui.components.daydetails.intensiveDefaultTimeSlot
 import ru.greemlab.neiro.ui.components.daydetails.normalizeSessionTime
 import androidx.compose.material.icons.rounded.Warning
 import ru.greemlab.neiro.ui.util.panelScrim
-import ru.greemlab.neiro.ui.util.DialogEdgeFade
 import ru.greemlab.neiro.ui.util.RU_LOCALE
-import ru.greemlab.neiro.ui.util.fadingEdges
+import ru.greemlab.neiro.ui.util.fadingScrollEdges
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -140,7 +141,7 @@ fun DayDetailsDialog(
     rates: EarningsContext,
     isArchived: Boolean = false,
     archiveMismatch: Boolean = false,
-    archiveMismatchDetails: List<String> = emptyList(),
+    archiveMismatchDetails: List<ArchiveSyncCompare.SessionDiff> = emptyList(),
     allowStatusEdit: Boolean = false,
     highlightSlotKey: String? = null,
     isRefreshing: Boolean = false,
@@ -188,7 +189,7 @@ private fun DayDetailsContent(
     rates: EarningsContext,
     isArchived: Boolean,
     archiveMismatch: Boolean,
-    archiveMismatchDetails: List<String>,
+    archiveMismatchDetails: List<ArchiveSyncCompare.SessionDiff>,
     allowStatusEdit: Boolean,
     highlightSlotKey: String?,
     isRefreshing: Boolean = false,
@@ -623,28 +624,29 @@ private fun ArchiveMismatchBanner(onClick: (() -> Unit)? = null) {
 
 @Composable
 private fun ArchiveMismatchDetailsDialog(
-    details: List<String>,
+    details: List<ArchiveSyncCompare.SessionDiff>,
     onDismiss: () -> Unit,
 ) {
+    val scrollState = rememberScrollState()
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = glassContainerColor(),
         title = { Text(stringResource(R.string.archive_sync_mismatch_details_title)) },
         text = {
             Column(
+                // Растворение — по краям видимой области и только там, где за краем
+                // есть контент. Раньше оно стояло после verticalScroll и всегда
+                // съедало первую и последнюю строку списка.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState())
-                    .fadingEdges(top = DialogEdgeFade, bottom = DialogEdgeFade),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .heightIn(max = 440.dp)
+                    .fadingScrollEdges(scrollState)
+                    .verticalScroll(scrollState)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                details.forEach { line ->
-                    Text(
-                        text = "• $line",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                ArchiveDiffSummary(details)
+                details.forEach { diff -> ArchiveDiffCard(diff) }
             }
         },
         confirmButton = {
@@ -656,6 +658,154 @@ private fun ArchiveMismatchDetailsDialog(
             }
         },
     )
+}
+
+/** Сводка над карточками: сколько записей изменено и сколько есть только с одной стороны. */
+@Composable
+private fun ArchiveDiffSummary(details: List<ArchiveSyncCompare.SessionDiff>) {
+    val changed = details.count { it.presence == ArchiveSyncCompare.Presence.BOTH }
+    val onlySynced = details.count { it.presence == ArchiveSyncCompare.Presence.ONLY_SYNCED }
+    val onlyArchived = details.count { it.presence == ArchiveSyncCompare.Presence.ONLY_ARCHIVED }
+    val parts = buildList {
+        if (changed > 0) {
+            add(pluralStringResource(R.plurals.archive_diff_summary_changed, changed, changed))
+        }
+        if (onlySynced > 0) {
+            add(pluralStringResource(R.plurals.archive_diff_summary_only_synced, onlySynced, onlySynced))
+        }
+        if (onlyArchived > 0) {
+            add(pluralStringResource(R.plurals.archive_diff_summary_only_archived, onlyArchived, onlyArchived))
+        }
+    }
+    if (parts.isEmpty()) return
+    Text(
+        text = parts.joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Карточка одной записи. Изменённая запись — поля в две колонки «YClients | Архив»,
+ * значение архива подсвечено. Запись только с одной стороны — метка, где она есть.
+ *
+ * Колонки делят ширину через weight, без фиксированных высот: при крупном
+ * системном шрифте значения переносятся, а не обрезаются.
+ */
+@Composable
+private fun ArchiveDiffCard(diff: ArchiveSyncCompare.SessionDiff) {
+    val semantic = neiroSemanticColors
+    val accent = when (diff.presence) {
+        ArchiveSyncCompare.Presence.BOTH -> semantic.expected
+        ArchiveSyncCompare.Presence.ONLY_SYNCED -> MaterialTheme.colorScheme.primary
+        ArchiveSyncCompare.Presence.ONLY_ARCHIVED -> semantic.statusCancelled
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = listOf(diff.time, diff.title).filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            when (diff.presence) {
+                ArchiveSyncCompare.Presence.BOTH -> {
+                    ArchiveDiffColumnsRow(
+                        label = "",
+                        synced = stringResource(R.string.archive_diff_column_synced),
+                        archived = stringResource(R.string.archive_diff_column_archive),
+                        isHeader = true,
+                        accent = accent,
+                    )
+                    diff.fields.forEach { field ->
+                        ArchiveDiffColumnsRow(
+                            label = field.field,
+                            synced = field.synced,
+                            archived = field.archived,
+                            isHeader = false,
+                            accent = accent,
+                        )
+                    }
+                }
+                ArchiveSyncCompare.Presence.ONLY_SYNCED -> ArchiveDiffPresenceTag(
+                    tag = stringResource(R.string.archive_diff_only_synced_tag),
+                    hint = stringResource(R.string.archive_diff_only_synced_hint),
+                    accent = accent,
+                )
+                ArchiveSyncCompare.Presence.ONLY_ARCHIVED -> ArchiveDiffPresenceTag(
+                    tag = stringResource(R.string.archive_diff_only_archived_tag),
+                    hint = stringResource(R.string.archive_diff_only_archived_hint),
+                    accent = accent,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveDiffColumnsRow(
+    label: String,
+    synced: String,
+    archived: String,
+    isHeader: Boolean,
+    accent: Color,
+) {
+    val style = if (isHeader) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = label,
+            style = style,
+            color = muted,
+            modifier = Modifier.weight(0.9f),
+        )
+        Text(
+            text = synced,
+            style = style,
+            color = if (isHeader) muted else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = archived,
+            style = style,
+            color = if (isHeader) muted else accent,
+            fontWeight = if (isHeader) null else FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ArchiveDiffPresenceTag(tag: String, hint: String, accent: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = accent.copy(alpha = 0.16f),
+        ) {
+            Text(
+                text = tag,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = accent,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Text(
+            text = hint,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 private fun updateIntensiveAt(
@@ -1035,7 +1185,12 @@ private fun DayDetailsDarkPreview() {
                     isArchived = true,
                     archiveMismatch = true,
                     archiveMismatchDetails = listOf(
-                        "10:00 — Моторнов Егор, статус: YClients — Пришёл, архив — Ожидает",
+                        ArchiveSyncCompare.SessionDiff(
+                            time = "10:00-10:50",
+                            title = "Моторнов Егор",
+                            presence = ArchiveSyncCompare.Presence.BOTH,
+                            fields = listOf(ArchiveSyncCompare.FieldDiff("Статус", "Пришёл", "Ожидает")),
+                        ),
                     ),
                     allowStatusEdit = true,
                     highlightSlotKey = null,
@@ -1064,7 +1219,12 @@ private fun DayDetailsEmptyPreview() {
                     isArchived = true,
                     archiveMismatch = true,
                     archiveMismatchDetails = listOf(
-                        "10:00 — Моторнов Егор, статус: YClients — Пришёл, архив — Ожидает",
+                        ArchiveSyncCompare.SessionDiff(
+                            time = "10:00-10:50",
+                            title = "Моторнов Егор",
+                            presence = ArchiveSyncCompare.Presence.BOTH,
+                            fields = listOf(ArchiveSyncCompare.FieldDiff("Статус", "Пришёл", "Ожидает")),
+                        ),
                     ),
                     allowStatusEdit = true,
                     highlightSlotKey = null,
