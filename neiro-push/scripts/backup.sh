@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Бэкап neiro-push: база SQLite + .env с Pi на локальную машину.
+# Бэкап neiro-push: база SQLite + .env с сервера (VPS, см. _ssh.sh) на локальную машину.
 # Запускать ПЕРЕД любым деплоем со схемой/миграциями.
 #
 #   ./neiro-push/scripts/backup.sh          # снять бэкап
@@ -16,7 +16,7 @@ if [[ "${1:-}" == "--list" ]]; then
   echo "Локально (${LOCAL_DIR}):"
   ls -lh "${LOCAL_DIR}" 2>/dev/null || echo "  (пусто)"
   echo ""
-  echo "На Pi (~/${REMOTE_DIR}):"
+  echo "На сервере ${SSH_HOST} (~/${REMOTE_DIR}):"
   ssh_pi "ls -lh ~/${REMOTE_DIR} 2>/dev/null || echo '  (пусто)'"
   exit 0
 fi
@@ -48,11 +48,11 @@ docker compose exec -T neiro-push rm -f /data/_backup_tmp.db < /dev/null
 cp .env ~/"${REMOTE_DIR}/env-${STAMP}.txt"
 chmod 600 ~/"${REMOTE_DIR}/env-${STAMP}.txt"
 
-# На Pi держим только 10 последних снимков — SD-карта не резиновая.
+# На сервере держим только 10 последних снимков — диск не резиновый.
 ls -1t ~/"${REMOTE_DIR}"/neiro_push-*.db 2>/dev/null | tail -n +11 | xargs -r rm -f
 ls -1t ~/"${REMOTE_DIR}"/env-*.txt 2>/dev/null | tail -n +11 | xargs -r rm -f
 
-echo "на Pi: ~/${REMOTE_DIR}/neiro_push-${STAMP}.db"
+echo "на ${SSH_HOST}: ~/${REMOTE_DIR}/neiro_push-${STAMP}.db"
 REMOTE
 
 mkdir -p "${LOCAL_DIR}"

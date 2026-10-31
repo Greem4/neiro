@@ -136,6 +136,14 @@
     <string name="archive_diff_only_synced_hint">В архиве этой записи нет</string>
     <string name="archive_diff_only_archived_tag">Только в архиве</string>
     <string name="archive_diff_only_archived_hint">В YClients этой записи нет</string>
+    <string name="settings_archive_paid_rollback">Вернуть «Пришёл» в архиве</string>
+    <string name="settings_archive_paid_rollback_hint">Дни архива до 1 сентября 2026, где YClients отдал «Оплачено», переведены из «Пришёл» в «Оплачено». Кнопка вернёт их как было и выключит перевод.</string>
+    <plurals name="settings_archive_paid_rollback_done">
+        <item quantity="one">Возвращён %d день архива</item>
+        <item quantity="few">Возвращено %d дня архива</item>
+        <item quantity="many">Возвращено %d дней архива</item>
+        <item quantity="other">Возвращено %d дня архива</item>
+    </plurals>
     <plurals name="archive_diff_summary_changed">
         <item quantity="one">%d запись изменена</item>
         <item quantity="few">%d записи изменены</item>

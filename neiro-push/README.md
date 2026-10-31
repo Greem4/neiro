@@ -94,8 +94,8 @@ cd neiro-push && PYTHONPATH=. python -m pytest tests -q
 ## Эксплуатация
 
 ```bash
-# Скрипты по умолчанию ещё смотрят на Pi — хост VPS указывать явно
-export PI_SSH=roster-vps
+# Скрипты по умолчанию идут на VPS (roster-vps); Pi — только при откате,
+# явно: PI_SSH=roster-b3 ./neiro-push/scripts/deploy.sh
 ./neiro-push/scripts/deploy.sh                    # выкатить на VPS
 ./neiro-push/scripts/logs.sh --errors             # ошибки за сутки
 ./neiro-push/scripts/backup.sh                    # база и .env на Mac

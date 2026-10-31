@@ -91,6 +91,8 @@ import androidx.compose.material.icons.rounded.Warning
 import ru.greemlab.neiro.ui.util.panelScrim
 import ru.greemlab.neiro.ui.util.RU_LOCALE
 import ru.greemlab.neiro.ui.util.fadingScrollEdges
+import ru.greemlab.neiro.ui.util.ScrollIndicatorGutter
+import ru.greemlab.neiro.ui.util.verticalScrollIndicator
 import ru.greemlab.neiro.ui.util.formatRubles
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -637,12 +639,19 @@ private fun ArchiveMismatchDetailsDialog(
                 // Растворение — по краям видимой области и только там, где за краем
                 // есть контент. Раньше оно стояло после verticalScroll и всегда
                 // съедало первую и последнюю строку списка.
+                // Полоса прокрутки — снаружи растворения, чтобы не гасла у краёв;
+                // отступ справа держит карточки в стороне от неё.
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 440.dp)
+                    .verticalScrollIndicator(
+                        scrollState = scrollState,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                    )
                     .fadingScrollEdges(scrollState)
                     .verticalScroll(scrollState)
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .padding(end = ScrollIndicatorGutter),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ArchiveDiffSummary(details)

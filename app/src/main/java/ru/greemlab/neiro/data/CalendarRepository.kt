@@ -48,6 +48,29 @@ interface CalendarRepository {
     /** Удаляет данные конкретного дня из "архивного" календаря. */
     suspend fun deleteDayFromArchive(date: LocalDate)
 
+    /**
+     * Автоматическая правка архива по данным YClients: [compute] получает основной
+     * календарь и архив и возвращает только изменённые дни архива. Всё под общим
+     * writer-локом. Исходное содержимое каждого изменённого дня сохраняется (только
+     * первый раз) — из него [rollbackArchiveMigration] делает откат. После отката
+     * правка больше не запускается. Возвращает число изменённых дней.
+     */
+    suspend fun migrateArchiveDays(
+        compute: (
+            synced: Map<LocalDate, List<String>>,
+            archived: Map<LocalDate, List<String>>,
+        ) -> Map<LocalDate, List<String>>,
+    ): Int
+
+    /** Есть что откатывать после [migrateArchiveDays]. */
+    val archiveMigrationRollbackAvailable: Flow<Boolean>
+
+    /**
+     * Возвращает дни, изменённые [migrateArchiveDays], к исходному содержимому и
+     * выключает автоматическую правку. Возвращает число восстановленных дней.
+     */
+    suspend fun rollbackArchiveMigration(): Int
+
     /** Полная очистка всех данных (для отладки). */
     suspend fun clearAllData()
 

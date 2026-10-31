@@ -35,24 +35,30 @@ ssh roster-b3 'docker update --restart=unless-stopped neiro-push && docker start
   && systemctl --user enable --now neiro-push-tunnel.service'
 ```
 
+Скрипты после отката — только с явным хостом Pi: `PI_SSH=roster-b3 …`.
+Туннель ставит `install-tunnel.sh`, и он без `PI_SSH` не запускается.
+
 Перед откатом базу с VPS перенести обратно на Pi, иначе пропадёт всё, что
 накопилось после переезда. Два сервиса одновременно не запускать: оба
 опрашивают YClients и шлют одинаковые пуши.
 
-**Скрипты ещё не переведены.** `scripts/_ssh.sh` по умолчанию выбирает Pi
-(`roster-b3` / `roster-pi-remote`), а `deploy.sh` поднимает туннель на Pi.
-Запуск без переменной зальёт код на Pi и **оживит старый сервис**. Пока
-скрипты не поправлены — любой скрипт только с хостом VPS:
+**Скрипты переведены на VPS** (31.10.2026). `scripts/_ssh.sh` по умолчанию
+ходит в `roster-vps`; прежний автовыбор Pi (`roster-b3` / `roster-pi-remote`)
+убран — запуск без переменной заливал код на Pi и оживлял старый сервис.
+Переменная `PI_SSH` осталась и нужна только для отката на Pi:
 
 ```bash
-PI_SSH=roster-vps ./neiro-push/scripts/deploy.sh
-PI_SSH=roster-vps ./neiro-push/scripts/logs.sh
-PI_SSH=roster-vps ./neiro-push/scripts/backup.sh
+./neiro-push/scripts/deploy.sh             # VPS
+./neiro-push/scripts/logs.sh
+./neiro-push/scripts/backup.sh
+PI_SSH=roster-b3 ./neiro-push/scripts/deploy.sh   # только при откате
 ```
 
-`deploy.sh` на VPS напишет, что не смог поднять туннель, — это ожидаемо и
-деплою не мешает: туннеля в маршруте больше нет. `install-tunnel.sh` больше
-не нужен.
+`deploy.sh` проверяет туннель, только если юнит `neiro-push-tunnel.service`
+есть на целевой машине, — на VPS его нет, и шаг молча пропускается.
+`install-tunnel.sh` без `PI_SSH` не запускается: на VPS туннель не нужен.
+`patch-vps-nginx-v1.sh` по умолчанию ведёт nginx в `127.0.0.1:8012`, а не в
+порт туннеля 18083.
 
 Разделы ниже про поколения, порты и уборку — история перехода на Pi; где они
 говорят «на Pi» про работающий сервис, теперь читать «на VPS».
@@ -292,9 +298,9 @@ curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
 
 | Скрипт | Что делает | Что меняется относительно events |
 |---|---|---|
-| `deploy.sh` | rsync на сервер (`PI_SSH=roster-vps`), `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля (на VPS не нужна, предупреждение безвредно), ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
-| `install-tunnel.sh` | systemd --user юнит Pi → VPS | Порт 18083, юнит `neiro-push-tunnel.service`, локальная цель 8012 |
-| `patch-vps-nginx-v1.sh` | Добавляет `location /v1/`, `/dashboard`, `/health` в сайт nginx на VPS и переводит корень на редирект к дашборду, идемпотентно | **`proxy_pass` без завершающего слеша** |
+| `deploy.sh` | rsync на сервер (по умолчанию `roster-vps`), `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля (только если его юнит есть — при откате на Pi), ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
+| `install-tunnel.sh` | systemd --user юнит Pi → VPS — только при откате, требует `PI_SSH` | Порт 18083, юнит `neiro-push-tunnel.service`, локальная цель 8012 |
+| `patch-vps-nginx-v1.sh` | Добавляет `location /v1/`, `/dashboard`, `/health` в сайт nginx на VPS (по умолчанию в `127.0.0.1:8012`) и переводит корень на редирект к дашборду, идемпотентно | **`proxy_pass` без завершающего слеша** |
 | `dev.sh`, `logs.sh`, `backup.sh`, `restore.sh` | Локальный запуск, логи, резервные копии | Имена контейнера и БД |
 
 Отдельно нужен `scripts/revoke-device.sh` — отзыв `device_token` из командной
@@ -308,12 +314,12 @@ curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
 были, поэтому обновление безопасно повторять.
 
 ```bash
-PI_SSH=roster-vps ./neiro-push/scripts/deploy.sh
-PI_SSH=roster-vps ./neiro-push/scripts/logs.sh --tail 50      # ошибок старта нет
+./neiro-push/scripts/deploy.sh
+./neiro-push/scripts/logs.sh --tail 50      # ошибок старта нет
 ```
 
 Данные живут в томе `neiro_push_data` и обновление переживают. Перед заметными
-изменениями — `PI_SSH=roster-vps ./neiro-push/scripts/backup.sh`.
+изменениями — `./neiro-push/scripts/backup.sh`.
 
 ## Проверка после развёртывания
 

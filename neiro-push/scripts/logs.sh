@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Логи neiro-push с Pi.
+# Логи neiro-push с сервера (VPS, см. _ssh.sh).
 #
 #   ./neiro-push/scripts/logs.sh              # хвост в реальном времени
 #   ./neiro-push/scripts/logs.sh 500          # последние 500 строк и выход

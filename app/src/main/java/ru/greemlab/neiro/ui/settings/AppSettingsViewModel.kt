@@ -77,6 +77,21 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /** Архив поднят из «Пришёл» в «Оплачено» и это можно отменить. */
+    val archiveMigrationRollbackAvailable: StateFlow<Boolean> = repository.archiveMigrationRollbackAvailable
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false,
+        )
+
+    /** Откат перевода архива в «Оплачено»; в [onResult] — число восстановленных дней. */
+    fun rollbackArchiveMigration(onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.rollbackArchiveMigration())
+        }
+    }
+
     fun profitDisplaySettings(): ProfitDisplaySettings = profitDisplayPreferences.read()
 
     fun setProfitDisplaySettings(settings: ProfitDisplaySettings) {

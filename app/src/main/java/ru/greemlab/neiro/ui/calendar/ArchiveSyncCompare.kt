@@ -191,7 +191,8 @@ object ArchiveSyncCompare {
 
     private fun fixedLabel(amountFixed: Boolean): String = if (amountFixed) "да" else "нет"
 
-    private fun sessionIdentity(session: Session): String = when (session) {
+    /** Тип, имя и время записи — по ним ищется близнец в другом календаре. */
+    internal fun sessionIdentity(session: Session): String = when (session) {
         is Session.Student -> "student:${normalize(session.name)}:${normalize(session.time)}"
         is Session.Intensive -> "intensive:${normalize(session.name)}:${normalize(session.time)}"
         is Session.Diagnostics -> "diagnostics:${normalize(session.name)}:${normalize(session.time)}"
@@ -234,7 +235,8 @@ object ArchiveSyncCompare {
             .map { canonicalSession(it) }
             .sorted()
 
-    private fun canonicalSession(raw: String): String = when (val session = SessionParser.parse(raw)) {
+    /** Строка записи в нормальной форме: без лишних пробелов и легаси-формата. */
+    internal fun canonicalSession(raw: String): String = when (val session = SessionParser.parse(raw)) {
         is Session.Student -> SessionFormat.serializeStudentExtended(
             name = session.name.trim(),
             status = session.status,
