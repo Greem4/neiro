@@ -13,7 +13,12 @@ from app.database import Database, WatchedAccount, utc_now_iso
 from app.events import DerivedEvent, derive_events, merge_states
 from app.fcm import FcmSender
 from app.security import SecretBox
-from app.yclients import YClientsClient, YClientsRecord, next_changed_after
+from app.yclients import (
+    YClientsClient,
+    YClientsRecord,
+    next_changed_after,
+    parse_yclients_timestamp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +292,11 @@ class PollService:
             self._db.commit_poll_result(account.id, [], new_states, previous_states)
             return 0, 0, None
 
-        events, new_states = derive_events(previous_states, records)
+        events, new_states = derive_events(
+            previous_states,
+            records,
+            created_since=parse_yclients_timestamp(account.changed_after),
+        )
         event_ids = self._db.commit_poll_result(
             account.id, events, new_states, previous_states
         )

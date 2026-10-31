@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.database import RecordState
-from app.yclients import YClientsRecord
+from app.yclients import YClientsRecord, parse_yclients_timestamp
 
 
 @dataclass(frozen=True)
@@ -25,12 +26,20 @@ def should_seed_baseline(previous: dict[int, RecordState]) -> bool:
 def derive_events(
     previous: dict[int, RecordState],
     records: list[YClientsRecord],
+    created_since: datetime | None = None,
 ) -> tuple[list[DerivedEvent], dict[int, RecordState]]:
     """Дифф состояний по правилам §6.3 плана.
 
     Чистая функция — без БД и сети. `previous` уже отражает последнее
     сохранённое состояние аккаунта; при сидировании (previous пуст) события
     не генерируются, только строится базовый снимок.
+
+    `created_since` — курсор прошлого опроса. Запись, которой нет в снимке, но
+    создана она раньше курсора, — не новая: это давняя запись (постоянный
+    ребёнок), которую снимок не застал. Снимок сидируется один раз на окно
+    `horizon_days`, а дальше узнаёт только об изменённых записях, поэтому
+    записи серий, въехавшие в окно позже, впервые приходят в момент своего
+    изменения — обычно подтверждения. Раньше это уходило как NEW_BOOKING.
     """
     seeding = should_seed_baseline(previous)
     new_states = dict(previous)
@@ -40,17 +49,23 @@ def derive_events(
         old = previous.get(record.record_id)
 
         if old is None:
-            if not seeding and not record.deleted and record.attendance != -1:
-                events.append(
-                    DerivedEvent(
-                        type="NEW_BOOKING",
-                        client_name=record.client_name,
-                        date=record.date,
-                        time=record.time,
-                        kind=record.kind,
-                        record_id=record.record_id,
-                    )
+            if not seeding:
+                event_type = (
+                    _new_record_event_type(record)
+                    if _is_freshly_created(record, created_since)
+                    else _unseen_record_event_type(record)
                 )
+                if event_type is not None:
+                    events.append(
+                        DerivedEvent(
+                            type=event_type,
+                            client_name=record.client_name,
+                            date=record.date,
+                            time=record.time,
+                            kind=record.kind,
+                            record_id=record.record_id,
+                        )
+                    )
             new_states[record.record_id] = _state_from_record(record)
             continue
 
@@ -145,6 +160,41 @@ def derive_events(
         new_states[record.record_id] = _state_from_record(record)
 
     return events, new_states
+
+
+def _is_freshly_created(record: YClientsRecord, created_since: datetime | None) -> bool:
+    """Создана ли запись после прошлого опроса.
+
+    Нечего сравнить — нет курсора или даты создания — считаем новой: так было
+    до появления этой проверки, и лишнее «новая запись» лучше пропущенной.
+    """
+    if created_since is None:
+        return True
+    created = parse_yclients_timestamp(record.create_date)
+    if created is None:
+        return True
+    return created >= created_since
+
+
+def _new_record_event_type(record: YClientsRecord) -> str | None:
+    if record.deleted or record.attendance == -1:
+        return None
+    return "NEW_BOOKING"
+
+
+def _unseen_record_event_type(record: YClientsRecord) -> str | None:
+    """Давняя запись, которую снимок не застал: прежнего состояния нет, поэтому
+    о ней говорим по текущему статусу. «Ожидает» — молчим: что именно
+    изменилось, сравнить не с чем."""
+    if record.deleted:
+        return "DELETED"
+    if record.attendance == -1:
+        return "CANCELLED"
+    if record.attendance == 2:
+        return "CLIENT_CONFIRMED"
+    if record.attendance == 1:
+        return "CLIENT_ARRIVED"
+    return None
 
 
 def merge_states(
