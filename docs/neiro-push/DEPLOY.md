@@ -4,6 +4,59 @@
 работающим `neiro-push-events`, ничего не задевая. Порядок запуска во времени —
 [ROLLOUT.md](ROLLOUT.md).
 
+## Где живёт сейчас: VPS, а не Pi
+
+**С 19.10.2026 сервис работает на VPS** `roster-vps` (176.12.65.86, вход под
+`root`), а не на Raspberry Pi. Причина — Pi выключался, и вместе с ним
+вставали пуши и весь подключённый режим (`502` на публичном адресе).
+
+| Что | Где |
+|---|---|
+| Код, `.env`, `secrets/` | `roster-vps:~/neiro-push` |
+| Контейнер | `neiro-push`, `127.0.0.1:8012` на VPS |
+| База | том `neiro-push_neiro_push_data` на VPS |
+| Дашборд | `https://push.neiro.greemlab.ru/dashboard` — адрес не поменялся |
+
+Ключи, база и ключ FCM перенесены с Pi как есть: телефонам перелогиниваться
+не нужно, `API_KEY` в APK прежний. Снимок базы на момент переезда —
+`neiro-push/backups/neiro_push-20261019-migration.db` на Mac.
+
+**Что осталось на Pi — для отката.** Контейнер остановлен и переведён в
+`--restart=no` (после перезагрузки Pi сам не поднимется), туннель
+`neiro-push-tunnel.service` выключен и убран из автозапуска. Каталог
+`~/neiro-push` и том с базой на Pi не тронуты, но база там застыла на
+19.10.2026. Откат:
+
+```bash
+ssh roster-vps 'F=/etc/nginx/sites-available/push.neiro.greemlab.ru; \
+  cp $F.bak-20261019-pre-vps $F && nginx -t && systemctl reload nginx; \
+  cd ~/neiro-push && docker compose stop'
+ssh roster-b3 'docker update --restart=unless-stopped neiro-push && docker start neiro-push \
+  && systemctl --user enable --now neiro-push-tunnel.service'
+```
+
+Перед откатом базу с VPS перенести обратно на Pi, иначе пропадёт всё, что
+накопилось после переезда. Два сервиса одновременно не запускать: оба
+опрашивают YClients и шлют одинаковые пуши.
+
+**Скрипты ещё не переведены.** `scripts/_ssh.sh` по умолчанию выбирает Pi
+(`roster-b3` / `roster-pi-remote`), а `deploy.sh` поднимает туннель на Pi.
+Запуск без переменной зальёт код на Pi и **оживит старый сервис**. Пока
+скрипты не поправлены — любой скрипт только с хостом VPS:
+
+```bash
+PI_SSH=roster-vps ./neiro-push/scripts/deploy.sh
+PI_SSH=roster-vps ./neiro-push/scripts/logs.sh
+PI_SSH=roster-vps ./neiro-push/scripts/backup.sh
+```
+
+`deploy.sh` на VPS напишет, что не смог поднять туннель, — это ожидаемо и
+деплою не мешает: туннеля в маршруте больше нет. `install-tunnel.sh` больше
+не нужен.
+
+Разделы ниже про поколения, порты и уборку — история перехода на Pi; где они
+говорят «на Pi» про работающий сервис, теперь читать «на VPS».
+
 ## Три поколения сервиса
 
 Имя `neiro-push` уже носил первый сервис. Он погашен 02.08.2026, но его следы
@@ -40,16 +93,21 @@ https://push.neiro.greemlab.ru/v1/*
    ┌──────────────────────────────────────┐
    │ VPS: nginx, TLS от Certbot           │
    │   location /v1/ {                    │
-   │     proxy_pass http://127.0.0.1:18083;  ← БЕЗ слеша в конце
+   │     proxy_pass http://127.0.0.1:8012;  ← БЕЗ слеша в конце
    │   }                                  │
    └──────────────────────────────────────┘
         │  путь уходит целиком: /v1/auth/login
-        ▼  reverse SSH-туннель neiro-push-tunnel.service
+        ▼
    ┌──────────────────────────────────────┐
-   │ Pi: 127.0.0.1:8012 → контейнер       │
+   │ VPS: 127.0.0.1:8012 → контейнер      │
    │   FastAPI отвечает на /v1/auth/login │
    └──────────────────────────────────────┘
 ```
+
+До 19.10.2026 между nginx и контейнером был reverse SSH-туннель
+`neiro-push-tunnel.service` (VPS:18083 → Pi:8012). Теперь nginx ходит в
+контейнер напрямую; бэкап конфига со старым портом —
+`/etc/nginx/sites-available/push.neiro.greemlab.ru.bak-20261019-pre-vps`.
 
 **Отсутствие слеша в `proxy_pass` — главное отличие от `/v2`.** У сервиса
 второго поколения `proxy_pass … :18082/` срезает префикс, поэтому внутри
@@ -109,7 +167,7 @@ neiro-push/
 
 ## Переменные окружения
 
-`~/neiro-push/.env` на Pi, права `600`, генерируется деплоем при первом
+`~/neiro-push/.env` на VPS (`roster-vps`), права `600`, генерируется деплоем при первом
 запуске:
 
 ```bash
@@ -119,7 +177,7 @@ RELEASE_NOTIFY_KEY=…       # GitHub Actions: только POST /v1/release/not
 TOKEN_ENCRYPTION_KEY=…     # Fernet: шифрование user_token в БД
 YCLIENTS_PARTNER_TOKEN=…   # единственное место, где он теперь живёт
 YCLIENTS_COMPANY_ID=…      # филиал по умолчанию при входе
-POLL_INTERVAL_SECONDS=10
+POLL_INTERVAL_SECONDS=15     # боевое значение; при первом деплое скрипт пишет 10
 POLL_NIGHT_INTERVAL_SECONDS=3600
 QUIET_START_HOUR=23
 FCM_CREDENTIALS_PATH=/secrets/fcm-service-account.json
@@ -135,21 +193,21 @@ LOG_LEVEL=info
 пароля у дашборда нет. Посмотреть рабочее значение:
 
 ```bash
-ssh roster-pi-remote "grep ^ADMIN_API_KEY= ~/neiro-push/.env"
+ssh roster-vps "grep ^ADMIN_API_KEY= ~/neiro-push/.env"
 ```
 
 Вход ставит куку на 30 дней, так что вводить ключ каждый раз не придётся.
 Сменить его можно правкой `.env` и `docker compose up -d` — приложение этот
 ключ не знает и не заметит.
 
-### Посмотреть ключи на Pi
+### Посмотреть ключи на сервере
 
 Перенесено из README: карточке проекта команды эксплуатации не место, а нужны
 они регулярно — при заполнении `local.properties` и при входе в дашборд.
 
 ```bash
-ssh roster-b3 'grep ^API_KEY= ~/neiro-push/.env'        # в приложение (local.properties)
-ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только админ: health, test-push
+ssh roster-vps 'grep ^API_KEY= ~/neiro-push/.env'        # в приложение (local.properties)
+ssh roster-vps 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только админ: health, test-push
 ```
 
 ### Пуш о новом релизе
@@ -163,8 +221,8 @@ ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env'  # только адми�
 ```bash
 KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
 
-# 1. Pi: строка в .env и перезапуск
-ssh roster-b3 "printf 'RELEASE_NOTIFY_KEY=%s\n' '$KEY' >> ~/neiro-push/.env \
+# 1. VPS: строка в .env и перезапуск
+ssh roster-vps "printf 'RELEASE_NOTIFY_KEY=%s\n' '$KEY' >> ~/neiro-push/.env \
   && cd ~/neiro-push && docker compose up -d"
 
 # 2. GitHub: секрет, которым release.yml дёргает сервер
@@ -189,11 +247,11 @@ curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
 ### Карта секретов
 
 Где что лежит и что делать, если потерялось. Правило простое: **боевое значение
-одно и живёт на Pi**, остальное — копии и записные книжки.
+одно и живёт на VPS**, остальное — копии и записные книжки.
 
 | Секрет | Хранится | Копии | Если потерян |
 |---|---|---|---|
-| `YCLIENTS_PARTNER_TOKEN` | `~/neiro-push/.env` на Pi | закомментирован в `local.properties`, снимки `env-*.txt` | взять новый в `developer.yclients.com`, положить в `.env`, перезапустить |
+| `YCLIENTS_PARTNER_TOKEN` | `~/neiro-push/.env` на VPS | закомментирован в `local.properties`, снимки `env-*.txt` | взять новый в `developer.yclients.com`, положить в `.env`, перезапустить |
 | `API_KEY` (ключ приложения) | `~/neiro-push/.env` | `neiro-push/.env`, `local.properties` → `NEIRO_PUSH_API_KEY` | сгенерировать заново — но APK придётся пересобрать и раскатать |
 | `ADMIN_API_KEY` (дашборд) | `~/neiro-push/.env` | `neiro-push/.env` | сгенерировать заново; приложение его не знает и не заметит |
 | `RELEASE_NOTIFY_KEY` | `~/neiro-push/.env` | GitHub Secrets → `NEIRO_PUSH_RELEASE_NOTIFY_KEY` | сгенерировать заново в обоих местах; до этого релиз выйдет молча |
@@ -234,7 +292,7 @@ curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
 
 | Скрипт | Что делает | Что меняется относительно events |
 |---|---|---|
-| `deploy.sh` | rsync на Pi, `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля, ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
+| `deploy.sh` | rsync на сервер (`PI_SSH=roster-vps`), `.env` при первом запуске, `docker compose up -d --build`, проверка туннеля (на VPS не нужна, предупреждение безвредно), ожидание `/health`, проверка публичного адреса | Пути `~/neiro-push`, порт 8012, юнит `neiro-push-tunnel.service`, публичный URL `…/v1`, проверка непустого `YCLIENTS_PARTNER_TOKEN` |
 | `install-tunnel.sh` | systemd --user юнит Pi → VPS | Порт 18083, юнит `neiro-push-tunnel.service`, локальная цель 8012 |
 | `patch-vps-nginx-v1.sh` | Добавляет `location /v1/`, `/dashboard`, `/health` в сайт nginx на VPS и переводит корень на редирект к дашборду, идемпотентно | **`proxy_pass` без завершающего слеша** |
 | `dev.sh`, `logs.sh`, `backup.sh`, `restore.sh` | Локальный запуск, логи, резервные копии | Имена контейнера и БД |
@@ -246,36 +304,35 @@ curl -sS -X POST https://push.neiro.greemlab.ru/v1/release/notify \
 ## Обновление развёрнутого сервиса
 
 Тот же `deploy.sh`: он делает rsync кода, пересобирает образ и поднимает
-контейнер. `.env` при этом не трогается — ключи и токен на Pi остаются как
+контейнер. `.env` при этом не трогается — ключи и токен на сервере остаются как
 были, поэтому обновление безопасно повторять.
 
 ```bash
-./neiro-push/scripts/deploy.sh
-./neiro-push/scripts/logs.sh --tail 50      # ошибок старта нет
+PI_SSH=roster-vps ./neiro-push/scripts/deploy.sh
+PI_SSH=roster-vps ./neiro-push/scripts/logs.sh --tail 50      # ошибок старта нет
 ```
 
 Данные живут в томе `neiro_push_data` и обновление переживают. Перед заметными
-изменениями — `./neiro-push/scripts/backup.sh`.
+изменениями — `PI_SSH=roster-vps ./neiro-push/scripts/backup.sh`.
 
 ## Проверка после развёртывания
 
 ```bash
 BASE=https://push.neiro.greemlab.ru
-ADMIN=$(ssh roster-b3 'grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-')
+ADMIN=$(ssh roster-vps 'grep ^ADMIN_API_KEY= ~/neiro-push/.env | cut -d= -f2-')
 
 curl -fsS -H "Authorization: Bearer $ADMIN" "$BASE/health"          # 200
 curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/auth/login"      # 401: путь жив, ключа нет
 curl -s -o /dev/null -w '%{http_code}\n' "$BASE/v1/events"          # 401, а не 404
-ssh roster-b3 'systemctl --user is-active neiro-push-tunnel.service'
-ssh roster-b3 'docker ps --format "{{.Names}}\t{{.Ports}}" | grep neiro'
+ssh roster-vps 'docker ps --format "{{.Names}}\t{{.Ports}}" | grep neiro'
 ```
 
-`404` на `/v1/events` означает, что на Pi версия до этапа 5а — нужен
+`404` на `/v1/events` означает, что на сервере версия до этапа 5а — нужен
 передеплой, иначе новое приложение останется без догона пропущенных событий.
 
-Последняя команда — главная проверка сосуществования: должны быть видны **оба**
-контейнера, `neiro-push` на 8012 и `neiro-push-events` на 8011, и ни один из
-них не должен перезапускаться по кругу.
+Последняя команда должна показать один контейнер `neiro-push` на 8012, который
+не перезапускается по кругу. `neiro-push-events` погашен, на VPS его никогда
+не было.
 
 ## Уборка первого поколения
 
